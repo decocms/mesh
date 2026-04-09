@@ -9,14 +9,9 @@
  * All panel-state writes use navigate({ replace: true }) to avoid history pollution.
  */
 
-import { createContext, use, useRef } from "react";
-import { useMatch, useNavigate, useSearch } from "@tanstack/react-router";
-import {
-  getDecopilotId,
-  getWellKnownDecopilotVirtualMCP,
-  useProjectContext,
-} from "@decocms/mesh-sdk";
-import type { ImperativePanelGroupHandle } from "@/web/components/resizable";
+import { useRef } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { getDecopilotId, useProjectContext } from "@decocms/mesh-sdk";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,19 +44,6 @@ export interface LayoutActions {
     opts?: { id?: string; toolName?: string },
   ) => void;
   closeMainView: () => void;
-}
-
-// ---------------------------------------------------------------------------
-// PanelGroupRefContext — provides the imperative PanelGroup handle.
-// ---------------------------------------------------------------------------
-
-export const PanelGroupRefContext =
-  createContext<React.RefObject<ImperativePanelGroupHandle | null> | null>(
-    null,
-  );
-
-export function usePanelGroupRef() {
-  return use(PanelGroupRefContext);
 }
 
 // ---------------------------------------------------------------------------
@@ -162,20 +144,6 @@ export function computeDefaultSizes(state: {
   return { tasks: 0, main: 0, chat: 100 };
 }
 
-/**
- * Applies the target layout to the panel group ref (if available).
- * Uses setLayout() for an atomic, single-pass update of all panel sizes.
- */
-function applyLayout(
-  ref: React.RefObject<ImperativePanelGroupHandle | null> | null | undefined,
-  nextState: { tasksOpen: boolean; mainOpen: boolean; chatOpen: boolean },
-) {
-  const handle = ref?.current;
-  if (!handle) return;
-  const sizes = computeDefaultSizes(nextState);
-  handle.setLayout([sizes.tasks, sizes.main, sizes.chat]);
-}
-
 // ---------------------------------------------------------------------------
 // Search param helpers
 // ---------------------------------------------------------------------------
@@ -203,42 +171,28 @@ function parsePanelParam(
 // Hook
 // ---------------------------------------------------------------------------
 
+/**
+ * Route context required by usePanelState.
+ * Must be provided by the caller because usePanelState runs inside a pathless
+ * layout that cannot see child route params via useMatch.
+ */
+export interface PanelStateRouteCtx {
+  virtualMcpId: string;
+  orgSlug: string;
+  isAgentRoute: boolean;
+  isAgentHomeRoute: boolean;
+}
+
 export function usePanelState(
   entityMetadata: EntityLayoutMetadata | null,
-  panelGroupRef?: React.RefObject<ImperativePanelGroupHandle | null> | null,
-  isAgentHomeRouteOverride?: boolean,
+  routeCtx: PanelStateRouteCtx,
 ): LayoutState & LayoutActions {
   const navigate = useNavigate();
   const { org } = useProjectContext();
 
   const search = useSearch({ strict: false }) as PanelSearchParams;
 
-  const agentsMatch = useMatch({
-    from: "/shell/$org/$virtualMcpId",
-    shouldThrow: false,
-  });
-  const orgHomeMatch = useMatch({
-    from: "/shell/$org/",
-    shouldThrow: false,
-  });
-  const agentHomeMatch = useMatch({
-    from: "/shell/$org/$virtualMcpId/",
-    shouldThrow: false,
-  });
-
-  // Resolve virtualMcpId: agent route param or decopilot fallback
-  const virtualMcpId =
-    agentsMatch?.params.virtualMcpId ??
-    getWellKnownDecopilotVirtualMCP(org.id).id;
-
-  const isAgentRoute = !!agentsMatch;
-  const isOrgHome = !!orgHomeMatch && !agentsMatch;
-  // Org home is effectively the decopilot agent's home route.
-  // The override is needed because useMatch for "/shell/$org/" may not resolve
-  // correctly through the pathless agent-shell layout.
-  const isAgentHomeRoute =
-    isAgentHomeRouteOverride ??
-    ((isAgentRoute && !!agentHomeMatch) || isOrgHome);
+  const { virtualMcpId, orgSlug, isAgentRoute, isAgentHomeRoute } = routeCtx;
 
   const resolveCtx = {
     virtualMcpId,
@@ -262,8 +216,6 @@ export function usePanelState(
   const expandedCount = [tasksOpen, mainOpen, chatOpen].filter(Boolean).length;
 
   // --- Route params for navigation ---
-  const orgSlug =
-    agentsMatch?.params.org ?? orgHomeMatch?.params.org ?? org.slug;
   const routeBase = isAgentRoute
     ? ("/$org/$virtualMcpId/" as const)
     : ("/$org/" as const);
@@ -305,29 +257,21 @@ export function usePanelState(
 
   const toggleTasks = () => {
     if (!canToggle(tasksOpen, expandedCount)) return;
-    const nextState = { tasksOpen: !tasksOpen, mainOpen, chatOpen };
-    applyLayout(panelGroupRef, nextState);
     navigateSearch({ tasks: !tasksOpen ? 1 : 0 }, { replace: true });
   };
 
   const toggleMain = () => {
     if (!canToggle(mainOpen, expandedCount)) return;
-    const nextState = { tasksOpen, mainOpen: !mainOpen, chatOpen };
-    applyLayout(panelGroupRef, nextState);
     navigateSearch({ mainOpen: !mainOpen ? 1 : 0 }, { replace: true });
   };
 
   const toggleChat = () => {
     if (!canToggle(chatOpen, expandedCount)) return;
-    const nextState = { tasksOpen, mainOpen, chatOpen: !chatOpen };
-    applyLayout(panelGroupRef, nextState);
     navigateSearch({ chat: !chatOpen ? 1 : 0 }, { replace: true });
   };
 
   const openChat = () => {
     if (chatOpen) return;
-    const nextState = { tasksOpen, mainOpen, chatOpen: true };
-    applyLayout(panelGroupRef, nextState);
     navigateSearch({ chat: 1 }, { replace: true });
   };
 
@@ -354,7 +298,7 @@ export function usePanelState(
     opts?: { id?: string; toolName?: string },
   ) => {
     if (view === "default") {
-      // Reset main view — clear main/id/toolName, preserve taskId and panel state
+      // Deactivate main view — collapse main panel, clear main/id/toolName
       navigate({
         to: routeBase,
         params: routeParams,
@@ -362,19 +306,13 @@ export function usePanelState(
           const next: Record<string, unknown> = {};
           if (prev.taskId) next.taskId = prev.taskId;
           if (prev.tasks) next.tasks = prev.tasks;
-          if (prev.mainOpen) next.mainOpen = prev.mainOpen;
           if (prev.chat) next.chat = prev.chat;
+          next.mainOpen = 0;
           return next;
         },
         replace: true,
       });
       return;
-    }
-
-    // Open main panel if not already open
-    if (!mainOpen) {
-      const nextState = { tasksOpen, mainOpen: true, chatOpen };
-      applyLayout(panelGroupRef, nextState);
     }
 
     const updates: Record<string, unknown> = {
@@ -387,8 +325,6 @@ export function usePanelState(
   };
 
   const closeMainView = () => {
-    const nextState = { tasksOpen, mainOpen: false, chatOpen };
-    applyLayout(panelGroupRef, nextState);
     navigate({
       to: routeBase,
       params: routeParams,

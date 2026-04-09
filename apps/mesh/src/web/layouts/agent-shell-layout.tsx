@@ -55,8 +55,9 @@ import {
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import {
   Outlet,
-  useMatch,
   useNavigate,
+  useParams,
+  useRouterState,
   useSearch,
 } from "@tanstack/react-router";
 import { PropsWithChildren, Suspense, useTransition } from "react";
@@ -65,7 +66,6 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "@/web/components/empty-state";
 import {
   computeDefaultSizes,
-  PanelGroupRefContext,
   usePanelState,
 } from "@/web/hooks/use-layout-state";
 
@@ -105,12 +105,8 @@ export function useInsetContext(): InsetContextValue | null {
 function PersistentResizablePanel({
   children,
   defaultSize,
-  onCollapse,
-  onExpand,
 }: PropsWithChildren<{
   defaultSize: number;
-  onCollapse?: () => void;
-  onExpand?: () => void;
 }>) {
   const [_isPending, startTransition] = useTransition();
   const [, setChatPanelWidth] = useLocalStorage(
@@ -131,8 +127,6 @@ function PersistentResizablePanel({
       collapsedSize={0}
       className="min-w-0 overflow-hidden bg-sidebar"
       onResize={handleResize}
-      onCollapse={onCollapse}
-      onExpand={onExpand}
       order={3}
     >
       {children}
@@ -146,12 +140,8 @@ function PersistentResizablePanel({
 function TasksResizablePanel({
   children,
   defaultSize,
-  onCollapse,
-  onExpand,
 }: PropsWithChildren<{
   defaultSize: number;
-  onCollapse?: () => void;
-  onExpand?: () => void;
 }>) {
   return (
     <ResizablePanel
@@ -160,8 +150,6 @@ function TasksResizablePanel({
       collapsible={true}
       collapsedSize={0}
       className="min-w-0 overflow-hidden bg-sidebar"
-      onCollapse={onCollapse}
-      onExpand={onExpand}
       order={1}
     >
       {children}
@@ -235,8 +223,6 @@ function UnifiedPanelGroup({
   tasksOpen,
   mainOpen,
   chatOpen,
-  onPanelCollapse,
-  onPanelExpand,
 }: {
   virtualMcpId: string;
   taskId: string;
@@ -245,11 +231,17 @@ function UnifiedPanelGroup({
   tasksOpen: boolean;
   mainOpen: boolean;
   chatOpen: boolean;
-  onPanelCollapse: (panel: "tasks" | "main" | "chat") => void;
-  onPanelExpand: (panel: "tasks" | "main" | "chat") => void;
 }) {
   const sizes = computeDefaultSizes({ tasksOpen, mainOpen, chatOpen });
-  const panelGroupRef = use(PanelGroupRefContext);
+  const panelGroupRef = useRef<ImperativePanelGroupHandle>(null);
+
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — syncs panel layout from URL-derived state; imperative DOM API has no React 19 alternative
+  useEffect(() => {
+    const handle = panelGroupRef.current;
+    if (!handle) return;
+    const s = computeDefaultSizes({ tasksOpen, mainOpen, chatOpen });
+    handle.setLayout([s.tasks, s.main, s.chat]);
+  }, [tasksOpen, mainOpen, chatOpen]);
 
   return (
     <ResizablePanelGroup
@@ -259,11 +251,7 @@ function UnifiedPanelGroup({
       className="flex-1 min-h-0 pb-1 pr-1 pl-0 pt-0"
       style={{ overflow: "visible" }}
     >
-      <TasksResizablePanel
-        defaultSize={sizes.tasks}
-        onCollapse={() => onPanelCollapse("tasks")}
-        onExpand={() => onPanelExpand("tasks")}
-      >
+      <TasksResizablePanel defaultSize={sizes.tasks}>
         <div className="h-full p-0.5 overflow-hidden">
           <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
             <TasksSidePanel
@@ -284,8 +272,6 @@ function UnifiedPanelGroup({
         collapsible={true}
         collapsedSize={0}
         minSize={20}
-        onCollapse={() => onPanelCollapse("main")}
-        onExpand={() => onPanelExpand("main")}
       >
         <div className="h-full p-0.5 overflow-hidden">
           <div
@@ -315,11 +301,7 @@ function UnifiedPanelGroup({
       </ResizablePanel>
 
       <ResizableHandle className="bg-sidebar" />
-      <PersistentResizablePanel
-        defaultSize={sizes.chat}
-        onCollapse={() => onPanelCollapse("chat")}
-        onExpand={() => onPanelExpand("chat")}
-      >
+      <PersistentResizablePanel defaultSize={sizes.chat}>
         <div className="h-full p-0.5">
           <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
             <ActiveTaskBoundary variant={isDecopilot ? "home" : undefined} />
@@ -376,18 +358,16 @@ function AgentInsetProvider() {
   // Org-wide SSE sound notifications
   useStatusSounds(org.id);
 
-  // Extract virtualMcpId from route for agent context
-  const agentsMatch = useMatch({
-    from: "/shell/$org/$virtualMcpId",
-    shouldThrow: false,
-  });
-  const orgHomeMatch = useMatch({
-    from: "/shell/$org/",
-    shouldThrow: false,
-  });
-  const agentVirtualMcpId = agentsMatch?.params.virtualMcpId;
-  const isAgentRoute = !!agentsMatch;
-  const orgSlug = agentsMatch?.params.org ?? orgHomeMatch?.params.org ?? "";
+  // Extract virtualMcpId from route params.
+  // useMatch doesn't work here because the pathless agent-shell layout changes
+  // the route ID hierarchy. useParams is safe — it reads from the resolved route.
+  const params = useParams({ strict: false }) as {
+    org?: string;
+    virtualMcpId?: string;
+  };
+  const agentVirtualMcpId = params.virtualMcpId;
+  const isAgentRoute = !!agentVirtualMcpId;
+  const orgSlug = params.org ?? "";
 
   // Determine the effective virtualMcpId (agent or decopilot)
   const virtualMcpId =
@@ -397,6 +377,15 @@ function AgentInsetProvider() {
   // Org home or agent route → always show 3-panel layout in agent shell
   const isOrgHome = !agentVirtualMcpId;
   const showThreePanels = isAgentRoute || isOrgHome;
+
+  // Determine if we're on the agent/org "home" tab (no sub-route like /workflows).
+  // URL structure: /shell/$org[/$virtualMcpId[/sub-route]]
+  // pathSegments after split("/") and filtering: ["shell", org, virtualMcpId?, ...]
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const pathSegments = pathname.split("/").filter(Boolean);
+  // "shell", org = 2 segments for org home; + virtualMcpId = 3 for agent home
+  const isAgentHomeRoute =
+    isOrgHome || (isAgentRoute && pathSegments.length <= 3);
 
   // Fetch entity (Suspense-based — resolved before render)
   const entity = useVirtualMCP(virtualMcpId);
@@ -433,19 +422,15 @@ function AgentInsetProvider() {
       }
     : null;
 
-  // Panel group ref for imperative resize
-  const panelGroupRef = useRef<ImperativePanelGroupHandle>(null);
-
-  // Layout state from URL querystring (pass panelGroupRef for imperative resize)
-  // For org home, useMatch("/shell/$org/") in usePanelState doesn't resolve through
-  // the pathless agent-shell layout, so isAgentHomeRoute would be false. Override it
-  // only for the org home case — agent routes resolve correctly on their own.
-  const isAgentHomeOverride = isOrgHome ? true : undefined;
-  const layout = usePanelState(
-    entityMetadata,
-    panelGroupRef,
-    isAgentHomeOverride,
-  );
+  // Layout state from URL querystring.
+  // Route context is passed explicitly because usePanelState runs inside a pathless
+  // layout that cannot see child route params via useMatch.
+  const layout = usePanelState(entityMetadata, {
+    virtualMcpId,
+    orgSlug,
+    isAgentRoute,
+    isAgentHomeRoute,
+  });
 
   // Tasks panel virtualMcpId
   const tasksVirtualMcpId = virtualMcpId;
@@ -454,61 +439,6 @@ function AgentInsetProvider() {
   const setMobileSidebarOpen = setOpenMobile;
 
   const onNewTask = useRef<(() => void) | null>(null);
-
-  // Collapse/expand handlers — sync URL when user drags panels.
-  // Guards against no-op navigations to prevent loops (onExpand/onCollapse
-  // fire on mount even when the panel already matches the URL state).
-  const handlePanelCollapse = (panel: "tasks" | "main" | "chat") => {
-    const stateMap = {
-      tasks: layout.tasksOpen,
-      main: layout.mainOpen,
-      chat: layout.chatOpen,
-    } as const;
-    if (!stateMap[panel]) return;
-
-    const paramMap = {
-      tasks: "tasks",
-      main: "mainOpen",
-      chat: "chat",
-    } as const;
-    navigate({
-      to: isAgentRoute
-        ? ("/$org/$virtualMcpId/" as const)
-        : ("/$org/" as const),
-      params: isAgentRoute ? { org: orgSlug, virtualMcpId } : { org: orgSlug },
-      search: (prev: Record<string, unknown>) => ({
-        ...prev,
-        [paramMap[panel]]: 0,
-      }),
-      replace: true,
-    });
-  };
-
-  const handlePanelExpand = (panel: "tasks" | "main" | "chat") => {
-    const stateMap = {
-      tasks: layout.tasksOpen,
-      main: layout.mainOpen,
-      chat: layout.chatOpen,
-    } as const;
-    if (stateMap[panel]) return;
-
-    const paramMap = {
-      tasks: "tasks",
-      main: "mainOpen",
-      chat: "chat",
-    } as const;
-    navigate({
-      to: isAgentRoute
-        ? ("/$org/$virtualMcpId/" as const)
-        : ("/$org/" as const),
-      params: isAgentRoute ? { org: orgSlug, virtualMcpId } : { org: orgSlug },
-      search: (prev: Record<string, unknown>) => ({
-        ...prev,
-        [paramMap[panel]]: 1,
-      }),
-      replace: true,
-    });
-  };
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — subscribes to document keydown for ⇧⌘S new-task shortcut; DOM event listener has no React 19 alternative
   useEffect(() => {
@@ -614,129 +544,125 @@ function AgentInsetProvider() {
 
   // --- Desktop layout ---
   return (
-    <PanelGroupRefContext value={panelGroupRef}>
-      <InsetContext value={insetContextValue}>
-        <div className="shrink-0 flex items-center justify-between pl-1 pr-2 h-10">
-          <div className="flex items-center gap-0.5 min-w-0">
-            <button
-              type="button"
-              onClick={() => window.history.back()}
-              className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-              title="Go back"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() => window.history.forward()}
-              className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-              title="Go forward"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-          <div className="flex items-center gap-0.5">
-            {showThreePanels && (
-              <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onNewTask.current?.();
-                      }}
-                      aria-label="New task"
-                      className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-                    >
-                      <Edit05 size={16} />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    side="bottom"
-                    className="flex items-center gap-1.5"
-                  >
-                    New task
-                    <span className="flex items-center gap-0.5">
-                      {(isMac ? ["⇧", "⌘", "S"] : ["⇧", "Ctrl", "S"]).map(
-                        (key) => (
-                          <kbd
-                            key={key}
-                            className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-sm border border-white/20 bg-white/10 text-white/70 text-xs font-mono"
-                          >
-                            {key}
-                          </kbd>
-                        ),
-                      )}
-                    </span>
-                  </TooltipContent>
-                </Tooltip>
-                <div className="mx-1 h-4 w-px bg-sidebar-foreground/20" />
-                <button
-                  type="button"
-                  onClick={layout.toggleTasks}
-                  aria-pressed={layout.tasksOpen}
-                  className={cn(
-                    "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
-                    layout.tasksOpen
-                      ? "bg-sidebar-accent text-sidebar-foreground"
-                      : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                  )}
-                  title="Toggle tasks"
-                >
-                  <LayoutLeft size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={layout.toggleMain}
-                  aria-pressed={layout.mainOpen}
-                  className={cn(
-                    "flex size-7 items-center justify-center rounded-md transition-colors",
-                    layout.mainOpen
-                      ? "bg-sidebar-accent text-sidebar-foreground"
-                      : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                  )}
-                  title="Toggle content"
-                >
-                  <Browser size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={layout.toggleChat}
-                  aria-pressed={layout.chatOpen}
-                  className={cn(
-                    "flex size-7 items-center justify-center rounded-md transition-colors",
-                    layout.chatOpen
-                      ? "bg-sidebar-accent text-sidebar-foreground"
-                      : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                  )}
-                  title="Toggle chat"
-                >
-                  <LayoutRight size={16} />
-                </button>
-              </>
-            )}
-          </div>
+    <InsetContext value={insetContextValue}>
+      <div className="shrink-0 flex items-center justify-between pl-1 pr-2 h-10">
+        <div className="flex items-center gap-0.5 min-w-0">
+          <button
+            type="button"
+            onClick={() => window.history.back()}
+            className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+            title="Go back"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={() => window.history.forward()}
+            className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+            title="Go forward"
+          >
+            <ChevronRight size={16} />
+          </button>
         </div>
+        <div className="flex items-center gap-0.5">
+          {showThreePanels && (
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onNewTask.current?.();
+                    }}
+                    aria-label="New task"
+                    className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                  >
+                    <Edit05 size={16} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="bottom"
+                  className="flex items-center gap-1.5"
+                >
+                  New task
+                  <span className="flex items-center gap-0.5">
+                    {(isMac ? ["⇧", "⌘", "S"] : ["⇧", "Ctrl", "S"]).map(
+                      (key) => (
+                        <kbd
+                          key={key}
+                          className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-sm border border-white/20 bg-white/10 text-white/70 text-xs font-mono"
+                        >
+                          {key}
+                        </kbd>
+                      ),
+                    )}
+                  </span>
+                </TooltipContent>
+              </Tooltip>
+              <div className="mx-1 h-4 w-px bg-sidebar-foreground/20" />
+              <button
+                type="button"
+                onClick={layout.toggleTasks}
+                aria-pressed={layout.tasksOpen}
+                className={cn(
+                  "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                  layout.tasksOpen
+                    ? "bg-sidebar-accent text-sidebar-foreground"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                )}
+                title="Toggle tasks"
+              >
+                <LayoutLeft size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={layout.toggleMain}
+                aria-pressed={layout.mainOpen}
+                className={cn(
+                  "flex size-7 items-center justify-center rounded-md transition-colors",
+                  layout.mainOpen
+                    ? "bg-sidebar-accent text-sidebar-foreground"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                )}
+                title="Toggle content"
+              >
+                <Browser size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={layout.toggleChat}
+                aria-pressed={layout.chatOpen}
+                className={cn(
+                  "flex size-7 items-center justify-center rounded-md transition-colors",
+                  layout.chatOpen
+                    ? "bg-sidebar-accent text-sidebar-foreground"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                )}
+                title="Toggle chat"
+              >
+                <LayoutRight size={16} />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
 
-        <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
-          <NewTaskBridge
-            onNewTaskRef={onNewTask}
-            createNewTask={layout.createNewTask}
-          />
-          <UnifiedPanelGroup
-            virtualMcpId={virtualMcpId}
-            taskId={layout.taskId}
-            isDecopilot={isDecopilot}
-            tasksVirtualMcpId={tasksVirtualMcpId}
-            tasksOpen={layout.tasksOpen}
-            mainOpen={layout.mainOpen}
-            chatOpen={layout.chatOpen}
-            onPanelCollapse={handlePanelCollapse}
-            onPanelExpand={handlePanelExpand}
-          />
-        </Chat.Provider>
-      </InsetContext>
-    </PanelGroupRefContext>
+      <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
+        <NewTaskBridge
+          onNewTaskRef={onNewTask}
+          createNewTask={layout.createNewTask}
+        />
+        <UnifiedPanelGroup
+          virtualMcpId={virtualMcpId}
+          taskId={layout.taskId}
+          isDecopilot={isDecopilot}
+          tasksVirtualMcpId={tasksVirtualMcpId}
+          tasksOpen={layout.tasksOpen}
+          mainOpen={layout.mainOpen}
+          chatOpen={layout.chatOpen}
+        />
+      </Chat.Provider>
+    </InsetContext>
   );
 }
 

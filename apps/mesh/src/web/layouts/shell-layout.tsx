@@ -15,15 +15,11 @@ import {
   Outlet,
   useMatch,
   useNavigate,
-  useSearch,
+  useParams,
 } from "@tanstack/react-router";
 import { KEYS } from "../lib/query-keys";
 import { useOrgSsoStatus } from "../hooks/use-org-sso";
 import { SsoRequiredScreen } from "../components/sso-required-screen";
-import {
-  computeDefaultSizes,
-  usePanelGroupRef,
-} from "@/web/hooks/use-layout-state";
 
 // ---------------------------------------------------------------------------
 // ShellProjectProvider — fetches org settings and provides project context.
@@ -84,62 +80,22 @@ function ShellProjectProvider({
 
 // ---------------------------------------------------------------------------
 // Panel actions — works anywhere in the router tree.
-// Reads panel group ref from PanelGroupRefContext (optional — null outside
-// the agent tree). Derives panel state from querystring for setLayout().
+// Only updates URL search params. The UnifiedPanelGroup useEffect syncs
+// the visual panel layout from the querystring-derived state.
 // ---------------------------------------------------------------------------
-
-type PanelActionSearchParams = {
-  tasks?: number;
-  mainOpen?: number;
-  chat?: number;
-};
-
-function deriveOpenState(search: PanelActionSearchParams) {
-  // Only derive state from explicit params (1 or 0).
-  // When params are undefined, we can't know the actual panel state
-  // (defaults depend on entity metadata, route, decopilot, etc.).
-  // Returns null if any param is missing — caller should skip setLayout.
-  if (
-    search.tasks === undefined ||
-    search.mainOpen === undefined ||
-    search.chat === undefined
-  ) {
-    return null;
-  }
-  return {
-    tasksOpen: search.tasks !== 0,
-    mainOpen: search.mainOpen !== 0,
-    chatOpen: search.chat !== 0,
-  };
-}
-
-function applyLayout(
-  ref: ReturnType<typeof usePanelGroupRef>,
-  nextState: { tasksOpen: boolean; mainOpen: boolean; chatOpen: boolean },
-) {
-  const handle = ref?.current;
-  if (!handle) return;
-  const sizes = computeDefaultSizes(nextState);
-  handle.setLayout([sizes.tasks, sizes.main, sizes.chat]);
-}
 
 export function usePanelActions() {
   const navigate = useNavigate();
-  const panelGroupRef = usePanelGroupRef();
-  const search = useSearch({ strict: false }) as PanelActionSearchParams;
 
-  const agentsMatch = useMatch({
-    from: "/shell/$org/$virtualMcpId",
-    shouldThrow: false,
-  });
-  const orgHomeMatch = useMatch({
-    from: "/shell/$org/",
-    shouldThrow: false,
-  });
-
-  const orgSlug = agentsMatch?.params.org ?? orgHomeMatch?.params.org ?? "";
-  const isAgentRoute = !!agentsMatch;
-  const virtualMcpId = agentsMatch?.params.virtualMcpId ?? "";
+  // useParams instead of useMatch — useMatch can't see child routes through
+  // the pathless agent-shell layout.
+  const params = useParams({ strict: false }) as {
+    org?: string;
+    virtualMcpId?: string;
+  };
+  const orgSlug = params.org ?? "";
+  const isAgentRoute = !!params.virtualMcpId;
+  const virtualMcpId = params.virtualMcpId ?? "";
 
   const routeBase = isAgentRoute
     ? ("/$org/$virtualMcpId/" as const)
@@ -159,21 +115,11 @@ export function usePanelActions() {
       replace,
     });
 
-  const setChatOpen = (open: boolean) => {
-    const current = deriveOpenState(search);
-    if (current) {
-      applyLayout(panelGroupRef, { ...current, chatOpen: open });
-    }
+  const setChatOpen = (open: boolean) =>
     nav((prev) => ({ ...prev, chat: open ? 1 : 0 }));
-  };
 
-  const setTasksOpen = (open: boolean) => {
-    const current = deriveOpenState(search);
-    if (current) {
-      applyLayout(panelGroupRef, { ...current, tasksOpen: open });
-    }
+  const setTasksOpen = (open: boolean) =>
     nav((prev) => ({ ...prev, tasks: open ? 1 : 0 }));
-  };
 
   const setTaskId = (id: string) =>
     nav((prev) => {
@@ -203,17 +149,11 @@ export function usePanelActions() {
         const next: Record<string, unknown> = {};
         if (prev.taskId) next.taskId = prev.taskId;
         if (prev.tasks) next.tasks = prev.tasks;
-        if (prev.mainOpen) next.mainOpen = prev.mainOpen;
         if (prev.chat) next.chat = prev.chat;
+        next.mainOpen = 0;
         return next;
       });
       return;
-    }
-
-    // Open main panel imperatively if not already open
-    const current = deriveOpenState(search);
-    if (current && !current.mainOpen) {
-      applyLayout(panelGroupRef, { ...current, mainOpen: true });
     }
 
     nav((prev) => {
@@ -228,11 +168,7 @@ export function usePanelActions() {
     });
   };
 
-  const closeMainView = () => {
-    const current = deriveOpenState(search);
-    if (current) {
-      applyLayout(panelGroupRef, { ...current, mainOpen: false });
-    }
+  const closeMainView = () =>
     nav((prev) => {
       const next: Record<string, unknown> = {};
       if (prev.taskId) next.taskId = prev.taskId;
@@ -241,7 +177,6 @@ export function usePanelActions() {
       next.mainOpen = 0;
       return next;
     });
-  };
 
   return {
     setChatOpen,
