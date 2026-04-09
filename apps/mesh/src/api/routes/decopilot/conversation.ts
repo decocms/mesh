@@ -189,6 +189,22 @@ export async function processConversation(
                 providerMetadata: _pm,
                 ...rest
               } = p;
+              // Gemini requires thought_signature on functionCall parts when
+              // thinking is enabled; stripping it causes API errors.
+              // Preserve only the google namespace on tool-call parts.
+              if (p.type === "tool-call") {
+                const googleMeta = (_pm as Record<string, unknown>)?.google;
+                const googleOpts = (_po as Record<string, unknown>)?.google;
+                return {
+                  ...rest,
+                  ...(googleMeta
+                    ? { providerMetadata: { google: googleMeta } }
+                    : {}),
+                  ...(googleOpts
+                    ? { providerOptions: { google: googleOpts } }
+                    : {}),
+                } as typeof part;
+              }
               return rest as typeof part;
             }
             return part;
