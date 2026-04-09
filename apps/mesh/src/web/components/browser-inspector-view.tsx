@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useInsetContext } from "@/web/layouts/shell-layout";
+import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import {
   RefreshCcw01,
   LinkExternal01,
