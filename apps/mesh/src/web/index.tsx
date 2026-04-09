@@ -158,12 +158,24 @@ const orgLayout = createRoute({
 });
 
 // ============================================
-// ORG-LEVEL ROUTES (children of orgLayout)
+// AGENT SHELL LAYOUT (pathless — wraps agent/org-home routes with sidebar + 3-panel)
+// ============================================
+
+const agentShellLayout = createRoute({
+  getParentRoute: () => orgLayout,
+  id: "agent-shell",
+  component: lazyRouteComponent(
+    () => import("./layouts/agent-shell-layout.tsx"),
+  ),
+});
+
+// ============================================
+// ORG-LEVEL ROUTES (children of agentShellLayout)
 // ============================================
 
 // Org home - the default view when entering an org
 const orgHomeRoute = createRoute({
-  getParentRoute: () => orgLayout,
+  getParentRoute: () => agentShellLayout,
   path: "/",
   validateSearch: z.object({
     taskId: z
@@ -364,7 +376,7 @@ const settingsWorkflowDetailRoute = createRoute({
 
 // Org-level plugin route (mirrors /$org/$virtualMcpId/$pluginId for org-admin)
 const orgPluginRoute = createRoute({
-  getParentRoute: () => orgLayout,
+  getParentRoute: () => agentShellLayout,
   path: "/plugins/$pluginId",
   component: lazyRouteComponent(
     () => import("./layouts/org-plugin-layout.tsx"),
@@ -384,7 +396,7 @@ const settingsAgentsRoute = createRoute({
 
 // Agents layout (/$org/$virtualMcpId)
 const agentsLayout = createRoute({
-  getParentRoute: () => orgLayout,
+  getParentRoute: () => agentShellLayout,
   path: "/$virtualMcpId",
   component: Outlet,
 });
@@ -532,14 +544,16 @@ const agentsWithChildren = agentsLayout.addChildren([
   agentPluginWithChildren,
 ]);
 
-const orgRoutes = [
+const agentShellWithChildren = agentShellLayout.addChildren([
   orgHomeRoute,
   agentsWithChildren,
-  settingsWithChildren,
   orgPluginRoute,
-];
+]);
 
-const orgLayoutWithChildren = orgLayout.addChildren(orgRoutes);
+const orgLayoutWithChildren = orgLayout.addChildren([
+  agentShellWithChildren,
+  settingsWithChildren,
+]);
 
 const shellRouteTree = shellLayout.addChildren([
   homeRoute,
