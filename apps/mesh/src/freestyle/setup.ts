@@ -21,13 +21,36 @@ export async function setupRepo(
   const validated = validateRepoUrl(repoUrl);
   const fileReader = reader ?? new GitHubFileReader();
 
-  const detection = await detectRepo(validated, fileReader);
+  let detection: Awaited<ReturnType<typeof detectRepo>>;
+  try {
+    detection = await detectRepo(validated, fileReader);
+  } catch (e) {
+    throw new Error(
+      `Detection failed: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
 
-  const { repoId, repo } = await freestyle.git.repos.create({
-    source: { url: `https://github.com/${validated}` },
-  });
+  let repoId: string;
+  let repo: Awaited<ReturnType<typeof freestyle.git.repos.create>>["repo"];
+  try {
+    const result = await freestyle.git.repos.create({
+      source: { url: `https://github.com/${validated}` },
+    });
+    repoId = result.repoId;
+    repo = result.repo;
+  } catch (e) {
+    throw new Error(
+      `Freestyle repo creation failed: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
 
-  await repo.githubSync.enable({ githubRepoName: validated });
+  try {
+    await repo.githubSync.enable({ githubRepoName: validated });
+  } catch (e) {
+    throw new Error(
+      `GitHub sync enable failed: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
 
   const spec = new VmSpec()
     .with("js", new VmBun())
@@ -44,7 +67,17 @@ export async function setupRepo(
     .waitForReadySignal(true)
     .snapshot();
 
-  const { vm, vmId } = await freestyle.vms.create(spec);
+  let vmId: string;
+  let vm: { suspend(): Promise<unknown> };
+  try {
+    const result = await freestyle.vms.create(spec);
+    vmId = result.vmId;
+    vm = result.vm;
+  } catch (e) {
+    throw new Error(
+      `VM creation failed: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
 
   await vm.suspend();
 

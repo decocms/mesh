@@ -102,14 +102,18 @@ export const VIRTUAL_MCP_ADD_REPO = defineTool({
       };
     } catch (error) {
       // Reset status on failure
-      await ctx.storage.virtualMcps.update(input.virtual_mcp_id, userId, {
-        metadata: {
-          ...existing.metadata,
-          repo_url: input.repo_url,
-          runtime_status: "idle",
-        },
-      });
-      throw error;
+      await ctx.storage.virtualMcps
+        .update(input.virtual_mcp_id, userId, {
+          metadata: {
+            ...existing.metadata,
+            repo_url: input.repo_url,
+            runtime_status: "idle",
+          },
+        })
+        .catch(() => {});
+
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to add repo "${input.repo_url}": ${message}`);
     }
   },
 });
