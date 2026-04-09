@@ -153,6 +153,7 @@ interface TiptapInputProps {
   showFileUploader?: boolean;
   selectedModel?: AiProviderModel | null;
   ref?: Ref<TiptapInputHandle>;
+  className?: string;
 }
 
 /**
@@ -165,6 +166,7 @@ export function TiptapInput({
   showFileUploader = false,
   selectedModel,
   ref,
+  className,
 }: TiptapInputProps) {
   const { editor } = useCurrentEditor();
 
@@ -191,6 +193,7 @@ export function TiptapInput({
         editor={editor}
         className={cn(
           "overflow-y-auto relative flex-1 max-h-[164px] min-h-[20px] w-full flex flex-col",
+          className,
           "[&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[20px] [&_.ProseMirror]:flex-1",
           "[&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]",
           "[&_.ProseMirror_p.is-editor-empty:first-child::before]:text-muted-foreground",
