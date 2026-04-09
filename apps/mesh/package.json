@@ -51,6 +51,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@freestyle-sh/with-bun": "^0.2.10",
     "@freestyle-sh/with-deno": "^0.0.2",
+    "@freestyle-sh/with-web-terminal": "^0.0.7",
     "@inkjs/ui": "^2.0.0",
     "@modelcontextprotocol/ext-apps": "^1.2.2",
     "@openrouter/ai-sdk-provider": "^2.2.5",

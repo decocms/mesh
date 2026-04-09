@@ -62,6 +62,7 @@ export const VIRTUAL_MCP_STOP_SCRIPT = defineTool({
         running_script: null,
         freestyle_vm_id: null,
         vm_domain: null,
+        terminal_domain: null,
       },
     });
 

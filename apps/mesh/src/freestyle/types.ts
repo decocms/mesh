@@ -10,6 +10,7 @@ export interface FreestyleMetadata {
   scripts?: Record<string, string> | null;
   preview_port?: number | null;
   autorun?: string | null;
+  terminal_domain?: string | null;
 }
 
 export const REPO_URL_PATTERN = /^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/;

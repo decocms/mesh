@@ -91,13 +91,19 @@ export const VIRTUAL_MCP_RUN_SCRIPT = defineTool({
         await ctx.storage.virtualMcps.update(virtualMcpId, userId, {
           metadata: {
             ...existing.metadata,
-            runtime_status: "running",
+            runtime_status: result.appReady ? "running" : "installing",
             running_script: script,
             freestyle_vm_id: result.vmId,
             vm_domain: result.domain,
+            terminal_domain: result.terminalDomain,
           },
         });
-        console.log("[run-script] VM ready:", result.domain);
+        console.log(
+          "[run-script] VM ready:",
+          result.domain,
+          "appReady:",
+          result.appReady,
+        );
       } catch (error) {
         console.error("[run-script] VM creation failed:", error);
         // Reset on failure
@@ -108,6 +114,7 @@ export const VIRTUAL_MCP_RUN_SCRIPT = defineTool({
               runtime_status: "idle",
               running_script: null,
               vm_domain: null,
+              terminal_domain: null,
             },
           })
           .catch(() => {});

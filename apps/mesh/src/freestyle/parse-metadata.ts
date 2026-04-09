@@ -42,6 +42,10 @@ export function parseFreestyleMetadata(metadata: unknown): FreestyleMetadata {
         ? m.preview_port
         : null,
     autorun: typeof m.autorun === "string" ? m.autorun : null,
+    terminal_domain:
+      typeof m.terminal_domain === "string" && m.terminal_domain !== ""
+        ? m.terminal_domain
+        : null,
   };
 }
 
@@ -62,5 +66,6 @@ export function emptyFreestyleMetadata(): Record<string, null> {
     scripts: null,
     preview_port: null,
     autorun: null,
+    terminal_domain: null,
   };
 }

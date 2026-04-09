@@ -42,6 +42,9 @@ export function BrowserInspectorView() {
   const isInstalling = fm.runtime_status === "installing" || starting;
   const scriptEntries = Object.keys(fm.scripts ?? {});
   const url = vmDomain ? `https://${vmDomain}` : null;
+  const terminalUrl = fm.terminal_domain
+    ? `https://${fm.terminal_domain}`
+    : null;
 
   // Poll for status changes while installing (VM creation is async)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -139,25 +142,25 @@ export function BrowserInspectorView() {
         </div>
 
         {/* Right side: play/stop + external link */}
-        {isRunning && (
-          <>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleStop}
-              className="h-7 w-7 p-0 text-destructive/80 hover:text-destructive"
-            >
-              <StopCircle size={14} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => window.open(url!, "_blank", "noopener,noreferrer")}
-              className="h-7 w-7 p-0"
-            >
-              <LinkExternal01 size={14} />
-            </Button>
-          </>
+        {(isRunning || isInstalling) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleStop}
+            className="h-7 w-7 p-0 text-destructive/80 hover:text-destructive"
+          >
+            <StopCircle size={14} />
+          </Button>
+        )}
+        {isRunning && url && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+            className="h-7 w-7 p-0"
+          >
+            <LinkExternal01 size={14} />
+          </Button>
         )}
 
         {!isRunning && !isInstalling && scriptEntries.length > 0 && (
@@ -193,22 +196,31 @@ export function BrowserInspectorView() {
           className="flex-1 w-full border-0"
           title="Browser Inspector"
         />
+      ) : isInstalling && terminalUrl ? (
+        <iframe
+          src={terminalUrl}
+          sandbox="allow-scripts allow-same-origin"
+          className="flex-1 w-full border-0 bg-black"
+          title="Terminal"
+        />
+      ) : isInstalling ? (
+        <div className="flex flex-1 items-center justify-center">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <Loading01
+              size={32}
+              className="animate-spin text-muted-foreground"
+            />
+            <p className="text-sm text-muted-foreground">
+              {fm.runtime_status === "installing"
+                ? "Installing dependencies..."
+                : "Starting server..."}
+            </p>
+          </div>
+        </div>
       ) : (
         <div className="flex flex-1 items-center justify-center">
           <div className="flex flex-col items-center gap-3 text-center">
-            {isInstalling ? (
-              <>
-                <Loading01
-                  size={32}
-                  className="animate-spin text-muted-foreground"
-                />
-                <p className="text-sm text-muted-foreground">
-                  {fm.runtime_status === "installing"
-                    ? "Installing dependencies..."
-                    : "Starting server..."}
-                </p>
-              </>
-            ) : scriptEntries.length > 0 ? (
+            {scriptEntries.length > 0 ? (
               <>
                 <div className="flex items-center justify-center size-14 rounded-2xl bg-muted border border-border/60">
                   <Play size={24} className="text-muted-foreground" />

@@ -70,6 +70,7 @@
         "@dnd-kit/utilities": "^3.2.2",
         "@freestyle-sh/with-bun": "^0.2.10",
         "@freestyle-sh/with-deno": "^0.0.2",
+        "@freestyle-sh/with-web-terminal": "^0.0.7",
         "@inkjs/ui": "^2.0.0",
         "@modelcontextprotocol/ext-apps": "^1.2.2",
         "@openrouter/ai-sdk-provider": "^2.2.5",
@@ -774,6 +775,8 @@
     "@freestyle-sh/with-type-js-deps": ["@freestyle-sh/with-type-js-deps@0.2.8", "", { "dependencies": { "freestyle-sandboxes": "^0.1.28" } }, "sha512-YXflkMlwcqUHaQcue02hqb9WLAL4O4yjY5vxSJqYn/YBdwiEApthZayeiEvSQz2tBEGuPreAj0T6Mc4I0O62Ew=="],
 
     "@freestyle-sh/with-type-run-code": ["@freestyle-sh/with-type-run-code@0.2.8", "", { "dependencies": { "freestyle-sandboxes": "^0.1.28" } }, "sha512-xvtZRlWJWS5a+q6iLEY1T1dy8z2PIT3y1q81fm+jxR9rj4V+a71QvueYyOmfZgrq1oigvbDQx1F6R04DMnxTPA=="],
+
+    "@freestyle-sh/with-web-terminal": ["@freestyle-sh/with-web-terminal@0.0.7", "", { "dependencies": { "freestyle-sandboxes": "^0.1.28" } }, "sha512-VTZW6Adrt/Tz3jE9PXG3uL5KoKWckCSaidLfcqY5pTZ772bu0c3WZr6faLV5Gc4HygcPYP7blzbwRnITobv2+w=="],
 
     "@grpc/grpc-js": ["@grpc/grpc-js@1.14.3", "", { "dependencies": { "@grpc/proto-loader": "^0.8.0", "@js-sdsl/ordered-map": "^4.4.2" } }, "sha512-Iq8QQQ/7X3Sac15oB6p0FmUg/klxQvXLeileoqrTRGJYLV+/9tubbr9ipz0GKHjmXVsgFPo/+W+2cA8eNcR+XA=="],
 

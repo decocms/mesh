@@ -2,13 +2,17 @@ import type { Freestyle } from "freestyle-sandboxes";
 import { VmSpec } from "freestyle-sandboxes";
 import { VmBun } from "@freestyle-sh/with-bun";
 import { VmDeno } from "@freestyle-sh/with-deno";
+import { VmWebTerminal } from "@freestyle-sh/with-web-terminal";
 import type { FreestyleMetadata } from "./types";
 
 const BUN_BIN = "/opt/bun/bin/bun";
+const SCRIPT_NAME_PATTERN = /^[a-zA-Z0-9_:.-]+$/;
 
 export interface RunScriptResult {
   vmId: string;
   domain: string | null;
+  terminalDomain: string | null;
+  appReady: boolean;
 }
 
 export async function runScript(
@@ -27,6 +31,12 @@ export async function runScript(
     );
   }
 
+  if (!SCRIPT_NAME_PATTERN.test(script)) {
+    throw new Error(
+      `Invalid script name: "${script}". Only alphanumeric, dash, underscore, colon, and dot are allowed.`,
+    );
+  }
+
   if (metadata.freestyle_vm_id) {
     await freestyle.vms
       .delete({ vmId: metadata.freestyle_vm_id })
@@ -35,89 +45,113 @@ export async function runScript(
 
   const runtime = metadata.runtime ?? "bun";
   const targetPort = metadata.preview_port ?? 3000;
-
-  // Create VM with the correct integration per runtime
   const repoId = metadata.freestyle_repo_id;
-  const createOpts = {
-    idleTimeoutSeconds: 600,
+
+  // Wrapper script: installs deps then exec's the dev server
+  // Using exec so the server process replaces bash — prevents ttyd restart loops
+  const startScript =
+    runtime === "deno"
+      ? [
+          "#!/bin/bash",
+          "set -e",
+          "cd /app",
+          `export HOST=0.0.0.0`,
+          `export PORT=${targetPort}`,
+          "deno install",
+          `exec deno task ${script}`,
+        ].join("\n")
+      : [
+          "#!/bin/bash",
+          "set -e",
+          "cd /app",
+          `export HOST=0.0.0.0`,
+          `export PORT=${targetPort}`,
+          `${BUN_BIN} install`,
+          `exec ${BUN_BIN} run ${script}`,
+        ].join("\n");
+
+  const runtimeIntegration = runtime === "deno" ? new VmDeno() : new VmBun();
+  const runtimeKey = runtime === "deno" ? "deno" : "js";
+
+  const spec = new VmSpec()
+    .with(runtimeKey, runtimeIntegration)
+    .with(
+      "terminal",
+      new VmWebTerminal([
+        {
+          id: "main",
+          command: "bash /tmp/start.sh",
+          readOnly: true,
+          cwd: "/app",
+        },
+      ] as const),
+    )
+    .repo(repoId, "/app")
+    .workdir("/app");
+
+  const result = await freestyle.vms.create({
+    spec,
+    additionalFiles: {
+      "/tmp/start.sh": { content: startScript },
+    },
     ports: [{ port: 443, targetPort }],
-  };
+    idleTimeoutSeconds: 600,
+  });
 
-  let vmId: string;
-  let vm: { exec: (cmd: string) => Promise<unknown> };
-  let rawDomains: unknown;
+  const vmId = result.vmId;
+  // biome-ignore lint: accessing terminal from dynamic VM result
+  const vm = result.vm as any;
 
-  if (runtime === "deno") {
-    const spec = new VmSpec()
-      .with("deno", new VmDeno())
-      .repo(repoId, "/app")
-      .workdir("/app");
-    const result = await freestyle.vms.create({ spec, ...createOpts });
-    vmId = result.vmId;
-    vm = result.vm;
-    rawDomains = (result as Record<string, unknown>).domains;
-  } else {
-    const spec = new VmSpec()
-      .with("js", new VmBun())
-      .repo(repoId, "/app")
-      .workdir("/app");
-    const result = await freestyle.vms.create({ spec, ...createOpts });
-    vmId = result.vmId;
-    vm = result.vm;
-    rawDomains = (result as Record<string, unknown>).domains;
-  }
+  console.log("[runtime] VM created:", { vmId });
 
-  console.log("[runtime] VM created:", { vmId, domains: rawDomains });
-
-  // Install deps
-  // biome-ignore lint: dynamic access based on runtime
-  const vmAny: any = vm;
-  if (runtime === "deno") {
-    await vmAny.deno.install({ directory: "/app" });
-  } else {
-    await vmAny.js.install({ directory: "/app" });
-  }
-
-  // Start the script — use deno task or bun run
-  const runCmd =
-    runtime === "deno" ? `deno task ${script}` : `${BUN_BIN} run ${script}`;
-
-  await vm.exec(
-    `cd /app && HOST=0.0.0.0 PORT=${targetPort} nohup ${runCmd} > /tmp/app.log 2>&1 &`,
-  );
-
-  // Wait for server to start, then diagnose
-  await new Promise((resolve) => setTimeout(resolve, 3000));
+  // Route the terminal to a public domain
+  let terminalDomain: string | null = null;
   try {
-    const logResult = await vm.exec(
-      "tail -20 /tmp/app.log 2>/dev/null || echo 'no log'",
-    );
-    console.log("[runtime] App log:", logResult);
-    const whichDeno = await vm.exec(
-      "which deno 2>/dev/null || echo 'deno not found'",
-    );
-    console.log("[runtime] deno location:", whichDeno);
+    terminalDomain = `${vmId}-terminal.style.dev`;
+    await vm.terminal.main.route({ domain: terminalDomain });
+    console.log("[runtime] Terminal routed:", terminalDomain);
   } catch (e) {
-    console.error("[runtime] Diagnostics failed:", e);
+    console.error("[runtime] Terminal routing failed:", e);
+    terminalDomain = null;
   }
 
-  // Get domain
+  // Get preview domain
+  const rawDomains = (result as Record<string, unknown>).domains;
   let domain: string | null = null;
   if (Array.isArray(rawDomains) && rawDomains.length > 0) {
     domain = rawDomains[0];
   }
-
-  // Fallback: construct from vmId
   if (!domain) {
     domain = `${vmId}.freestyle.sh`;
     console.log("[runtime] Constructed domain from vmId:", domain);
   }
 
-  console.log("[runtime] Final domain:", domain);
+  // Health-check: poll the app port until it responds (max 120s)
+  const maxWait = 120_000;
+  const startTime = Date.now();
+  let appReady = false;
+  while (Date.now() - startTime < maxWait) {
+    try {
+      const check = await vm.exec(
+        `curl -s -o /dev/null -w '%{http_code}' http://localhost:${targetPort} 2>/dev/null || echo 000`,
+      );
+      if (check && String(check).trim() !== "000") {
+        appReady = true;
+        break;
+      }
+    } catch {
+      // VM may not be ready yet
+    }
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+
+  console.log("[runtime] Final domain:", domain, "appReady:", appReady);
 
   return {
     vmId,
     domain,
+    terminalDomain,
+    appReady,
   };
 }
 
