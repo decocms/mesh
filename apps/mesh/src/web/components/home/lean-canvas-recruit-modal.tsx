@@ -25,6 +25,7 @@ import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import {
   SELF_MCP_ALIAS_ID,
   WELL_KNOWN_AGENT_TEMPLATES,
+  WellKnownOrgMCPId,
   useConnectionActions,
   useMCPClient,
   useMCPToolCallMutation,
@@ -173,7 +174,8 @@ export function LeanCanvasRecruitModal({
         connectionId = connection.id;
       }
 
-      // 2. Create a virtual MCP (agent) with the connection attached
+      // 2. Create a virtual MCP (agent) with the connection + self MCP attached
+      const selfConnectionId = WellKnownOrgMCPId.SELF(org.id);
       const virtualMcp = await virtualMcpActions.create.mutateAsync({
         title: template.title,
         description: "Lean Canvas business model builder",
@@ -182,6 +184,12 @@ export function LeanCanvasRecruitModal({
         connections: [
           {
             connection_id: connectionId,
+            selected_tools: null,
+            selected_resources: null,
+            selected_prompts: null,
+          },
+          {
+            connection_id: selfConnectionId,
             selected_tools: null,
             selected_resources: null,
             selected_prompts: null,
