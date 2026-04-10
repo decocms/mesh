@@ -1,18 +1,28 @@
 import type { ConnectionEntity } from "@decocms/mesh-sdk";
 import { getConnectionSlug } from "./connection-slug";
+import { slugify } from "./slugify";
 
 /**
  * Strip auto-generated instance suffixes like "(2)" or "(a1b2)" from a title.
- * Matches 1-6 character parenthesized suffixes at the end of the string, which
- * covers numeric instance numbers and short base-36 clone IDs. Longer
- * parenthesized qualifiers (e.g., "(Desktop)") are preserved.
  */
 const INSTANCE_SUFFIX_RE = /\s*\([^)]{1,6}\)\s*$/;
 
 /**
+ * Convert an app_name slug to a display title as a last resort.
+ * "google-gmail" → "Google Gmail", "@scope/tool" → "Tool"
+ */
+function slugToTitle(appName: string): string {
+  const slug = appName.replace(/^@[^/]+\//, "");
+  return slug.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
  * Returns the canonical display title for a connection in catalog/card/header contexts.
- * Strips auto-generated instance suffixes from the connection title so that
- * "Vercel MCP (2)" displays as "Vercel MCP".
+ *
+ * Strategy:
+ * 1. Strip auto-generated instance suffixes from the title ("Vercel MCP (2)" → "Vercel MCP")
+ * 2. If the stripped title still matches the app_name slug, use it (preserves original casing)
+ * 3. If it doesn't match (user renamed the instance), fall back to slug → title conversion
  *
  * Use the raw connection.title only when showing the specific instance matters
  * (e.g., the instance list inside a connection detail, or the binding selector).
@@ -20,16 +30,40 @@ const INSTANCE_SUFFIX_RE = /\s*\([^)]{1,6}\)\s*$/;
 export function getConnectionDisplayTitle(
   connection: ConnectionEntity,
 ): string {
-  return connection.title.replace(INSTANCE_SUFFIX_RE, "");
+  const stripped = connection.title.replace(INSTANCE_SUFFIX_RE, "");
+  if (!connection.app_name) return stripped;
+
+  // If slugifying the stripped title matches app_name, the title is original — use it
+  if (slugify(stripped) === connection.app_name) {
+    return stripped;
+  }
+
+  // Title was renamed — fall back to slug conversion
+  return slugToTitle(connection.app_name);
 }
 
 /**
  * For a group of connections sharing the same app, pick the best canonical title.
- * Uses the shortest stripped title among all instances so that user-renamed
- * instances (e.g., "Google Gmail adsfadsfa") don't pollute the group title
- * when a sibling still has the clean original name.
+ * Prefers the original (non-renamed) title from any instance to preserve correct
+ * casing. Falls back to the shortest stripped title.
  */
 export function getGroupDisplayTitle(connections: ConnectionEntity[]): string {
+  const appName = connections[0]!.app_name;
+
+  // First pass: look for an instance whose title still matches the app_name
+  // (i.e. hasn't been renamed). This preserves original casing like "Vercel MCP".
+  if (appName) {
+    for (const c of connections) {
+      const stripped = c.title.replace(INSTANCE_SUFFIX_RE, "");
+      if (slugify(stripped) === appName) {
+        return stripped;
+      }
+    }
+    // All instances were renamed — fall back to slug conversion
+    return slugToTitle(appName);
+  }
+
+  // No app_name — pick the shortest stripped title
   let best = getConnectionDisplayTitle(connections[0]!);
   for (let i = 1; i < connections.length; i++) {
     const candidate = getConnectionDisplayTitle(connections[i]!);
