@@ -55,6 +55,14 @@ export async function buildSettings(flags: CliFlags): Promise<BuildResult> {
     await migrateToLatest({ keepOpen: true, database, skipBetterAuth: true });
   }
 
+  // 4b. ClickHouse rollup DDL (non-blocking — queries fall back to raw table)
+  if (config.settings.clickhouseUrl) {
+    const { ensureClickHouseRollup } = await import(
+      "../monitoring/clickhouse-schema"
+    );
+    await ensureClickHouseRollup(config.settings.clickhouseUrl);
+  }
+
   // 5. Assemble and freeze
   const settings: Settings = {
     ...config.settings,

@@ -867,8 +867,10 @@ export async function createMeshContextFactory(
     : (orgId: string) =>
         `read_ndjson('${logsBasePath}/${orgId}/**/*.ndjson', auto_detect=true)`;
 
+  const useMetricsRollup = process.env.USE_METRICS_ROLLUP !== "false";
   const metricSourceFactory = isClickHouse
-    ? (_orgId: string) => "monitoring_metrics"
+    ? (_orgId: string) =>
+        useMetricsRollup ? "monitoring_metrics_rollup_1m" : "monitoring_metrics"
     : (orgId: string) =>
         `read_ndjson('${metricsBasePath}/${orgId}/**/*.ndjson', auto_detect=true)`;
 
