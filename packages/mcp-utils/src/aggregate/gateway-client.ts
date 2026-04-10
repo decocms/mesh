@@ -131,6 +131,12 @@ export class GatewayClient extends Client {
   /** Route map for resources (URIs aren't namespaced). */
   private resourceRouteMap = new Map<string, string>();
 
+  /**
+   * Reverse map from truncated namespaced name → original full name.
+   * Populated when namespace() truncates a name to fit the 128-char limit.
+   */
+  private truncatedNames = new Map<string, string>();
+
   constructor(
     clients: Record<string, ClientEntry>,
     options?: GatewayClientOptions,
@@ -155,7 +161,12 @@ export class GatewayClient extends Client {
   // ---------------------------------------------------------------------------
 
   private namespace(clientKey: string, name: string): string {
-    return `${slugify(clientKey)}_${name}`;
+    const full = `${slugify(clientKey)}_${name}`;
+    if (full.length <= 128) return full;
+    // Truncate to 128 chars (Claude API limit) and store reverse mapping
+    const truncated = full.slice(0, 128);
+    this.truncatedNames.set(truncated, full);
+    return truncated;
   }
 
   /**
@@ -167,13 +178,16 @@ export class GatewayClient extends Client {
   private async resolveToolTarget(
     name: string,
   ): Promise<[clientKey: string, originalName: string]> {
+    // Resolve truncated names back to their full form
+    const fullName = this.truncatedNames.get(name) ?? name;
+
     // Fast path: namespace prefix matches a known client
-    const sep = name.indexOf("_");
+    const sep = fullName.indexOf("_");
     if (sep !== -1) {
-      const slug = name.slice(0, sep);
+      const slug = fullName.slice(0, sep);
       const clientKey = this.slugToKey.get(slug);
       if (clientKey) {
-        return [clientKey, name.slice(sep + 1)];
+        return [clientKey, fullName.slice(sep + 1)];
       }
     }
 
@@ -205,13 +219,16 @@ export class GatewayClient extends Client {
   private async resolvePromptTarget(
     name: string,
   ): Promise<[clientKey: string, originalName: string]> {
+    // Resolve truncated names back to their full form
+    const fullName = this.truncatedNames.get(name) ?? name;
+
     // Fast path: namespace prefix matches a known client
-    const sep = name.indexOf("_");
+    const sep = fullName.indexOf("_");
     if (sep !== -1) {
-      const slug = name.slice(0, sep);
+      const slug = fullName.slice(0, sep);
       const clientKey = this.slugToKey.get(slug);
       if (clientKey) {
-        return [clientKey, name.slice(sep + 1)];
+        return [clientKey, fullName.slice(sep + 1)];
       }
     }
 
