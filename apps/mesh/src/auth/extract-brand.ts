@@ -63,18 +63,27 @@ export async function extractBrandFromDomain(
   const metadata = result.data.metadata ?? {};
   const mapped = mapFirecrawlBranding(branding, metadata);
 
-  // Derive name — prefer the shortest segment after a separator in the
-  // title (e.g. "Visual CMS for Your Storefront | Deco" → "Deco"),
-  // then ogSiteName, then the fallback.
+  // Derive name from the page title by splitting on common separators
+  // (|, –, —, " - ") and picking the best segment.
+  // Priority: segment matching the domain > shortest segment > ogSiteName > fallback.
   const titleParts = (metadata.title as string)
     ?.split(/[|–—]|\s+-\s+/)
     .map((s) => s.trim())
     .filter(Boolean);
+  const domainBase = domain.replace(/\.[^.]+$/, "").toLowerCase();
+  const domainMatch = titleParts?.find((part) => {
+    const normalized = part.toLowerCase().replace(/[\s.]+/g, "");
+    return normalized.includes(domainBase) || domainBase.includes(normalized);
+  });
   const shortestPart = titleParts
     ?.slice()
     .sort((a, b) => a.length - b.length)[0];
   const name =
-    shortestPart ?? (metadata.ogSiteName as string) ?? fallbackName ?? domain;
+    domainMatch ??
+    shortestPart ??
+    (metadata.ogSiteName as string) ??
+    fallbackName ??
+    domain;
 
   return {
     name,
