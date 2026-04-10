@@ -52,22 +52,27 @@ interface VmData {
   isNewVm: boolean;
 }
 
-type ViewStatus =
-  | "idle"
-  | "creating"
-  | "installing"
-  | "running"
-  | "suspended"
-  | "error";
+type ViewStatus = "idle" | "creating" | "running" | "suspended" | "error";
 type PreviewViewMode = "preview" | "visual";
 
 const VIEW_MODE_OPTIONS: [
   ViewModeOption<PreviewViewMode>,
   ViewModeOption<PreviewViewMode>,
 ] = [
-  { value: "preview", icon: <Monitor04 size={14} /> },
-  { value: "visual", icon: <CursorClick01 size={14} /> },
+  { value: "preview", icon: <Monitor04 size={14} />, tooltip: "Preview" },
+  {
+    value: "visual",
+    icon: <CursorClick01 size={14} />,
+    tooltip: "Visual Editor",
+  },
 ];
+
+function formatActionError(error: unknown, fallback: string): string {
+  if (!(error instanceof Error)) return fallback;
+  // Strip MCP protocol prefixes like "MCP error -32602: "
+  const msg = error.message.replace(/^MCP error -?\d+:\s*/i, "");
+  return msg || fallback;
+}
 
 export function VmPreviewContent() {
   const { org } = useProjectContext();
@@ -75,6 +80,7 @@ export function VmPreviewContent() {
   const [status, setStatus] = useState<ViewStatus>("idle");
   const [statusLabel, setStatusLabel] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [actionError, setActionError] = useState("");
   const [showTerminal, setShowTerminal] = useState(false);
   const [hasHtmlPreview, setHasHtmlPreview] = useState(false);
   const [execInFlight, setExecInFlight] = useState(false);
@@ -165,29 +171,23 @@ export function VmPreviewContent() {
       }
 
       vmDataRef.current = data;
+      setStatus("running");
+      setStatusLabel("");
 
       if (!data.isNewVm) {
-        // Existing VM — go straight to running
-        setStatus("running");
-        setStatusLabel("");
+        // Existing VM — go straight to running with preview
         setShowTerminal(false);
         setHasHtmlPreview(true); // assume HTML for existing VMs
         return;
       }
 
       // New VM — show terminal, run install + dev
+      // The ttyd watches /tmp/vm.log so progress is visible there
       setShowTerminal(true);
-      setStatus("installing");
-      setStatusLabel("Installing dependencies...");
 
       await handleExec("install");
-      setStatusLabel("Starting dev server...");
       await handleExec("dev");
-      setStatusLabel("Waiting for server...");
       await pollPreview();
-
-      setStatus("running");
-      setStatusLabel("");
     } catch (error) {
       setStatus("error");
       setErrorMsg(
@@ -199,20 +199,14 @@ export function VmPreviewContent() {
   };
 
   const handleResume = async () => {
-    setStatus("installing");
-    setStatusLabel("Resuming...");
+    setStatus("running");
     setShowTerminal(true);
+    setActionError("");
     try {
       await handleExec("dev");
-      setStatusLabel("Waiting for server...");
       await pollPreview();
-      setStatus("running");
-      setStatusLabel("");
     } catch (error) {
-      setStatus("error");
-      setErrorMsg(
-        error instanceof Error ? error.message : "Failed to resume VM",
-      );
+      setActionError(formatActionError(error, "Failed to resume VM"));
     }
   };
 
@@ -222,23 +216,26 @@ export function VmPreviewContent() {
       heartbeatRef.current = null;
     }
     const virtualMcpId = inset?.entity?.id;
-    vmDataRef.current = null;
-    setStatus("idle");
-    setHasHtmlPreview(false);
-    setShowTerminal(false);
-    setVisualElement(null);
-    setViewMode("preview");
 
+    // Delete the VM first so the DB entry is cleared before the UI goes idle.
+    // This prevents a race where handleStart resumes a stale VM.
     if (virtualMcpId) {
       try {
         await client.callTool({
-          name: "VM_STOP",
+          name: "VM_DELETE",
           arguments: { virtualMcpId },
         });
       } catch {
         // Best effort
       }
     }
+
+    vmDataRef.current = null;
+    setStatus("idle");
+    setHasHtmlPreview(false);
+    setShowTerminal(false);
+    setVisualElement(null);
+    setViewMode("preview");
   };
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — auto-start on mount requires DOM lifecycle; no React 19 alternative
@@ -362,26 +359,16 @@ export function VmPreviewContent() {
   if (!vmData) return null;
 
   const hasTerminal = !!vmData.terminalUrl;
-  const isInstalling = status === "installing";
   const isRunning = status === "running" || status === "suspended";
 
   // Determine which content is visible — iframes stay mounted, CSS controls visibility
   const showPreviewPane = hasHtmlPreview && isRunning;
-  const showTerminalPane = (hasTerminal && isInstalling) || showTerminal;
+  const showTerminalPane = showTerminal;
 
   return (
     <div className="flex flex-col w-full h-full">
       {/* Unified toolbar — one instance, adapts to status */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
-        {isInstalling && (
-          <div className="flex items-center gap-1.5 px-2.5 h-7 text-xs text-muted-foreground">
-            <Loading01
-              size={14}
-              className="animate-spin text-muted-foreground"
-            />
-            {statusLabel}
-          </div>
-        )}
         {isRunning && hasHtmlPreview && (
           <ViewModeToggle
             value={viewMode}
@@ -415,22 +402,14 @@ export function VmPreviewContent() {
                 disabled={execInFlight}
                 onClick={async () => {
                   setShowTerminal(true);
-                  setStatus("installing");
-                  setStatusLabel("Reinstalling dependencies...");
+                  setActionError("");
                   try {
                     await handleExec("install");
-                    setStatusLabel("Starting dev server...");
                     await handleExec("dev");
-                    setStatusLabel("Waiting for server...");
                     await pollPreview();
-                    setStatus("running");
-                    setStatusLabel("");
                   } catch (error) {
-                    setStatus("error");
-                    setErrorMsg(
-                      error instanceof Error
-                        ? error.message
-                        : "Reinstall failed",
+                    setActionError(
+                      formatActionError(error, "Reinstall failed"),
                     );
                   }
                 }}
@@ -441,19 +420,12 @@ export function VmPreviewContent() {
                 disabled={execInFlight}
                 onClick={async () => {
                   setShowTerminal(true);
-                  setStatus("installing");
-                  setStatusLabel("Restarting dev server...");
+                  setActionError("");
                   try {
                     await handleExec("dev");
-                    setStatusLabel("Waiting for server...");
                     await pollPreview();
-                    setStatus("running");
-                    setStatusLabel("");
                   } catch (error) {
-                    setStatus("error");
-                    setErrorMsg(
-                      error instanceof Error ? error.message : "Restart failed",
-                    );
+                    setActionError(formatActionError(error, "Restart failed"));
                   }
                 }}
               >
@@ -463,18 +435,23 @@ export function VmPreviewContent() {
           </DropdownMenu>
         )}
         <div className="flex items-center gap-1 flex-1 min-w-0 rounded-md border border-border bg-muted/40 px-2 py-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="shrink-0 h-5 w-5 p-0"
-            onClick={() => {
-              if (previewIframeRef.current) {
-                previewIframeRef.current.src = previewIframeRef.current.src;
-              }
-            }}
-          >
-            <RefreshCw01 size={12} />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0 h-5 w-5 p-0"
+                onClick={() => {
+                  if (previewIframeRef.current) {
+                    previewIframeRef.current.src = previewIframeRef.current.src;
+                  }
+                }}
+              >
+                <RefreshCw01 size={12} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Refresh</TooltipContent>
+          </Tooltip>
           <span className="text-xs text-muted-foreground font-mono truncate flex-1">
             {vmData.previewUrl}
           </span>
@@ -484,14 +461,21 @@ export function VmPreviewContent() {
             </span>
           )}
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="shrink-0"
-          onClick={() => window.open(vmData.previewUrl, "_blank", "noopener")}
-        >
-          <LinkExternal01 size={14} />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0"
+              onClick={() =>
+                window.open(vmData.previewUrl, "_blank", "noopener")
+              }
+            >
+              <LinkExternal01 size={14} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Open in new tab</TooltipContent>
+        </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
             <button
@@ -514,6 +498,19 @@ export function VmPreviewContent() {
               VM suspended due to inactivity.
             </p>
             <Button onClick={handleResume}>Resume</Button>
+          </div>
+        )}
+
+        {actionError && (
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs text-destructive shadow-sm">
+            <span>{actionError}</span>
+            <button
+              type="button"
+              className="ml-1 text-destructive/60 hover:text-destructive"
+              onClick={() => setActionError("")}
+            >
+              &times;
+            </button>
           </div>
         )}
 

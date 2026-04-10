@@ -5,6 +5,6 @@
  */
 
 export { VM_START } from "./start";
-export { VM_STOP } from "./stop";
+export { VM_DELETE } from "./stop";
 export { VM_PROBE } from "./probe";
 export { VM_EXEC } from "./exec";

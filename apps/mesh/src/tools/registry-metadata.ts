@@ -189,7 +189,7 @@ const ALL_TOOL_NAMES = [
 
   // VM tools (app-only)
   "VM_START",
-  "VM_STOP",
+  "VM_DELETE",
   "VM_PROBE",
   "VM_EXEC",
 ] as const;
@@ -903,7 +903,7 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "VM",
   },
   {
-    name: "VM_STOP",
+    name: "VM_DELETE",
     description: "Stop and delete a Freestyle VM",
     category: "VM",
   },
@@ -1061,7 +1061,7 @@ const TOOL_LABELS: Record<ToolName, string> = {
 
   // VM
   VM_START: "Start VM preview",
-  VM_STOP: "Stop VM preview",
+  VM_DELETE: "Delete VM preview",
   VM_PROBE: "Probe VM URL",
   VM_EXEC: "Execute VM command",
 };

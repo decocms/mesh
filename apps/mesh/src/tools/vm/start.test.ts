@@ -250,7 +250,7 @@ describe("VM_START", () => {
     const webTerminal = createCall.systemd.services.find(
       (s: { name: string }) => s.name === "web-terminal",
     )!;
-    expect(webTerminal.exec[0]).toContain("tail -f /tmp/vm.log");
+    expect(webTerminal.exec[0]).toContain("tail -F /tmp/vm.log");
     expect(webTerminal.exec[0]).toContain("touch /tmp/vm.log");
   });
 

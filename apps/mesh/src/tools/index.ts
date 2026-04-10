@@ -167,7 +167,7 @@ const CORE_TOOLS = [
 
   // VM tools (app-only)
   VmTools.VM_START,
-  VmTools.VM_STOP,
+  VmTools.VM_DELETE,
   VmTools.VM_PROBE,
   VmTools.VM_EXEC,
 ] as const satisfies { name: ToolName }[];

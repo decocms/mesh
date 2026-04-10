@@ -35,8 +35,10 @@ export const VM_EXEC = defineTool({
 
     try {
       if (input.action === "install") {
-        // Truncate log for fresh output
-        await vm.exec("> /tmp/vm.log");
+        // Separator so the user sees a clear break in the terminal
+        await vm.exec(
+          'echo "\\n--- Reinstalling dependencies ---" >> /tmp/vm.log',
+        );
 
         // Wait for git repo to be synced
         await vm.exec({
@@ -66,8 +68,8 @@ export const VM_EXEC = defineTool({
       }
 
       // action === "dev"
-      // Truncate log for fresh output
-      await vm.exec("> /tmp/vm.log");
+      // Separator so the user sees a clear break in the terminal
+      await vm.exec('echo "\\n--- Starting dev server ---" >> /tmp/vm.log');
 
       // Kill existing dev server via PID file
       await vm.exec("kill $(cat /tmp/dev.pid) 2>/dev/null || true");

@@ -1,11 +1,11 @@
 /**
- * VM_STOP Tool
+ * VM_DELETE Tool
  *
- * Stops a Freestyle VM and removes its entry from the Virtual MCP metadata.
+ * Deletes a Freestyle VM and removes its entry from the Virtual MCP metadata.
  * App-only tool — not visible to AI models.
  *
- * Uses vm.stop() for graceful shutdown (preserves disk on Freestyle's side).
- * Clears the DB entry so the UI returns to idle state.
+ * Uses vm.delete() to fully destroy the VM so the next VM_START creates a
+ * fresh instance with updated systemd config and infrastructure.
  */
 
 import { z } from "zod";
@@ -14,11 +14,11 @@ import { freestyle } from "freestyle-sandboxes";
 import { patchActiveVms } from "./types";
 import { requireVmEntry } from "./helpers";
 
-export const VM_STOP = defineTool({
-  name: "VM_STOP",
-  description: "Stop a Freestyle VM.",
+export const VM_DELETE = defineTool({
+  name: "VM_DELETE",
+  description: "Delete a Freestyle VM.",
   annotations: {
-    title: "Stop VM Preview",
+    title: "Delete VM Preview",
     readOnlyHint: false,
     destructiveHint: true,
     idempotentHint: true,
@@ -47,9 +47,9 @@ export const VM_STOP = defineTool({
     if (entry) {
       try {
         const vm = freestyle.vms.ref({ vmId: entry.vmId });
-        await vm.stop();
+        await vm.delete();
       } catch {
-        // VM may already be stopped/deleted — treat as success
+        // VM may already be deleted — treat as success
       }
     }
 

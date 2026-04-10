@@ -203,7 +203,7 @@ exit 1
         name: "web-terminal",
         mode: "service",
         exec: [
-          `bash -c 'touch /tmp/vm.log && exec /tmp/ttyd -p ${terminalPort} --readonly tail -f /tmp/vm.log'`,
+          `bash -c 'touch /tmp/vm.log && exec /tmp/ttyd -p ${terminalPort} --readonly tail -F /tmp/vm.log'`,
         ],
         after: ["install-ttyd.service"],
         requires: ["install-ttyd.service"],

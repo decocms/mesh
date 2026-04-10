@@ -3,23 +3,23 @@ import type { MeshContext } from "../../core/mesh-context";
 import type { VmEntry, VmMetadata } from "./types";
 
 // ---------------------------------------------------------------------------
-// Mock freestyle-sandboxes BEFORE importing VM_STOP (Bun requires this order)
+// Mock freestyle-sandboxes BEFORE importing VM_DELETE (Bun requires this order)
 // ---------------------------------------------------------------------------
 
-const mockVmStop = mock((): Promise<void> => Promise.resolve());
+const mockVmDelete = mock((): Promise<void> => Promise.resolve());
 
 mock.module("freestyle-sandboxes", () => ({
   freestyle: {
     vms: {
       ref: (_input: unknown) => ({
-        stop: () => mockVmStop(),
+        delete: () => mockVmDelete(),
       }),
     },
   },
 }));
 
 // Now import after mocking
-const { VM_STOP } = await import("./stop");
+const { VM_DELETE } = await import("./stop");
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -119,10 +119,10 @@ function makeCtx(overrides: {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("VM_STOP", () => {
+describe("VM_DELETE", () => {
   beforeEach(() => {
-    mockVmStop.mockReset();
-    mockVmStop.mockImplementation(async () => {});
+    mockVmDelete.mockReset();
+    mockVmDelete.mockImplementation(async () => {});
   });
 
   it("deletes Freestyle VM and removes DB entry when activeVms entry exists for user", async () => {
@@ -133,12 +133,12 @@ describe("VM_STOP", () => {
     const updateSpy = mock(async () => {});
     const ctx = makeCtx({ virtualMcp, updateSpy });
 
-    const result = await VM_STOP.handler({ virtualMcpId: "vmcp_1" }, ctx);
+    const result = await VM_DELETE.handler({ virtualMcpId: "vmcp_1" }, ctx);
 
     expect(result).toEqual({ success: true });
 
-    // Freestyle vm.stop() was called
-    expect(mockVmStop).toHaveBeenCalledTimes(1);
+    // Freestyle vm.delete() was called
+    expect(mockVmDelete).toHaveBeenCalledTimes(1);
 
     // patchActiveVms called storage.update once
     expect(updateSpy).toHaveBeenCalledTimes(1);
@@ -158,20 +158,23 @@ describe("VM_STOP", () => {
     const updateSpy = mock(async () => {});
     const ctx = makeCtx({ virtualMcp, updateSpy });
 
-    const result = await VM_STOP.handler({ virtualMcpId: "vmcp_1" }, ctx);
+    const result = await VM_DELETE.handler({ virtualMcpId: "vmcp_1" }, ctx);
 
     expect(result).toEqual({ success: true });
-    expect(mockVmStop).not.toHaveBeenCalled();
+    expect(mockVmDelete).not.toHaveBeenCalled();
     expect(updateSpy).not.toHaveBeenCalled();
   });
 
   it("returns success when virtualMcp not found (null from findById)", async () => {
     const ctx = makeCtx({ virtualMcp: null });
 
-    const result = await VM_STOP.handler({ virtualMcpId: "vmcp_missing" }, ctx);
+    const result = await VM_DELETE.handler(
+      { virtualMcpId: "vmcp_missing" },
+      ctx,
+    );
 
     expect(result).toEqual({ success: true });
-    expect(mockVmStop).not.toHaveBeenCalled();
+    expect(mockVmDelete).not.toHaveBeenCalled();
   });
 
   it("throws 'User ID required' when userId is unavailable", async () => {
@@ -185,7 +188,7 @@ describe("VM_STOP", () => {
       undefined;
 
     await expect(
-      VM_STOP.handler({ virtualMcpId: "vmcp_1" }, ctx),
+      VM_DELETE.handler({ virtualMcpId: "vmcp_1" }, ctx),
     ).rejects.toThrow("User ID required");
   });
 });
