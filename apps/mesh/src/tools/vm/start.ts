@@ -122,7 +122,9 @@ export const VM_START = defineTool({
             name: "install-deps",
             mode: "oneshot" as const,
             exec: [
-              `bash -c 'export PATH="/root/.deno/bin:/root/.bun/bin:/usr/local/bin:$PATH" && cd /app && ${installScript}'`,
+              "bash",
+              "-c",
+              `export PATH="/root/.deno/bin:/root/.bun/bin:/usr/local/bin:$PATH" && cd /app && ${installScript}`,
             ],
             after: ["freestyle-git-sync.service"],
             wantedBy: ["multi-user.target"],
@@ -132,7 +134,9 @@ export const VM_START = defineTool({
             name: "dev-server",
             mode: "service" as const,
             exec: [
-              `bash -c 'export PATH="/root/.deno/bin:/root/.bun/bin:/usr/local/bin:$PATH" && cd /app && ${devScript}'`,
+              "bash",
+              "-c",
+              `export PATH="/root/.deno/bin:/root/.bun/bin:/usr/local/bin:$PATH" && cd /app && ${devScript}`,
             ],
             after: ["install-deps.service"],
             env: {
@@ -145,7 +149,9 @@ export const VM_START = defineTool({
             name: "port-proxy",
             mode: "service" as const,
             exec: [
-              `bash -c 'apt-get install -y -qq socat > /dev/null 2>&1; socat TCP-LISTEN:${proxyPort},bind=0.0.0.0,fork,reuseaddr TCP:127.0.0.1:${port}'`,
+              "bash",
+              "-c",
+              `apt-get update -qq > /dev/null 2>&1 && apt-get install -y -qq socat > /dev/null 2>&1; socat TCP-LISTEN:${proxyPort},bind=0.0.0.0,fork,reuseaddr TCP:127.0.0.1:${port}`,
             ],
             after: ["dev-server.service"],
           },
