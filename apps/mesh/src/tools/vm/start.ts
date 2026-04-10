@@ -1,12 +1,12 @@
 /**
  * VM_START Tool
  *
- * Creates a Freestyle VM with the connected GitHub repo,
- * Web Terminal (read-only), and systemd services for install + dev.
+ * Creates a Freestyle VM with the connected GitHub repo
+ * and systemd services for install + dev.
  * App-only tool — not visible to AI models.
  *
  * Freestyle docs: /v2/vms, /v2/vms/configuration/systemd-services,
- * /v2/vms/integrations/web-terminal, /v2/vms/configuration/ports-networking
+ * /v2/vms/configuration/ports-networking, /v2/vms/configuration/domains
  */
 
 import { z } from "zod";
@@ -82,6 +82,7 @@ export const VM_START = defineTool({
     const devScript = metadata.runtime?.devScript ?? "npm run dev";
     const detected = metadata.runtime?.detected ?? "npm";
     const port = metadata.runtime?.port ?? "3000";
+    const portNum = parseInt(port, 10);
 
     // Create the Freestyle Git repo reference
     const { repoId } = await freestyle.git.repos.create({
@@ -93,70 +94,89 @@ export const VM_START = defineTool({
     // Generate a unique subdomain for this VM
     // Freestyle docs: /v2/vms/configuration/domains
     const previewDomain = `${input.virtualMcpId.replace(/[^a-z0-9]/gi, "-")}.deco.studio`;
-    // Use a proxy port for socat to forward 0.0.0.0 traffic to localhost
-    const proxyPort = 9999;
 
-    // Write wrapper scripts to avoid systemd exec quoting issues
-    // Install runtime manually since VmDeno/VmBun integrations may not
-    // install the binary to the expected PATH locations
-    const runtimeSetup =
+    // Determine if we need to install a runtime (deno/bun).
+    // Node/npm is available by default in Freestyle VMs.
+    // We install to /usr/local/ so the binary lands in /usr/local/bin/,
+    // which is in systemd's default PATH — no PATH hacks needed.
+    const needsRuntimeInstall = detected === "deno" || detected === "bun";
+
+    const setupScript =
       detected === "deno"
-        ? 'curl -fsSL https://deno.land/install.sh | sh\nexport DENO_DIR="/root/.deno"\nexport PATH="/root/.deno/bin:$PATH"'
+        ? '#!/bin/bash\nset -e\nexport DENO_INSTALL="/usr/local"\ncurl -fsSL https://deno.land/install.sh | sh\necho "Deno installed to /usr/local/bin"\n'
         : detected === "bun"
-          ? 'curl -fsSL https://bun.sh/install | bash\nexport PATH="/root/.bun/bin:$PATH"'
-          : 'export PATH="/usr/local/bin:$PATH"';
+          ? '#!/bin/bash\nset -e\nexport BUN_INSTALL="/usr/local"\ncurl -fsSL https://bun.sh/install | bash\necho "Bun installed to /usr/local/bin"\n'
+          : "";
 
-    // Create VM with repo, scripts, and systemd services
+    const additionalFiles: Record<string, { content: string }> = {};
+    if (needsRuntimeInstall) {
+      additionalFiles["/opt/setup-runtime.sh"] = { content: setupScript };
+    }
+
+    // Build systemd services list
     // Freestyle docs: /v2/vms/configuration/systemd-services
+    const services: Array<{
+      name: string;
+      mode: "oneshot" | "service";
+      exec: string[];
+      workdir?: string;
+      after?: string[];
+      requires?: string[];
+      wantedBy?: string[];
+      timeoutSec?: number;
+      remainAfterExit?: boolean;
+      env?: Record<string, string>;
+    }> = [];
+
+    if (needsRuntimeInstall) {
+      services.push({
+        name: "setup-runtime",
+        mode: "oneshot",
+        exec: ["/bin/bash /opt/setup-runtime.sh"],
+        wantedBy: ["multi-user.target"],
+        timeoutSec: 120,
+        remainAfterExit: true,
+      });
+    }
+
+    services.push({
+      name: "install-deps",
+      mode: "oneshot",
+      exec: [installScript],
+      workdir: "/app",
+      after: [
+        "freestyle-git-sync.service",
+        ...(needsRuntimeInstall ? ["setup-runtime.service"] : []),
+      ],
+      requires: needsRuntimeInstall ? ["setup-runtime.service"] : undefined,
+      wantedBy: ["multi-user.target"],
+      timeoutSec: 300,
+      remainAfterExit: true,
+    });
+
+    services.push({
+      name: "dev-server",
+      mode: "service",
+      exec: [devScript],
+      workdir: "/app",
+      after: ["install-deps.service"],
+      requires: ["install-deps.service"],
+      env: {
+        HOST: "0.0.0.0",
+        HOSTNAME: "0.0.0.0",
+        PORT: port,
+      },
+    });
+
+    // Create VM with repo and systemd services.
+    // Domain maps directly to dev server port — no socat proxy needed.
+    // Freestyle docs: /v2/vms/configuration/domains
     const createResult = await freestyle.vms.create({
       gitRepos: [{ repo: repoId, path: "/app" }],
       workdir: "/app",
-      domains: [{ domain: previewDomain, vmPort: proxyPort }],
-      additionalFiles: {
-        "/opt/setup-runtime.sh": {
-          content: `#!/bin/bash\nset -e\n${runtimeSetup}\necho "Runtime ready"\n`,
-        },
-        "/opt/install-deps.sh": {
-          content: `#!/bin/bash\nset -e\nsource /opt/setup-runtime.sh\ncd /app\n${installScript}\n`,
-        },
-        "/opt/dev-server.sh": {
-          content: `#!/bin/bash\nsource /opt/setup-runtime.sh\ncd /app\nexport HOST=0.0.0.0\nexport HOSTNAME=0.0.0.0\nexport PORT=${port}\n${devScript}\n`,
-        },
-        "/opt/port-proxy.sh": {
-          content: `#!/bin/bash\napt-get update -qq > /dev/null 2>&1\napt-get install -y -qq socat > /dev/null 2>&1\nsocat TCP-LISTEN:${proxyPort},bind=0.0.0.0,fork,reuseaddr TCP:127.0.0.1:${port}\n`,
-        },
-      },
-      systemd: {
-        services: [
-          {
-            name: "setup-runtime",
-            mode: "oneshot" as const,
-            exec: ["/bin/bash /opt/setup-runtime.sh"],
-            wantedBy: ["multi-user.target"],
-            timeoutSec: 120,
-          },
-          {
-            name: "install-deps",
-            mode: "oneshot" as const,
-            exec: ["/bin/bash /opt/install-deps.sh"],
-            after: ["freestyle-git-sync.service", "setup-runtime.service"],
-            wantedBy: ["multi-user.target"],
-            timeoutSec: 300,
-          },
-          {
-            name: "dev-server",
-            mode: "service" as const,
-            exec: ["/bin/bash /opt/dev-server.sh"],
-            after: ["install-deps.service"],
-          },
-          {
-            name: "port-proxy",
-            mode: "service" as const,
-            exec: ["/bin/bash /opt/port-proxy.sh"],
-            after: ["dev-server.service"],
-          },
-        ],
-      },
+      domains: [{ domain: previewDomain, vmPort: portNum }],
+      additionalFiles,
+      systemd: { services },
     });
 
     console.log(
