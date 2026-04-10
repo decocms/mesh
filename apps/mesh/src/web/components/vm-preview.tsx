@@ -352,12 +352,18 @@ export function VmPreviewContent() {
   if (!vmData) return null;
 
   const hasTerminal = !!vmData.terminalUrl;
+  const isInstalling = status === "installing";
+  const isRunning = status === "running" || status === "suspended";
 
-  // Installing state — terminal full height, no preview panel
-  if (status === "installing") {
-    return (
-      <div className="flex flex-col w-full h-full">
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+  // Determine which content is visible — iframes stay mounted, CSS controls visibility
+  const showPreviewPane = hasHtmlPreview && isRunning;
+  const showTerminalPane = (hasTerminal && isInstalling) || showTerminal;
+
+  return (
+    <div className="flex flex-col w-full h-full">
+      {/* Unified toolbar — one instance, adapts to status */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+        {isInstalling && (
           <div className="flex items-center gap-1.5 px-2.5 h-7 text-xs text-muted-foreground">
             <Loading01
               size={14}
@@ -365,54 +371,8 @@ export function VmPreviewContent() {
             />
             Installing...
           </div>
-          <div className="flex-1" />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={handleStop}
-                className="flex items-center gap-1.5 px-2.5 h-7 rounded-md text-xs transition-colors shrink-0 bg-accent text-foreground"
-              >
-                <StopCircle size={14} />
-              </button>
-            </TooltipTrigger>
-            {vmDataRef.current?.vmId && (
-              <TooltipContent side="bottom">
-                {vmDataRef.current.vmId}
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </div>
-        <div className="flex-1">
-          {hasTerminal && (
-            <iframe
-              src={vmData.terminalUrl ?? undefined}
-              className="w-full h-full border-0"
-              title="VM Terminal"
-              allow="clipboard-read; clipboard-write"
-            />
-          )}
-          {!hasTerminal && (
-            <div className="flex flex-col items-center justify-center w-full h-full gap-3">
-              <Loading01
-                size={20}
-                className="animate-spin text-muted-foreground"
-              />
-              <p className="text-sm text-muted-foreground">
-                Installing dependencies and starting dev server...
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Running / Suspended states
-  return (
-    <div className="flex flex-col w-full h-full">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
-        {hasHtmlPreview && (
+        )}
+        {isRunning && hasHtmlPreview && (
           <ViewModeToggle
             value={viewMode}
             onValueChange={handleViewModeChange}
@@ -420,7 +380,7 @@ export function VmPreviewContent() {
             size="sm"
           />
         )}
-        {hasTerminal && (
+        {isRunning && hasTerminal && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -518,14 +478,13 @@ export function VmPreviewContent() {
               <StopCircle size={14} />
             </button>
           </TooltipTrigger>
-          {vmDataRef.current?.vmId && (
-            <TooltipContent side="bottom">
-              Stop VM {vmDataRef.current.vmId}
-            </TooltipContent>
+          {vmData.vmId && (
+            <TooltipContent side="bottom">Stop VM {vmData.vmId}</TooltipContent>
           )}
         </Tooltip>
       </div>
 
+      {/* Content area — stable tree, iframes always mounted once URLs exist */}
       <div className="flex-1 relative">
         {status === "suspended" && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-background/80 backdrop-blur-sm">
@@ -536,62 +495,56 @@ export function VmPreviewContent() {
           </div>
         )}
 
-        {hasHtmlPreview && !showTerminal && (
-          <div className="relative w-full h-full">
-            {viewMode === "visual" && !visualElement && (
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 rounded-full border border-violet-400/40 bg-violet-500/90 px-3 py-1 text-xs font-medium text-white shadow-md backdrop-blur-sm pointer-events-none select-none">
-                <CursorClick01 size={12} />
-                Click any element to ask the AI
-              </div>
-            )}
-            {viewMode === "visual" && visualElement && (
-              <VisualEditorPrompt
-                element={visualElement}
-                onDismiss={() => setVisualElement(null)}
-              />
-            )}
-            <iframe
-              ref={previewIframeRef}
-              src={vmData.previewUrl}
-              className="w-full h-full border-0"
-              title="Dev Server Preview"
-              onLoad={() => {
-                if (viewMode === "visual") {
-                  injectVisualEditor();
-                }
-              }}
+        {/* Preview iframe — always in the tree, hidden via CSS when not active */}
+        <div
+          className={cn(
+            "absolute inset-0",
+            showPreviewPane && !showTerminalPane
+              ? "visible"
+              : "invisible h-0 overflow-hidden",
+          )}
+        >
+          {viewMode === "visual" && !visualElement && showPreviewPane && (
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 rounded-full border border-violet-400/40 bg-violet-500/90 px-3 py-1 text-xs font-medium text-white shadow-md backdrop-blur-sm pointer-events-none select-none">
+              <CursorClick01 size={12} />
+              Click any element to ask the AI
+            </div>
+          )}
+          {viewMode === "visual" && visualElement && showPreviewPane && (
+            <VisualEditorPrompt
+              element={visualElement}
+              onDismiss={() => setVisualElement(null)}
             />
-          </div>
-        )}
+          )}
+          <iframe
+            ref={previewIframeRef}
+            src={vmData.previewUrl}
+            className="w-full h-full border-0"
+            title="Dev Server Preview"
+            onLoad={() => {
+              if (viewMode === "visual") {
+                injectVisualEditor();
+              }
+            }}
+          />
+        </div>
 
-        {hasHtmlPreview && showTerminal && hasTerminal && (
+        {/* Split view: preview + terminal — visible when both panes active */}
+        <div
+          className={cn(
+            "absolute inset-0",
+            showPreviewPane && showTerminalPane
+              ? "visible"
+              : "invisible h-0 overflow-hidden",
+          )}
+        >
           <ResizablePanelGroup direction="vertical">
             <ResizablePanel minSize={20}>
-              <div className="relative w-full h-full">
-                {viewMode === "visual" && !visualElement && (
-                  <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 rounded-full border border-violet-400/40 bg-violet-500/90 px-3 py-1 text-xs font-medium text-white shadow-md backdrop-blur-sm pointer-events-none select-none">
-                    <CursorClick01 size={12} />
-                    Click any element to ask the AI
-                  </div>
-                )}
-                {viewMode === "visual" && visualElement && (
-                  <VisualEditorPrompt
-                    element={visualElement}
-                    onDismiss={() => setVisualElement(null)}
-                  />
-                )}
-                <iframe
-                  ref={previewIframeRef}
-                  src={vmData.previewUrl}
-                  className="w-full h-full border-0"
-                  title="Dev Server Preview"
-                  onLoad={() => {
-                    if (viewMode === "visual") {
-                      injectVisualEditor();
-                    }
-                  }}
-                />
-              </div>
+              <iframe
+                src={vmData.previewUrl}
+                className="w-full h-full border-0"
+                title="Dev Server Preview"
+              />
             </ResizablePanel>
             <ResizableHandle className="h-[3px] bg-border/60 hover:bg-primary/30 transition-colors" />
             <ResizablePanel defaultSize={40} minSize={15}>
@@ -599,22 +552,31 @@ export function VmPreviewContent() {
                 src={vmData.terminalUrl ?? undefined}
                 className="w-full h-full border-0"
                 title="VM Terminal"
-                allow="clipboard-read; clipboard-write"
               />
             </ResizablePanel>
           </ResizablePanelGroup>
+        </div>
+
+        {/* Terminal only — full height (installing or API server) */}
+        {hasTerminal && (
+          <div
+            className={cn(
+              "absolute inset-0",
+              showTerminalPane && !showPreviewPane
+                ? "visible"
+                : "invisible h-0 overflow-hidden",
+            )}
+          >
+            <iframe
+              src={vmData.terminalUrl ?? undefined}
+              className="w-full h-full border-0"
+              title="VM Terminal"
+            />
+          </div>
         )}
 
-        {!hasHtmlPreview && hasTerminal && (
-          <iframe
-            src={vmData.terminalUrl ?? undefined}
-            className="w-full h-full border-0"
-            title="VM Terminal"
-            allow="clipboard-read; clipboard-write"
-          />
-        )}
-
-        {!hasHtmlPreview && !hasTerminal && (
+        {/* No content fallback */}
+        {!hasHtmlPreview && !hasTerminal && isRunning && (
           <div className="flex flex-col items-center justify-center w-full h-full gap-3">
             <p className="text-sm text-muted-foreground">
               No preview available.
