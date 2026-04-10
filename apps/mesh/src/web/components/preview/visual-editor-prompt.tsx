@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
-import { Loading01 } from "@untitledui/icons";
-import { useChatBridge } from "@/web/components/chat/context";
+import { useChatTask } from "@/web/components/chat/context";
 import type { VisualEditorPayload } from "./visual-editor-script";
 
 /** Sanitize a string for safe embedding in markdown (escape backticks and asterisks) */
@@ -89,21 +88,17 @@ export function VisualEditorPrompt({
   onDismiss,
 }: VisualEditorPromptProps) {
   const [input, setInput] = useState("");
-  const [isSending, setIsSending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { sendMessage } = useChatBridge();
+  const { createTaskWithMessage } = useChatTask();
 
-  const handleSend = async () => {
-    if (!input.trim() || isSending) return;
-    setIsSending(true);
+  const handleSend = () => {
+    if (!input.trim()) return;
 
-    try {
-      const text = formatVisualEditorMessage(element, input);
-      await sendMessage({ parts: [{ type: "text", text }] });
-      onDismiss();
-    } finally {
-      setIsSending(false);
-    }
+    const text = formatVisualEditorMessage(element, input);
+    createTaskWithMessage({
+      message: { parts: [{ type: "text", text }] },
+    });
+    onDismiss();
   };
 
   const pos = computePromptPosition(element.position, element.viewport);
@@ -138,30 +133,26 @@ export function VisualEditorPrompt({
         />
         <button
           type="submit"
-          disabled={!input.trim() || isSending}
+          disabled={!input.trim()}
           className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-foreground text-background transition-opacity disabled:opacity-30"
           title="Send"
         >
-          {isSending ? (
-            <Loading01 size={12} className="animate-spin" />
-          ) : (
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 10 10"
-              fill="none"
-              aria-hidden="true"
-            >
-              <title>Send</title>
-              <path
-                d="M5 9V1M1 5l4-4 4 4"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          )}
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+            aria-hidden="true"
+          >
+            <title>Send</title>
+            <path
+              d="M5 9V1M1 5l4-4 4 4"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </button>
       </form>
     </div>

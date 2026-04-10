@@ -44,11 +44,11 @@ export const VISUAL_EDITOR_SCRIPT = `(function() {
   document.head.appendChild(cursorStyle);
 
   var highlight = document.createElement("div");
-  highlight.style.cssText = "position:fixed;pointer-events:none;outline:2px solid #6366f1;background:rgba(99,102,241,0.08);border-radius:2px;z-index:2147483647;display:none;";
+  highlight.style.cssText = "position:fixed;pointer-events:none;outline:2px solid #a855f7;background:rgba(168,85,247,0.08);border-radius:2px;z-index:2147483647;display:none;";
   document.body.appendChild(highlight);
 
   var badge = document.createElement("div");
-  badge.style.cssText = "position:fixed;pointer-events:none;background:#6366f1;color:white;font:11px/1 monospace;padding:2px 6px;border-radius:2px;z-index:2147483647;display:none;white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis;";
+  badge.style.cssText = "position:fixed;pointer-events:none;background:#a855f7;color:white;font:11px/1 monospace;padding:2px 6px;border-radius:2px;z-index:2147483647;display:none;white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis;";
   document.body.appendChild(badge);
 
   var lastTarget = null;
@@ -98,8 +98,8 @@ export const VISUAL_EDITOR_SCRIPT = `(function() {
     highlight.style.outline = "2px solid #a855f7";
     highlight.style.background = "rgba(168,85,247,0.15)";
     setTimeout(function() {
-      highlight.style.outline = "2px solid #6366f1";
-      highlight.style.background = "rgba(99,102,241,0.08)";
+      highlight.style.outline = "2px solid #a855f7";
+      highlight.style.background = "rgba(168,85,247,0.08)";
     }, 400);
 
     var tag = el.tagName.toLowerCase();
