@@ -22,6 +22,7 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronRight,
+  CursorClick01,
   File06,
   LinkExternal01,
   RefreshCw01,
@@ -32,7 +33,8 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
-import { useRef, useState } from "react";
+import { cn } from "@deco/ui/lib/utils.ts";
+import { forwardRef, useEffect, useRef, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -78,6 +80,78 @@ function consistentHash(input: string): string {
   }
   return Math.abs(hash).toString(36);
 }
+
+// ---------------------------------------------------------------------------
+// Inspect mode — scripts injected into the preview iframe
+// ---------------------------------------------------------------------------
+
+const SECTION_CLICK_EVENT = "studio:section-click";
+
+const INSPECT_ENABLE_SCRIPT = `(function() {
+  document.querySelectorAll('[data-studio-inspect]').forEach(function(el) { el.remove(); });
+  document.querySelectorAll('[data-studio-section-idx]').forEach(function(el) {
+    el.removeAttribute('data-studio-section-idx');
+  });
+
+  var style = document.createElement('style');
+  style.setAttribute('data-studio-inspect', 'true');
+  style.textContent = [
+    '[data-studio-section-idx] { position: relative !important; }',
+    '[data-studio-overlay] {',
+    '  position: absolute; inset: 0; z-index: 9999;',
+    '  pointer-events: none; transition: all 0.15s ease;',
+    '  border: 2px solid transparent;',
+    '}',
+    '[data-studio-section-idx]:hover > [data-studio-overlay] {',
+    '  background: rgba(59,130,246,0.08);',
+    '  border-color: rgba(59,130,246,0.6);',
+    '  pointer-events: auto; cursor: pointer;',
+    '}',
+    '[data-studio-label] {',
+    '  position: absolute; top: 4px; left: 4px;',
+    '  background: rgba(59,130,246,0.9); color: #fff;',
+    '  font: 500 11px/1 system-ui, sans-serif;',
+    '  padding: 3px 8px; border-radius: 4px;',
+    '  opacity: 0; transition: opacity 0.15s; z-index: 10000;',
+    '}',
+    '[data-studio-section-idx]:hover [data-studio-label] { opacity: 1; }',
+  ].join('\\n');
+  document.head.appendChild(style);
+
+  var sel = 'section[data-manifest-key]';
+  var sections = document.querySelectorAll(sel);
+  if (!sections.length) sections = document.querySelectorAll('body > section, body > div > section, body > main > section');
+
+  sections.forEach(function(section, index) {
+    section.setAttribute('data-studio-section-idx', index);
+    var manifestKey = section.getAttribute('data-manifest-key') || '';
+
+    var overlay = document.createElement('div');
+    overlay.setAttribute('data-studio-inspect', 'true');
+    overlay.setAttribute('data-studio-overlay', '');
+
+    var label = document.createElement('div');
+    label.setAttribute('data-studio-label', '');
+    var short = manifestKey.split('/').pop() || ('Section');
+    short = short.replace(/\\.tsx?$/, '');
+    label.textContent = short;
+    overlay.appendChild(label);
+
+    overlay.addEventListener('click', function(e) {
+      e.stopPropagation(); e.preventDefault();
+      parent.postMessage({ type: 'studio::section-click', manifestKey: manifestKey }, '*');
+    });
+
+    section.appendChild(overlay);
+  });
+})();`;
+
+const INSPECT_DISABLE_SCRIPT = `(function() {
+  document.querySelectorAll('[data-studio-inspect]').forEach(function(el) { el.remove(); });
+  document.querySelectorAll('[data-studio-section-idx]').forEach(function(el) {
+    el.removeAttribute('data-studio-section-idx');
+  });
+})();`;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -390,6 +464,8 @@ export function PageSectionsPanel({
   pageKey: string;
 }) {
   const { openMainView } = usePanelActions();
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const sectionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   const { data: meta } = useSiteMeta(envUrl);
   const { data: decofile } = useDecofile(envUrl);
@@ -403,6 +479,36 @@ export function PageSectionsPanel({
     __resolveType: string;
     [k: string]: unknown;
   }>;
+
+  // Build a mapping from resolveType -> sidebar index for inspect matching.
+  // The DOM's data-manifest-key is the component path (e.g. "site/sections/Hero.tsx"),
+  // which matches our unwrapped resolveType.
+  const resolveTypeToIndex = new Map<string, number>();
+  for (let i = 0; i < sections.length; i++) {
+    const sec = sections[i];
+    if (!sec) continue;
+    const { resolveType } = unwrapSection(sec, decofile);
+    resolveTypeToIndex.set(resolveType, i);
+  }
+
+  // Listen for inspect clicks from the preview iframe
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — custom event listener for cross-component communication
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { manifestKey } = (e as CustomEvent<{ manifestKey: string }>)
+        .detail;
+      const idx = resolveTypeToIndex.get(manifestKey);
+      if (idx == null) return;
+      setExpandedIndex(idx);
+      requestAnimationFrame(() => {
+        sectionRefs.current
+          .get(idx)
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    };
+    window.addEventListener(SECTION_CLICK_EVENT, handler);
+    return () => window.removeEventListener(SECTION_CLICK_EVENT, handler);
+  });
 
   return (
     <div className="flex flex-col h-full">
@@ -440,6 +546,14 @@ export function PageSectionsPanel({
                 decofile={decofile}
                 resolver={resolver}
                 index={idx}
+                expanded={expandedIndex === idx}
+                onToggle={() =>
+                  setExpandedIndex(expandedIndex === idx ? null : idx)
+                }
+                ref={(el) => {
+                  if (el) sectionRefs.current.set(idx, el);
+                  else sectionRefs.current.delete(idx);
+                }}
               />
             ))}
           </div>
@@ -490,6 +604,14 @@ export function PageSectionsSidebar({
 // PagePreviewView — iframe + URL bar (main content area)
 // ---------------------------------------------------------------------------
 
+function sendToIframe(iframe: HTMLIFrameElement | null, script: string) {
+  if (!iframe?.contentWindow) return;
+  iframe.contentWindow.postMessage(
+    { type: "editor::inject", args: { script } },
+    "*",
+  );
+}
+
 function PagePreviewView({
   envUrl,
   pageKey,
@@ -505,6 +627,7 @@ function PagePreviewView({
   const [previewPath, setPreviewPath] = useState(initialPath);
   const [pathInput, setPathInput] = useState(initialPath);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [inspectMode, setInspectMode] = useState(false);
 
   const previewSrc = `${envUrl}${previewPath}`;
 
@@ -513,6 +636,36 @@ function PagePreviewView({
     const normalized = pathInput.startsWith("/") ? pathInput : `/${pathInput}`;
     setPreviewPath(normalized);
   };
+
+  const toggleInspect = () => {
+    const next = !inspectMode;
+    setInspectMode(next);
+    sendToIframe(
+      iframeRef.current,
+      next ? INSPECT_ENABLE_SCRIPT : INSPECT_DISABLE_SCRIPT,
+    );
+  };
+
+  // Re-inject inspect overlays after iframe navigates or refreshes
+  const handleIframeLoad = () => {
+    if (inspectMode) {
+      sendToIframe(iframeRef.current, INSPECT_ENABLE_SCRIPT);
+    }
+  };
+
+  // Listen for section-click messages from the iframe and relay as a custom event
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — window message listener for cross-origin iframe communication
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type !== "studio::section-click") return;
+      const manifestKey = e.data.manifestKey as string;
+      window.dispatchEvent(
+        new CustomEvent(SECTION_CLICK_EVENT, { detail: { manifestKey } }),
+      );
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
@@ -527,6 +680,19 @@ function PagePreviewView({
             />
           </div>
         </form>
+        <button
+          type="button"
+          onClick={toggleInspect}
+          className={cn(
+            "flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors",
+            inspectMode
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-accent hover:text-foreground",
+          )}
+          title={inspectMode ? "Disable inspect mode" : "Inspect sections"}
+        >
+          <CursorClick01 size={14} />
+        </button>
         <button
           type="button"
           onClick={() => window.open(previewSrc, "_blank")}
@@ -550,6 +716,7 @@ function PagePreviewView({
           key={`${previewSrc}-${refreshKey}`}
           ref={iframeRef}
           src={previewSrc}
+          onLoad={handleIframeLoad}
           title={`Preview of ${previewPath}`}
           className="h-full w-full border-0"
         />
@@ -562,19 +729,20 @@ function PagePreviewView({
 // Section Schema Card
 // ---------------------------------------------------------------------------
 
-function SectionSchemaCard({
-  sectionData,
-  decofile,
-  resolver,
-  index,
-}: {
-  sectionData: { __resolveType: string; [k: string]: unknown };
-  decofile: Decofile | null;
-  resolver: SchemaResolver;
-  index: number;
-}) {
-  const [expanded, setExpanded] = useState(false);
-
+const SectionSchemaCard = forwardRef<
+  HTMLDivElement,
+  {
+    sectionData: { __resolveType: string; [k: string]: unknown };
+    decofile: Decofile | null;
+    resolver: SchemaResolver;
+    index: number;
+    expanded: boolean;
+    onToggle: () => void;
+  }
+>(function SectionSchemaCard(
+  { sectionData, decofile, resolver, index, expanded, onToggle },
+  ref,
+) {
   const { resolveType, isLazy } = unwrapSection(sectionData, decofile);
   const descriptor = resolver.resolveSectionWithDecofile(resolveType, decofile);
 
@@ -585,10 +753,10 @@ function SectionSchemaCard({
       ?.replace(/\.tsx?$/, "") ?? resolveType;
 
   return (
-    <div className="px-4 py-3">
+    <div ref={ref} className="px-4 py-3">
       <button
         type="button"
-        onClick={() => setExpanded(!expanded)}
+        onClick={onToggle}
         className="w-full flex items-center gap-2 text-left"
       >
         {expanded ? (
@@ -620,7 +788,7 @@ function SectionSchemaCard({
       )}
     </div>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // Readonly Field Renderer — renders actual form inputs from FieldDescriptors
