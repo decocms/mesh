@@ -2,10 +2,17 @@ import type { ConnectionEntity } from "@decocms/mesh-sdk";
 import { getConnectionSlug } from "./connection-slug";
 
 /**
+ * Strip auto-generated instance suffixes like "(2)" or "(a1b2)" from a title.
+ * Matches 1-6 character parenthesized suffixes at the end of the string, which
+ * covers numeric instance numbers and short base-36 clone IDs. Longer
+ * parenthesized qualifiers (e.g., "(Desktop)") are preserved.
+ */
+const INSTANCE_SUFFIX_RE = /\s*\([^)]{1,6}\)\s*$/;
+
+/**
  * Returns the canonical display title for a connection in catalog/card/header contexts.
- * For registry-installed connections (those with app_name set), the canonical name is
- * derived from the stable app_name slug so that user-renamed instances don't pollute
- * the group title. For custom connections (no app_name), the user-set title is used.
+ * Strips auto-generated instance suffixes from the connection title so that
+ * "Vercel MCP (2)" displays as "Vercel MCP".
  *
  * Use the raw connection.title only when showing the specific instance matters
  * (e.g., the instance list inside a connection detail, or the binding selector).
@@ -13,13 +20,24 @@ import { getConnectionSlug } from "./connection-slug";
 export function getConnectionDisplayTitle(
   connection: ConnectionEntity,
 ): string {
-  if (connection.app_name) {
-    // Convert slug → display title: "google-gmail" → "Google Gmail"
-    // Strip optional scope prefix like "@scope/name" first.
-    const slug = connection.app_name.replace(/^@[^/]+\//, "");
-    return slug.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return connection.title.replace(INSTANCE_SUFFIX_RE, "");
+}
+
+/**
+ * For a group of connections sharing the same app, pick the best canonical title.
+ * Uses the shortest stripped title among all instances so that user-renamed
+ * instances (e.g., "Google Gmail adsfadsfa") don't pollute the group title
+ * when a sibling still has the clean original name.
+ */
+export function getGroupDisplayTitle(connections: ConnectionEntity[]): string {
+  let best = getConnectionDisplayTitle(connections[0]!);
+  for (let i = 1; i < connections.length; i++) {
+    const candidate = getConnectionDisplayTitle(connections[i]!);
+    if (candidate.length < best.length) {
+      best = candidate;
+    }
   }
-  return connection.title;
+  return best;
 }
 
 export interface ConnectionGroup {
@@ -68,7 +86,7 @@ export function groupConnections(
         type: "group",
         key,
         icon: first.icon,
-        title: getConnectionDisplayTitle(first),
+        title: getGroupDisplayTitle(bucket),
         connections: bucket,
       });
     }
