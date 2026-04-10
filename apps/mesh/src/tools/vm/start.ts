@@ -13,9 +13,6 @@ import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth, getUserId } from "../../core/mesh-context";
 import { freestyle } from "freestyle-sandboxes";
-import { VmNodeJs } from "@freestyle-sh/with-nodejs";
-import { VmBun } from "@freestyle-sh/with-bun";
-import { VmDeno } from "@freestyle-sh/with-deno";
 import { getActiveVm, setActiveVm } from "./registry";
 
 export const VM_START = defineTool({
@@ -86,14 +83,6 @@ export const VM_START = defineTool({
     const detected = metadata.runtime?.detected ?? "npm";
     const port = metadata.runtime?.port ?? "3000";
 
-    // Select runtime integration based on detected package manager
-    const runtimeIntegration =
-      detected === "deno"
-        ? new VmDeno()
-        : detected === "bun"
-          ? new VmBun()
-          : new VmNodeJs();
-
     // Create the Freestyle Git repo reference
     const { repoId } = await freestyle.git.repos.create({
       source: {
@@ -108,24 +97,30 @@ export const VM_START = defineTool({
     const proxyPort = 9999;
 
     // Write wrapper scripts to avoid systemd exec quoting issues
-    const pathPrefix =
-      'export PATH="/root/.deno/bin:/root/.bun/bin:/usr/local/bin:$PATH"';
+    // Install runtime manually since VmDeno/VmBun integrations may not
+    // install the binary to the expected PATH locations
+    const runtimeSetup =
+      detected === "deno"
+        ? 'curl -fsSL https://deno.land/install.sh | sh\nexport DENO_DIR="/root/.deno"\nexport PATH="/root/.deno/bin:$PATH"'
+        : detected === "bun"
+          ? 'curl -fsSL https://bun.sh/install | bash\nexport PATH="/root/.bun/bin:$PATH"'
+          : 'export PATH="/usr/local/bin:$PATH"';
 
-    // Create VM with runtime, repo, scripts, and systemd services
+    // Create VM with repo, scripts, and systemd services
     // Freestyle docs: /v2/vms/configuration/systemd-services
     const createResult = await freestyle.vms.create({
-      with: {
-        runtime: runtimeIntegration,
-      },
       gitRepos: [{ repo: repoId, path: "/app" }],
       workdir: "/app",
       domains: [{ domain: previewDomain, vmPort: proxyPort }],
       additionalFiles: {
+        "/opt/setup-runtime.sh": {
+          content: `#!/bin/bash\nset -e\n${runtimeSetup}\necho "Runtime ready"\n`,
+        },
         "/opt/install-deps.sh": {
-          content: `#!/bin/bash\n${pathPrefix}\ncd /app\n${installScript}\n`,
+          content: `#!/bin/bash\nset -e\nsource /opt/setup-runtime.sh\ncd /app\n${installScript}\n`,
         },
         "/opt/dev-server.sh": {
-          content: `#!/bin/bash\n${pathPrefix}\ncd /app\nexport HOST=0.0.0.0\nexport HOSTNAME=0.0.0.0\nexport PORT=${port}\n${devScript}\n`,
+          content: `#!/bin/bash\nsource /opt/setup-runtime.sh\ncd /app\nexport HOST=0.0.0.0\nexport HOSTNAME=0.0.0.0\nexport PORT=${port}\n${devScript}\n`,
         },
         "/opt/port-proxy.sh": {
           content: `#!/bin/bash\napt-get update -qq > /dev/null 2>&1\napt-get install -y -qq socat > /dev/null 2>&1\nsocat TCP-LISTEN:${proxyPort},bind=0.0.0.0,fork,reuseaddr TCP:127.0.0.1:${port}\n`,
@@ -134,10 +129,17 @@ export const VM_START = defineTool({
       systemd: {
         services: [
           {
+            name: "setup-runtime",
+            mode: "oneshot" as const,
+            exec: ["/bin/bash /opt/setup-runtime.sh"],
+            wantedBy: ["multi-user.target"],
+            timeoutSec: 120,
+          },
+          {
             name: "install-deps",
             mode: "oneshot" as const,
             exec: ["/bin/bash /opt/install-deps.sh"],
-            after: ["freestyle-git-sync.service"],
+            after: ["freestyle-git-sync.service", "setup-runtime.service"],
             wantedBy: ["multi-user.target"],
             timeoutSec: 300,
           },
