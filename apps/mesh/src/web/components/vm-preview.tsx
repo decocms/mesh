@@ -36,9 +36,16 @@ interface VmData {
   terminalUrl: string | null;
   previewUrl: string;
   vmId: string;
+  isNewVm: boolean;
 }
 
-type ViewStatus = "idle" | "starting" | "running" | "error";
+type ViewStatus =
+  | "idle"
+  | "creating"
+  | "installing"
+  | "running"
+  | "suspended"
+  | "error";
 type PreviewViewMode = "preview" | "visual";
 
 const VIEW_MODE_OPTIONS: [
@@ -55,16 +62,161 @@ export function VmPreviewContent() {
   const [status, setStatus] = useState<ViewStatus>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [showTerminal, setShowTerminal] = useState(false);
-  const [previewReady, setPreviewReady] = useState(false);
+  const [hasHtmlPreview, setHasHtmlPreview] = useState(false);
+  const [execInFlight, setExecInFlight] = useState(false);
   const vmDataRef = useRef<VmData | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startingRef = useRef(false);
+  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Visual editor state
   const [viewMode, setViewMode] = useState<PreviewViewMode>("preview");
   const [visualElement, setVisualElement] =
     useState<VisualEditorPayload | null>(null);
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
+
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+
+  const callTool = async (name: string, args: Record<string, unknown>) => {
+    const result = await client.callTool({ name, arguments: args });
+    const content = (result as { content?: Array<{ text?: string }> }).content;
+    if (content?.[0]?.text?.startsWith("Error:")) {
+      throw new Error(content[0].text);
+    }
+    return (
+      (result as { structuredContent?: unknown }).structuredContent ?? result
+    );
+  };
+
+  const handleExec = async (action: "install" | "dev") => {
+    if (execInFlight || !inset?.entity) return;
+    setExecInFlight(true);
+    try {
+      const data = (await callTool("VM_EXEC", {
+        virtualMcpId: inset.entity.id,
+        action,
+      })) as { success: boolean; error?: string };
+      if (!data.success) throw new Error(data.error ?? "Command failed");
+    } finally {
+      setExecInFlight(false);
+    }
+  };
+
+  const pollPreview = async () => {
+    const vmData = vmDataRef.current;
+    if (!vmData || !inset?.entity) return;
+    for (let i = 0; i < 20; i++) {
+      try {
+        const probe = (await callTool("VM_PROBE", {
+          virtualMcpId: inset.entity.id,
+          url: vmData.previewUrl,
+        })) as { status: number; contentType: string | null };
+        if (probe.status >= 200 && probe.status < 300) {
+          const isHtml = probe.contentType?.includes("text/html") ?? false;
+          setHasHtmlPreview(isHtml);
+          setShowTerminal(!isHtml);
+          if (isHtml && previewIframeRef.current) {
+            previewIframeRef.current.src = vmData.previewUrl;
+          }
+          return;
+        }
+      } catch {
+        /* ignore probe errors, keep polling */
+      }
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    // Server never responded — keep terminal
+    setHasHtmlPreview(false);
+    setShowTerminal(true);
+  };
+
+  const handleStart = async () => {
+    if (startingRef.current) return;
+    startingRef.current = true;
+    setStatus("creating");
+    setErrorMsg("");
+    setHasHtmlPreview(false);
+
+    try {
+      if (!inset?.entity) throw new Error("No virtual MCP context");
+      const data = (await callTool("VM_START", {
+        virtualMcpId: inset.entity.id,
+      })) as VmData;
+
+      if (!data.previewUrl || !data.vmId) {
+        throw new Error("Invalid VM response — missing URLs");
+      }
+
+      vmDataRef.current = data;
+
+      if (!data.isNewVm) {
+        // Existing VM — go straight to running
+        setStatus("running");
+        setShowTerminal(false);
+        setHasHtmlPreview(true); // assume HTML for existing VMs
+        return;
+      }
+
+      // New VM — show terminal, run install + dev
+      setShowTerminal(true);
+      setStatus("installing");
+
+      await handleExec("install");
+      await handleExec("dev");
+      await pollPreview();
+
+      setStatus("running");
+    } catch (error) {
+      setStatus("error");
+      setErrorMsg(
+        error instanceof Error ? error.message : "Failed to start VM",
+      );
+    } finally {
+      startingRef.current = false;
+    }
+  };
+
+  const handleResume = async () => {
+    setStatus("installing");
+    setShowTerminal(true);
+    try {
+      await handleExec("dev");
+      await pollPreview();
+      setStatus("running");
+    } catch (error) {
+      setStatus("error");
+      setErrorMsg(
+        error instanceof Error ? error.message : "Failed to resume VM",
+      );
+    }
+  };
+
+  const handleStop = async () => {
+    if (heartbeatRef.current) {
+      clearInterval(heartbeatRef.current);
+      heartbeatRef.current = null;
+    }
+    const virtualMcpId = inset?.entity?.id;
+    vmDataRef.current = null;
+    setStatus("idle");
+    setHasHtmlPreview(false);
+    setShowTerminal(false);
+    setVisualElement(null);
+    setViewMode("preview");
+
+    if (virtualMcpId) {
+      try {
+        await client.callTool({
+          name: "VM_STOP",
+          arguments: { virtualMcpId },
+        });
+      } catch {
+        // Best effort
+      }
+    }
+  };
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — auto-start on mount requires DOM lifecycle; no React 19 alternative
   useEffect(() => {
@@ -99,13 +251,43 @@ export function VmPreviewContent() {
     return () => window.removeEventListener("message", handler);
   }, [status]);
 
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — heartbeat polling requires interval lifecycle; no React 19 alternative
+  useEffect(() => {
+    if (
+      status !== "running" ||
+      !vmDataRef.current?.terminalUrl ||
+      !inset?.entity
+    ) {
+      if (heartbeatRef.current) {
+        clearInterval(heartbeatRef.current);
+        heartbeatRef.current = null;
+      }
+      return;
+    }
+    heartbeatRef.current = setInterval(async () => {
+      try {
+        const probe = (await callTool("VM_PROBE", {
+          virtualMcpId: inset.entity!.id,
+          url: vmDataRef.current!.terminalUrl!,
+        })) as { status: number; contentType: string | null };
+        if (probe.status !== 200 && probe.status !== 0) {
+          setStatus("suspended");
+        }
+      } catch {
+        /* ignore */
+      }
+    }, 10_000);
+    return () => {
+      if (heartbeatRef.current) {
+        clearInterval(heartbeatRef.current);
+        heartbeatRef.current = null;
+      }
+    };
+  }, [status]);
+
   const injectVisualEditor = () => {
     const win = previewIframeRef.current?.contentWindow;
     if (!win) return;
-    // Send activation message to the bootstrap script injected by the
-    // VM's iframe proxy. The bootstrap listens for this message and evals
-    // the visual editor script. This works cross-origin since postMessage
-    // doesn't require same-origin access.
     win.postMessage(
       { type: "visual-editor::activate", script: VISUAL_EDITOR_SCRIPT },
       "*",
@@ -117,107 +299,6 @@ export function VmPreviewContent() {
     setVisualElement(null);
     if (mode === "visual") {
       injectVisualEditor();
-    }
-  };
-
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-
-  const handleStart = async () => {
-    if (startingRef.current) return;
-    startingRef.current = true;
-    setStatus("starting");
-    setErrorMsg("");
-    setPreviewReady(false);
-
-    try {
-      if (!inset?.entity) throw new Error("No virtual MCP context");
-      const result = await client.callTool({
-        name: "VM_START",
-        arguments: { virtualMcpId: inset.entity.id },
-      });
-
-      // Check for MCP tool error (content[0].text starts with "Error:")
-      const content = (result as { content?: Array<{ text?: string }> })
-        .content;
-      if (content?.[0]?.text?.startsWith("Error:")) {
-        throw new Error(content[0].text);
-      }
-
-      const payload =
-        (result as { structuredContent?: unknown }).structuredContent ?? result;
-      const data = payload as VmData;
-
-      if (!data.previewUrl || !data.vmId) {
-        throw new Error("Invalid VM response — missing URLs");
-      }
-
-      vmDataRef.current = data;
-      setStatus("running");
-
-      // Start polling for preview readiness
-      // Use an image load trick — try loading favicon or a small resource
-      if (pollRef.current) clearInterval(pollRef.current);
-      pollRef.current = setInterval(() => {
-        const img = new Image();
-        img.onload = () => {
-          setPreviewReady(true);
-          // Force-reload the iframe — it may be stuck on chrome-error://
-          // from a failed load attempt during VM startup.
-          if (previewIframeRef.current) {
-            previewIframeRef.current.src = data.previewUrl;
-          }
-          if (pollRef.current) {
-            clearInterval(pollRef.current);
-            pollRef.current = null;
-          }
-        };
-        // Try to load the page as an image — will fail but if the server
-        // responds at all, we know it's up. Use a timestamp to bust cache.
-        img.src = `${data.previewUrl}/favicon.ico?_t=${Date.now()}`;
-      }, 5000);
-    } catch (error) {
-      setStatus("error");
-      setErrorMsg(
-        error instanceof Error ? error.message : "Failed to start VM",
-      );
-    } finally {
-      startingRef.current = false;
-    }
-  };
-
-  const handleStop = async () => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-    const virtualMcpId = inset?.entity?.id;
-    vmDataRef.current = null;
-    setStatus("idle");
-    setPreviewReady(false);
-    setShowTerminal(false);
-    setVisualElement(null);
-    setViewMode("preview");
-
-    if (virtualMcpId) {
-      try {
-        await client.callTool({
-          name: "VM_STOP",
-          arguments: { virtualMcpId },
-        });
-      } catch {
-        // Best effort
-      }
-    }
-  };
-
-  const handleOpenPreview = () => {
-    setPreviewReady(true);
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
     }
   };
 
@@ -234,13 +315,11 @@ export function VmPreviewContent() {
     );
   }
 
-  if (status === "starting") {
+  if (status === "creating") {
     return (
       <div className="flex flex-col items-center justify-center w-full h-full gap-4">
         <Loading01 size={24} className="animate-spin text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">
-          Creating VM and starting dev server...
-        </p>
+        <p className="text-sm text-muted-foreground">Creating VM...</p>
       </div>
     );
   }
@@ -261,15 +340,64 @@ export function VmPreviewContent() {
 
   const hasTerminal = !!vmData.terminalUrl;
 
+  // Installing state — terminal full height, no preview panel
+  if (status === "installing") {
+    return (
+      <div className="flex flex-col w-full h-full">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+          <div className="flex items-center gap-1.5 px-2.5 h-7 text-xs text-muted-foreground">
+            <Loading01
+              size={14}
+              className="animate-spin text-muted-foreground"
+            />
+            Installing...
+          </div>
+          <div className="flex-1" />
+          <button
+            type="button"
+            onClick={handleStop}
+            className="flex items-center gap-1.5 px-2.5 h-7 rounded-md text-xs transition-colors shrink-0 bg-accent text-foreground"
+          >
+            <StopCircle size={14} />
+          </button>
+        </div>
+        <div className="flex-1">
+          {hasTerminal && (
+            <iframe
+              src={vmData.terminalUrl ?? undefined}
+              className="w-full h-full border-0"
+              title="VM Terminal"
+              allow="clipboard-read; clipboard-write"
+            />
+          )}
+          {!hasTerminal && (
+            <div className="flex flex-col items-center justify-center w-full h-full gap-3">
+              <Loading01
+                size={20}
+                className="animate-spin text-muted-foreground"
+              />
+              <p className="text-sm text-muted-foreground">
+                Installing dependencies and starting dev server...
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Running / Suspended states
   return (
     <div className="flex flex-col w-full h-full">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
-        <ViewModeToggle
-          value={viewMode}
-          onValueChange={handleViewModeChange}
-          options={VIEW_MODE_OPTIONS}
-          size="sm"
-        />
+        {hasHtmlPreview && (
+          <ViewModeToggle
+            value={viewMode}
+            onValueChange={handleViewModeChange}
+            options={VIEW_MODE_OPTIONS}
+            size="sm"
+          />
+        )}
         {hasTerminal && (
           <button
             type="button"
@@ -301,12 +429,6 @@ export function VmPreviewContent() {
           <span className="text-xs text-muted-foreground font-mono truncate flex-1">
             {vmData.previewUrl}
           </span>
-          {!previewReady && (
-            <Loading01
-              size={10}
-              className="animate-spin shrink-0 text-muted-foreground"
-            />
-          )}
         </div>
         <Button
           variant="ghost"
@@ -326,73 +448,100 @@ export function VmPreviewContent() {
       </div>
 
       <div className="flex-1 relative">
-        <ResizablePanelGroup direction="vertical">
-          {/* Preview panel — always visible */}
-          <ResizablePanel minSize={20}>
-            <div className="relative w-full h-full">
-              {!previewReady && !hasTerminal && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-                  <Loading01
-                    size={20}
-                    className="animate-spin text-muted-foreground"
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Installing dependencies and starting dev server...
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleOpenPreview}
-                  >
-                    Open Preview
-                  </Button>
-                </div>
-              )}
-              {(previewReady || hasTerminal) && (
-                <>
-                  {viewMode === "visual" && !visualElement && (
-                    <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 rounded-full border border-violet-400/40 bg-violet-500/90 px-3 py-1 text-xs font-medium text-white shadow-md backdrop-blur-sm pointer-events-none select-none">
-                      <CursorClick01 size={12} />
-                      Click any element to ask the AI
-                    </div>
-                  )}
-                  {viewMode === "visual" && visualElement && (
-                    <VisualEditorPrompt
-                      element={visualElement}
-                      onDismiss={() => setVisualElement(null)}
-                    />
-                  )}
-                  <iframe
-                    ref={previewIframeRef}
-                    src={vmData.previewUrl}
-                    className="w-full h-full border-0"
-                    title="Dev Server Preview"
-                    onLoad={() => {
-                      if (viewMode === "visual") {
-                        injectVisualEditor();
-                      }
-                    }}
-                  />
-                </>
-              )}
-            </div>
-          </ResizablePanel>
+        {status === "suspended" && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-background/80 backdrop-blur-sm">
+            <p className="text-sm text-muted-foreground">
+              VM suspended due to inactivity.
+            </p>
+            <Button onClick={handleResume}>Resume</Button>
+          </div>
+        )}
 
-          {/* Terminal panel — shown when toggled */}
-          {showTerminal && hasTerminal && (
-            <>
-              <ResizableHandle className="h-[3px] bg-border/60 hover:bg-primary/30 transition-colors" />
-              <ResizablePanel defaultSize={40} minSize={15}>
+        {hasHtmlPreview && !showTerminal && (
+          <div className="relative w-full h-full">
+            {viewMode === "visual" && !visualElement && (
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 rounded-full border border-violet-400/40 bg-violet-500/90 px-3 py-1 text-xs font-medium text-white shadow-md backdrop-blur-sm pointer-events-none select-none">
+                <CursorClick01 size={12} />
+                Click any element to ask the AI
+              </div>
+            )}
+            {viewMode === "visual" && visualElement && (
+              <VisualEditorPrompt
+                element={visualElement}
+                onDismiss={() => setVisualElement(null)}
+              />
+            )}
+            <iframe
+              ref={previewIframeRef}
+              src={vmData.previewUrl}
+              className="w-full h-full border-0"
+              title="Dev Server Preview"
+              onLoad={() => {
+                if (viewMode === "visual") {
+                  injectVisualEditor();
+                }
+              }}
+            />
+          </div>
+        )}
+
+        {hasHtmlPreview && showTerminal && hasTerminal && (
+          <ResizablePanelGroup direction="vertical">
+            <ResizablePanel minSize={20}>
+              <div className="relative w-full h-full">
+                {viewMode === "visual" && !visualElement && (
+                  <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 rounded-full border border-violet-400/40 bg-violet-500/90 px-3 py-1 text-xs font-medium text-white shadow-md backdrop-blur-sm pointer-events-none select-none">
+                    <CursorClick01 size={12} />
+                    Click any element to ask the AI
+                  </div>
+                )}
+                {viewMode === "visual" && visualElement && (
+                  <VisualEditorPrompt
+                    element={visualElement}
+                    onDismiss={() => setVisualElement(null)}
+                  />
+                )}
                 <iframe
-                  src={vmData.terminalUrl ?? undefined}
+                  ref={previewIframeRef}
+                  src={vmData.previewUrl}
                   className="w-full h-full border-0"
-                  title="VM Terminal"
-                  allow="clipboard-read; clipboard-write"
+                  title="Dev Server Preview"
+                  onLoad={() => {
+                    if (viewMode === "visual") {
+                      injectVisualEditor();
+                    }
+                  }}
                 />
-              </ResizablePanel>
-            </>
-          )}
-        </ResizablePanelGroup>
+              </div>
+            </ResizablePanel>
+            <ResizableHandle className="h-[3px] bg-border/60 hover:bg-primary/30 transition-colors" />
+            <ResizablePanel defaultSize={40} minSize={15}>
+              <iframe
+                src={vmData.terminalUrl ?? undefined}
+                className="w-full h-full border-0"
+                title="VM Terminal"
+                allow="clipboard-read; clipboard-write"
+              />
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        )}
+
+        {!hasHtmlPreview && hasTerminal && (
+          <iframe
+            src={vmData.terminalUrl ?? undefined}
+            className="w-full h-full border-0"
+            title="VM Terminal"
+            allow="clipboard-read; clipboard-write"
+          />
+        )}
+
+        {!hasHtmlPreview && !hasTerminal && (
+          <div className="flex flex-col items-center justify-center w-full h-full gap-3">
+            <p className="text-sm text-muted-foreground">
+              No preview available.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
