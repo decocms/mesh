@@ -413,29 +413,9 @@ app.post("/domain-setup", async (c) => {
       domainName.charAt(0).toUpperCase() + domainName.slice(1);
     const baseSlug = domainName.toLowerCase().replace(/[^a-z0-9-]/g, "");
 
-    // Check if user already owns a domainless org (from a previous failed
-    // attempt where createOrganization succeeded but setDomain didn't).
-    // Reuse it instead of creating another orphan.
-    const existingOwnership = await db
-      .selectFrom("member")
-      .innerJoin("organization", "organization.id", "member.organizationId")
-      .leftJoin(
-        "organization_domains",
-        "organization_domains.organization_id",
-        "organization.id",
-      )
-      .select(["organization.id", "organization.slug"])
-      .where("member.userId", "=", session.user.id)
-      .where("member.role", "=", "owner")
-      .where("organization_domains.domain", "is", null)
-      .executeTakeFirst();
-
-    let orgResult: { id: string; slug: string } | null = existingOwnership
-      ? { id: existingOwnership.id, slug: existingOwnership.slug }
-      : null;
-
-    // Create org if no reusable one found. Retry with random suffix on slug collision.
-    if (!orgResult) {
+    // Create the org. Retry with random suffix on slug collision.
+    let orgResult: { id: string; slug: string } | null = null;
+    {
       const maxAttempts = 3;
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         const suffix =
