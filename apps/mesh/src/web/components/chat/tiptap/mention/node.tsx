@@ -20,7 +20,7 @@ export interface MentionAttrs<T = unknown> {
   name: string;
   /** Additional metadata (e.g., prompt messages) */
   metadata: T;
-  /** Character that triggered the mention */
+  /** Character that triggered the mention ("/" prompts+resources, "@" agents) */
   char?: "/" | "@";
 }
 
@@ -65,7 +65,7 @@ function MentionNodeView(props: NodeViewProps) {
   const { name, char } = node.attrs as MentionAttrs;
 
   const isSelected = selected && view.editable;
-  const isResource = char === "@";
+  const isAgent = char === "@";
 
   return (
     <NodeViewWrapper
@@ -74,8 +74,8 @@ function MentionNodeView(props: NodeViewProps) {
         "inline-flex items-center gap-1",
         "cursor-default select-none",
         "text-xs font-light",
-        isResource
-          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+        isAgent
+          ? "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400"
           : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
         isSelected && "outline-2 outline-blue-300 outline-offset-0",
         "capitalize",

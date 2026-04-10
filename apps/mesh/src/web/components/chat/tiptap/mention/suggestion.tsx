@@ -4,6 +4,7 @@ import {
   displayToolName,
   getGatewayClientId,
 } from "@decocms/mcp-utils/aggregate";
+import { AgentAvatar } from "@/web/components/agent-icon";
 import { Spinner } from "@deco/ui/components/spinner.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
@@ -40,7 +41,7 @@ export type { MentionAttrs };
 interface SuggestionSelectProps<T extends BaseItem> {
   /** The Tiptap editor instance */
   editor: Editor;
-  /** Trigger character (e.g., "/" for prompts, "@" for resources) */
+  /** Trigger character (e.g., "/" for prompts, "@" for resources, "@@" for agents) */
   char: string;
   /** Unique key for the suggestion plugin */
   pluginKey: string | PluginKey;
@@ -48,8 +49,15 @@ interface SuggestionSelectProps<T extends BaseItem> {
   queryKey: readonly unknown[];
   /** Async function to fetch items based on query */
   queryFn: (props: { query: string }) => Promise<T[]>;
-  /** Callback executed when a suggestion is selected */
-  onSelect: (props: OnSelectProps<T>) => void | Promise<void>;
+  /** Callback executed when a suggestion is selected. Return false to keep menu open (drill-in). */
+  onSelect: (props: OnSelectProps<T>) => void | false | Promise<void | false>;
+  /** Optional custom allow function to control when suggestion triggers */
+  allow?: (props: {
+    state: unknown;
+    range: { from: number; to: number };
+  }) => boolean;
+  /** Called when the menu opens or closes */
+  onOpenChange?: (open: boolean) => void;
 }
 
 interface MentionItemProps<T extends BaseItem> {
@@ -64,7 +72,7 @@ interface MentionItemListProps<T extends BaseItem> {
   editor: Editor;
   queryKey: readonly unknown[];
   queryFn: (props: { query: string }) => Promise<T[]>;
-  onSelect: (props: OnSelectProps<T>) => void | Promise<void>;
+  onSelect: (props: OnSelectProps<T>) => void | false | Promise<void | false>;
 }
 
 /**
@@ -137,6 +145,7 @@ const MentionItem = <T extends BaseItem>({
   const clientId = getGatewayClientId((item as Record<string, unknown>)._meta);
   const name = item.title || displayToolName(item.name, clientId);
   const description = item.description || null;
+  const icon = item.icon;
 
   return (
     <div
@@ -150,6 +159,9 @@ const MentionItem = <T extends BaseItem>({
         isLoading && "pointer-events-none opacity-50",
       )}
     >
+      {icon !== undefined && (
+        <AgentAvatar icon={icon} name={name} size="xs" className="mr-2" />
+      )}
       <div className="flex flex-col gap-0.5 flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
           <span className="font-medium flex items-center truncate capitalize">
@@ -163,6 +175,11 @@ const MentionItem = <T extends BaseItem>({
           </div>
         )}
       </div>
+      {item.drillable && (
+        <kbd className="shrink-0 ml-2 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground bg-muted border border-border rounded">
+          ↵
+        </kbd>
+      )}
     </div>
   );
 };
@@ -257,11 +274,15 @@ export function Suggestion<T extends BaseItem>({
   queryKey,
   queryFn,
   onSelect,
+  allow,
+  onOpenChange,
 }: SuggestionSelectProps<T>) {
   const { state, dispatch } = useMentionState({
     editor,
     char,
     pluginKey,
+    allow,
+    onOpenChange,
   });
 
   // Provide both state and dispatch to children (for useSuggestion)

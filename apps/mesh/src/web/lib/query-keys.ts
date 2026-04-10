@@ -182,6 +182,10 @@ export const KEYS = {
       rawToolName,
     ] as const,
 
+  // Virtual MCP agents (for agent mentions in chat)
+  virtualMcpAgents: (orgId: string) =>
+    ["virtual-mcp", orgId, "agents"] as const,
+
   // Virtual MCP prompts (for ice breakers in chat)
   // null virtualMcpId means default virtual MCP
   virtualMcpPrompts: (virtualMcpId: string | null, orgId: string) =>

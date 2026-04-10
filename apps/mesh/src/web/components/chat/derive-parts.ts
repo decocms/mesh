@@ -198,18 +198,52 @@ export function derivePartsFromTiptapDoc(
       // Add label to inline text
       inlineText += mentionName;
 
-      // Handle resource mentions (@) vs prompt mentions (/)
       if (char === "@") {
-        // Resource mentions: metadata contains ReadResourceResult.contents directly
-        const contents = (node.attrs.metadata ||
-          []) as ReadResourceResult["contents"];
-        parts.push(...resourcesToParts(contents, mentionName));
+        // @ mentions can be agents or resources — distinguish by metadata shape
+        const meta = node.attrs.metadata as
+          | Record<string, unknown>
+          | unknown[]
+          | null;
+        if (meta && !Array.isArray(meta) && "agentId" in meta) {
+          // Agent mention: instruct the AI to use open_in_agent tool
+          parts.push({
+            type: "text",
+            text:
+              `[OPEN IN AGENT: ${(meta as { title?: string }).title ?? node.attrs.name} (agent_id: ${(meta as { agentId: string }).agentId})]\n` +
+              `Use the open_in_agent tool to hand off this task to the agent above. ` +
+              `Include the full relevant context from this conversation in the context field.`,
+          });
+        } else if (Array.isArray(meta)) {
+          // Resource mention: metadata is ReadResourceResult.contents
+          parts.push(
+            ...resourcesToParts(
+              meta as ReadResourceResult["contents"],
+              mentionName,
+            ),
+          );
+        }
       } else {
-        // Prompt mentions: metadata contains PromptMessage[]
-        const prompts = (node.attrs.metadata ||
-          node.attrs.prompts ||
-          []) as PromptMessage[];
-        parts.push(...promptMessagesToParts(prompts, mentionName));
+        // Slash mentions: prompts or resources (both use "/")
+        // Distinguish by metadata shape: arrays with "role" = prompts, arrays with "uri" = resources
+        const metadata = node.attrs.metadata || node.attrs.prompts || [];
+        if (
+          Array.isArray(metadata) &&
+          metadata.length > 0 &&
+          "role" in metadata[0]
+        ) {
+          // Prompt messages
+          parts.push(
+            ...promptMessagesToParts(metadata as PromptMessage[], mentionName),
+          );
+        } else if (Array.isArray(metadata)) {
+          // Resource contents
+          parts.push(
+            ...resourcesToParts(
+              metadata as ReadResourceResult["contents"],
+              mentionName,
+            ),
+          );
+        }
       }
     } else if (node.type === "file" && node.attrs) {
       const fileAttrs = node.attrs as unknown as FileAttrs;
