@@ -13,12 +13,62 @@
 
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
-import { freestyle } from "freestyle-sandboxes";
+import { type SystemdServiceInput, freestyle } from "freestyle-sandboxes";
 import { VmDeno } from "@freestyle-sh/with-deno";
 import { VmBun } from "@freestyle-sh/with-bun";
+import { VmNodeJs } from "@freestyle-sh/with-nodejs";
 import { VmWebTerminal } from "@freestyle-sh/with-web-terminal";
 import { type VmEntry, patchActiveVms } from "./types";
 import { requireVmEntry, resolveRuntimeConfig } from "./helpers";
+
+const PROXY_PORT = 9000;
+
+const BOOTSTRAP_SCRIPT = `<script>(function(){window.addEventListener("message",function(e){if(e.data&&e.data.type==="visual-editor::activate"&&e.data.script){try{new Function(e.data.script)()}catch(err){console.error("[visual-editor] injection failed",err)}}});})();</script>`;
+
+// Reverse proxy that strips X-Frame-Options and CSP headers so the
+// dev server preview can be embedded in an iframe.
+// For HTML responses, injects a bootstrap script that listens for
+// visual-editor::activate postMessage to enable the visual editor.
+// Node's http module is available in Freestyle VMs by default.
+const PROXY_SCRIPT = `const http = require("http");
+const UPSTREAM = process.env.UPSTREAM_PORT || "3000";
+const BOOTSTRAP = ${JSON.stringify(BOOTSTRAP_SCRIPT)};
+http.createServer((req, res) => {
+  const hdrs = Object.assign({}, req.headers);
+  // Remove accept-encoding so upstream sends uncompressed responses.
+  // The proxy needs to read and modify HTML as plain text.
+  delete hdrs["accept-encoding"];
+  const opts = { hostname: "127.0.0.1", port: UPSTREAM, path: req.url, method: req.method, headers: hdrs };
+  const p = http.request(opts, (upstream) => {
+    delete upstream.headers["x-frame-options"];
+    delete upstream.headers["content-security-policy"];
+    delete upstream.headers["content-encoding"];
+    const ct = (upstream.headers["content-type"] || "").toLowerCase();
+    if (ct.includes("text/html")) {
+      // Buffer HTML responses to inject the visual editor bootstrap
+      delete upstream.headers["content-length"];
+      res.writeHead(upstream.statusCode, upstream.headers);
+      const chunks = [];
+      upstream.on("data", (c) => chunks.push(c));
+      upstream.on("end", () => {
+        let html = Buffer.concat(chunks).toString("utf-8");
+        const idx = html.lastIndexOf("</body>");
+        if (idx !== -1) {
+          html = html.slice(0, idx) + BOOTSTRAP + html.slice(idx);
+        } else {
+          html += BOOTSTRAP;
+        }
+        res.end(html);
+      });
+    } else {
+      res.writeHead(upstream.statusCode, upstream.headers);
+      upstream.pipe(res);
+    }
+  });
+  p.on("error", (e) => { res.writeHead(502); res.end("proxy error: " + e.message); });
+  req.pipe(p);
+}).listen(${PROXY_PORT}, "0.0.0.0");
+`;
 
 export const VM_START = defineTool({
   name: "VM_START",
@@ -80,6 +130,7 @@ export const VM_START = defineTool({
 
     const { owner, name } = metadata.githubRepo;
     const { detected, port } = resolveRuntimeConfig(metadata);
+    console.log(`[VM_START] detected runtime: ${detected}`);
 
     // Create the Freestyle Git repo reference
     const { repoId } = await freestyle.git.repos.create({
@@ -94,95 +145,32 @@ export const VM_START = defineTool({
     const terminalDomain = `${input.virtualMcpId.replace(/[^a-z0-9]/gi, "-")}-term.deco.studio`;
 
     // Build the `with` config for Freestyle VM integrations.
-    // Uses official @freestyle-sh packages — runtimes are pre-installed and cached.
-    // Only needed for deno/bun — Node.js is already in the base Freestyle VM at /usr/local/bin/node.
     // Freestyle docs: /v2/vms/integrations/deno, /v2/vms/integrations/bun, /v2/vms/integrations/web-terminal
-    const terminalIntegration = {
+    const plugins = {
       terminal: new VmWebTerminal([
         { id: "logs", command: "tail -f /tmp/vm.log", readOnly: true },
       ] as const),
+      runtime:
+        detected === "deno"
+          ? new VmDeno()
+          : detected === "bun"
+            ? new VmBun()
+            : new VmNodeJs(),
     };
-    const withIntegrations =
-      detected === "deno"
-        ? { ...terminalIntegration, runtime: new VmDeno() }
-        : detected === "bun"
-          ? { ...terminalIntegration, runtime: new VmBun() }
-          : terminalIntegration;
-
-    // Reverse proxy that strips X-Frame-Options and CSP headers so the
-    // dev server preview can be embedded in an iframe.
-    // For HTML responses, injects a bootstrap script that listens for
-    // visual-editor::activate postMessage to enable the visual editor.
-    // Node's http module is available in Freestyle VMs by default.
-    const proxyPort = 9000;
-    const bootstrapScript = `<script>(function(){window.addEventListener("message",function(e){if(e.data&&e.data.type==="visual-editor::activate"&&e.data.script){try{new Function(e.data.script)()}catch(err){console.error("[visual-editor] injection failed",err)}}});})();</script>`;
-    const proxyScript = `const http = require("http");
-const UPSTREAM = process.env.UPSTREAM_PORT || "3000";
-const BOOTSTRAP = ${JSON.stringify(bootstrapScript)};
-http.createServer((req, res) => {
-  const hdrs = Object.assign({}, req.headers);
-  // Remove accept-encoding so upstream sends uncompressed responses.
-  // The proxy needs to read and modify HTML as plain text.
-  delete hdrs["accept-encoding"];
-  const opts = { hostname: "127.0.0.1", port: UPSTREAM, path: req.url, method: req.method, headers: hdrs };
-  const p = http.request(opts, (upstream) => {
-    delete upstream.headers["x-frame-options"];
-    delete upstream.headers["content-security-policy"];
-    delete upstream.headers["content-encoding"];
-    const ct = (upstream.headers["content-type"] || "").toLowerCase();
-    if (ct.includes("text/html")) {
-      // Buffer HTML responses to inject the visual editor bootstrap
-      delete upstream.headers["content-length"];
-      res.writeHead(upstream.statusCode, upstream.headers);
-      const chunks = [];
-      upstream.on("data", (c) => chunks.push(c));
-      upstream.on("end", () => {
-        let html = Buffer.concat(chunks).toString("utf-8");
-        const idx = html.lastIndexOf("</body>");
-        if (idx !== -1) {
-          html = html.slice(0, idx) + BOOTSTRAP + html.slice(idx);
-        } else {
-          html += BOOTSTRAP;
-        }
-        res.end(html);
-      });
-    } else {
-      res.writeHead(upstream.statusCode, upstream.headers);
-      upstream.pipe(res);
-    }
-  });
-  p.on("error", (e) => { res.writeHead(502); res.end("proxy error: " + e.message); });
-  req.pipe(p);
-}).listen(${proxyPort}, "0.0.0.0");
-`;
 
     const additionalFiles: Record<string, { content: string }> = {
-      "/opt/iframe-proxy.js": { content: proxyScript },
+      "/opt/iframe-proxy.js": { content: PROXY_SCRIPT },
     };
 
     // Build systemd services list — infrastructure only.
     // Install/dev lifecycle is handled by VM_EXEC.
     // Freestyle docs: /v2/vms/configuration/systemd-services
-
-    const services: Array<{
-      name: string;
-      mode: "oneshot" | "service";
-      exec: string[];
-      workdir?: string;
-      after?: string[];
-      requires?: string[];
-      wantedBy?: string[];
-      timeoutSec?: number;
-      remainAfterExit?: boolean;
-      env?: Record<string, string>;
-    }> = [
+    const services: SystemdServiceInput[] = [
       {
         name: "iframe-proxy",
         mode: "service",
-        exec: [`/usr/local/bin/node /opt/iframe-proxy.js`],
-        env: {
-          UPSTREAM_PORT: port,
-        },
+        exec: ["/usr/local/bin/node /opt/iframe-proxy.js"],
+        env: { UPSTREAM_PORT: port },
       },
     ];
 
@@ -192,10 +180,10 @@ http.createServer((req, res) => {
     // Terminal domain is routed post-creation via vm.terminal.logs.route() — a persistent mapping.
     // Freestyle docs: /v2/vms/configuration/domains
     const createResult = await freestyle.vms.create({
-      with: withIntegrations,
+      with: plugins,
       gitRepos: [{ repo: repoId, path: "/app" }],
       workdir: "/app",
-      domains: [{ domain: previewDomain, vmPort: proxyPort }],
+      domains: [{ domain: previewDomain, vmPort: PROXY_PORT }],
       additionalFiles,
       systemd: { services },
       idleTimeoutSeconds: 1800,

@@ -56,6 +56,9 @@ mock.module("@freestyle-sh/with-deno", () => ({
 mock.module("@freestyle-sh/with-bun", () => ({
   VmBun: class VmBun {},
 }));
+mock.module("@freestyle-sh/with-nodejs", () => ({
+  VmNodeJs: class VmNodeJs {},
+}));
 mock.module("@freestyle-sh/with-web-terminal", () => ({
   VmWebTerminal: class VmWebTerminal {
     constructor(_config: unknown) {}
