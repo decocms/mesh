@@ -104,6 +104,8 @@ export const VM_START = defineTool({
     // Generate a unique subdomain for this VM
     // Freestyle docs: /v2/vms/configuration/domains
     const previewDomain = `${input.virtualMcpId.replace(/[^a-z0-9]/gi, "-")}.style.dev`;
+    // Use a proxy port for socat to forward 0.0.0.0 traffic to localhost
+    const proxyPort = 9999;
 
     // Create VM with runtime, repo, and systemd services
     // Freestyle docs: /v2/vms/configuration/systemd-services
@@ -113,7 +115,7 @@ export const VM_START = defineTool({
       },
       gitRepos: [{ repo: repoId, path: "/app" }],
       workdir: "/app",
-      domains: [{ domain: previewDomain, vmPort: Number(port) }],
+      domains: [{ domain: previewDomain, vmPort: proxyPort }],
       systemd: {
         services: [
           {
@@ -135,8 +137,17 @@ export const VM_START = defineTool({
             after: ["install-deps.service"],
             env: {
               HOST: "0.0.0.0",
+              HOSTNAME: "0.0.0.0",
               PORT: port,
             },
+          },
+          {
+            name: "port-proxy",
+            mode: "service" as const,
+            exec: [
+              `bash -c 'apt-get install -y -qq socat > /dev/null 2>&1; socat TCP-LISTEN:${proxyPort},bind=0.0.0.0,fork,reuseaddr TCP:127.0.0.1:${port}'`,
+            ],
+            after: ["dev-server.service"],
           },
         ],
       },
