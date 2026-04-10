@@ -173,7 +173,6 @@ export function LeanCanvasRecruitModal({
               value: selfConnectionId,
             },
           },
-          configuration_scopes: ["OBJECT_STORAGE::*"],
           metadata: {
             type: "lean-canvas",
             source: "store",
