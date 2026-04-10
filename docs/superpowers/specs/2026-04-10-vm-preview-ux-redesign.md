@@ -110,16 +110,20 @@ Stays the same — kills the VM and clears the metadata entry.
 ### State Machine
 
 ```
-idle → creating → installing → running → error
+idle → creating → installing → running → suspended → error
+                                  ↑          │
+                                  └──────────┘ (user clicks Resume)
 ```
 
 State transitions:
 - `idle` → user clicks Start → call VM_START
 - `creating` → VM_START returns → show terminal full height, call VM_EXEC("install")
-- `installing` → VM_EXEC("install") returns → call VM_EXEC("dev"), wait a few seconds, HEAD request to previewUrl
+- `installing` → VM_EXEC("install") returns → call VM_EXEC("dev"), poll preview URL
 - `running` → HEAD Content-Type check:
   - `text/html` → collapse terminal, show only preview
   - other → keep terminal full height (API server, no preview)
+- `running` → terminal iframe disconnects (ttyd WebSocket closes) → `suspended`
+- `suspended` → user clicks Resume → call VM_EXEC("dev") (wakes VM via vm.exec()) → `installing` flow
 - `error` → any step fails → show error + retry
 
 ### UI States
@@ -134,6 +138,22 @@ Terminal collapses. Preview iframe takes full height. User can re-open terminal 
 
 **State 3b — Running without preview (API server):**
 Terminal stays full height. No preview iframe shown.
+
+**State 4 — Suspended:**
+When the VM suspends (idle timeout) or stops, ttyd's WebSocket connection drops. The frontend detects this by listening for the terminal iframe's disconnect/error. Shows a message overlaying the current view:
+
+```
+┌─────────────────────────────────────────┐
+│                                         │
+│         VM suspended due to             │
+│         inactivity.                     │
+│                                         │
+│            [ Resume ]                   │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+Clicking Resume calls `VM_EXEC("dev")` which wakes the VM (any `vm.exec()` call auto-resumes a suspended Freestyle VM). This restarts the dev server and ttyd reconnects automatically (systemd auto-restart). The flow returns to the `installing` → `running` transition.
 
 ### Smart Preview Detection
 
@@ -177,5 +197,6 @@ Both actions automatically open the terminal panel so the user sees the output.
 
 - `vm.exec()` is blocking — `npm run dev` must be backgrounded with `&`
 - ttyd install uses `/tmp/` due to Freestyle overlay filesystem write restrictions
+- VM suspend detection: the terminal iframe loads ttyd which uses WebSocket. When the VM suspends, the WebSocket drops and ttyd shows a disconnect state. The frontend can detect this by polling the terminal iframe or listening for error events on the iframe.
 - iframe-proxy remains as custom Node.js proxy (needed for X-Frame-Options stripping + visual editor script injection)
 - Smart preview detection must happen server-side (CORS blocks frontend HEAD requests to `*.deco.studio`)
