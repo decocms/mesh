@@ -17,6 +17,9 @@ const mockVmsCreate = mock(
 );
 
 const mockVmStart = mock((): Promise<void> => Promise.resolve());
+const mockVmExec = mock(
+  (_input: unknown): Promise<void> => Promise.resolve(),
+);
 
 mock.module("freestyle-sandboxes", () => ({
   freestyle: {
@@ -29,6 +32,7 @@ mock.module("freestyle-sandboxes", () => ({
       create: (a: unknown) => mockVmsCreate(a),
       ref: (_input: unknown) => ({
         start: () => mockVmStart(),
+        exec: (cmd: unknown) => mockVmExec(cmd),
       }),
     },
   },

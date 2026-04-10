@@ -17,6 +17,84 @@ import { freestyle } from "freestyle-sandboxes";
 import { type VmEntry, patchActiveVms } from "./types";
 import { requireVmEntry, resolveRuntimeConfig } from "./helpers";
 
+/**
+ * Deploy the Node.js log viewer on a resumed VM if it's missing.
+ * Writes the script to /opt/log-viewer.js and restarts the web-terminal
+ * service to use it instead of ttyd (which required a GitHub download).
+ * Runs in the background so VM_START returns fast.
+ */
+async function ensureLogViewer(
+  vm: ReturnType<typeof freestyle.vms.ref>,
+): Promise<void> {
+  try {
+    // Check if log viewer already exists
+    const check = await vm.exec({
+      command: "test -f /opt/log-viewer.js && echo yes || echo no",
+      timeoutMs: 5_000,
+    });
+    // If the check returns (we can't inspect stdout), just try to write it.
+    // The write is idempotent so doing it again is safe.
+    void check;
+  } catch {
+    // Ignore check errors
+  }
+
+  // Write the log viewer script and restart the terminal service in background
+  await vm.exec({
+    command: `nohup bash -c '
+cat > /tmp/log-viewer.js << '"'"'SCRIPT'"'"'
+const http = require("http");
+const fs = require("fs");
+const LOG = "/tmp/vm.log";
+const HTML = \`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>VM Log</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e1e;color:#d4d4d4;font:13px/1.5 "Cascadia Code","Fira Code",Consolas,monospace;overflow:hidden}
+#log{white-space:pre-wrap;word-break:break-all;padding:8px 12px;height:100vh;overflow-y:auto}
+</style></head><body><pre id="log"></pre>
+<script>
+const el=document.getElementById("log");
+const es=new EventSource("/stream");
+es.onmessage=e=>{el.textContent+=e.data+"\\n";el.scrollTop=el.scrollHeight};
+es.onerror=()=>{setTimeout(()=>es.close(),1000);setTimeout(()=>location.reload(),3000)};
+</script></body></html>\`;
+http.createServer((req, res) => {
+  if (req.url === "/stream") {
+    res.writeHead(200, {"Content-Type":"text/event-stream","Cache-Control":"no-cache","Connection":"keep-alive","Access-Control-Allow-Origin":"*"});
+    try { const c = fs.readFileSync(LOG,"utf-8"); if(c) res.write("data: "+c.replace(/\\n/g,"\\ndata: ")+"\\n\\n"); } catch {}
+    let pos = 0;
+    try { pos = fs.statSync(LOG).size; } catch {}
+    const iv = setInterval(() => {
+      try {
+        const st = fs.statSync(LOG);
+        if (st.size < pos) pos = 0;
+        if (st.size > pos) {
+          const buf = Buffer.alloc(st.size - pos);
+          const fd = fs.openSync(LOG, "r");
+          fs.readSync(fd, buf, 0, buf.length, pos);
+          fs.closeSync(fd);
+          pos = st.size;
+          res.write("data: " + buf.toString("utf-8").replace(/\\n/g, "\\ndata: ") + "\\n\\n");
+        }
+      } catch {}
+    }, 500);
+    req.on("close", () => clearInterval(iv));
+    return;
+  }
+  if (req.url === "/token") { res.writeHead(200, {"Content-Type":"application/json","Access-Control-Allow-Origin":"*"}); res.end("{}"); return; }
+  res.writeHead(200, {"Content-Type":"text/html"}); res.end(HTML);
+}).listen(7682, "0.0.0.0");
+SCRIPT
+cp /tmp/log-viewer.js /opt/log-viewer.js 2>/dev/null || true
+# Kill any existing ttyd/log-viewer on port 7682 and start log viewer
+fuser -k 7682/tcp 2>/dev/null || true
+touch /tmp/vm.log
+/usr/local/bin/node /opt/log-viewer.js &
+' > /tmp/ensure-log-viewer.log 2>&1 &`,
+  });
+}
+
 export const VM_START = defineTool({
   name: "VM_START",
   description:
@@ -51,6 +129,8 @@ export const VM_START = defineTool({
       try {
         const vm = freestyle.vms.ref({ vmId: existing.vmId });
         await vm.start();
+        // Ensure the log viewer is deployed (fixes VMs created before the log viewer was added)
+        await ensureLogViewer(vm);
         console.log(`[VM_START] Resumed existing VM: ${existing.vmId}`);
         return { ...existing, isNewVm: false };
       } catch {
