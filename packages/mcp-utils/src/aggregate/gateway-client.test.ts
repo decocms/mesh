@@ -2,6 +2,7 @@ import { describe, it, expect, mock } from "bun:test";
 import type { IClient } from "../client-like.ts";
 import {
   GatewayClient,
+  capSlug,
   displayToolName,
   slugify,
   stripToolNamespace,
@@ -72,6 +73,24 @@ describe("slugify", () => {
   });
 });
 
+describe("capSlug", () => {
+  it("returns short slugs unchanged", () => {
+    expect(capSlug("my-server")).toBe("my-server");
+    expect(capSlug("conn-abc123")).toBe("conn-abc123");
+  });
+
+  it("truncates slugs exceeding 32 characters", () => {
+    const long = "a".repeat(40);
+    expect(capSlug(long)).toBe("a".repeat(32));
+  });
+
+  it("removes trailing hyphen after truncation", () => {
+    // 31 chars + hyphen at position 32 → truncated to 32 → trailing hyphen removed
+    const slug = "a".repeat(31) + "-bbb";
+    expect(capSlug(slug)).toBe("a".repeat(31));
+  });
+});
+
 describe("stripToolNamespace", () => {
   it("strips clientId prefix", () => {
     expect(stripToolNamespace("my-conn_SOME_TOOL", "my-conn")).toBe(
@@ -96,6 +115,13 @@ describe("stripToolNamespace", () => {
         "conn-dvitqc2ooobdzmrd5ky24",
       ),
     ).toBe("hello_world");
+  });
+
+  it("strips truncated slug prefix for long connection IDs", () => {
+    const longId = "conn-" + "a".repeat(40);
+    const truncatedSlug = capSlug(slugify(longId));
+    const namespaced = `${truncatedSlug}_MY_TOOL`;
+    expect(stripToolNamespace(namespaced, longId)).toBe("MY_TOOL");
   });
 });
 
@@ -159,6 +185,34 @@ describe("GatewayClient", () => {
             "my--server": { client },
           }),
       ).toThrow(/duplicate slug/);
+    });
+
+    it("truncates long connection ID slugs to fit within limits", async () => {
+      const longId = "conn-" + "x".repeat(40); // 45 chars, exceeds 32 max
+      const client = createMockClient([{ name: "SEARCH" }]);
+
+      const gw = new GatewayClient({ [longId]: { client } });
+      const result = await gw.listTools();
+
+      const toolName = result.tools[0].name;
+      // Slug should be truncated, tool name intact
+      expect(toolName.endsWith("_SEARCH")).toBe(true);
+      expect(toolName.length).toBeLessThanOrEqual(32 + 1 + "SEARCH".length);
+    });
+
+    it("routes tool calls correctly with truncated slugs", async () => {
+      const longId = "conn-" + "y".repeat(40);
+      const client = createMockClient([{ name: "DO_STUFF" }]);
+
+      const gw = new GatewayClient({ [longId]: { client } });
+      const { tools } = await gw.listTools();
+
+      await gw.callTool({ name: tools[0].name, arguments: { x: 1 } });
+      expect(client.callTool).toHaveBeenCalledWith(
+        { name: "DO_STUFF", arguments: { x: 1 } },
+        undefined,
+        undefined,
+      );
     });
   });
 
