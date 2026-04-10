@@ -40,9 +40,9 @@ import {
 } from "@untitledui/icons";
 import type { DynamicToolUIPart, ToolUIPart } from "ai";
 import type React from "react";
-import { Suspense, useContext } from "react";
+import { Suspense } from "react";
 import { ErrorBoundary } from "@/web/components/error-boundary.tsx";
-import { PanelContext } from "@/web/contexts/panel-context.tsx";
+import { usePanelActions } from "@/web/layouts/shell-layout";
 
 import { getToolPartErrorText, safeStringify } from "../utils.ts";
 import { ToolCallShell } from "./common.tsx";
@@ -183,10 +183,7 @@ export function GenericToolCallPart({
   const chatPrefs = useOptionalChatPrefs();
   const { org } = useProjectContext();
 
-  // Panel context may not be available when rendering read-only thread history
-  // (e.g. monitoring Threads tab), so we read the context directly.
-  const panelControls = useContext(PanelContext);
-  const setChatOpen = panelControls?.setChatOpen;
+  const { setChatOpen, openMainView } = usePanelActions();
 
   const connectionId =
     toolMeta &&
@@ -214,12 +211,11 @@ export function GenericToolCallPart({
   const hasMCPApp = !!uiResourceUri && part.state === "output-available";
   const sourceId = connectionId ? `${connectionId}:${rawToolName}` : null;
   const isDestructive = !!annotations?.destructiveHint;
-  const canOpenInPanel =
-    hasMCPApp && !!panelControls && !!connectionId && !isDestructive;
+  const canOpenInPanel = hasMCPApp && !!connectionId && !isDestructive;
 
   const handleOpenInPanel = () => {
-    if (!connectionId || !panelControls) return;
-    panelControls.openMainView("ext-apps", {
+    if (!connectionId) return;
+    openMainView("ext-apps", {
       id: connectionId,
       toolName: rawToolName,
     });

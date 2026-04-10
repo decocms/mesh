@@ -42,7 +42,11 @@ export function buildChildEnv(
 
     // Config files
     CONFIG_PATH: settings.configPath,
-    AUTH_CONFIG_PATH: settings.authConfigPath,
+
+    // Forward all AUTH_* env vars (auth config is env-var-only)
+    ...Object.fromEntries(
+      Object.entries(process.env).filter(([k]) => k.startsWith("AUTH_")),
+    ),
 
     // Transport
     UNSAFE_ALLOW_STDIO_TRANSPORT: String(settings.unsafeAllowStdioTransport),
@@ -69,6 +73,7 @@ export function buildChildEnv(
     // External service credentials
     DECO_SUPABASE_URL: settings.decoSupabaseUrl,
     DECO_SUPABASE_SERVICE_KEY: settings.decoSupabaseServiceKey,
+    FIRECRAWL_API_KEY: settings.firecrawlApiKey,
 
     // TLS: propagate custom CA certificates (e.g. RDS CA bundles)
     NODE_EXTRA_CA_CERTS: process.env.NODE_EXTRA_CA_CERTS,

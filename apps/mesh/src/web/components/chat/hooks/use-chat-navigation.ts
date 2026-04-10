@@ -8,7 +8,7 @@
 
 import { useRef } from "react";
 import { getWellKnownDecopilotVirtualMCP } from "@decocms/mesh-sdk";
-import { useMatch, useNavigate, useSearch } from "@tanstack/react-router";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useProjectContext } from "@decocms/mesh-sdk";
 
 export interface ChatNavigation {
@@ -31,14 +31,16 @@ export function useChatNavigation(): ChatNavigation {
     virtualMcpOverride?: string;
   };
 
-  const agentsMatch = useMatch({
-    from: "/shell/$org/$virtualMcpId",
-    shouldThrow: false,
-  });
+  // useParams instead of useMatch — useMatch can't see child routes through
+  // the pathless agent-shell layout.
+  const routeParams = useParams({ strict: false }) as {
+    org?: string;
+    virtualMcpId?: string;
+  };
+  const isAgentRoute = !!routeParams.virtualMcpId;
 
   const virtualMcpId =
-    agentsMatch?.params.virtualMcpId ??
-    getWellKnownDecopilotVirtualMCP(org.id).id;
+    routeParams.virtualMcpId ?? getWellKnownDecopilotVirtualMCP(org.id).id;
 
   const navigateToTask = (
     taskId: string,
@@ -46,10 +48,10 @@ export function useChatNavigation(): ChatNavigation {
   ) => {
     // Reset all panel state — only preserve taskId + tasks panel visibility.
     // This ensures panel layout defaults kick in for the new task.
-    const routeBase = agentsMatch
+    const routeBase = isAgentRoute
       ? ("/$org/$virtualMcpId/" as const)
       : ("/$org/" as const);
-    const params = agentsMatch
+    const params = isAgentRoute
       ? { org: org.slug, virtualMcpId }
       : { org: org.slug };
 

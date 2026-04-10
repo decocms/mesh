@@ -932,6 +932,26 @@ export interface KVTable {
 }
 
 // ============================================================================
+// Organization Domain Table Definition
+// ============================================================================
+
+export interface OrganizationDomainTable {
+  organization_id: string;
+  domain: string;
+  auto_join_enabled: boolean;
+  created_at: ColumnType<Date, Date | string, never>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+}
+
+export interface OrganizationDomain {
+  organizationId: string;
+  domain: string;
+  autoJoinEnabled: boolean;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+// ============================================================================
 // Brand Context Table Definition
 // ============================================================================
 
@@ -1053,4 +1073,7 @@ export interface Database {
 
   // Brand context (org-scoped company profile)
   brand_context: BrandContextTable;
+
+  // Organization domain claims (for auto-join)
+  organization_domains: OrganizationDomainTable;
 }

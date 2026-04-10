@@ -1,6 +1,1 @@
-export {
-  ToolsList,
-  type Tool,
-  type ToolsListProps,
-  ToolAnnotationBadges,
-} from "./tools-list";
+export { type Tool, ToolAnnotationBadges } from "./tools-list";

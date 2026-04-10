@@ -170,6 +170,7 @@ export interface MeshAuth {
     id: string;
     connectionId?: string;
     email?: string;
+    emailVerified?: boolean;
     name?: string;
     role?: string; // From Better Auth organization plugin
   };
@@ -238,6 +239,7 @@ import type { TriggerCallbackTokenStorage } from "../storage/trigger-callback-to
 import type { OrgSsoConfigStorage } from "../storage/org-sso-config";
 import type { OrgSsoSessionStorage } from "../storage/org-sso-sessions";
 import type { BrandContextStorage } from "../storage/brand-context";
+import type { OrganizationDomainStorage } from "../storage/organization-domains";
 import type { RegistryStorage } from "../storage/registry";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
@@ -277,6 +279,7 @@ export interface MeshStorage {
   orgSsoSessions: OrgSsoSessionStorage;
   registry: RegistryStorage;
   brandContext: BrandContextStorage;
+  organizationDomains: OrganizationDomainStorage;
 }
 
 // ============================================================================

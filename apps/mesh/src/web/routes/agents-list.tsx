@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   WELL_KNOWN_AGENT_TEMPLATES,
+  isStudioPackAgent,
   useProjectContext,
   useVirtualMCPActions,
   useVirtualMCPs,
@@ -13,6 +14,8 @@ import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
+import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
+import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,6 +47,8 @@ export default function AgentsListPage() {
   } | null>(null);
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
+  const [studioPackModalOpen, setStudioPackModalOpen] = useState(false);
+  const [leanCanvasModalOpen, setLeanCanvasModalOpen] = useState(false);
 
   const lowerSearch = search.toLowerCase();
 
@@ -55,9 +60,15 @@ export default function AgentsListPage() {
         s.description?.toLowerCase().includes(lowerSearch)),
   );
 
+  // Check if studio pack is already installed
+  const studioPackInstalled = agents.some((a) => isStudioPackAgent(a.id));
+
   // Filter templates by search only (always render all templates)
+  // Hide studio-pack template if already installed
   const filteredTemplates = WELL_KNOWN_AGENT_TEMPLATES.filter(
-    (t) => !search || t.title.toLowerCase().includes(lowerSearch),
+    (t) =>
+      (!search || t.title.toLowerCase().includes(lowerSearch)) &&
+      !(t.id === "studio-pack" && studioPackInstalled),
   );
 
   // Find existing recruited Site Diagnostics agent
@@ -65,6 +76,12 @@ export default function AgentsListPage() {
     (a) =>
       (a as { metadata?: { type?: string } }).metadata?.type ===
       "site-diagnostics",
+  );
+
+  // Find existing recruited Lean Canvas agent
+  const existingLeanCanvas = agents.find(
+    (a) =>
+      (a as { metadata?: { type?: string } }).metadata?.type === "lean-canvas",
   );
 
   const handleTemplateClick = (templateId: string) => {
@@ -76,6 +93,14 @@ export default function AgentsListPage() {
       } else {
         setDiagnosticsModalOpen(true);
       }
+    } else if (templateId === "lean-canvas") {
+      if (existingLeanCanvas) {
+        navigateToAgent(existingLeanCanvas.id);
+      } else {
+        setLeanCanvasModalOpen(true);
+      }
+    } else if (templateId === "studio-pack") {
+      setStudioPackModalOpen(true);
     }
   };
 
@@ -219,6 +244,15 @@ export default function AgentsListPage() {
       <SiteDiagnosticsRecruitModal
         open={diagnosticsModalOpen}
         onOpenChange={setDiagnosticsModalOpen}
+      />
+      <LeanCanvasRecruitModal
+        open={leanCanvasModalOpen}
+        onOpenChange={setLeanCanvasModalOpen}
+        existingAgent={existingLeanCanvas}
+      />
+      <StudioPackRecruitModal
+        open={studioPackModalOpen}
+        onOpenChange={setStudioPackModalOpen}
       />
 
       <AlertDialog

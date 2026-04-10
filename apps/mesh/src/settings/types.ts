@@ -28,14 +28,12 @@ export interface Settings {
   // Observability
   clickhouseUrl: string | undefined;
   otelServiceName: string;
-  disableMonitoringQuery: boolean;
 
   // Event Bus & Networking
   natsUrls: string[];
 
   // Config files
   configPath: string;
-  authConfigPath: string;
 
   // Transport
   unsafeAllowStdioTransport: boolean;

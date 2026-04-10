@@ -6,11 +6,10 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { MessageChatCircle } from "@untitledui/icons";
 import { lazy } from "react";
 import {
-  useVirtualMCPContext,
-  useVirtualMCPURLContext,
+  useInsetContext,
   type MainView,
   type MainViewType,
-} from "@/web/contexts/virtual-mcp-context";
+} from "@/web/layouts/agent-shell-layout";
 import { useVirtualMCP } from "@decocms/mesh-sdk";
 import { useChatTask } from "@/web/components/chat/context";
 
@@ -25,7 +24,7 @@ const ProjectAppViewContent = lazy(() =>
  * otherwise fall back to the entity's layout config, then to settings.
  */
 function useResolvedMainView(): MainView & {} {
-  const { virtualMcpId, mainView } = useVirtualMCPContext();
+  const { virtualMcpId, mainView } = useInsetContext()!;
   const entity = useVirtualMCP(virtualMcpId);
 
   // URL specified an explicit view — use it
@@ -58,7 +57,7 @@ function useResolvedMainView(): MainView & {} {
 }
 
 function AgentEmptyState() {
-  const { virtualMcpId } = useVirtualMCPContext();
+  const { virtualMcpId } = useInsetContext()!;
   const entity = useVirtualMCP(virtualMcpId);
   const { createTaskWithMessage } = useChatTask();
 
@@ -96,7 +95,7 @@ function AgentEmptyState() {
 }
 
 function AgentHomeContent() {
-  const { virtualMcpId } = useVirtualMCPContext();
+  const { virtualMcpId } = useInsetContext()!;
   const resolved = useResolvedMainView();
 
   if (resolved.type === "chat") {
@@ -137,7 +136,7 @@ function mainViewKey(view: MainView): string {
 }
 
 export default function AgentHomePage() {
-  const ctx = useVirtualMCPURLContext();
+  const ctx = useInsetContext();
   if (!ctx) return null;
   const { virtualMcpId, mainView } = ctx;
   return (

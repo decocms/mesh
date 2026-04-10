@@ -141,12 +141,6 @@ export const KEYS = {
       paramsKey,
     ] as const,
 
-  // GitHub README (scoped by owner and repo)
-  githubReadme: (
-    owner: string | null | undefined,
-    repo: string | null | undefined,
-  ) => ["github-readme", owner, repo] as const,
-
   // Monitoring queries
   monitoringStats: () => ["monitoring", "stats"] as const,
   monitoringLogs: (filters: {
@@ -303,9 +297,18 @@ export const KEYS = {
   promptConnectionMap: (orgId: string, connectionIds: string[]) =>
     ["prompt-connection-map", orgId, ...connectionIds] as const,
 
+  // Organization domain (scoped by organization)
+  organizationDomain: (organizationId: string) =>
+    ["organization-domain", organizationId] as const,
+
+  // Domain lookup (for onboarding — scoped by email domain)
+  domainLookup: (domain: string) => ["domain-lookup", domain] as const,
+
   // Brand context (scoped by organization)
   brandContext: (organizationId: string) =>
     ["brand-context", organizationId] as const,
+  defaultBrand: (organizationId: string) =>
+    ["brand-context", organizationId, "default"] as const,
 
   // Deco profile (scoped by user email)
   decoProfile: (email: string | undefined) => ["deco-profile", email] as const,

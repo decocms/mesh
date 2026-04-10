@@ -111,7 +111,7 @@ function KeyList({
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
       >
-        <AlertDialogContent>
+        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete API Key</AlertDialogTitle>
             <AlertDialogDescription>
@@ -898,16 +898,41 @@ export function ProviderCardGrid() {
   const aiProviders = useAiProviders();
   const allKeys = useAiProviderKeys();
   const providers: AiProvider[] = aiProviders?.providers ?? [];
+  const localProviders = providers.filter((p) =>
+    p.supportedMethods.includes("cli-activate"),
+  );
+  const cloudProviders = providers.filter(
+    (p) => !p.supportedMethods.includes("cli-activate"),
+  );
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {providers.map((provider) => (
-        <ProviderCard
-          key={provider.id}
-          provider={provider}
-          keys={allKeys.filter((k) => k.providerId === provider.id)}
-        />
-      ))}
+    <div className="flex flex-col gap-5 w-full">
+      {localProviders.length > 0 && (
+        <div className="relative rounded-xl border border-lime-400/30 bg-gradient-to-br from-lime-50/50 via-transparent to-yellow-50/30 dark:from-lime-950/20 dark:to-yellow-950/10 p-4">
+          <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-lime-400/5 to-yellow-400/5 pointer-events-none" />
+          <p className="text-xs font-medium text-lime-700 dark:text-lime-400 mb-3 relative">
+            Local models — use your existing AI provider
+          </p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 relative">
+            {localProviders.map((provider) => (
+              <ProviderCard
+                key={provider.id}
+                provider={provider}
+                keys={allKeys.filter((k) => k.providerId === provider.id)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {cloudProviders.map((provider) => (
+          <ProviderCard
+            key={provider.id}
+            provider={provider}
+            keys={allKeys.filter((k) => k.providerId === provider.id)}
+          />
+        ))}
+      </div>
     </div>
   );
 }

@@ -18,6 +18,7 @@ import type {
 import type {
   BrandContext,
   MonitoringLog,
+  OrganizationDomain,
   OrganizationSettings,
   OrganizationTag,
   Thread,
@@ -315,6 +316,7 @@ export interface VirtualMCPStoragePort {
     organizationId: string,
     userId: string,
     data: VirtualMCPCreateData,
+    options?: { id?: string },
   ): Promise<VirtualMCPEntity>;
   findById(
     id: string,
@@ -412,6 +414,27 @@ export interface TagStoragePort {
 // ============================================================================
 // Brand Context Storage Port
 // ============================================================================
+
+// ============================================================================
+// Organization Domain Storage Port
+// ============================================================================
+
+export interface OrganizationDomainStoragePort {
+  getByDomain(domain: string): Promise<OrganizationDomain | null>;
+  getByOrganizationId(
+    organizationId: string,
+  ): Promise<OrganizationDomain | null>;
+  setDomain(
+    organizationId: string,
+    domain: string,
+    autoJoinEnabled?: boolean,
+  ): Promise<OrganizationDomain>;
+  updateAutoJoin(
+    organizationId: string,
+    autoJoinEnabled: boolean,
+  ): Promise<OrganizationDomain>;
+  clearDomain(organizationId: string): Promise<void>;
+}
 
 export interface BrandContextStoragePort {
   get(id: string, organizationId: string): Promise<BrandContext | null>;

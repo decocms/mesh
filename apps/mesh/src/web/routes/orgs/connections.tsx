@@ -20,7 +20,6 @@ import { useAuthConfig } from "@/web/providers/auth-config-provider";
 import { useMergedStoreDiscovery } from "@/web/hooks/use-merged-store-discovery";
 import { getGitHubAvatarUrl } from "@/web/utils/github";
 import { getConnectionSlug } from "@/shared/utils/connection-slug";
-import { slugify } from "@/shared/utils/slugify";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -112,11 +111,7 @@ import type {
   HttpConnectionParameters,
   StdioConnectionParameters,
 } from "@/tools/connection/schema";
-import {
-  EnvVarsEditor,
-  envVarsToRecord,
-  type EnvVar,
-} from "@/web/components/env-vars-editor";
+import { EnvVarsEditor } from "@/web/components/env-vars-editor";
 import {
   extractConnectionData,
   getRegistryItemAppName,
@@ -126,68 +121,23 @@ import {
   authenticateMcp,
 } from "@/web/lib/mcp-oauth";
 import { KEYS } from "@/web/lib/query-keys";
+import {
+  type ConnectionProviderHint,
+  buildCustomStdioParameters,
+  buildNpxParameters,
+  inferHardcodedProviderHint,
+  inferRegistryProviderHint,
+  parseNpxLikeCommand,
+} from "@/web/utils/connection-form-helpers";
 
 // ---------------------------------------------------------------------------
-// Grouping helpers
+// Grouping helpers (shared with agent add-connection dialog)
 // ---------------------------------------------------------------------------
 
-interface ConnectionGroup {
-  type: "group";
-  key: string;
-  icon: string | null;
-  title: string;
-  connections: ConnectionEntity[];
-}
-
-interface SingleConnection {
-  type: "single";
-  connection: ConnectionEntity;
-}
-
-type GroupedItem = SingleConnection | ConnectionGroup;
-
-function getGroupKey(c: ConnectionEntity): string {
-  return getConnectionSlug(c);
-}
-
-function groupConnections(connections: ConnectionEntity[]): GroupedItem[] {
-  const buckets = new Map<string, ConnectionEntity[]>();
-  for (const c of connections) {
-    const key = getGroupKey(c);
-    const list = buckets.get(key);
-    if (list) {
-      list.push(c);
-    } else {
-      buckets.set(key, [c]);
-    }
-  }
-
-  const items: GroupedItem[] = [];
-  const seen = new Set<string>();
-
-  for (const c of connections) {
-    const key = getGroupKey(c);
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    const bucket = buckets.get(key)!;
-    const first = bucket[0]!;
-    if (bucket.length === 1) {
-      items.push({ type: "single", connection: first });
-    } else {
-      items.push({
-        type: "group",
-        key,
-        icon: first.icon,
-        title: first.app_name
-          ? first.title.replace(/\s*\(\d+\)\s*$/, "")
-          : first.title,
-        connections: bucket,
-      });
-    }
-  }
-  return items;
-}
+import {
+  groupConnections,
+  type ConnectionGroup,
+} from "@/shared/utils/group-connections";
 
 // ---------------------------------------------------------------------------
 // Connection type / status filter types
@@ -196,178 +146,6 @@ function groupConnections(connections: ConnectionEntity[]): GroupedItem[] {
 type ConnectionTypeFilter = "ALL" | "HTTP" | "SSE" | "Websocket" | "STDIO";
 
 type ConnectionStatusFilter = "ALL" | "active" | "inactive" | "error";
-
-// ---------------------------------------------------------------------------
-// Schemas — imported from shared module
-// ---------------------------------------------------------------------------
-
-type ConnectionProviderHint = {
-  id: "github" | "perplexity" | "registry";
-  title?: string;
-  description?: string | null;
-  token?: {
-    label: string;
-    placeholder?: string;
-    helperText?: string;
-  };
-  envVarKeys?: string[];
-};
-
-function normalizeUrl(input: string): string {
-  const raw = input.trim();
-  if (!raw) return "";
-  try {
-    const url = new URL(raw);
-    const normalizedPath =
-      url.pathname.length > 1 ? url.pathname.replace(/\/+$/, "") : url.pathname;
-    return `${url.origin}${normalizedPath}`;
-  } catch {
-    return raw.replace(/\/+$/, "");
-  }
-}
-
-function parseNpxLikeCommand(input: string): { packageName: string } | null {
-  const tokens = input.trim().split(/\s+/).filter(Boolean);
-  if (tokens.length < 2) return null;
-
-  const command = tokens[0]?.toLowerCase();
-  if (command !== "npx" && command !== "bunx") return null;
-
-  // Skip flags like -y, --yes
-  const args = tokens.slice(1);
-  const firstNonFlag = args.find((a) => !a.startsWith("-"));
-  if (!firstNonFlag) return null;
-
-  return { packageName: firstNonFlag };
-}
-
-function inferHardcodedProviderHint(params: {
-  uiType: ConnectionFormData["ui_type"];
-  connectionUrl?: string;
-  npxPackage?: string;
-}): ConnectionProviderHint | null {
-  const { uiType } = params;
-
-  // GitHub Copilot MCP (hardcoded)
-  const normalized = normalizeUrl(params.connectionUrl ?? "");
-  if (
-    (uiType === "HTTP" || uiType === "SSE" || uiType === "Websocket") &&
-    normalized === normalizeUrl("https://api.githubcopilot.com/mcp/")
-  ) {
-    return {
-      id: "github",
-      title: "GitHub",
-      description: "GitHub Copilot MCP",
-      token: {
-        label: "GitHub PAT",
-        placeholder: "github_pat_…",
-        helperText: "Paste a GitHub Personal Access Token (PAT)",
-      },
-    };
-  }
-
-  // Perplexity MCP (hardcoded)
-  const npxPackage = (params.npxPackage ?? "").trim();
-  if (uiType === "NPX" && npxPackage === "@perplexity-ai/mcp-server") {
-    return {
-      id: "perplexity",
-      title: "Perplexity",
-      description: "Perplexity MCP Server",
-      envVarKeys: ["PERPLEXITY_API_KEY"],
-    };
-  }
-
-  return null;
-}
-
-function inferRegistryProviderHint(params: {
-  uiType: ConnectionFormData["ui_type"];
-  connectionUrl?: string;
-  registryItems: RegistryItem[];
-}): ConnectionProviderHint | null {
-  if (params.registryItems.length === 0) return null;
-  if (
-    params.uiType !== "HTTP" &&
-    params.uiType !== "SSE" &&
-    params.uiType !== "Websocket"
-  ) {
-    return null;
-  }
-
-  const normalized = normalizeUrl(params.connectionUrl ?? "");
-  if (!normalized) return null;
-
-  const match = params.registryItems.find((item) => {
-    const remotes = item.server?.remotes ?? [];
-    return remotes.some((r) => normalizeUrl(r.url ?? "") === normalized);
-  });
-
-  if (!match) return null;
-
-  const title =
-    match.title ||
-    match.name ||
-    match.server?.title ||
-    match.server?.name ||
-    "";
-  const description =
-    match.server?.description || match.description || match.summary || null;
-
-  if (!title) return null;
-
-  return {
-    id: "registry",
-    title,
-    description,
-  };
-}
-
-/**
- * Build STDIO connection_headers from NPX form fields
- */
-function buildNpxParameters(
-  packageName: string,
-  envVars: EnvVar[],
-): StdioConnectionParameters {
-  const params: StdioConnectionParameters = {
-    command: "npx",
-    args: ["-y", packageName],
-  };
-  const envRecord = envVarsToRecord(envVars);
-  if (Object.keys(envRecord).length > 0) {
-    params.envVars = envRecord;
-  }
-  return params;
-}
-
-/**
- * Build STDIO connection_headers from custom command form fields
- */
-function buildCustomStdioParameters(
-  command: string,
-  argsString: string,
-  cwd: string | undefined,
-  envVars: EnvVar[],
-): StdioConnectionParameters {
-  const params: StdioConnectionParameters = {
-    command: command,
-  };
-
-  if (argsString.trim()) {
-    params.args = argsString.trim().split(/\s+/);
-  }
-
-  if (cwd?.trim()) {
-    params.cwd = cwd.trim();
-  }
-
-  const envRecord = envVarsToRecord(envVars);
-  if (Object.keys(envRecord).length > 0) {
-    params.envVars = envRecord;
-  }
-
-  return params;
-}
 
 // ---------------------------------------------------------------------------
 // Grouped card: collapsible row for connections sharing the same app_name
@@ -744,7 +522,6 @@ function CatalogItemCard({
   connectedAppNames,
   connectingItemId,
   onNavigateConnected,
-  onNavigateCatalog,
   onConnect,
 }: {
   item: RegistryItem;
@@ -752,13 +529,10 @@ function CatalogItemCard({
   connectedAppNames: Set<string>;
   connectingItemId: string | null;
   onNavigateConnected: (conn: ConnectionEntity) => void;
-  onNavigateCatalog: (item: RegistryItem) => void;
   onConnect: (item: RegistryItem) => void;
 }) {
   const [communityWarningOpen, setCommunityWarningOpen] = useState(false);
-  const [pendingAction, setPendingAction] = useState<
-    "navigate" | "connect" | null
-  >(null);
+  const [pendingAction, setPendingAction] = useState<"connect" | null>(null);
 
   const appName = getRegistryItemAppName(item) ?? "";
   const isConnected = connectedAppNames.has(appName);
@@ -793,12 +567,7 @@ function CatalogItemCard({
       }
       return;
     }
-    if (isCommunity) {
-      setPendingAction("navigate");
-      setCommunityWarningOpen(true);
-    } else {
-      onNavigateCatalog(item);
-    }
+    handleConnect();
   };
 
   const handleConnect = () => {
@@ -812,9 +581,7 @@ function CatalogItemCard({
 
   const handleCommunityConfirm = () => {
     setCommunityWarningOpen(false);
-    if (pendingAction === "navigate") {
-      onNavigateCatalog(item);
-    } else if (pendingAction === "connect") {
+    if (pendingAction === "connect") {
       onConnect(item);
     }
     setPendingAction(null);
@@ -993,27 +760,6 @@ function ConnectionResults({
   // When both show, connected always appear first in the grid
   const groupedForDisplay =
     activeTab === "connected" || isSearching ? grouped : [];
-
-  const navigateToCatalogItem = (item: RegistryItem) => {
-    const serverSlug = slugify(
-      item.name || item.title || item.server?.title || "",
-    );
-    const idIsScoped = typeof item.id === "string" && item.id.includes("/");
-    const serverNameIsScoped =
-      typeof item.server?.name === "string" && item.server.name.includes("/");
-    const serverName =
-      idIsScoped && !serverNameIsScoped
-        ? item.id
-        : item.server?.name || item.id || "";
-    navigate({
-      to: "/$org/store/$appName",
-      params: {
-        org: org.slug,
-        appName: serverSlug,
-      },
-      search: { registryId: item._registryId, serverName },
-    });
-  };
 
   const handleInlineConnect = async (item: RegistryItem) => {
     if (!org || !session?.user?.id) return;
@@ -1420,7 +1166,6 @@ function ConnectionResults({
                       },
                     })
                   }
-                  onNavigateCatalog={navigateToCatalogItem}
                   onConnect={handleInlineConnect}
                 />
               ))}

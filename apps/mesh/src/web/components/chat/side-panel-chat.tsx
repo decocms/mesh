@@ -112,7 +112,10 @@ function HomeEmptyState({
           {/* Agents above input at bottom */}
           <div className="w-full flex flex-col gap-4 pb-4">
             <AgentsList />
-            <Chat.Input onOpenContextPanel={onOpenContextPanel} />
+            <Chat.Input
+              onOpenContextPanel={onOpenContextPanel}
+              showConnectionsBanner
+            />
           </div>
           {isDecoUser && (
             <div className="w-full">
@@ -136,7 +139,10 @@ function HomeEmptyState({
               </p>
             </div>
             <div className="w-full">
-              <Chat.Input onOpenContextPanel={onOpenContextPanel} />
+              <Chat.Input
+                onOpenContextPanel={onOpenContextPanel}
+                showConnectionsBanner
+              />
             </div>
           </div>
           <div className="w-full mt-10 mx-auto">
@@ -198,18 +204,11 @@ function ChatPanelContent({ variant }: { variant?: "home" | "default" }) {
   const [activePanel, setActivePanel] = useState<"chat" | "context">("chat");
 
   if (allKeys.length === 0) {
-    const title = "No model provider connected";
-    const description =
-      "Connect to a model provider to unlock AI-powered features.";
-
     return (
       <Chat className="animate-in fade-in-0 duration-200">
         <Chat.Main className="flex flex-col items-center">
           <Chat.EmptyState>
-            <Chat.NoAiProviderEmptyState
-              title={title}
-              description={description}
-            />
+            <Chat.NoAiProviderEmptyState />
           </Chat.EmptyState>
         </Chat.Main>
       </Chat>

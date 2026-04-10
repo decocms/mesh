@@ -1,9 +1,10 @@
 import { Link } from "@tanstack/react-router";
-import { DotsVertical, Settings01, Trash01 } from "@untitledui/icons";
+import { DotsVertical, Settings02, Trash01 } from "@untitledui/icons";
 import { formatDistanceToNow } from "date-fns";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { AgentAvatar } from "@/web/components/agent-icon";
+import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
 import {
@@ -20,13 +21,14 @@ interface ProjectCardProps {
 
 export function ProjectCard({ project, onDeleteClick }: ProjectCardProps) {
   const { org } = useProjectContext();
+  const navigateToAgent = useNavigateToAgent();
 
   return (
     <Card className="relative transition-colors group overflow-hidden flex flex-col h-full hover:bg-muted/50">
-      {/* Overlay link for keyboard/accessibility — sits below interactive elements */}
-      <Link
-        to="/$org/$virtualMcpId"
-        params={{ org: org.slug, virtualMcpId: project.id }}
+      {/* Overlay button — pins agent to sidebar and navigates */}
+      <button
+        type="button"
+        onClick={() => navigateToAgent(project.id)}
         className="absolute inset-0 z-0"
         aria-label={project.title}
       />
@@ -56,7 +58,7 @@ export function ProjectCard({ project, onDeleteClick }: ProjectCardProps) {
                       params={{ org: org.slug, virtualMcpId: project.id }}
                       search={{ main: "settings" }}
                     >
-                      <Settings01 size={16} />
+                      <Settings02 size={16} />
                       Settings
                     </Link>
                   </DropdownMenuItem>

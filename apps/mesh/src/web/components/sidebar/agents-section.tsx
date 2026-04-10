@@ -39,7 +39,7 @@ import {
 } from "@deco/ui/components/drawer.tsx";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { CollectionSearch } from "@deco/ui/components/collection-search.tsx";
-import { Plus, Settings01, X } from "@untitledui/icons";
+import { Plus, Settings02, X } from "@untitledui/icons";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -49,6 +49,7 @@ import {
 } from "@deco/ui/components/context-menu.tsx";
 import {
   isDecopilot,
+  isStudioPackAgent,
   WELL_KNOWN_AGENT_TEMPLATES,
   useProjectContext,
   useVirtualMCPs,
@@ -62,6 +63,8 @@ import { AgentAvatar } from "@/web/components/agent-icon";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
+import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
+import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
 import { useAgentBadges } from "@/web/hooks/use-agent-badges";
 
 function AgentListItem({
@@ -162,7 +165,7 @@ function AgentListItem({
               });
             }}
           >
-            <Settings01 size={14} />
+            <Settings02 size={14} />
             Settings
           </ContextMenuItem>
           <ContextMenuSeparator />
@@ -252,6 +255,7 @@ function SortableAgentListItem(props: {
       style={style}
       {...attributes}
       {...listeners}
+      tabIndex={-1}
       className="w-full"
     >
       <AgentListItem {...props} isDragging={isDragging} />
@@ -289,10 +293,14 @@ function PinAgentPopoverContent({
   onClose,
   onOpenSiteEditorModal,
   onOpenDiagnosticsModal,
+  onOpenLeanCanvasModal,
+  onOpenStudioPackModal,
 }: {
   onClose: () => void;
   onOpenSiteEditorModal: () => void;
   onOpenDiagnosticsModal: () => void;
+  onOpenLeanCanvasModal: () => void;
+  onOpenStudioPackModal: () => void;
 }) {
   const [search, setSearch] = useState("");
   const allAgents = useVirtualMCPs();
@@ -311,8 +319,11 @@ function PinAgentPopoverContent({
     .filter((s) => !isDecopilot(s.id))
     .filter((s) => !search || s.title.toLowerCase().includes(lowerSearch));
 
+  const studioPackInstalled = allAgents.some((a) => isStudioPackAgent(a.id));
   const filteredTemplates = WELL_KNOWN_AGENT_TEMPLATES.filter(
-    (t) => !search || t.title.toLowerCase().includes(lowerSearch),
+    (t) =>
+      (!search || t.title.toLowerCase().includes(lowerSearch)) &&
+      !(t.id === "studio-pack" && studioPackInstalled),
   );
 
   // Find existing recruited Site Diagnostics agent
@@ -324,6 +335,18 @@ function PinAgentPopoverContent({
         (a) =>
           (a as { metadata?: { type?: string } }).metadata?.type ===
           siteDiagnosticsTemplate.id,
+      )
+    : undefined;
+
+  // Find existing recruited Lean Canvas agent
+  const leanCanvasTemplate = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "lean-canvas",
+  );
+  const existingLeanCanvas = leanCanvasTemplate
+    ? allAgents.find(
+        (a) =>
+          (a as { metadata?: { type?: string } }).metadata?.type ===
+          leanCanvasTemplate.id,
       )
     : undefined;
 
@@ -347,6 +370,14 @@ function PinAgentPopoverContent({
       } else {
         onOpenDiagnosticsModal();
       }
+    } else if (templateId === "lean-canvas") {
+      if (existingLeanCanvas) {
+        navigateToAgent(existingLeanCanvas.id);
+      } else {
+        onOpenLeanCanvasModal();
+      }
+    } else if (templateId === "studio-pack") {
+      onOpenStudioPackModal();
     } else {
       navigateToNewTask(templateId);
     }
@@ -440,7 +471,7 @@ function PinAgentPopoverContent({
       {/* Footer */}
       <div className="border-t border-border px-3 py-2.5">
         <Link
-          to="/$org/agents"
+          to="/$org/settings/agents"
           params={{ org: org.slug }}
           onClick={() => onClose()}
           className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center"
@@ -456,6 +487,8 @@ function PinAgentPopover() {
   const [open, setOpen] = useState(false);
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
+  const [leanCanvasModalOpen, setLeanCanvasModalOpen] = useState(false);
+  const [studioPackModalOpen, setStudioPackModalOpen] = useState(false);
   const isMobile = useIsMobile();
   const { setOpenMobile } = useSidebar();
 
@@ -476,6 +509,8 @@ function PinAgentPopover() {
         onClose={handleClose}
         onOpenSiteEditorModal={() => setSiteEditorModalOpen(true)}
         onOpenDiagnosticsModal={() => setDiagnosticsModalOpen(true)}
+        onOpenLeanCanvasModal={() => setLeanCanvasModalOpen(true)}
+        onOpenStudioPackModal={() => setStudioPackModalOpen(true)}
       />
     </Suspense>
   );
@@ -529,6 +564,14 @@ function PinAgentPopover() {
         open={diagnosticsModalOpen}
         onOpenChange={setDiagnosticsModalOpen}
       />
+      <LeanCanvasRecruitModal
+        open={leanCanvasModalOpen}
+        onOpenChange={setLeanCanvasModalOpen}
+      />
+      <StudioPackRecruitModal
+        open={studioPackModalOpen}
+        onOpenChange={setStudioPackModalOpen}
+      />
     </>
   );
 }
@@ -570,8 +613,9 @@ function AgentsSectionContent() {
   return (
     <SidebarGroup className="py-0 px-0 mt-2 flex-1 min-h-0">
       <div className="h-px bg-border mx-2 mb-2" />
-      <SidebarGroupContent className="flex flex-1 min-h-0 flex-col">
-        <SidebarMenu className="gap-2 flex-1 min-h-0 overflow-y-auto pr-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      {/* NOTE: Do not add horizontal padding (px-*) here — it makes pinned agent icons smaller than the home button. */}
+      <SidebarGroupContent className="flex flex-1 min-h-0 flex-col overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <SidebarMenu className="gap-2">
           <PinAgentPopover />
           <DndContext
             sensors={sensors}

@@ -6,7 +6,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@deco/ui/components/sidebar.tsx";
-import { Settings01 } from "@untitledui/icons";
+import { Settings02 } from "@untitledui/icons";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import { useNavigate } from "@tanstack/react-router";
 
@@ -29,7 +29,7 @@ export function SidebarInboxFooterMobile() {
               setOpenMobile(false);
             }}
           >
-            <Settings01 />
+            <Settings02 />
           </SidebarMenuButton>
         </SidebarMenuItem>
         <SidebarMenuItem>

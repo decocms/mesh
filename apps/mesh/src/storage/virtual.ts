@@ -59,8 +59,9 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
     organizationId: string,
     userId: string,
     data: VirtualMCPCreateData,
+    options?: { id?: string },
   ): Promise<VirtualMCPEntity> {
-    const id = generatePrefixedId("vir");
+    const id = options?.id ?? generatePrefixedId("vir");
     const now = new Date().toISOString();
 
     // Insert as a VIRTUAL connection

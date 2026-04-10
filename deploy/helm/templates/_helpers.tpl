@@ -173,6 +173,9 @@ Validate OTel collector/S3 configuration.
 {{- fail "chart-deco-studio: s3Sync.roleArn requires serviceAccount.create=true" -}}
 {{- end }}
 {{- end }}
+{{- if and .Values.otel.collector.enabled (not .Values.otel.enabled) }}
+{{- fail "chart-deco-studio: otel.collector.enabled=true requires otel.enabled=true" -}}
+{{- end }}
 {{- end }}
 
 {{/*

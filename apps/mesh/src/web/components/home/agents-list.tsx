@@ -28,6 +28,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { ChevronRight, Plus, Users03 } from "@untitledui/icons";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
+import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { Suspense, useState } from "react";
@@ -68,7 +69,7 @@ function AgentPreview({
         "flex flex-col items-center gap-3 p-2 rounded-lg",
         "transition-colors",
         "cursor-pointer",
-        "w-[88px] shrink-0",
+        "w-[100px] shrink-0",
         "group",
       )}
       aria-label={`Select agent ${agent.title}`}
@@ -80,7 +81,7 @@ function AgentPreview({
         fallbackIcon={<Users03 size={24} />}
         className="transition-transform group-hover:scale-110"
       />
-      <p className="text-xs sm:text-sm text-foreground text-center leading-tight line-clamp-2 md:line-clamp-1">
+      <p className="text-xs sm:text-sm text-foreground text-center leading-tight line-clamp-2 break-words w-full">
         {agent.title}
       </p>
     </button>
@@ -101,12 +102,12 @@ function SeeAllButton() {
         "flex flex-col items-center gap-3 p-2 rounded-lg",
         "transition-colors",
         "cursor-pointer",
-        "w-[88px] shrink-0",
+        "w-[100px] shrink-0",
         "group",
       )}
       aria-label="See all agents"
       onClick={() => {
-        navigate({ to: "/$org/agents", params: { org: org.slug } });
+        navigate({ to: "/$org/settings/agents", params: { org: org.slug } });
       }}
     >
       <div className="size-12 rounded-xl bg-accent flex items-center justify-center shrink-0 transition-transform group-hover:scale-110">
@@ -136,7 +137,7 @@ function CreateAgentButton() {
         "flex flex-col items-center gap-3 p-2 rounded-lg",
         "transition-colors",
         "cursor-pointer",
-        "w-[88px] shrink-0",
+        "w-[100px] shrink-0",
         "group",
         "disabled:opacity-50 disabled:cursor-not-allowed",
       )}
@@ -157,6 +158,7 @@ function AgentsListContent() {
   const { locator } = useProjectContext();
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
+  const [leanCanvasModalOpen, setLeanCanvasModalOpen] = useState(false);
   const navigateToAgent = useNavigateToAgent();
 
   const siteEditorAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
@@ -164,6 +166,9 @@ function AgentsListContent() {
   )!;
   const siteDiagnosticsAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
     (t) => t.id === "site-diagnostics",
+  )!;
+  const leanCanvasAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "lean-canvas",
   )!;
 
   const recentIds = readRecentAgentIds(locator);
@@ -195,12 +200,21 @@ function AgentsListContent() {
         a.title === siteDiagnosticsAgent.title),
   );
 
+  // Check if Lean Canvas agent already exists
+  const existingLeanCanvas = virtualMcps.find(
+    (a): a is typeof a & { id: string } =>
+      a.id !== null &&
+      ((a as { metadata?: { type?: string } }).metadata?.type ===
+        leanCanvasAgent.id ||
+        a.title === leanCanvasAgent.title),
+  );
+
   const hasAgents = agents.length > 0;
 
   return (
     <>
       <div className="w-full max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
-        <div className="flex flex-wrap justify-center gap-4 max-md:flex-nowrap max-md:justify-start md:max-h-52 md:overflow-hidden">
+        <div className="flex flex-wrap justify-center gap-1.5 max-md:flex-nowrap max-md:justify-start md:max-h-52 md:overflow-hidden">
           <AgentPreview
             key={siteEditorAgent.id}
             agent={siteEditorAgent}
@@ -215,8 +229,21 @@ function AgentsListContent() {
                 : () => setDiagnosticsModalOpen(true)
             }
           />
+          <AgentPreview
+            key={leanCanvasAgent.id}
+            agent={existingLeanCanvas ?? leanCanvasAgent}
+            onSpecialClick={
+              existingLeanCanvas
+                ? () => navigateToAgent(existingLeanCanvas.id)
+                : () => setLeanCanvasModalOpen(true)
+            }
+          />
           {agents
-            .filter((a) => a.id !== existingDiagnostics?.id)
+            .filter(
+              (a) =>
+                a.id !== existingDiagnostics?.id &&
+                a.id !== existingLeanCanvas?.id,
+            )
             .map((agent) => (
               <AgentPreview
                 key={agent.id ?? "default"}
@@ -239,6 +266,12 @@ function AgentsListContent() {
         onOpenChange={setDiagnosticsModalOpen}
         existingAgent={existingDiagnostics}
       />
+
+      <LeanCanvasRecruitModal
+        open={leanCanvasModalOpen}
+        onOpenChange={setLeanCanvasModalOpen}
+        existingAgent={existingLeanCanvas}
+      />
     </>
   );
 }
@@ -249,11 +282,11 @@ function AgentsListContent() {
 function AgentsListSkeleton() {
   return (
     <div className="w-full max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
-      <div className="flex flex-wrap justify-center gap-4 max-md:flex-nowrap max-md:justify-start md:max-h-52 md:overflow-hidden">
+      <div className="flex flex-wrap justify-center gap-1.5 max-md:flex-nowrap max-md:justify-start md:max-h-52 md:overflow-hidden">
         {Array.from({ length: 7 }).map((_, i) => (
           <div
             key={i}
-            className="flex flex-col items-center gap-3 p-2 w-[88px] shrink-0"
+            className="flex flex-col items-center gap-3 p-2 w-[100px] shrink-0"
           >
             <Skeleton className="size-12 rounded-xl shrink-0" />
             <Skeleton className="h-3 sm:h-4 w-full" />

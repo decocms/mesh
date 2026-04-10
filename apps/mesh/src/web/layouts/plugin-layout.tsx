@@ -28,7 +28,7 @@ import {
 } from "@decocms/mesh-sdk";
 import { authClient } from "@/web/lib/auth-client";
 import { Outlet, useParams, Link } from "@tanstack/react-router";
-import { Loading01, Settings01 } from "@untitledui/icons";
+import { Loading01, Settings02 } from "@untitledui/icons";
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { KEYS } from "@/web/lib/query-keys";
@@ -204,7 +204,7 @@ export function PluginLayout({
       <PluginContextProvider value={emptyContext}>
         <div className="h-full flex flex-col items-center justify-center gap-4 p-8">
           <div className="flex flex-col items-center gap-2 text-center max-w-md">
-            <Settings01 size={48} className="text-muted-foreground mb-2" />
+            <Settings02 size={48} className="text-muted-foreground mb-2" />
             <h2 className="text-lg font-semibold">Plugin Not Configured</h2>
             <p className="text-sm text-muted-foreground">
               This plugin requires a connection to be configured. Go to project

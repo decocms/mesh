@@ -28,7 +28,7 @@ import {
   Monitor01,
   Moon01,
   Plus,
-  Settings01,
+  Settings02,
   Shield01,
   Sun,
   Users03,
@@ -515,7 +515,7 @@ export function AccountPopover() {
     {
       key: "preferences",
       label: "Preferences",
-      icon: <Settings01 size={16} />,
+      icon: <Settings02 size={16} />,
       onClick: () => {
         navigate({
           to: "/$org/settings/profile",

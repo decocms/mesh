@@ -18,7 +18,7 @@ export interface ToolCallShellProps {
   /** Icon rendered at the left of the row (ReactNode — caller picks the icon) */
   icon: ReactNode;
   /** Primary label (tool name, question text, agent title) */
-  title: string;
+  title: ReactNode;
   /** Usage stats for the operation (optional) */
   usage?: UsageStatsType | null;
   /** Latency in seconds for the operation (optional) */
@@ -39,6 +39,8 @@ export interface ToolCallShellProps {
   trailing?: ReactNode;
   /** When true, renders the icon in destructive color regardless of state */
   iconDestructive?: boolean;
+  /** Custom expandable content — when provided, replaces detail string rendering */
+  children?: ReactNode;
 }
 
 export function ToolCallShell({
@@ -54,12 +56,14 @@ export function ToolCallShell({
   variant = "default",
   trailing,
   iconDestructive,
+  children,
 }: ToolCallShellProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const { handleCopy, copied } = useCopy();
   const isLoading = state === "loading";
   const isError = state === "error";
-  const isExpandable = !!(detail && detail.trim());
+  const hasDetailString = !!(detail && detail.trim());
+  const isExpandable = hasDetailString || !!children;
   const isSubtask = variant === "subtask";
   const effectiveOpen = (forceOpen ?? false) || isExpanded;
 
@@ -153,7 +157,9 @@ export function ToolCallShell({
       {/* Expanded detail */}
       {isExpandable && (
         <CollapsibleContent className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden">
-          {detailVariant === "prose" ? (
+          {children ? (
+            children
+          ) : detailVariant === "prose" ? (
             <div className="mt-1 mb-1">
               <div
                 ref={detailScrollRef}

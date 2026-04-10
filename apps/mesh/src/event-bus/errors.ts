@@ -15,6 +15,11 @@ const AUTH_MESSAGE_PATTERNS = [
   "api-key required",
 ] as const;
 
+const PERMANENT_MESSAGE_PATTERNS = [
+  "tool on_events not found",
+  "tool not found",
+] as const;
+
 /**
  * Classify whether an error represents a permanent auth failure.
  *
@@ -48,8 +53,26 @@ export function isAuthError(error: unknown): boolean {
 }
 
 /**
- * Thrown when event delivery fails due to a permanent auth issue.
- * The worker skips retries — the credentials are invalid.
+ * Classify whether an error represents a permanent, non-retryable failure
+ * such as a missing tool (e.g. ON_EVENTS not implemented by the connection).
+ */
+export function isPermanentError(error: unknown): boolean {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "";
+
+  if (!message) return false;
+
+  const lower = message.toLowerCase();
+  return PERMANENT_MESSAGE_PATTERNS.some((pattern) => lower.includes(pattern));
+}
+
+/**
+ * Thrown when event delivery fails due to a permanent issue.
+ * The worker skips retries — retrying will not help.
  */
 export class PermanentDeliveryError extends Error {
   constructor(message: string) {
