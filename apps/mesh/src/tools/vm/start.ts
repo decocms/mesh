@@ -101,6 +101,10 @@ export const VM_START = defineTool({
       },
     });
 
+    // Generate a unique subdomain for this VM
+    // Freestyle docs: /v2/vms/configuration/domains
+    const previewDomain = `${input.virtualMcpId.replace(/[^a-z0-9]/gi, "-")}.style.dev`;
+
     // Create VM with runtime, repo, and systemd services
     // Freestyle docs: /v2/vms/configuration/systemd-services
     const createResult = await freestyle.vms.create({
@@ -109,7 +113,7 @@ export const VM_START = defineTool({
       },
       gitRepos: [{ repo: repoId, path: "/app" }],
       workdir: "/app",
-      ports: [{ port: 443, targetPort: Number(port) }],
+      domains: [{ domain: previewDomain, vmPort: Number(port) }],
       systemd: {
         services: [
           {
@@ -138,10 +142,8 @@ export const VM_START = defineTool({
       },
     });
 
-    const { vmId, domains } = createResult;
-    const domain = domains?.[0] ?? `${vmId}.freestyle.run`;
-
-    const previewUrl = `https://${domain}`;
+    const { vmId } = createResult;
+    const previewUrl = `https://${previewDomain}`;
     const entry = { terminalUrl: null, previewUrl, vmId };
 
     setActiveVm(input.virtualMcpId, userId, entry);
