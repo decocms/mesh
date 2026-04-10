@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { DotsVertical, Settings01, Trash01 } from "@untitledui/icons";
+import { DotsVertical, Settings02, Trash01 } from "@untitledui/icons";
 import { formatDistanceToNow } from "date-fns";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
@@ -58,7 +58,7 @@ export function ProjectCard({ project, onDeleteClick }: ProjectCardProps) {
                       params={{ org: org.slug, virtualMcpId: project.id }}
                       search={{ main: "settings" }}
                     >
-                      <Settings01 size={16} />
+                      <Settings02 size={16} />
                       Settings
                     </Link>
                   </DropdownMenuItem>

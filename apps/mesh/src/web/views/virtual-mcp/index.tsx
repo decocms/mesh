@@ -62,10 +62,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
-  ChevronRight,
+  Settings02,
+  Settings04,
   Play,
   Plus,
-  Settings01,
   Stars01,
   Trash01,
   XClose,
@@ -379,7 +379,14 @@ function ConnectionItemWithAuth({
             Authorize
           </Button>
         ) : (
-          <ChevronRight size={16} className="text-muted-foreground shrink-0" />
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+              <span className="inline-flex items-center justify-center rounded-md h-7 w-7 hover:bg-accent text-muted-foreground shrink-0 transition-colors">
+                <Settings02 size={16} />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Connection settings</TooltipContent>
+          </Tooltip>
         )}
       </Link>
 
@@ -406,7 +413,7 @@ function ConnectionItemWithAuth({
                 onClick={onOpenSettings}
                 aria-label="Configure resources"
               >
-                <Settings01 size={13} />
+                <Settings04 size={13} />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">Configure resources</TooltipContent>

@@ -4,7 +4,7 @@ import {
   ArrowNarrowLeft,
   CheckCircle,
   Container,
-  Settings01,
+  Settings02,
   Tool02,
 } from "@untitledui/icons";
 import { PLUGIN_ID } from "@/tools/registry/shared";
@@ -101,7 +101,7 @@ export default function RegistryLayout({ onBack }: { onBack?: () => void }) {
         ]
       : []),
     { id: "qa", label: "QA", icon: Tool02, tab: "qa" },
-    { id: "settings", label: "Settings", icon: Settings01, tab: "settings" },
+    { id: "settings", label: "Settings", icon: Settings02, tab: "settings" },
   ];
 
   return (

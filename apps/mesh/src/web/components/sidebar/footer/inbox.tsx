@@ -12,7 +12,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@deco/ui/components/sidebar.tsx";
-import { Check, Coins01, Inbox01, Settings01, XClose } from "@untitledui/icons";
+import { Check, Coins01, Inbox01, Settings02, XClose } from "@untitledui/icons";
 import { AuthUIContext } from "@daveyplate/better-auth-ui";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Component, Suspense, useContext, useState } from "react";
@@ -282,7 +282,7 @@ function SettingsButton() {
             })
           }
         >
-          <Settings01 size={24} />
+          <Settings02 size={24} />
         </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>
