@@ -125,7 +125,6 @@ VM_EXEC({
 → {
   success: boolean,
   error?: string,
-  contentType?: string,  // returned by "dev" action after server is up
 }
 ```
 
@@ -148,8 +147,28 @@ For `action: "dev"`:
 4. Start dev server with nohup + PID file:
    `vm.exec("nohup bash -c 'cd /app && <devScript> >> /tmp/vm.log 2>&1 & echo $! > /tmp/dev.pid'")`
 5. Start iframe-proxy if not already running
-6. **Smart preview detection:** poll the preview URL server-side (HEAD request every 3 seconds, up to 20 attempts / 60 seconds). Once the server responds with a 2xx status, read the `Content-Type` header.
-7. Returns `{ success: true, contentType: "text/html" }` or `{ success: true, contentType: "application/json" }` etc. If the server never responds within 60s, returns `{ success: true, contentType: null }` (frontend keeps terminal full height).
+6. Returns `{ success: true }` immediately
+
+### VM_PROBE (new tool)
+
+A lightweight backend proxy for HEAD requests. The frontend can't make cross-origin requests to `*.deco.studio` (CORS), so it calls this tool instead.
+
+```typescript
+VM_PROBE({
+  virtualMcpId: string,
+  url: string,            // the URL to probe (previewUrl or terminalUrl)
+})
+→ {
+  status: number,         // HTTP status code (200, 502, 503, 0 for network error)
+  contentType?: string,   // Content-Type header value if available
+}
+```
+
+**Auth:** Uses `requireVmEntry()`. Validates that the probed `url` matches one of the URLs stored in the user's `VmEntry` (previewUrl or terminalUrl) — prevents probing arbitrary URLs.
+
+**Implementation:** Simple `fetch(url, { method: "HEAD" })` wrapped in a try/catch. Returns status code and Content-Type header. No side effects.
+
+This single tool serves both smart preview detection and suspended VM heartbeat — the frontend decides what to do with the result.
 
 ### VM_STOP (unchanged)
 
@@ -168,11 +187,11 @@ idle → creating → installing → running → suspended → error
 State transitions:
 - `idle` → user clicks Start → call VM_START
 - `creating` → show spinner "Creating VM..." → VM_START returns → if `isNewVm`: show terminal full height, call VM_EXEC("install"). If `!isNewVm`: go directly to `running`.
-- `installing` → VM_EXEC("install") returns → call VM_EXEC("dev") (which polls server-side and returns `contentType`)
-- `running` → based on `contentType` from VM_EXEC("dev"):
-  - `text/html` → collapse terminal, show only preview
+- `installing` → VM_EXEC("install") returns → call VM_EXEC("dev"), then poll with VM_PROBE(previewUrl) every 3s
+- `running` → VM_PROBE returns 2xx:
+  - `contentType` contains `text/html` → collapse terminal, show only preview
   - other or null → keep terminal full height (API server, no preview)
-- `running` → heartbeat detects VM down → `suspended`
+- `running` → heartbeat VM_PROBE(terminalUrl) returns non-200 → `suspended`
 - `suspended` → user clicks Resume → call VM_EXEC("dev") (wakes VM) → back to `running`
 - `error` → any step fails → show error with context-aware retry
 
@@ -197,21 +216,21 @@ Clicking Resume calls `VM_EXEC("dev")` which wakes the VM (any `vm.exec()` call 
 
 ### Smart Preview Detection
 
-Handled server-side inside `VM_EXEC("dev")` to avoid CORS issues. After starting the dev server, the tool polls the preview URL (HEAD request every 3s, up to 20 attempts). Once a 2xx response arrives, it reads `Content-Type` and returns it in the response.
+After `VM_EXEC("dev")` returns, the frontend polls using `VM_PROBE(previewUrl)` every 3 seconds (up to 20 attempts / 60 seconds). The backend proxies the HEAD request and returns `{ status, contentType }`.
 
-The frontend uses `contentType` to decide:
-- Contains `text/html` → collapse terminal, show preview iframe, force-reload iframe src
+When the probe returns a 2xx status:
+- `contentType` contains `text/html` → collapse terminal, show preview iframe, force-reload iframe src
 - Other (`application/json`, `text/plain`, etc.) → keep terminal full height, no preview
-- `null` (server never responded in 60s) → keep terminal full height
+- After 20 failed attempts → keep terminal full height (server too slow to start)
 
 ### Suspended VM Detection
 
-The frontend runs a **server-side heartbeat** while in `running` state: every 10 seconds, calls a lightweight backend probe (HEAD request to the terminal URL). When the terminal URL returns non-200 or the probe times out:
+While in `running` state, the frontend polls `VM_PROBE(terminalUrl)` every 10 seconds as a heartbeat. When the probe returns non-200 or status 0 (network error):
 - Transition to `suspended` state
 - Show overlay with "VM suspended due to inactivity. [Resume]" button
-- Stop the heartbeat
+- Stop the heartbeat polling
 
-This avoids the cross-origin iframe WebSocket detection problem — the probe runs server-side via an MCP tool call (can reuse `VM_EXEC` with a new `"heartbeat"` action, or a dedicated lightweight tool).
+On Resume: call `VM_EXEC("dev")` (wakes the VM via `vm.exec()`), then restart preview polling with `VM_PROBE(previewUrl)`. Heartbeat resumes when back in `running` state.
 
 ### Terminal Dropdown Menu
 
@@ -240,11 +259,12 @@ All dropdown actions are disabled while a VM_EXEC call is in flight.
 - **Create:** `apps/mesh/src/tools/vm/helpers.ts` — shared `requireVmEntry()` and `resolveRuntimeConfig()` helpers.
 - **Modify:** `apps/mesh/src/tools/vm/start.ts` — use helpers, remove install-deps/dev-server/setup-runtime systemd services. Change ttyd to tail `/tmp/vm.log`. Add `isNewVm` to response. Set `idleTimeoutSeconds: 1800`.
 - **Create:** `apps/mesh/src/tools/vm/exec.ts` — new VM_EXEC tool with install/dev actions using `vm.exec()`.
+- **Create:** `apps/mesh/src/tools/vm/probe.ts` — new VM_PROBE tool for proxying HEAD requests.
 - **Modify:** `apps/mesh/src/tools/vm/stop.ts` — use `requireVmEntry()` helper.
-- **Modify:** tool registry to register VM_EXEC.
+- **Modify:** tool registry to register VM_EXEC and VM_PROBE.
 
 ### Frontend
-- **Modify:** `apps/mesh/src/web/components/vm-preview.tsx` — new state machine (idle → creating → installing → running → error), terminal full height during install, dropdown menu replacing toggle button, concurrency guard on actions.
+- **Modify:** `apps/mesh/src/web/components/vm-preview.tsx` — new state machine (idle → creating → installing → running → suspended → error), terminal full height during install, smart preview detection via VM_PROBE polling, heartbeat for suspend detection, dropdown menu replacing toggle button, concurrency guard on actions.
 
 ## Constraints
 
@@ -274,8 +294,8 @@ All dropdown actions are disabled while a VM_EXEC call is in flight.
 - Frontend concurrency guard on VM_EXEC actions (Correctness critic)
 
 **Adopted (scope kept, implementation fixed):**
-- Smart preview detection — moved server-side into VM_EXEC("dev") response as `contentType` field (avoids CORS, avoids extra tool)
-- Suspended VM detection — replaced unreliable cross-origin iframe detection with server-side heartbeat polling
+- Smart preview detection — new VM_PROBE tool as backend proxy, frontend polls and owns decision logic
+- Suspended VM detection — new VM_PROBE tool as heartbeat, frontend polls terminal URL every 10s and owns suspended state transition
 
 **Rejected:**
 - Manage dev server via systemd instead of vm.exec — defeats the purpose (instant terminal feedback)
