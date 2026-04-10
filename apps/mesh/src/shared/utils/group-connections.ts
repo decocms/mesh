@@ -17,11 +17,26 @@ function slugToTitle(appName: string): string {
 }
 
 /**
+ * Check whether a stripped title looks like the original (not user-renamed)
+ * by comparing its slug against app_name. Allows partial matches at word
+ * boundaries so that "Vercel" matches "vercel-mcp" and "Vercel MCP Server"
+ * matches "vercel-mcp".
+ */
+function isOriginalTitle(titleSlug: string, appName: string): boolean {
+  return (
+    titleSlug === appName ||
+    appName.startsWith(titleSlug + "-") ||
+    titleSlug.startsWith(appName + "-")
+  );
+}
+
+/**
  * Returns the canonical display title for a connection in catalog/card/header contexts.
  *
  * Strategy:
  * 1. Strip auto-generated instance suffixes from the title ("Vercel MCP (2)" → "Vercel MCP")
- * 2. If the stripped title still matches the app_name slug, use it (preserves original casing)
+ * 2. If the stripped title still matches the app_name slug (exact or word-boundary prefix),
+ *    use it — this preserves the original casing from the registry (e.g., "Vercel MCP")
  * 3. If it doesn't match (user renamed the instance), fall back to slug → title conversion
  *
  * Use the raw connection.title only when showing the specific instance matters
@@ -33,8 +48,7 @@ export function getConnectionDisplayTitle(
   const stripped = connection.title.replace(INSTANCE_SUFFIX_RE, "");
   if (!connection.app_name) return stripped;
 
-  // If slugifying the stripped title matches app_name, the title is original — use it
-  if (slugify(stripped) === connection.app_name) {
+  if (isOriginalTitle(slugify(stripped), connection.app_name)) {
     return stripped;
   }
 
@@ -55,7 +69,7 @@ export function getGroupDisplayTitle(connections: ConnectionEntity[]): string {
   if (appName) {
     for (const c of connections) {
       const stripped = c.title.replace(INSTANCE_SUFFIX_RE, "");
-      if (slugify(stripped) === appName) {
+      if (isOriginalTitle(slugify(stripped), appName)) {
         return stripped;
       }
     }
