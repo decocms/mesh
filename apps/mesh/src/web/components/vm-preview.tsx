@@ -73,6 +73,7 @@ export function VmPreviewContent() {
   const { org } = useProjectContext();
   const inset = useInsetContext();
   const [status, setStatus] = useState<ViewStatus>("idle");
+  const [statusLabel, setStatusLabel] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [showTerminal, setShowTerminal] = useState(false);
   const [hasHtmlPreview, setHasHtmlPreview] = useState(false);
@@ -149,6 +150,7 @@ export function VmPreviewContent() {
     if (startingRef.current) return;
     startingRef.current = true;
     setStatus("creating");
+    setStatusLabel("Creating VM...");
     setErrorMsg("");
     setHasHtmlPreview(false);
 
@@ -167,6 +169,7 @@ export function VmPreviewContent() {
       if (!data.isNewVm) {
         // Existing VM — go straight to running
         setStatus("running");
+        setStatusLabel("");
         setShowTerminal(false);
         setHasHtmlPreview(true); // assume HTML for existing VMs
         return;
@@ -175,12 +178,16 @@ export function VmPreviewContent() {
       // New VM — show terminal, run install + dev
       setShowTerminal(true);
       setStatus("installing");
+      setStatusLabel("Installing dependencies...");
 
       await handleExec("install");
+      setStatusLabel("Starting dev server...");
       await handleExec("dev");
+      setStatusLabel("Waiting for server...");
       await pollPreview();
 
       setStatus("running");
+      setStatusLabel("");
     } catch (error) {
       setStatus("error");
       setErrorMsg(
@@ -193,11 +200,14 @@ export function VmPreviewContent() {
 
   const handleResume = async () => {
     setStatus("installing");
+    setStatusLabel("Resuming...");
     setShowTerminal(true);
     try {
       await handleExec("dev");
+      setStatusLabel("Waiting for server...");
       await pollPreview();
       setStatus("running");
+      setStatusLabel("");
     } catch (error) {
       setStatus("error");
       setErrorMsg(
@@ -332,7 +342,7 @@ export function VmPreviewContent() {
     return (
       <div className="flex flex-col items-center justify-center w-full h-full gap-4">
         <Loading01 size={24} className="animate-spin text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">Creating VM...</p>
+        <p className="text-sm text-muted-foreground">{statusLabel}</p>
       </div>
     );
   }
@@ -369,7 +379,7 @@ export function VmPreviewContent() {
               size={14}
               className="animate-spin text-muted-foreground"
             />
-            Installing...
+            {statusLabel}
           </div>
         )}
         {isRunning && hasHtmlPreview && (
@@ -406,11 +416,15 @@ export function VmPreviewContent() {
                 onClick={async () => {
                   setShowTerminal(true);
                   setStatus("installing");
+                  setStatusLabel("Reinstalling dependencies...");
                   try {
                     await handleExec("install");
+                    setStatusLabel("Starting dev server...");
                     await handleExec("dev");
+                    setStatusLabel("Waiting for server...");
                     await pollPreview();
                     setStatus("running");
+                    setStatusLabel("");
                   } catch (error) {
                     setStatus("error");
                     setErrorMsg(
@@ -427,9 +441,14 @@ export function VmPreviewContent() {
                 disabled={execInFlight}
                 onClick={async () => {
                   setShowTerminal(true);
+                  setStatus("installing");
+                  setStatusLabel("Restarting dev server...");
                   try {
                     await handleExec("dev");
+                    setStatusLabel("Waiting for server...");
                     await pollPreview();
+                    setStatus("running");
+                    setStatusLabel("");
                   } catch (error) {
                     setStatus("error");
                     setErrorMsg(
