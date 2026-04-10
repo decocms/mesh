@@ -11,6 +11,7 @@
  * /v2/vms/configuration/ports-networking, /v2/vms/configuration/domains
  */
 
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import { type SystemdServiceInput, freestyle } from "freestyle-sandboxes";
@@ -139,10 +140,16 @@ export const VM_START = defineTool({
       },
     });
 
-    // Generate a unique subdomain for this VM
+    // Generate a unique subdomain per (virtualMcpId, userId) pair.
+    // MD5 of the composite key guarantees a valid, fixed-length hex subdomain
+    // and avoids collisions between different users on the same Virtual MCP.
     // Freestyle docs: /v2/vms/configuration/domains
-    const previewDomain = `${input.virtualMcpId.replace(/[^a-z0-9]/gi, "-")}.deco.studio`;
-    const terminalDomain = `${input.virtualMcpId.replace(/[^a-z0-9]/gi, "-")}-term.deco.studio`;
+    const domainKey = createHash("md5")
+      .update(`${input.virtualMcpId}:${userId}`)
+      .digest("hex")
+      .slice(0, 16);
+    const previewDomain = `${domainKey}.deco.studio`;
+    const terminalDomain = `${domainKey}-term.deco.studio`;
 
     // Build the `with` config for Freestyle VM integrations.
     // Freestyle docs: /v2/vms/integrations/deno, /v2/vms/integrations/bun, /v2/vms/integrations/web-terminal

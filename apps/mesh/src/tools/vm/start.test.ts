@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, it, expect, mock, beforeEach } from "bun:test";
 import type { MeshContext } from "../../core/mesh-context";
 import type { VmEntry, VmMetadata } from "./types";
@@ -71,6 +72,12 @@ const { VM_START } = await import("./start");
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+// Expected domain key for virtualMcpId="vmcp_1", userId="user_1"
+const DOMAIN_KEY = createHash("md5")
+  .update("vmcp_1:user_1")
+  .digest("hex")
+  .slice(0, 16);
 
 const BASE_METADATA: VmMetadata = {
   githubRepo: {
@@ -235,8 +242,8 @@ describe("VM_START", () => {
 
     // Result contains the newly created VM data with isNewVm flag
     expect(result.vmId).toBe("vm_xyz");
-    expect(result.previewUrl).toBe("https://vmcp-1.deco.studio");
-    expect(result.terminalUrl).toBe("https://vmcp-1-term.deco.studio");
+    expect(result.previewUrl).toBe(`https://${DOMAIN_KEY}.deco.studio`);
+    expect(result.terminalUrl).toBe(`https://${DOMAIN_KEY}-term.deco.studio`);
     expect(result.isNewVm).toBe(true);
 
     // patchActiveVms called storage.update
@@ -318,7 +325,7 @@ describe("VM_START", () => {
 
     // Terminal domain is NOT in the domains array — it's routed via route() instead
     const domainNames = createCall.domains.map((d) => d.domain);
-    expect(domainNames).not.toContain("vmcp-1-term.deco.studio");
+    expect(domainNames).not.toContain(`${DOMAIN_KEY}-term.deco.studio`);
   });
 
   it("calls vm.terminal.logs.route with the terminal domain after creating a new VM", async () => {
@@ -329,7 +336,7 @@ describe("VM_START", () => {
 
     expect(mockRoute).toHaveBeenCalledTimes(1);
     expect(mockRoute).toHaveBeenCalledWith({
-      domain: "vmcp-1-term.deco.studio",
+      domain: `${DOMAIN_KEY}-term.deco.studio`,
     });
   });
 
@@ -372,7 +379,7 @@ describe("VM_START", () => {
     // route() was called on the newly created VM
     expect(mockRoute).toHaveBeenCalledTimes(1);
     expect(mockRoute).toHaveBeenCalledWith({
-      domain: "vmcp-1-term.deco.studio",
+      domain: `${DOMAIN_KEY}-term.deco.studio`,
     });
 
     // updateSpy called twice: once to clear stale, once to persist new entry
