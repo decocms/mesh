@@ -520,7 +520,7 @@ export function VmPreviewContent() {
           </TooltipTrigger>
           {vmDataRef.current?.vmId && (
             <TooltipContent side="bottom">
-              {vmDataRef.current.vmId}
+              Stop VM {vmDataRef.current.vmId}
             </TooltipContent>
           )}
         </Tooltip>
