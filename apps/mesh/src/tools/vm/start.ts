@@ -251,7 +251,7 @@ exit 1
       },
     });
 
-    // Install and run ttyd (web terminal) so the frontend can embed it.
+    // Read-only web terminal streaming dev-server logs via journalctl.
     const terminalPort = 7682;
 
     services.push({
@@ -266,9 +266,10 @@ exit 1
     services.push({
       name: "web-terminal",
       mode: "service",
-      exec: [`/tmp/ttyd -p ${terminalPort} --writable bash -l`],
-      workdir: "/app",
-      after: ["install-ttyd.service", "freestyle-git-sync.service"],
+      exec: [
+        `/tmp/ttyd -p ${terminalPort} --readonly journalctl -u dev-server.service -f --no-pager -o cat`,
+      ],
+      after: ["install-ttyd.service", "dev-server.service"],
       requires: ["install-ttyd.service"],
     });
 
