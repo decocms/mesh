@@ -208,7 +208,7 @@ describe("VM_START", () => {
     });
   });
 
-  it("only includes infrastructure systemd services (install-ttyd, web-terminal, iframe-proxy)", async () => {
+  it("only includes infrastructure systemd services (web-terminal, iframe-proxy)", async () => {
     const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
     const ctx = makeCtx({ virtualMcp });
 
@@ -223,19 +223,16 @@ describe("VM_START", () => {
     const serviceNames = createCall.systemd.services.map(
       (s: { name: string }) => s.name,
     );
-    expect(serviceNames).toEqual([
-      "install-ttyd",
-      "web-terminal",
-      "iframe-proxy",
-    ]);
+    expect(serviceNames).toEqual(["web-terminal", "iframe-proxy"]);
 
     // Verify removed services are NOT present
     expect(serviceNames).not.toContain("setup-runtime");
     expect(serviceNames).not.toContain("install-deps");
     expect(serviceNames).not.toContain("dev-server");
+    expect(serviceNames).not.toContain("install-ttyd");
   });
 
-  it("web-terminal exec tails /tmp/vm.log", async () => {
+  it("web-terminal runs Node.js log viewer", async () => {
     const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
     const ctx = makeCtx({ virtualMcp });
 
@@ -250,7 +247,7 @@ describe("VM_START", () => {
     const webTerminal = createCall.systemd.services.find(
       (s: { name: string }) => s.name === "web-terminal",
     )!;
-    expect(webTerminal.exec[0]).toContain("tail -F /tmp/vm.log");
+    expect(webTerminal.exec[0]).toContain("/opt/log-viewer.js");
     expect(webTerminal.exec[0]).toContain("touch /tmp/vm.log");
   });
 

@@ -35,48 +35,41 @@ export const VM_EXEC = defineTool({
 
     try {
       if (input.action === "install") {
-        // Separator so the user sees a clear break in the terminal
-        await vm.exec(
-          'echo "\\n--- Reinstalling dependencies ---" >> /tmp/vm.log',
-        );
+        // Build the full install script that runs in the background.
+        // All output goes to /tmp/vm.log so the ttyd terminal shows progress.
+        const steps: string[] = [
+          'echo "\\n--- Reinstalling dependencies ---"',
+          // Wait for git repo to be synced
+          "systemctl is-active --wait freestyle-git-sync.service",
+        ];
 
-        // Wait for git repo to be synced
-        await vm.exec({
-          command: "systemctl is-active --wait freestyle-git-sync.service",
-          timeoutMs: 120_000,
-        });
-
-        // Install runtime if needed (deno/bun)
         if (needsRuntimeInstall) {
-          const setupScript =
+          const setupCmd =
             detected === "deno"
-              ? 'export DENO_INSTALL="/usr/local" && curl -fsSL https://deno.land/install.sh | sh'
-              : 'export BUN_INSTALL="/usr/local" && curl -fsSL https://bun.sh/install | bash';
-          await vm.exec({
-            command: `echo "Installing ${detected} runtime..." >> /tmp/vm.log && ${setupScript} >> /tmp/vm.log 2>&1`,
-            timeoutMs: 120_000,
-          });
+              ? 'echo "Installing deno runtime..." && export DENO_INSTALL="/usr/local" && curl -fsSL https://deno.land/install.sh | sh'
+              : 'echo "Installing bun runtime..." && export BUN_INSTALL="/usr/local" && curl -fsSL https://bun.sh/install | bash';
+          steps.push(setupCmd);
         }
 
-        // Run install
+        steps.push(`echo "$ ${installScript}" && cd /app && ${installScript}`);
+
+        const script = steps.join(" && ");
+
+        // Fire and forget — output streams to /tmp/vm.log via ttyd
         await vm.exec({
-          command: `echo "$ ${installScript}" >> /tmp/vm.log && cd /app && ${installScript} >> /tmp/vm.log 2>&1`,
-          timeoutMs: 600_000,
+          command: `nohup bash -c '(${script}) >> /tmp/vm.log 2>&1 &'`,
         });
 
         return { success: true };
       }
 
       // action === "dev"
-      // Separator so the user sees a clear break in the terminal
-      await vm.exec('echo "\\n--- Starting dev server ---" >> /tmp/vm.log');
-
       // Kill existing dev server via PID file
       await vm.exec("kill $(cat /tmp/dev.pid) 2>/dev/null || true");
 
       // Start dev server with nohup so it survives shell exit
       await vm.exec({
-        command: `nohup bash -c 'cd /app && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=${port} ${devScript} >> /tmp/vm.log 2>&1 & echo $! > /tmp/dev.pid'`,
+        command: `nohup bash -c 'echo "\\n--- Starting dev server ---" >> /tmp/vm.log && cd /app && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=${port} ${devScript} >> /tmp/vm.log 2>&1 & echo $! > /tmp/dev.pid'`,
       });
 
       // Start iframe-proxy if not already running

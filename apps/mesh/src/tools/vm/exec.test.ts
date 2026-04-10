@@ -156,8 +156,8 @@ describe("VM_EXEC", () => {
 
     expect(result).toEqual({ success: true });
     expect(mockVmsRef).toHaveBeenCalledWith({ vmId: EXISTING_ENTRY.vmId });
-    // Should have called exec multiple times: log truncate, git-sync wait, install
-    expect(mockVmExec.mock.calls.length).toBeGreaterThanOrEqual(3);
+    // Single nohup fire-and-forget call that runs install in background
+    expect(mockVmExec.mock.calls.length).toBeGreaterThanOrEqual(1);
   });
 
   it("dev action calls vm.exec with nohup dev command and returns { success: true }", async () => {

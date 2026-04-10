@@ -146,29 +146,60 @@ http.createServer((req, res) => {
 }).listen(${proxyPort}, "0.0.0.0");
 `;
 
-    // Install ttyd to /tmp/ — Freestyle VM overlay filesystem restricts
-    // writes to /usr/local/bin/ and /opt/ at runtime (curl error 23).
-    const ttydVersion = "1.7.7";
-    const installTtydScript = `#!/bin/bash
-set -e
-TTYD_URL="https://github.com/tsl0922/ttyd/releases/download/${ttydVersion}/ttyd.x86_64"
-DEST="/tmp/ttyd"
-for i in 1 2 3; do
-  if curl -fsSL --retry 3 --retry-delay 2 -o "$DEST" "$TTYD_URL"; then
-    chmod +x "$DEST"
-    "$DEST" --version
-    exit 0
-  fi
-  echo "ttyd download attempt $i failed, retrying in 5s..."
-  sleep 5
-done
-echo "ttyd download failed"
-exit 1
+    // Node.js-based log viewer — replaces ttyd to avoid external downloads.
+    // Serves an HTML page that streams /tmp/vm.log via SSE.
+    const terminalPort = 7682;
+    const logViewerScript = `const http = require("http");
+const fs = require("fs");
+const LOG = "/tmp/vm.log";
+const HTML = \`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>VM Log</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e1e;color:#d4d4d4;font:13px/1.5 "Cascadia Code","Fira Code",Consolas,monospace;overflow:hidden}
+#log{white-space:pre-wrap;word-break:break-all;padding:8px 12px;height:100vh;overflow-y:auto}
+</style></head><body><pre id="log"></pre>
+<script>
+const el=document.getElementById("log");
+const es=new EventSource("/stream");
+es.onmessage=e=>{el.textContent+=e.data+"\\n";el.scrollTop=el.scrollHeight};
+es.onerror=()=>{setTimeout(()=>es.close(),1000);setTimeout(()=>location.reload(),3000)};
+</script></body></html>\`;
+
+http.createServer((req, res) => {
+  if (req.url === "/stream") {
+    res.writeHead(200, {"Content-Type":"text/event-stream","Cache-Control":"no-cache","Connection":"keep-alive","Access-Control-Allow-Origin":"*"});
+    // Send existing content
+    try { const c = fs.readFileSync(LOG,"utf-8"); if(c) res.write("data: "+c.replace(/\\n/g,"\\ndata: ")+"\\n\\n"); } catch {}
+    // Watch for changes
+    let pos = 0;
+    try { pos = fs.statSync(LOG).size; } catch {}
+    const iv = setInterval(() => {
+      try {
+        const st = fs.statSync(LOG);
+        if (st.size < pos) pos = 0; // file was truncated
+        if (st.size > pos) {
+          const buf = Buffer.alloc(st.size - pos);
+          const fd = fs.openSync(LOG, "r");
+          fs.readSync(fd, buf, 0, buf.length, pos);
+          fs.closeSync(fd);
+          pos = st.size;
+          const text = buf.toString("utf-8");
+          res.write("data: " + text.replace(/\\n/g, "\\ndata: ") + "\\n\\n");
+        }
+      } catch {}
+    }, 500);
+    req.on("close", () => clearInterval(iv));
+    return;
+  }
+  if (req.url === "/token") { res.writeHead(200, {"Content-Type":"application/json","Access-Control-Allow-Origin":"*"}); res.end("{}"); return; }
+  res.writeHead(200, {"Content-Type":"text/html"}); res.end(HTML);
+}).listen(${terminalPort}, "0.0.0.0");
 `;
 
     const additionalFiles: Record<string, { content: string }> = {
       "/opt/iframe-proxy.js": { content: proxyScript },
-      "/opt/install-ttyd.sh": { content: installTtydScript },
+      "/opt/log-viewer.js": { content: logViewerScript },
     };
     if (needsRuntimeInstall) {
       additionalFiles["/opt/setup-runtime.sh"] = { content: setupScript };
@@ -177,7 +208,6 @@ exit 1
     // Build systemd services list — infrastructure only.
     // Install/dev lifecycle is handled by VM_EXEC.
     // Freestyle docs: /v2/vms/configuration/systemd-services
-    const terminalPort = 7682;
 
     const services: Array<{
       name: string;
@@ -192,21 +222,11 @@ exit 1
       env?: Record<string, string>;
     }> = [
       {
-        name: "install-ttyd",
-        mode: "oneshot",
-        exec: ["/bin/bash /opt/install-ttyd.sh"],
-        wantedBy: ["multi-user.target"],
-        timeoutSec: 180,
-        remainAfterExit: true,
-      },
-      {
         name: "web-terminal",
         mode: "service",
         exec: [
-          `bash -c 'touch /tmp/vm.log && exec /tmp/ttyd -p ${terminalPort} --readonly tail -F /tmp/vm.log'`,
+          `bash -c 'touch /tmp/vm.log && exec /usr/local/bin/node /opt/log-viewer.js'`,
         ],
-        after: ["install-ttyd.service"],
-        requires: ["install-ttyd.service"],
       },
       {
         name: "iframe-proxy",
