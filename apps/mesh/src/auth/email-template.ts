@@ -153,10 +153,3 @@ export function emailOtpCode(otp: string): string {
 export function emailParagraph(text: string, muted = false): string {
   return `<p style="margin:0 0 16px 0;font-size:15px;line-height:1.65;color:${muted ? "#7A7570" : "#3A3735"};font-family:Inter,system-ui,sans-serif;">${text}</p>`;
 }
-
-/**
- * A thin horizontal rule for separating content sections inside the body.
- */
-export function emailDivider(): string {
-  return `<hr style="border:none;border-top:1px solid #E5E2DC;margin:24px 0;" />`;
-}
