@@ -335,24 +335,57 @@ export function GitHubRepoDialog({
 
           const installScript = installCommands[detected] ?? "";
 
-          // Try to find dev script from package.json
+          // Try to find dev script from package.json or deno.json
           let devScript = "";
-          const pkgData = await checkFileExists("package.json");
-          if (pkgData.found && pkgData.content) {
-            try {
-              const pkg = JSON.parse(pkgData.content) as {
-                scripts?: Record<string, string>;
-              };
-              const scripts = pkg.scripts ?? {};
-              const runPrefix =
-                detected === "deno" ? "deno task" : `${detected} run`;
-              if (scripts.dev) {
-                devScript = `${runPrefix} dev`;
-              } else if (scripts.start) {
-                devScript = `${runPrefix} start`;
+          let devPort = "";
+
+          if (detected === "deno") {
+            // Check deno.json for tasks
+            for (const denoFile of ["deno.json", "deno.jsonc"]) {
+              const data = await checkFileExists(denoFile);
+              if (data.found && data.content) {
+                try {
+                  const deno = JSON.parse(data.content) as {
+                    tasks?: Record<string, string>;
+                  };
+                  const tasks = deno.tasks ?? {};
+                  if (tasks.dev) {
+                    devScript = "deno task dev";
+                    // Try to extract port from the dev task command
+                    const portMatch = tasks.dev.match(
+                      /(?:--port|PORT=|:)(\d{4,5})/,
+                    );
+                    if (portMatch?.[1]) devPort = portMatch[1];
+                  } else if (tasks.start) {
+                    devScript = "deno task start";
+                  }
+                } catch {
+                  // Invalid JSON
+                }
+                break;
               }
-            } catch {
-              // Invalid JSON, skip
+            }
+          } else {
+            const pkgData = await checkFileExists("package.json");
+            if (pkgData.found && pkgData.content) {
+              try {
+                const pkg = JSON.parse(pkgData.content) as {
+                  scripts?: Record<string, string>;
+                };
+                const scripts = pkg.scripts ?? {};
+                const runPrefix = `${detected} run`;
+                if (scripts.dev) {
+                  devScript = `${runPrefix} dev`;
+                  const portMatch = scripts.dev.match(
+                    /(?:--port|PORT=|:)(\d{4,5})/,
+                  );
+                  if (portMatch?.[1]) devPort = portMatch[1];
+                } else if (scripts.start) {
+                  devScript = `${runPrefix} start`;
+                }
+              } catch {
+                // Invalid JSON, skip
+              }
             }
           }
 
@@ -367,6 +400,7 @@ export function GitHubRepoDialog({
                     selected: detected,
                     installScript,
                     devScript,
+                    port: devPort || "8000",
                   },
                 },
               },

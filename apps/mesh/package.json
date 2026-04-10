@@ -50,6 +50,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@freestyle-sh/with-bun": "^0.2.10",
+    "@freestyle-sh/with-deno": "^0.0.2",
     "@freestyle-sh/with-nodejs": "^0.2.8",
     "@freestyle-sh/with-web-terminal": "^0.0.7",
     "@inkjs/ui": "^2.0.0",

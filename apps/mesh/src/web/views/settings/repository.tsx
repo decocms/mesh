@@ -59,6 +59,7 @@ export function RepositoryTabContent() {
           selected: string | null;
           installScript?: string | null;
           devScript?: string | null;
+          port?: string | null;
         } | null;
       }
     | undefined;
@@ -114,7 +115,7 @@ export function RepositoryTabContent() {
     });
 
   const handleScriptUpdate = async (
-    field: "installScript" | "devScript",
+    field: "installScript" | "devScript" | "port",
     value: string,
   ) => {
     if (!inset?.entity) return;
@@ -184,6 +185,18 @@ export function RepositoryTabContent() {
             placeholder="e.g. npm run dev"
             defaultValue={runtime?.devScript ?? ""}
             onBlur={(e) => handleScriptUpdate("devScript", e.target.value)}
+          />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="dev-port" className="text-sm font-medium">
+            Port
+          </Label>
+          <Input
+            id="dev-port"
+            placeholder="e.g. 3000"
+            defaultValue={runtime?.port ?? ""}
+            onBlur={(e) => handleScriptUpdate("port", e.target.value)}
           />
         </div>
       </div>
