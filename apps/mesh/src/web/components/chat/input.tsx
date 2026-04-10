@@ -14,6 +14,7 @@ import {
   useConnections,
   useProjectContext,
 } from "@decocms/mesh-sdk";
+
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import {
   ArrowUp,
@@ -56,6 +57,26 @@ import { useSound } from "@/web/hooks/use-sound.ts";
 import { question004Sound } from "@deco/ui/lib/question-004.ts";
 import { AddConnectionDialog } from "@/web/views/virtual-mcp/add-connection-dialog";
 import { ConnectionsBanner } from "./connections-banner";
+
+function HomeConnectionsDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const existingConnections = useConnections();
+  const existingConnectionIds = new Set(existingConnections.map((c) => c.id));
+  return (
+    <AddConnectionDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      addedConnectionIds={existingConnectionIds}
+      onAdd={() => onOpenChange(false)}
+      defaultTab="all"
+    />
+  );
+}
 
 // ============================================================================
 // VirtualMCPBadge - Internal component for displaying selected virtual MCP
@@ -321,8 +342,6 @@ export function ChatInput({
   const decopilotId = getWellKnownDecopilotVirtualMCP(org.id).id;
   const playSwitchSound = useSound(question004Sound);
   const [connectionsOpen, setConnectionsOpen] = useState(false);
-  const existingConnections = useConnections();
-  const existingConnectionIds = new Set(existingConnections.map((c) => c.id));
 
   // Navigate to the agent route (like the sidebar does) instead of only
   // setting an ephemeral search-param override, so the thread list re-scopes.
@@ -651,13 +670,12 @@ export function ChatInput({
         </div>
       </div>
 
-      <AddConnectionDialog
-        open={connectionsOpen}
-        onOpenChange={setConnectionsOpen}
-        addedConnectionIds={existingConnectionIds}
-        onAdd={() => setConnectionsOpen(false)}
-        defaultTab="all"
-      />
+      {showConnectionsBanner && (
+        <HomeConnectionsDialog
+          open={connectionsOpen}
+          onOpenChange={setConnectionsOpen}
+        />
+      )}
     </>
   );
 }

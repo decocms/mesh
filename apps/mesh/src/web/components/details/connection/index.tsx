@@ -576,7 +576,10 @@ function ConnectionInspectorViewWithConnection({
                     setIsAddingInstance(true);
                     try {
                       const base = siblings[0] ?? connection;
-                      const baseName = getConnectionDisplayTitle(base);
+                      const baseName = getConnectionDisplayTitle(base).replace(
+                        /\s*\(\d+\)\s*$/,
+                        "",
+                      );
                       const nextNumber = siblings.length + 1;
                       const newTitle = `${baseName} (${nextNumber})`;
                       const newId = generatePrefixedId("conn");
