@@ -58,7 +58,7 @@ export interface OpenInAgentParams {
 const ANNOTATIONS = {
   readOnlyHint: false,
   destructiveHint: false,
-  idempotentHint: true,
+  idempotentHint: false,
   openWorldHint: false,
 } as const;
 
