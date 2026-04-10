@@ -103,7 +103,7 @@ export const VM_START = defineTool({
 
     // Generate a unique subdomain for this VM
     // Freestyle docs: /v2/vms/configuration/domains
-    const previewDomain = `${input.virtualMcpId.replace(/[^a-z0-9]/gi, "-")}.style.dev`;
+    const previewDomain = `${input.virtualMcpId.replace(/[^a-z0-9]/gi, "-")}.deco.studio`;
     // Use a proxy port for socat to forward 0.0.0.0 traffic to localhost
     const proxyPort = 9999;
 
