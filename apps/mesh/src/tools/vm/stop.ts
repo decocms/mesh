@@ -9,6 +9,7 @@ import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth } from "../../core/mesh-context";
 import { freestyle } from "freestyle-sandboxes";
+import { removeActiveVm } from "./registry";
 
 export const VM_STOP = defineTool({
   name: "VM_STOP",
@@ -31,6 +32,8 @@ export const VM_STOP = defineTool({
   handler: async (input, ctx) => {
     requireAuth(ctx);
     await ctx.access.check();
+
+    removeActiveVm(input.vmId);
 
     try {
       await freestyle.vms.delete({ vmId: input.vmId });

@@ -11,10 +11,11 @@
 
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
-import { requireAuth } from "../../core/mesh-context";
+import { requireAuth, getUserId } from "../../core/mesh-context";
 import { freestyle } from "freestyle-sandboxes";
 import { VmNodeJs } from "@freestyle-sh/with-nodejs";
 import { VmBun } from "@freestyle-sh/with-bun";
+import { getActiveVm, setActiveVm } from "./registry";
 
 export const VM_START = defineTool({
   name: "VM_START",
@@ -40,6 +41,17 @@ export const VM_START = defineTool({
   handler: async (input, ctx) => {
     requireAuth(ctx);
     await ctx.access.check();
+
+    const userId = getUserId(ctx);
+    if (!userId) {
+      throw new Error("User ID required");
+    }
+
+    // Return existing VM if one is already running for this user + virtual MCP
+    const existing = getActiveVm(input.virtualMcpId, userId);
+    if (existing) {
+      return existing;
+    }
 
     const virtualMcp = await ctx.storage.virtualMcps.findById(
       input.virtualMcpId,
@@ -118,7 +130,10 @@ export const VM_START = defineTool({
     });
 
     const previewUrl = `https://${domains[0]}`;
+    const entry = { terminalUrl: null, previewUrl, vmId };
 
-    return { terminalUrl: null, previewUrl, vmId };
+    setActiveVm(input.virtualMcpId, userId, entry);
+
+    return entry;
   },
 });
