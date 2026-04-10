@@ -17,6 +17,7 @@ import {
   getUserId,
 } from "../../core/mesh-context";
 import { freestyle } from "freestyle-sandboxes";
+import { VmWebTerminal } from "@freestyle-sh/with-web-terminal";
 import { type VmEntry, type VmMetadata, patchActiveVms } from "./types";
 
 export const VM_START = defineTool({
@@ -95,6 +96,7 @@ export const VM_START = defineTool({
     // Generate a unique subdomain for this VM
     // Freestyle docs: /v2/vms/configuration/domains
     const previewDomain = `${input.virtualMcpId.replace(/[^a-z0-9]/gi, "-")}.deco.studio`;
+    const terminalDomain = `${input.virtualMcpId.replace(/[^a-z0-9]/gi, "-")}-term.deco.studio`;
 
     // Determine if we need to install a runtime (deno/bun).
     // Node/npm is available by default in Freestyle VMs.
@@ -234,6 +236,9 @@ http.createServer((req, res) => {
     // so the preview can be embedded in an iframe.
     // Freestyle docs: /v2/vms/configuration/domains
     const createResult = await freestyle.vms.create({
+      with: {
+        terminal: new VmWebTerminal([{ id: "main" }] as const),
+      },
       gitRepos: [{ repo: repoId, path: "/app" }],
       workdir: "/app",
       domains: [{ domain: previewDomain, vmPort: proxyPort }],
@@ -245,9 +250,14 @@ http.createServer((req, res) => {
       `[VM_START] VM created: ${createResult.vmId} domain: ${previewDomain}`,
     );
 
-    const { vmId } = createResult;
+    const { vmId, vm } = createResult;
+
+    // Route the web terminal to its subdomain
+    await vm.terminal.main.route({ domain: terminalDomain });
+
     const previewUrl = `https://${previewDomain}`;
-    const entry: VmEntry = { terminalUrl: null, previewUrl, vmId };
+    const terminalUrl = `https://${terminalDomain}`;
+    const entry: VmEntry = { terminalUrl, previewUrl, vmId };
 
     // Persist the active VM entry in the Virtual MCP metadata so all pods
     // can discover it and avoid spinning up duplicate VMs.
