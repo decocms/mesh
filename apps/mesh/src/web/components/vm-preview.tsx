@@ -11,7 +11,7 @@ import {
   Loading01,
   Monitor04,
   RefreshCw01,
-  Stop,
+  StopCircle,
   Terminal,
 } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -270,7 +270,7 @@ export function VmPreviewContent() {
             type="button"
             onClick={() => setShowTerminal((prev) => !prev)}
             className={cn(
-              "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition-colors shrink-0",
+              "flex items-center gap-1.5 px-2.5 h-7 rounded-md text-xs transition-colors shrink-0",
               showTerminal
                 ? "bg-accent text-foreground"
                 : "text-muted-foreground hover:text-foreground",
@@ -311,14 +311,13 @@ export function VmPreviewContent() {
         >
           <LinkExternal01 size={14} />
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="shrink-0"
+        <button
+          type="button"
           onClick={handleStop}
+          className="flex items-center gap-1.5 px-2.5 h-7 rounded-md text-xs transition-colors shrink-0 bg-accent text-foreground"
         >
-          <Stop size={14} />
-        </Button>
+          <StopCircle size={14} />
+        </button>
       </div>
 
       <div className="flex-1 relative">
@@ -377,7 +376,7 @@ export function VmPreviewContent() {
           {/* Terminal panel — shown when toggled */}
           {showTerminal && hasTerminal && (
             <>
-              <ResizableHandle withHandle />
+              <ResizableHandle className="h-[3px] bg-border/60 hover:bg-primary/30 transition-colors" />
               <ResizablePanel defaultSize={40} minSize={15}>
                 <iframe
                   src={vmData.terminalUrl ?? undefined}
