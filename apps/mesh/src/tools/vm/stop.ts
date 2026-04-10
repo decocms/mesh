@@ -4,11 +4,8 @@
  * Stops a Freestyle VM and removes its entry from the Virtual MCP metadata.
  * App-only tool — not visible to AI models.
  *
- * Deletion order: Freestyle VM deleted FIRST, then DB entry cleaned.
- * If Freestyle fails, the error propagates and the DB entry is preserved,
- * so the user can retry. If DB cleanup fails after a successful Freestyle
- * delete, the entry becomes stale (VM gone but DB still has it). The next
- * VM_START will return a stale previewUrl that 502s — a known limitation.
+ * Uses vm.stop() for graceful shutdown (preserves disk on Freestyle's side).
+ * Clears the DB entry so the UI returns to idle state.
  */
 
 import { z } from "zod";
@@ -19,7 +16,7 @@ import { requireVmEntry } from "./helpers";
 
 export const VM_STOP = defineTool({
   name: "VM_STOP",
-  description: "Stop and delete a Freestyle VM.",
+  description: "Stop a Freestyle VM.",
   annotations: {
     title: "Stop VM Preview",
     readOnlyHint: false,
@@ -48,16 +45,15 @@ export const VM_STOP = defineTool({
     const { entry, userId } = vmEntry;
 
     if (entry) {
-      // Delete Freestyle VM FIRST. If this fails, the error propagates and
-      // the DB entry is preserved so the user can retry.
       try {
-        await freestyle.vms.delete({ vmId: entry.vmId });
+        const vm = freestyle.vms.ref({ vmId: entry.vmId });
+        await vm.stop();
       } catch {
-        // VM may already be deleted on Freestyle's side — treat as success
+        // VM may already be stopped/deleted — treat as success
       }
     }
 
-    // Clean up the DB entry after the Freestyle delete attempt.
+    // Clear the DB entry so the UI returns to idle state.
     if (entry) {
       await patchActiveVms(
         ctx.storage.virtualMcps,

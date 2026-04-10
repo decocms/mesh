@@ -42,35 +42,33 @@ export const VM_START = defineTool({
   handler: async (input, ctx) => {
     const { metadata, userId } = await requireVmEntry(input, ctx);
 
-    // Return existing VM if one is still reachable.
-    // If the VM was force-deleted externally, the preview URL returns 503
-    // from Freestyle's CDN. Detect this and clear the stale entry so a
-    // fresh VM is created below.
+    // Resume existing VM if one is tracked.
+    // Try vm.start() which resumes suspended/stopped VMs. If the VM was
+    // deleted externally, the call will throw — clear the stale entry and
+    // fall through to create a new one.
     const existing = metadata.activeVms?.[userId];
     if (existing) {
       try {
-        const res = await fetch(existing.previewUrl, { method: "HEAD" });
-        if (res.status !== 503) {
-          return { ...existing, isNewVm: false };
-        }
-      } catch {
-        // Network error — treat as reachable (could be transient)
+        const vm = freestyle.vms.ref({ vmId: existing.vmId });
+        await vm.start();
+        console.log(`[VM_START] Resumed existing VM: ${existing.vmId}`);
         return { ...existing, isNewVm: false };
+      } catch {
+        // VM no longer exists on Freestyle — clear stale entry
+        console.log(
+          `[VM_START] VM gone, clearing stale entry: ${existing.vmId}`,
+        );
+        await patchActiveVms(
+          ctx.storage.virtualMcps,
+          input.virtualMcpId,
+          userId,
+          (vms) => {
+            const updated = { ...vms };
+            delete updated[userId];
+            return updated;
+          },
+        );
       }
-      // 503 — VM is dead, clear stale entry and fall through to create a new one
-      console.log(
-        `[VM_START] Stale VM detected (503): ${existing.vmId}, clearing entry`,
-      );
-      await patchActiveVms(
-        ctx.storage.virtualMcps,
-        input.virtualMcpId,
-        userId,
-        (vms) => {
-          const updated = { ...vms };
-          delete updated[userId];
-          return updated;
-        },
-      );
     }
 
     if (!metadata.githubRepo) {

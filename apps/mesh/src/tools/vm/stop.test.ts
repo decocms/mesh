@@ -6,14 +6,14 @@ import type { VmEntry, VmMetadata } from "./types";
 // Mock freestyle-sandboxes BEFORE importing VM_STOP (Bun requires this order)
 // ---------------------------------------------------------------------------
 
-const mockVmsDelete = mock(
-  (_input: unknown): Promise<void> => Promise.resolve(),
-);
+const mockVmStop = mock((): Promise<void> => Promise.resolve());
 
 mock.module("freestyle-sandboxes", () => ({
   freestyle: {
     vms: {
-      delete: (a: unknown) => mockVmsDelete(a),
+      ref: (_input: unknown) => ({
+        stop: () => mockVmStop(),
+      }),
     },
   },
 }));
@@ -121,8 +121,8 @@ function makeCtx(overrides: {
 
 describe("VM_STOP", () => {
   beforeEach(() => {
-    mockVmsDelete.mockReset();
-    mockVmsDelete.mockImplementation(async () => {});
+    mockVmStop.mockReset();
+    mockVmStop.mockImplementation(async () => {});
   });
 
   it("deletes Freestyle VM and removes DB entry when activeVms entry exists for user", async () => {
@@ -137,9 +137,8 @@ describe("VM_STOP", () => {
 
     expect(result).toEqual({ success: true });
 
-    // Freestyle delete was called with the stored vmId
-    expect(mockVmsDelete).toHaveBeenCalledTimes(1);
-    expect(mockVmsDelete).toHaveBeenCalledWith({ vmId: "vm_existing" });
+    // Freestyle vm.stop() was called
+    expect(mockVmStop).toHaveBeenCalledTimes(1);
 
     // patchActiveVms called storage.update once
     expect(updateSpy).toHaveBeenCalledTimes(1);
@@ -162,7 +161,7 @@ describe("VM_STOP", () => {
     const result = await VM_STOP.handler({ virtualMcpId: "vmcp_1" }, ctx);
 
     expect(result).toEqual({ success: true });
-    expect(mockVmsDelete).not.toHaveBeenCalled();
+    expect(mockVmStop).not.toHaveBeenCalled();
     expect(updateSpy).not.toHaveBeenCalled();
   });
 
@@ -172,7 +171,7 @@ describe("VM_STOP", () => {
     const result = await VM_STOP.handler({ virtualMcpId: "vmcp_missing" }, ctx);
 
     expect(result).toEqual({ success: true });
-    expect(mockVmsDelete).not.toHaveBeenCalled();
+    expect(mockVmStop).not.toHaveBeenCalled();
   });
 
   it("throws 'User ID required' when userId is unavailable", async () => {

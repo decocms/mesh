@@ -16,6 +16,8 @@ const mockVmsCreate = mock(
     Promise.resolve({ vmId: "vm_xyz" }),
 );
 
+const mockVmStart = mock((): Promise<void> => Promise.resolve());
+
 mock.module("freestyle-sandboxes", () => ({
   freestyle: {
     git: {
@@ -25,6 +27,9 @@ mock.module("freestyle-sandboxes", () => ({
     },
     vms: {
       create: (a: unknown) => mockVmsCreate(a),
+      ref: (_input: unknown) => ({
+        start: () => mockVmStart(),
+      }),
     },
   },
 }));
