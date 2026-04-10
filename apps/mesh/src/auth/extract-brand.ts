@@ -67,7 +67,7 @@ export async function extractBrandFromDomain(
   // title (e.g. "Visual CMS for Your Storefront | Deco" → "Deco"),
   // then ogSiteName, then the fallback.
   const titleParts = (metadata.title as string)
-    ?.split(/[|–—]/)
+    ?.split(/[|–—]|\s+-\s+/)
     .map((s) => s.trim())
     .filter(Boolean);
   const shortestPart = titleParts
