@@ -364,6 +364,7 @@ export function VmPreviewContent() {
           <button
             type="button"
             onClick={handleStop}
+            title={vmDataRef.current?.vmId ?? undefined}
             className="flex items-center gap-1.5 px-2.5 h-7 rounded-md text-xs transition-colors shrink-0 bg-accent text-foreground"
           >
             <StopCircle size={14} />
