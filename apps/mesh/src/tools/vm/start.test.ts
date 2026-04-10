@@ -192,7 +192,7 @@ describe("VM_START", () => {
     expect(updateSpy).toHaveBeenCalledTimes(1);
 
     // Verify existing entries are preserved in the update payload
-    const updateCall = updateSpy.mock.calls[0];
+    const updateCall = (updateSpy.mock.calls as unknown[][])[0]!;
     const updatedMetadata = (updateCall[2] as { metadata: VmMetadata })
       .metadata;
     expect(updatedMetadata.activeVms?.["other_user"]).toEqual(CACHED_ENTRY);

@@ -145,7 +145,7 @@ describe("VM_STOP", () => {
     expect(updateSpy).toHaveBeenCalledTimes(1);
 
     // Verify user-1 key was removed from activeVms
-    const updateCall = updateSpy.mock.calls[0];
+    const updateCall = (updateSpy.mock.calls as unknown[][])[0]!;
     const updatedMetadata = (updateCall[2] as { metadata: VmMetadata })
       .metadata;
     expect(updatedMetadata.activeVms?.["user-1"]).toBeUndefined();
