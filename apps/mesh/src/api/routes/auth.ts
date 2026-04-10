@@ -15,6 +15,7 @@ import {
   resetPasswordEnabled,
 } from "../../auth";
 import { getDb } from "../../database";
+import { extractBrandFromDomain } from "../../auth/extract-brand";
 import { BrandContextStorage } from "../../storage/brand-context";
 import { OrganizationDomainStorage } from "../../storage/organization-domains";
 import { KNOWN_OAUTH_PROVIDERS, OAuthProvider } from "@/auth/oauth-providers";
@@ -490,125 +491,32 @@ app.post("/domain-setup", async (c) => {
       const firecrawlApiKey = getSettings().firecrawlApiKey;
 
       if (firecrawlApiKey) {
-        const url = `https://${emailDomain}`;
-        const response = await fetch("https://api.firecrawl.dev/v1/scrape", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${firecrawlApiKey}`,
-          },
-          body: JSON.stringify({ url, formats: ["branding"] }),
-        });
+        const extracted = await extractBrandFromDomain(
+          emailDomain,
+          firecrawlApiKey,
+          baseOrgName,
+        );
 
-        if (response.ok) {
-          const result = (await response.json()) as {
-            success?: boolean;
-            data?: {
-              branding?: Record<string, unknown>;
-              metadata?: Record<string, unknown>;
-            };
-          };
+        if (extracted) {
+          const brandStorage = new BrandContextStorage(getDb().db);
+          const brand = await brandStorage.create(orgId, extracted);
+          await brandStorage.setDefault(brand.id, orgId);
+          brandExtracted = true;
 
-          if (result.success && result.data?.branding) {
-            const brandStorage = new BrandContextStorage(getDb().db);
-
-            const branding = result.data.branding;
-            const metadata = result.data.metadata ?? {};
-
-            // Extract colors
-            const rawColors = (branding.colors ?? {}) as Record<
-              string,
-              unknown
-            >;
-            const colors: { label: string; value: string }[] = [];
-            for (const [label, value] of Object.entries(rawColors)) {
-              if (typeof value === "string" && value) {
-                colors.push({ label, value });
-              }
-            }
-
-            // Extract fonts
-            const fonts: { name: string; role: string }[] = [];
-            const typography = (branding.typography ?? {}) as Record<
-              string,
-              unknown
-            >;
-            const fontFamilies = (typography.fontFamilies ?? {}) as Record<
-              string,
-              unknown
-            >;
-            const seenFamilies = new Set<string>();
-            for (const [role, family] of Object.entries(fontFamilies)) {
-              if (typeof family === "string" && family) {
-                fonts.push({ name: family, role });
-                seenFamilies.add(family.toLowerCase());
-              }
-            }
-            if (Array.isArray(branding.fonts)) {
-              for (const f of branding.fonts) {
-                const family = (f as Record<string, unknown>).family;
-                if (
-                  typeof family === "string" &&
-                  family &&
-                  !seenFamilies.has(family.toLowerCase())
-                ) {
-                  fonts.push({ name: family, role: "" });
-                  seenFamilies.add(family.toLowerCase());
-                }
-              }
-            }
-
-            const images = (branding.images ?? {}) as Record<string, unknown>;
-
-            // Derive name from metadata
-            const titleParts = (metadata.title as string)
-              ?.split(/[|–—]/)
-              .map((s) => s.trim())
-              .filter(Boolean);
-            const shortestPart = titleParts
-              ?.slice()
-              .sort((a, b) => a.length - b.length)[0];
-            const brandName =
-              shortestPart ?? (metadata.ogSiteName as string) ?? baseOrgName;
-
-            const brandLogo = (images.logo as string) ?? null;
-
-            const brand = await brandStorage.create(orgId, {
-              name: brandName,
-              domain: emailDomain,
-              overview: (metadata.description as string) ?? "",
-              logo: brandLogo,
-              favicon: (images.favicon as string) ?? null,
-              ogImage:
-                (images.ogImage as string) ??
-                (metadata.ogImage as string) ??
-                null,
-              fonts: fonts.length > 0 ? fonts : null,
-              colors: colors.length > 0 ? colors : null,
-              images: null,
-              metadata: null,
+          // Update org: name from brand, favicon as org logo
+          // (favicons are small/reliable; full logos often hit size limits)
+          const orgLogo = extracted.favicon ?? extracted.logo ?? null;
+          const orgUpdate: Record<string, unknown> = {};
+          if (extracted.name !== baseOrgName) orgUpdate.name = extracted.name;
+          if (orgLogo) orgUpdate.logo = orgLogo;
+          if (Object.keys(orgUpdate).length > 0) {
+            await auth.api.updateOrganization({
+              headers: c.req.raw.headers,
+              body: {
+                organizationId: orgId,
+                data: orgUpdate,
+              },
             });
-
-            // Set as default brand
-            await brandStorage.setDefault(brand.id, orgId);
-
-            brandExtracted = true;
-
-            // Update org: name from brand, favicon as org logo
-            // (favicons are small/reliable; full logos often hit size limits)
-            const orgLogo = (images.favicon as string) ?? brandLogo ?? null;
-            const orgUpdate: Record<string, unknown> = {};
-            if (brandName !== baseOrgName) orgUpdate.name = brandName;
-            if (orgLogo) orgUpdate.logo = orgLogo;
-            if (Object.keys(orgUpdate).length > 0) {
-              await auth.api.updateOrganization({
-                headers: c.req.raw.headers,
-                body: {
-                  organizationId: orgId,
-                  data: orgUpdate,
-                },
-              });
-            }
           }
         }
       }
