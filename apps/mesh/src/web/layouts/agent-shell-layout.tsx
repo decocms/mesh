@@ -73,13 +73,19 @@ import {
 // Types & Context
 // ---------------------------------------------------------------------------
 
-export type MainViewType = "chat" | "settings" | "automation" | "ext-apps";
+export type MainViewType =
+  | "chat"
+  | "settings"
+  | "automation"
+  | "ext-apps"
+  | "pages";
 
 export type MainView =
   | { type: "chat" }
   | { type: "settings" }
   | { type: "automation"; id: string }
   | { type: "ext-apps"; id: string; toolName?: string; [key: string]: unknown }
+  | { type: "pages"; pageKey?: string }
   | null;
 
 export interface InsetContextValue {
@@ -409,6 +415,8 @@ function AgentInsetProvider() {
     mainView = id
       ? { type: "ext-apps", id, toolName: search.toolName }
       : { type: "settings" };
+  } else if (search.main === "pages") {
+    mainView = { type: "pages", pageKey: search.id };
   } else {
     mainView = null;
   }

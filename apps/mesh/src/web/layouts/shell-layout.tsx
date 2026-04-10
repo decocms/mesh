@@ -162,8 +162,16 @@ export function usePanelActions() {
         main: view,
         mainOpen: 1,
       };
-      if (opts?.id) next.id = opts.id;
-      if (opts?.toolName) next.toolName = opts.toolName;
+      if (opts?.id) {
+        next.id = opts.id;
+      } else {
+        delete next.id;
+      }
+      if (opts?.toolName) {
+        next.toolName = opts.toolName;
+      } else {
+        delete next.toolName;
+      }
       return next;
     });
   };

@@ -11,7 +11,13 @@ import { Page } from "@/web/components/page";
 import { getIconComponent, parseIconString } from "../agent-icon";
 
 import { usePanelActions } from "@/web/layouts/shell-layout";
-import { Edit05, LayoutLeft, Loading01, Settings02 } from "@untitledui/icons";
+import {
+  Edit05,
+  File06,
+  LayoutLeft,
+  Loading01,
+  Settings02,
+} from "@untitledui/icons";
 import { useVirtualMCPActions, useVirtualMCP } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { Suspense, useEffect, useRef, useState, useTransition } from "react";
@@ -28,6 +34,10 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { IconPicker } from "@/web/components/icon-picker.tsx";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
+import {
+  PageSectionsSidebar,
+  getDecoConnectionId,
+} from "@/web/views/pages/index";
 
 // ────────────────────────────────────────
 // Shared nav item style — used by New session and view buttons
@@ -117,10 +127,14 @@ function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
       icon: string | null;
     }> | null) ?? [];
 
-  if (pinnedViews.length === 0) return null;
+  // Deco projects have a file_explorer pinned view
+  const isDecoProject = pinnedViews.some((v) => v.toolName === "file_explorer");
+
+  if (pinnedViews.length === 0 && !isDecoProject) return null;
 
   // Determine which pinned view is currently active
   const currentMain = virtualMcpCtx?.mainView;
+  const isPagesActive = currentMain?.type === "pages";
   const isExtAppActive = (view: { connectionId: string; toolName: string }) =>
     currentMain?.type === "ext-apps" &&
     currentMain.id === view.connectionId &&
@@ -128,6 +142,21 @@ function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
 
   return (
     <>
+      {isDecoProject && (
+        <button
+          type="button"
+          onClick={() =>
+            isPagesActive ? openMainView("default") : openMainView("pages")
+          }
+          className={cn(
+            navItemClass,
+            isPagesActive && "bg-accent text-foreground",
+          )}
+        >
+          <File06 size={16} className="shrink-0 text-muted-foreground" />
+          <span className="truncate text-foreground">Pages</span>
+        </button>
+      )}
       {pinnedViews.map((view) => (
         <button
           key={`${view.connectionId}-${view.toolName}`}
@@ -272,6 +301,49 @@ function TasksPanelContent({
   const virtualMcpId = virtualMcpIdProp ?? null;
 
   const virtualMcp = useVirtualMCP(virtualMcpId);
+
+  // When a page is selected, take over the sidebar with sections panel
+  const mainView = virtualMcpCtx?.mainView;
+  const pageKey =
+    mainView?.type === "pages"
+      ? (mainView as { type: "pages"; pageKey?: string }).pageKey
+      : undefined;
+
+  const decoConnectionId = getDecoConnectionId(virtualMcp ?? null);
+
+  if (pageKey && decoConnectionId) {
+    return (
+      <ErrorBoundary
+        fallback={
+          <div className="flex items-center justify-center h-32">
+            <p className="text-xs text-muted-foreground">
+              Failed to load sections.
+            </p>
+          </div>
+        }
+      >
+        <Suspense
+          fallback={
+            <div className="flex flex-col h-full">
+              <div className="shrink-0 flex items-center gap-2 px-3 h-11 border-b border-border/50">
+                <Skeleton className="h-4 w-20" />
+              </div>
+              <div className="flex flex-col gap-2 p-3">
+                {[1, 2, 3, 4].map((i) => (
+                  <Skeleton key={i} className="h-10 w-full rounded-md" />
+                ))}
+              </div>
+            </div>
+          }
+        >
+          <PageSectionsSidebar
+            connectionId={decoConnectionId}
+            pageKey={pageKey}
+          />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
 
   const handleNewTask = () => {
     startTransition(() => {
