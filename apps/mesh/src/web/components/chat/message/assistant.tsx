@@ -14,6 +14,7 @@ import { MessageStatsBar } from "../usage-stats.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
 import {
   GenericToolCallPart,
+  OpenInAgentPart,
   ProposePlanPart,
   SubtaskPart,
   UserAskPart,
@@ -487,6 +488,14 @@ function MessagePart({
         <SubtaskPart
           part={part}
           subtaskMeta={getSubtaskMeta(part.toolCallId)}
+          annotations={getMeta(part.toolCallId)?.annotations}
+          latency={getMeta(part.toolCallId)?.latencySeconds}
+        />
+      );
+    case "tool-open_in_agent":
+      return (
+        <OpenInAgentPart
+          part={part}
           annotations={getMeta(part.toolCallId)?.annotations}
           latency={getMeta(part.toolCallId)?.latencySeconds}
         />

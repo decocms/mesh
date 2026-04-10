@@ -13,17 +13,19 @@ import { createReadToolOutputTool } from "./read-tool-output";
 import { createReadPromptTool } from "./prompts";
 import { createReadResourceTool } from "./resources";
 import { createSandboxTool, type VirtualClient } from "./sandbox";
+import { createOpenInAgentTool } from "./open-in-agent";
 import { createSubtaskTool } from "./subtask";
 import { userAskTool } from "./user-ask";
 import { proposePlanTool } from "./propose-plan";
 import type { ModelsConfig } from "../types";
-import { MeshProvider } from "@/ai-providers/types";
+import type { MeshProvider } from "@/ai-providers/types";
 
 export interface BuiltinToolParams {
   /** Provider — null for Claude Code (subtask tool is omitted when null) */
   provider: MeshProvider | null;
   organization: OrganizationScope;
   models: ModelsConfig;
+  userId: string;
   toolApprovalLevel?: ToolApprovalLevel;
   toolOutputMap: Map<string, string>;
   passthroughClient: VirtualClient;
@@ -45,6 +47,7 @@ function buildAllTools(
     provider,
     organization,
     models,
+    userId,
     toolApprovalLevel = "auto",
     toolOutputMap,
     passthroughClient,
@@ -76,6 +79,15 @@ function buildAllTools(
       passthroughClient,
       toolOutputMap,
     }),
+    open_in_agent: createOpenInAgentTool(
+      writer,
+      {
+        organization,
+        userId,
+        needsApproval: toolNeedsApproval(toolApprovalLevel, false) !== false,
+      },
+      ctx,
+    ),
   };
   // subtask requires a provider (LLM calls) — skip when provider is null (Claude Code)
   if (provider) {
@@ -99,6 +111,7 @@ function buildAllTools(
     sandbox: ReturnType<typeof createSandboxTool>;
     read_resource: ReturnType<typeof createReadResourceTool>;
     read_prompt: ReturnType<typeof createReadPromptTool>;
+    open_in_agent: ReturnType<typeof createOpenInAgentTool>;
   };
 }
 

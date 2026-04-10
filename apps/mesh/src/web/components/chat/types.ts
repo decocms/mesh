@@ -81,6 +81,8 @@ export interface Metadata {
   system?: string;
   /** Tiptap document for rich user input (includes prompt tags with resources) */
   tiptapDoc?: TiptapDoc;
+  /** Agent mentions in this message — used to render delegation cards */
+  agentMentions?: Array<{ agentId: string; title: string; taskId?: string }>;
   /** Tool approval level at send time — used for visual treatment (e.g., purple border for plan mode) */
   toolApprovalLevel?: ToolApprovalLevel;
   usage?: {

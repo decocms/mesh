@@ -26,6 +26,8 @@ export interface BaseItem {
   name: string;
   description?: string;
   icon?: string | null;
+  /** Show an Enter key hint — indicates this item drills into a submenu */
+  drillable?: boolean;
 }
 
 export type OnSelectProps<T extends BaseItem = BaseItem> = {
@@ -40,8 +42,9 @@ export interface UseSuggestionOptions<T extends BaseItem = BaseItem> {
   queryKey: readonly unknown[];
   /** Async function to fetch items based on query */
   queryFn: (props: { query: string }) => Promise<T[]>;
-  /** Callback executed when a suggestion is selected. Can be async - menu will show loading state until resolved. */
-  onSelect: (props: OnSelectProps<T>) => void | Promise<void>;
+  /** Callback executed when a suggestion is selected. Can be async - menu will show loading state until resolved.
+   *  Return false to keep the menu open (e.g. for drill-in navigation). */
+  onSelect: (props: OnSelectProps<T>) => void | false | Promise<void | false>;
 }
 
 export interface UseSuggestionReturn<T extends BaseItem = BaseItem> {
@@ -332,10 +335,17 @@ export function useMentionState({
   editor,
   char,
   pluginKey,
+  allow: customAllow,
+  onOpenChange,
 }: {
   editor: Editor;
   char: string;
   pluginKey: string | PluginKey;
+  allow?: (props: {
+    state: unknown;
+    range: { from: number; to: number };
+  }) => boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   // Create the reducer state here - this is the source of truth
   const [state, dispatch] = useReducer(reducer, {
@@ -345,6 +355,10 @@ export function useMentionState({
     range: null,
     selectedItem: null,
   });
+
+  // Ref for onOpenChange to avoid stale closures in the plugin
+  const onOpenChangeRef = useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
 
   // Register the suggestion plugin here at the top level
   // This ensures it's always active even when the menu is closed
@@ -380,6 +394,11 @@ export function useMentionState({
           }
         }
 
+        // Delegate to custom allow if provided
+        if (customAllow && !customAllow(props)) {
+          return false;
+        }
+
         return true;
       },
 
@@ -397,6 +416,7 @@ export function useMentionState({
               range: props.range,
             },
           });
+          onOpenChangeRef.current?.(true);
         },
 
         onUpdate: (props: SuggestionProps<BaseItem>) => {
@@ -420,6 +440,7 @@ export function useMentionState({
 
         onExit: () => {
           dispatch({ type: "ON_EXIT" });
+          onOpenChangeRef.current?.(false);
         },
       }),
 
@@ -433,7 +454,7 @@ export function useMentionState({
         editor.unregisterPlugin(key);
       }
     };
-  }, [editor, pluginKey, char, dispatch]);
+  }, [editor, pluginKey, char, dispatch, customAllow]);
 
   return { state, dispatch };
 }
@@ -485,7 +506,6 @@ export function useSuggestion<T extends BaseItem = BaseItem>({
     dispatch({ type: "SET_SELECTED_ITEM", payload: item });
 
     try {
-      // Add logging for debugging selection behavior
       const { view } = editor;
 
       // Calculate the range to use
@@ -500,8 +520,15 @@ export function useSuggestion<T extends BaseItem = BaseItem>({
       }
 
       // Call the global onSelect (may be async)
-      await onItemSelect({ range: rangeToUse, item: item as T });
-    } finally {
+      // Return false to keep the menu open (drill-in navigation)
+      const result = await onItemSelect({ range: rangeToUse, item: item as T });
+      if (result === false) {
+        // Drill-in: reset selected item but keep menu open
+        dispatch({ type: "SET_SELECTED_ITEM", payload: null });
+      } else {
+        close();
+      }
+    } catch {
       close();
     }
   };

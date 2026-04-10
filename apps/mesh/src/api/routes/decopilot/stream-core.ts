@@ -409,6 +409,7 @@ async function streamCoreInner(
                 provider,
                 organization,
                 models: input.models,
+                userId: input.userId,
                 toolApprovalLevel: input.toolApprovalLevel,
                 toolOutputMap,
                 passthroughClient,
