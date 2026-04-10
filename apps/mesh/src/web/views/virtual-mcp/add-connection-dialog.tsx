@@ -17,6 +17,7 @@ import {
 import { KEYS } from "@/web/lib/query-keys";
 import { authClient } from "@/web/lib/auth-client";
 import {
+  buildRegistryTitleMap,
   extractConnectionData,
   getRegistryItemAppName,
 } from "@/web/utils/extract-connection-data";
@@ -179,7 +180,6 @@ function AddConnectionDialogContent({
     connectionsData?.pages.flatMap(
       (p: CollectionListOutput<ConnectionEntity>) => p?.items ?? [],
     ) ?? [];
-  const grouped = groupConnections(allConnections);
 
   // Build set of connected app names to deduplicate catalog items
   const connectedAppNames = new Set(
@@ -192,6 +192,9 @@ function AddConnectionDialogContent({
     enabledRegistries,
     deferredSearch,
   );
+
+  const registryTitles = buildRegistryTitleMap(mergedDiscovery.items);
+  const grouped = groupConnections(allConnections, registryTitles);
 
   const catalogSentinelRef = useInfiniteScroll(
     mergedDiscovery.loadMore,
@@ -379,7 +382,8 @@ function AddConnectionDialogContent({
             const c = item.connection;
             return renderConnectedApp(
               c.id,
-              getConnectionDisplayTitle(c),
+              (c.app_name && registryTitles.get(c.app_name)) ||
+                getConnectionDisplayTitle(c),
               c.icon,
               c.description ?? null,
               [c],

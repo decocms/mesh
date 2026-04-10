@@ -113,6 +113,7 @@ import type {
 } from "@/tools/connection/schema";
 import { EnvVarsEditor } from "@/web/components/env-vars-editor";
 import {
+  buildRegistryTitleMap,
   extractConnectionData,
   getRegistryItemAppName,
 } from "@/web/utils/extract-connection-data";
@@ -699,8 +700,6 @@ function ConnectionResults({
     return true;
   });
 
-  const grouped = groupConnections(filteredConnections);
-
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -720,6 +719,8 @@ function ConnectionResults({
     listState.searchTerm,
   );
   const registryItems = mergedDiscovery.items;
+  const registryTitles = buildRegistryTitleMap(registryItems);
+  const grouped = groupConnections(filteredConnections, registryTitles);
 
   const catalogSentinelRef = useInfiniteScroll(
     mergedDiscovery.loadMore,
@@ -1060,7 +1061,10 @@ function ConnectionResults({
                     key={connection.id}
                     connection={{
                       ...connection,
-                      title: getConnectionDisplayTitle(connection),
+                      title:
+                        (connection.app_name &&
+                          registryTitles.get(connection.app_name)) ||
+                        getConnectionDisplayTitle(connection),
                     }}
                     fallbackIcon={<Container />}
                     onClick={() =>

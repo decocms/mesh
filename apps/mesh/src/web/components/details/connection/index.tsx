@@ -1,8 +1,5 @@
 import { generatePrefixedId } from "@/shared/utils/generate-id";
-import {
-  getConnectionDisplayTitle,
-  getGroupDisplayTitle,
-} from "@/shared/utils/group-connections";
+import { getConnectionDisplayTitle } from "@/shared/utils/group-connections";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { recordToEnvVars } from "@/web/components/env-vars-editor";
@@ -428,9 +425,7 @@ function ConnectionInspectorViewWithConnection({
         <BreadcrumbSeparator />
         <BreadcrumbItem>
           <BreadcrumbPage>
-            {siblings.length > 1
-              ? getGroupDisplayTitle(siblings)
-              : getConnectionDisplayTitle(siblings[0] ?? connection)}
+            {getConnectionDisplayTitle(siblings[0] ?? connection)}
           </BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
@@ -563,11 +558,7 @@ function ConnectionInspectorViewWithConnection({
         <div className="flex flex-col h-full overflow-hidden">
           <ConnectionDetailHeader
             connection={connection}
-            displayTitle={
-              siblings.length > 1
-                ? getGroupDisplayTitle(siblings)
-                : getConnectionDisplayTitle(siblings[0] ?? connection)
-            }
+            displayTitle={getConnectionDisplayTitle(siblings[0] ?? connection)}
           />
           <div className="flex-1 overflow-auto @container">
             <div className="grid grid-cols-1 @3xl:grid-cols-2 gap-5 p-6">
@@ -585,10 +576,7 @@ function ConnectionInspectorViewWithConnection({
                     setIsAddingInstance(true);
                     try {
                       const base = siblings[0] ?? connection;
-                      const baseName =
-                        siblings.length > 1
-                          ? getGroupDisplayTitle(siblings)
-                          : getConnectionDisplayTitle(base);
+                      const baseName = getConnectionDisplayTitle(base);
                       const nextNumber = siblings.length + 1;
                       const newTitle = `${baseName} (${nextNumber})`;
                       const newId = generatePrefixedId("conn");

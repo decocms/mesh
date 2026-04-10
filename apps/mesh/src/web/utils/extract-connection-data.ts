@@ -26,6 +26,34 @@ export function getRegistryItemAppName(
 }
 
 /**
+ * Build a map from app_name → display title from a list of registry items.
+ * Used so connected cards can show the same title as the store catalog.
+ */
+export function buildRegistryTitleMap(
+  items: Pick<RegistryItem, "_meta" | "server" | "title" | "name" | "id">[],
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const item of items) {
+    const appName = getRegistryItemAppName(item);
+    if (!appName || map.has(appName)) continue;
+    const meshMeta = item._meta?.["mcp.mesh"] as
+      | Record<string, string>
+      | undefined;
+    const title =
+      meshMeta?.friendlyName ||
+      meshMeta?.friendly_name ||
+      item.server?.title ||
+      item.title ||
+      item.server?.name ||
+      item.name ||
+      item.id ||
+      "";
+    if (title) map.set(appName, title);
+  }
+  return map;
+}
+
+/**
  * Get a display name for a remote endpoint
  * Uses the hostname (without common suffixes) as the display name
  * Example: "https://graphql.mcp.cloudflare.com/mcp" -> "graphql.mcp.cloudflare.com"
