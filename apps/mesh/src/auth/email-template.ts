@@ -16,8 +16,6 @@ interface EmailTemplateOptions {
   body: string;
   /** Replaces the default fine-print sentence in the footer. */
   footnote?: string;
-  /** Absolute base URL of the app, used to resolve the logo. */
-  baseUrl?: string;
 }
 
 /**
@@ -30,7 +28,6 @@ export function emailTemplate({
   subheading,
   body,
   footnote,
-  baseUrl = "",
 }: EmailTemplateOptions): string {
   const defaultFootnote =
     "You received this email because of activity on your deco Studio account. If you weren\u2019t expecting it, you can safely ignore it.";

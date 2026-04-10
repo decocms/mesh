@@ -11,7 +11,6 @@ import {
 } from "./email-template";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const BASE_URL = process.env.BASE_URL ?? "https://studio.deco.cx";
 const TO = "valls@deco.cx";
 const FROM = "deco Studio <onboarding@resend.dev>";
 
@@ -37,8 +36,9 @@ async function send(subject: string, html: string) {
 const emails = [
   {
     subject: "[Preview] Invite email",
-    html: emailTemplate({ baseUrl: BASE_URL,
-      preheader: "Rafael Valls has invited you to join Acme Corp on deco Studio.",
+    html: emailTemplate({
+      preheader:
+        "Rafael Valls has invited you to join Acme Corp on deco Studio.",
       heading: "You've been invited",
       subheading:
         "<strong>Rafael Valls</strong> has invited you to join <strong>Acme Corp</strong> on deco Studio.",
@@ -49,7 +49,7 @@ const emails = [
   },
   {
     subject: "[Preview] OTP email",
-    html: emailTemplate({ baseUrl: BASE_URL,
+    html: emailTemplate({
       preheader: "Your sign in code is 482 916",
       heading: "Sign in code",
       subheading: "Enter the code below to sign in to your account.",
@@ -65,7 +65,7 @@ const emails = [
   },
   {
     subject: "[Preview] Password reset email",
-    html: emailTemplate({ baseUrl: BASE_URL,
+    html: emailTemplate({
       preheader:
         "We received a request to reset the password on your deco Studio account.",
       heading: "Reset your password",
@@ -83,7 +83,7 @@ const emails = [
   },
   {
     subject: "[Preview] Magic link email",
-    html: emailTemplate({ baseUrl: BASE_URL,
+    html: emailTemplate({
       preheader: "Click the button to securely sign in to your account.",
       heading: "Sign in to deco Studio",
       subheading:

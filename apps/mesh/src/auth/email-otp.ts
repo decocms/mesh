@@ -4,7 +4,6 @@ import {
   EmailProviderConfig,
   findEmailProvider,
 } from "./email-providers";
-import { getBaseUrl } from "@/core/server-constants";
 import { emailOtpCode, emailParagraph, emailTemplate } from "./email-template";
 
 type BetterAuthEmailOTPConfig = Parameters<typeof emailOTP>[0];
@@ -49,7 +48,6 @@ export const createEmailOtpConfig = (
         to: email,
         subject,
         html: emailTemplate({
-          baseUrl: getBaseUrl(),
           preheader: `Your ${subject.toLowerCase()} is ${otp}`,
           heading: subject,
           subheading,

@@ -139,7 +139,6 @@ if (
         to: data.email,
         subject: `You've been invited to join ${data.organization.name}`,
         html: emailTemplate({
-          baseUrl: getBaseUrl(),
           preheader: `${inviterName} has invited you to join ${data.organization.name} on deco Studio.`,
           heading: "You've been invited",
           subheading: `<strong>${inviterName}</strong> has invited you to join <strong>${data.organization.name}</strong> on deco Studio.`,
@@ -178,7 +177,6 @@ if (
         to: user.email,
         subject: "Reset your password",
         html: emailTemplate({
-          baseUrl: getBaseUrl(),
           preheader:
             "We received a request to reset the password on your deco Studio account.",
           heading: "Reset your password",
