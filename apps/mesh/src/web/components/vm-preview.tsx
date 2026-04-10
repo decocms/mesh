@@ -150,7 +150,7 @@ export function VmPreviewContent() {
     if (startingRef.current) return;
     startingRef.current = true;
     setStatus("creating");
-    setStatusLabel("Creating VM...");
+    setStatusLabel("Connecting...");
     setErrorMsg("");
     setHasHtmlPreview(false);
 
