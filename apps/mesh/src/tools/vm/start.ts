@@ -17,7 +17,6 @@ import {
   getUserId,
 } from "../../core/mesh-context";
 import { freestyle } from "freestyle-sandboxes";
-import { VmWebTerminal } from "@freestyle-sh/with-web-terminal";
 import { type VmEntry, type VmMetadata, patchActiveVms } from "./types";
 
 export const VM_START = defineTool({
@@ -231,29 +230,31 @@ http.createServer((req, res) => {
       },
     });
 
+    // ttyd (web terminal) is pre-installed in Freestyle VMs and listens
+    // on port 7682 by default. We route it to a separate subdomain so the
+    // frontend can embed it in an iframe.
+    const terminalPort = 7682;
+
     // Create VM with repo and systemd services.
     // Domain routes to the iframe proxy which strips X-Frame-Options/CSP
     // so the preview can be embedded in an iframe.
     // Freestyle docs: /v2/vms/configuration/domains
     const createResult = await freestyle.vms.create({
-      with: {
-        terminal: new VmWebTerminal([{ id: "main" }] as const),
-      },
       gitRepos: [{ repo: repoId, path: "/app" }],
       workdir: "/app",
-      domains: [{ domain: previewDomain, vmPort: proxyPort }],
+      domains: [
+        { domain: previewDomain, vmPort: proxyPort },
+        { domain: terminalDomain, vmPort: terminalPort },
+      ],
       additionalFiles,
       systemd: { services },
     });
 
     console.log(
-      `[VM_START] VM created: ${createResult.vmId} domain: ${previewDomain}`,
+      `[VM_START] VM created: ${createResult.vmId} domain: ${previewDomain} terminal: ${terminalDomain}`,
     );
 
-    const { vmId, vm } = createResult;
-
-    // Route the web terminal to its subdomain
-    await vm.terminal.main.route({ domain: terminalDomain });
+    const { vmId } = createResult;
 
     const previewUrl = `https://${previewDomain}`;
     const terminalUrl = `https://${terminalDomain}`;
