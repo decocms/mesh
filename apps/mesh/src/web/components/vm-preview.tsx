@@ -5,7 +5,12 @@ import {
   SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
-import { Loading01, Monitor04, Terminal } from "@untitledui/icons";
+import {
+  LinkExternal01,
+  Loading01,
+  Monitor04,
+  Terminal,
+} from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 
@@ -202,9 +207,18 @@ export function VmPreviewContent() {
             {!previewReady && <Loading01 size={10} className="animate-spin" />}
           </button>
         </div>
-        <Button variant="ghost" size="sm" onClick={handleStop}>
-          Stop
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => window.open(vmData.previewUrl, "_blank", "noopener")}
+          >
+            <LinkExternal01 size={14} />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleStop}>
+            Stop
+          </Button>
+        </div>
       </div>
 
       <div className="flex-1 relative">

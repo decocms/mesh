@@ -103,7 +103,7 @@ export const VM_START = defineTool({
 
     // Create VM with runtime, repo, and systemd services
     // Freestyle docs: /v2/vms/configuration/systemd-services
-    const { vmId, domains } = await freestyle.vms.create({
+    const createResult = await freestyle.vms.create({
       with: {
         runtime: runtimeIntegration,
       },
@@ -138,7 +138,10 @@ export const VM_START = defineTool({
       },
     });
 
-    const previewUrl = `https://${domains[0]}`;
+    const { vmId, domains } = createResult;
+    const domain = domains?.[0] ?? `${vmId}.freestyle.run`;
+
+    const previewUrl = `https://${domain}`;
     const entry = { terminalUrl: null, previewUrl, vmId };
 
     setActiveVm(input.virtualMcpId, userId, entry);
