@@ -13,13 +13,9 @@
 
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
-import {
-  requireAuth,
-  requireOrganization,
-  getUserId,
-} from "../../core/mesh-context";
 import { freestyle } from "freestyle-sandboxes";
-import { patchActiveVms, type VmMetadata } from "./types";
+import { patchActiveVms } from "./types";
+import { requireVmEntry } from "./helpers";
 
 export const VM_STOP = defineTool({
   name: "VM_STOP",
@@ -40,28 +36,16 @@ export const VM_STOP = defineTool({
   }),
 
   handler: async (input, ctx) => {
-    requireAuth(ctx);
-    const organization = requireOrganization(ctx);
-    await ctx.access.check();
-
-    const userId = getUserId(ctx);
-    if (!userId) {
-      throw new Error("User ID required");
+    let vmEntry: Awaited<ReturnType<typeof requireVmEntry>>;
+    try {
+      vmEntry = await requireVmEntry(input, ctx);
+    } catch (err) {
+      if (err instanceof Error && err.message === "Virtual MCP not found") {
+        return { success: true };
+      }
+      throw err;
     }
-
-    // Look up the VM entry from the DB — do NOT accept vmId from the caller.
-    // This ensures a user can only stop their own VM.
-    const virtualMcp = await ctx.storage.virtualMcps.findById(
-      input.virtualMcpId,
-    );
-
-    // Org-scope guard: ensure this Virtual MCP belongs to the caller's org.
-    if (virtualMcp && virtualMcp.organization_id !== organization.id) {
-      throw new Error("Virtual MCP not found");
-    }
-
-    const metadata = virtualMcp?.metadata as VmMetadata | undefined;
-    const entry = metadata?.activeVms?.[userId];
+    const { entry, userId } = vmEntry;
 
     if (entry) {
       // Delete Freestyle VM FIRST. If this fails, the error propagates and
@@ -74,7 +58,7 @@ export const VM_STOP = defineTool({
     }
 
     // Clean up the DB entry after the Freestyle delete attempt.
-    if (virtualMcp && entry) {
+    if (entry) {
       await patchActiveVms(
         ctx.storage.virtualMcps,
         input.virtualMcpId,
