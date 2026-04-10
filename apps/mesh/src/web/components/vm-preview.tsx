@@ -420,7 +420,6 @@ export function VmPreviewContent() {
                 )}
               >
                 <Terminal size={14} />
-                Terminal
                 <ChevronDown size={10} />
               </button>
             </DropdownMenuTrigger>
