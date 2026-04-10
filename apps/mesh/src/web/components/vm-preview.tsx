@@ -26,6 +26,11 @@ import {
   type VisualEditorPayload,
 } from "./preview/visual-editor-script";
 import { VisualEditorPrompt } from "./preview/visual-editor-prompt";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "./resizable";
 
 interface VmData {
   terminalUrl: string | null;
@@ -49,9 +54,7 @@ export function VmPreviewContent() {
   const inset = useInsetContext();
   const [status, setStatus] = useState<ViewStatus>("idle");
   const [errorMsg, setErrorMsg] = useState("");
-  const [activeView, setActiveView] = useState<"terminal" | "preview">(
-    "terminal",
-  );
+  const [showTerminal, setShowTerminal] = useState(false);
   const [previewReady, setPreviewReady] = useState(false);
   const vmDataRef = useRef<VmData | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -62,6 +65,14 @@ export function VmPreviewContent() {
   const [visualElement, setVisualElement] =
     useState<VisualEditorPayload | null>(null);
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
+
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — auto-start on mount requires DOM lifecycle; no React 19 alternative
+  useEffect(() => {
+    if (inset?.entity?.id) {
+      handleStart();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inset?.entity?.id]);
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — postMessage listener requires DOM event subscription; no React 19 alternative
   useEffect(() => {
@@ -120,7 +131,6 @@ export function VmPreviewContent() {
     setStatus("starting");
     setErrorMsg("");
     setPreviewReady(false);
-    setActiveView("terminal");
 
     try {
       if (!inset?.entity) throw new Error("No virtual MCP context");
@@ -154,7 +164,6 @@ export function VmPreviewContent() {
         const img = new Image();
         img.onload = () => {
           setPreviewReady(true);
-          setActiveView("preview");
           if (pollRef.current) {
             clearInterval(pollRef.current);
             pollRef.current = null;
@@ -183,6 +192,7 @@ export function VmPreviewContent() {
     vmDataRef.current = null;
     setStatus("idle");
     setPreviewReady(false);
+    setShowTerminal(false);
     setVisualElement(null);
     setViewMode("preview");
 
@@ -200,7 +210,6 @@ export function VmPreviewContent() {
 
   const handleOpenPreview = () => {
     setPreviewReady(true);
-    setActiveView("preview");
     if (pollRef.current) {
       clearInterval(pollRef.current);
       pollRef.current = null;
@@ -259,10 +268,10 @@ export function VmPreviewContent() {
         {hasTerminal && (
           <button
             type="button"
-            onClick={() => setActiveView("terminal")}
+            onClick={() => setShowTerminal((prev) => !prev)}
             className={cn(
               "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition-colors shrink-0",
-              activeView === "terminal"
+              showTerminal
                 ? "bg-accent text-foreground"
                 : "text-muted-foreground hover:text-foreground",
             )}
@@ -313,65 +322,73 @@ export function VmPreviewContent() {
       </div>
 
       <div className="flex-1 relative">
-        {hasTerminal && (
-          <iframe
-            src={vmData.terminalUrl ?? undefined}
-            className={cn(
-              "absolute inset-0 w-full h-full border-0",
-              activeView !== "terminal" && "hidden",
-            )}
-            title="VM Terminal"
-            allow="clipboard-read; clipboard-write"
-          />
-        )}
-        {!previewReady && !hasTerminal && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-            <Loading01
-              size={20}
-              className="animate-spin text-muted-foreground"
-            />
-            <p className="text-sm text-muted-foreground">
-              Installing dependencies and starting dev server...
-            </p>
-            <Button variant="outline" size="sm" onClick={handleOpenPreview}>
-              Open Preview
-            </Button>
-          </div>
-        )}
-        {(previewReady || activeView === "preview") && (
-          <div className="absolute inset-0">
-            {/* Visual mode hint */}
-            {viewMode === "visual" && !visualElement && (
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 rounded-full border border-violet-400/40 bg-violet-500/90 px-3 py-1 text-xs font-medium text-white shadow-md backdrop-blur-sm pointer-events-none select-none">
-                <CursorClick01 size={12} />
-                Click any element to ask the AI
-              </div>
-            )}
-
-            {/* Floating prompt on element click */}
-            {viewMode === "visual" && visualElement && (
-              <VisualEditorPrompt
-                element={visualElement}
-                onDismiss={() => setVisualElement(null)}
-              />
-            )}
-
-            <iframe
-              ref={previewIframeRef}
-              src={vmData.previewUrl}
-              className={cn(
-                "w-full h-full border-0",
-                activeView !== "preview" && "hidden",
+        <ResizablePanelGroup direction="vertical">
+          {/* Preview panel — always visible */}
+          <ResizablePanel minSize={20}>
+            <div className="relative w-full h-full">
+              {!previewReady && !hasTerminal && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                  <Loading01
+                    size={20}
+                    className="animate-spin text-muted-foreground"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Installing dependencies and starting dev server...
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleOpenPreview}
+                  >
+                    Open Preview
+                  </Button>
+                </div>
               )}
-              title="Dev Server Preview"
-              onLoad={() => {
-                if (viewMode === "visual") {
-                  injectVisualEditor();
-                }
-              }}
-            />
-          </div>
-        )}
+              {(previewReady || hasTerminal) && (
+                <>
+                  {viewMode === "visual" && !visualElement && (
+                    <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 rounded-full border border-violet-400/40 bg-violet-500/90 px-3 py-1 text-xs font-medium text-white shadow-md backdrop-blur-sm pointer-events-none select-none">
+                      <CursorClick01 size={12} />
+                      Click any element to ask the AI
+                    </div>
+                  )}
+                  {viewMode === "visual" && visualElement && (
+                    <VisualEditorPrompt
+                      element={visualElement}
+                      onDismiss={() => setVisualElement(null)}
+                    />
+                  )}
+                  <iframe
+                    ref={previewIframeRef}
+                    src={vmData.previewUrl}
+                    className="w-full h-full border-0"
+                    title="Dev Server Preview"
+                    onLoad={() => {
+                      if (viewMode === "visual") {
+                        injectVisualEditor();
+                      }
+                    }}
+                  />
+                </>
+              )}
+            </div>
+          </ResizablePanel>
+
+          {/* Terminal panel — shown when toggled */}
+          {showTerminal && hasTerminal && (
+            <>
+              <ResizableHandle withHandle />
+              <ResizablePanel defaultSize={40} minSize={15}>
+                <iframe
+                  src={vmData.terminalUrl ?? undefined}
+                  className="w-full h-full border-0"
+                  title="VM Terminal"
+                  allow="clipboard-read; clipboard-write"
+                />
+              </ResizablePanel>
+            </>
+          )}
+        </ResizablePanelGroup>
       </div>
     </div>
   );
