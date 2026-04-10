@@ -508,13 +508,22 @@ export function VmPreviewContent() {
         >
           <LinkExternal01 size={14} />
         </Button>
-        <button
-          type="button"
-          onClick={handleStop}
-          className="flex items-center gap-1.5 px-2.5 h-7 rounded-md text-xs transition-colors shrink-0 bg-accent text-foreground"
-        >
-          <StopCircle size={14} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={handleStop}
+              className="flex items-center gap-1.5 px-2.5 h-7 rounded-md text-xs transition-colors shrink-0 bg-accent text-foreground"
+            >
+              <StopCircle size={14} />
+            </button>
+          </TooltipTrigger>
+          {vmDataRef.current?.vmId && (
+            <TooltipContent side="bottom">
+              {vmDataRef.current.vmId}
+            </TooltipContent>
+          )}
+        </Tooltip>
       </div>
 
       <div className="flex-1 relative">
