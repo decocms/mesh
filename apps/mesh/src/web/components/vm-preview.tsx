@@ -164,6 +164,11 @@ export function VmPreviewContent() {
         const img = new Image();
         img.onload = () => {
           setPreviewReady(true);
+          // Force-reload the iframe — it may be stuck on chrome-error://
+          // from a failed load attempt during VM startup.
+          if (previewIframeRef.current) {
+            previewIframeRef.current.src = data.previewUrl;
+          }
           if (pollRef.current) {
             clearInterval(pollRef.current);
             pollRef.current = null;
