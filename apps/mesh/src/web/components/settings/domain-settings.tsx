@@ -1,3 +1,4 @@
+import { authClient } from "@/web/lib/auth-client";
 import { KEYS } from "@/web/lib/query-keys";
 import { unwrapToolResult } from "@/web/lib/unwrap-tool-result";
 import {
@@ -10,15 +11,12 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@deco/ui/components/card.tsx";
-import { Input } from "@deco/ui/components/input.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 import { toast } from "sonner";
 
 interface DomainData {
@@ -28,6 +26,7 @@ interface DomainData {
 
 export function DomainSettings() {
   const { org } = useProjectContext();
+  const { data: session } = authClient.useSession();
   const queryClient = useQueryClient();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -45,11 +44,11 @@ export function DomainSettings() {
     },
   });
 
-  const [domainInput, setDomainInput] = useState("");
-  const [isEditing, setIsEditing] = useState(false);
-
+  const userEmail = session?.user?.email ?? "";
+  const userDomain = userEmail.split("@")[1]?.toLowerCase() ?? "";
   const currentDomain = data?.domain ?? null;
   const autoJoinEnabled = data?.autoJoinEnabled ?? false;
+  const canClaim = userDomain && userDomain !== currentDomain;
 
   const invalidate = () =>
     queryClient.invalidateQueries({
@@ -57,28 +56,20 @@ export function DomainSettings() {
     });
 
   const setDomainMutation = useMutation({
-    mutationFn: async ({
-      domain,
-      autoJoin,
-    }: {
-      domain: string;
-      autoJoin: boolean;
-    }) => {
+    mutationFn: async () => {
       const result = await client.callTool({
         name: "ORGANIZATION_DOMAIN_SET",
-        arguments: { domain, autoJoinEnabled: autoJoin },
+        arguments: { domain: userDomain, autoJoinEnabled: false },
       });
       return unwrapToolResult(result);
     },
     onSuccess: () => {
       invalidate();
-      setIsEditing(false);
-      setDomainInput("");
-      toast.success("Domain updated");
+      toast.success("Domain claimed");
     },
     onError: (err) => {
       toast.error(
-        err instanceof Error ? err.message : "Failed to update domain",
+        err instanceof Error ? err.message : "Failed to claim domain",
       );
     },
   });
@@ -137,7 +128,7 @@ export function DomainSettings() {
       </CardHeader>
 
       <CardContent className="flex flex-col gap-4 p-0 pt-4">
-        {currentDomain && !isEditing ? (
+        {currentDomain ? (
           <>
             <div className="flex items-center gap-3">
               <div className="flex-1">
@@ -146,26 +137,14 @@ export function DomainSettings() {
                 </Label>
                 <p className="text-sm font-medium">{currentDomain}</p>
               </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setDomainInput(currentDomain);
-                    setIsEditing(true);
-                  }}
-                >
-                  Change
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => clearDomainMutation.mutate()}
-                  disabled={clearDomainMutation.isPending}
-                >
-                  Remove
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => clearDomainMutation.mutate()}
+                disabled={clearDomainMutation.isPending}
+              >
+                Remove
+              </Button>
             </div>
 
             <div className="flex items-center justify-between">
@@ -185,58 +164,28 @@ export function DomainSettings() {
               />
             </div>
           </>
-        ) : (
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label
-                htmlFor="domain-input"
-                className="text-xs text-muted-foreground"
-              >
-                {currentDomain ? "New domain" : "Domain"}
+        ) : canClaim ? (
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <Label className="text-xs text-muted-foreground">
+                Your domain
               </Label>
-              <Input
-                id="domain-input"
-                placeholder="acme.com"
-                value={domainInput}
-                onChange={(e) => setDomainInput(e.target.value.toLowerCase())}
-                disabled={setDomainMutation.isPending}
-              />
-              <p className="text-xs text-muted-foreground">
-                Enter your company's email domain (e.g. acme.com)
-              </p>
+              <p className="text-sm font-medium">{userDomain}</p>
             </div>
-          </div>
-        )}
-      </CardContent>
-
-      {(isEditing || !currentDomain) && domainInput.trim() && (
-        <CardFooter className="p-0 pt-2 gap-2">
-          <Button
-            size="sm"
-            onClick={() =>
-              setDomainMutation.mutate({
-                domain: domainInput.trim(),
-                autoJoin: autoJoinEnabled,
-              })
-            }
-            disabled={setDomainMutation.isPending}
-          >
-            {setDomainMutation.isPending ? "Saving..." : "Save Domain"}
-          </Button>
-          {isEditing && (
             <Button
               size="sm"
-              variant="outline"
-              onClick={() => {
-                setIsEditing(false);
-                setDomainInput("");
-              }}
+              onClick={() => setDomainMutation.mutate()}
+              disabled={setDomainMutation.isPending}
             >
-              Cancel
+              {setDomainMutation.isPending ? "Claiming..." : "Claim Domain"}
             </Button>
-          )}
-        </CardFooter>
-      )}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            No corporate email domain detected.
+          </p>
+        )}
+      </CardContent>
     </Card>
   );
 }
