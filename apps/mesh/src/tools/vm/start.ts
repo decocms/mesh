@@ -13,7 +13,6 @@ import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth } from "../../core/mesh-context";
 import { freestyle } from "freestyle-sandboxes";
-import { VmWebTerminal } from "@freestyle-sh/with-web-terminal";
 import { VmNodeJs } from "@freestyle-sh/with-nodejs";
 import { VmBun } from "@freestyle-sh/with-bun";
 
@@ -33,7 +32,7 @@ export const VM_START = defineTool({
     virtualMcpId: z.string().describe("Virtual MCP ID"),
   }),
   outputSchema: z.object({
-    terminalUrl: z.string(),
+    terminalUrl: z.string().nullable(),
     previewUrl: z.string(),
     vmId: z.string(),
   }),
@@ -83,20 +82,11 @@ export const VM_START = defineTool({
       },
     });
 
-    // Create VM with runtime, web terminal, repo, and systemd services
+    // Create VM with runtime, repo, and systemd services
     // Freestyle docs: /v2/vms/configuration/systemd-services
-    const { vmId, vm, domains } = await freestyle.vms.create({
+    const { vmId, domains } = await freestyle.vms.create({
       with: {
         runtime: runtimeIntegration,
-        terminal: new VmWebTerminal([
-          {
-            id: "logs",
-            command:
-              "bash -lc 'journalctl -f -u install-deps -u dev-server --no-pager'",
-            readOnly: true,
-            cwd: "/app",
-          },
-        ] as const),
       },
       gitRepos: [{ repo: repoId, path: "/app" }],
       workdir: "/app",
@@ -127,13 +117,8 @@ export const VM_START = defineTool({
       },
     });
 
-    // Route the web terminal to a public domain
-    const terminalDomain = `${vmId}-terminal.style.dev`;
-    await vm.terminal.logs.route({ domain: terminalDomain });
-
     const previewUrl = `https://${domains[0]}`;
-    const terminalUrl = `https://${terminalDomain}`;
 
-    return { terminalUrl, previewUrl, vmId };
+    return { terminalUrl: null, previewUrl, vmId };
   },
 });
