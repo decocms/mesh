@@ -237,12 +237,147 @@ export function GitHubRepoDialog({
         },
       });
     },
-    onSuccess: () => {
+    onSuccess: (_data, repo) => {
       queryClient.invalidateQueries({
-        queryKey: KEYS.virtualMcp(org.id, inset?.entity?.id ?? ""),
+        predicate: (query) => {
+          const key = query.queryKey;
+          return (
+            key[1] === org.id &&
+            key[3] === "collection" &&
+            key[4] === "VIRTUAL_MCP"
+          );
+        },
       });
       toast.success("GitHub repo connected");
       onOpenChange(false);
+
+      // Background: fetch instructions + detect runtime
+      const currentToken = getStoredToken();
+      if (currentToken && inset?.entity) {
+        const entityId = inset.entity.id;
+        const invalidateVirtualMcp = () =>
+          queryClient.invalidateQueries({
+            predicate: (query) => {
+              const key = query.queryKey;
+              return (
+                key[1] === org.id &&
+                key[3] === "collection" &&
+                key[4] === "VIRTUAL_MCP"
+              );
+            },
+          });
+
+        const checkFileExists = async (path: string) => {
+          const result = await client.callTool({
+            name: "GITHUB_GET_FILE_CONTENT",
+            arguments: {
+              token: currentToken,
+              owner: repo.owner,
+              repo: repo.name,
+              path,
+            },
+          });
+          const payload =
+            (result as { structuredContent?: unknown }).structuredContent ??
+            result;
+          return payload as { content: string | null; found: boolean };
+        };
+
+        // Fetch AGENTS.md > CLAUDE.md
+        const fetchInstructions = async () => {
+          for (const path of ["AGENTS.md", "CLAUDE.md"]) {
+            const data = await checkFileExists(path);
+            if (data.found && data.content) {
+              await client.callTool({
+                name: "COLLECTION_VIRTUAL_MCP_UPDATE",
+                arguments: {
+                  id: entityId,
+                  data: { metadata: { instructions: data.content } },
+                },
+              });
+              invalidateVirtualMcp();
+              return;
+            }
+          }
+        };
+
+        // Detect package manager and scripts
+        const detectRuntime = async () => {
+          const runtimeFiles: Array<{ file: string; runtime: string }> = [
+            { file: "deno.json", runtime: "deno" },
+            { file: "deno.jsonc", runtime: "deno" },
+            { file: "bun.lock", runtime: "bun" },
+            { file: "bunfig.toml", runtime: "bun" },
+            { file: "pnpm-lock.yaml", runtime: "pnpm" },
+            { file: "yarn.lock", runtime: "yarn" },
+            { file: "package-lock.json", runtime: "npm" },
+            { file: "package.json", runtime: "npm" },
+          ];
+
+          const installCommands: Record<string, string> = {
+            deno: "deno install",
+            bun: "bun install",
+            pnpm: "pnpm install",
+            yarn: "yarn install",
+            npm: "npm install",
+          };
+
+          let detected: string | null = null;
+          for (const { file, runtime } of runtimeFiles) {
+            const data = await checkFileExists(file);
+            if (data.found) {
+              detected = runtime;
+              break;
+            }
+          }
+
+          if (!detected) return;
+
+          const installScript = installCommands[detected] ?? "";
+
+          // Try to find dev script from package.json
+          let devScript = "";
+          const pkgData = await checkFileExists("package.json");
+          if (pkgData.found && pkgData.content) {
+            try {
+              const pkg = JSON.parse(pkgData.content) as {
+                scripts?: Record<string, string>;
+              };
+              const scripts = pkg.scripts ?? {};
+              const runPrefix =
+                detected === "deno" ? "deno task" : `${detected} run`;
+              if (scripts.dev) {
+                devScript = `${runPrefix} dev`;
+              } else if (scripts.start) {
+                devScript = `${runPrefix} start`;
+              }
+            } catch {
+              // Invalid JSON, skip
+            }
+          }
+
+          await client.callTool({
+            name: "COLLECTION_VIRTUAL_MCP_UPDATE",
+            arguments: {
+              id: entityId,
+              data: {
+                metadata: {
+                  runtime: {
+                    detected,
+                    selected: detected,
+                    installScript,
+                    devScript,
+                  },
+                },
+              },
+            },
+          });
+          invalidateVirtualMcp();
+        };
+
+        fetchInstructions().catch(() => {});
+        detectRuntime().catch(() => {});
+      }
     },
     onError: (error) => {
       toast.error(

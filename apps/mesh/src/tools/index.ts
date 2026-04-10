@@ -162,6 +162,7 @@ const CORE_TOOLS = [
   GitHubTools.GITHUB_LIST_REPOS,
   GitHubTools.GITHUB_DEVICE_FLOW_START,
   GitHubTools.GITHUB_DEVICE_FLOW_POLL,
+  GitHubTools.GITHUB_GET_FILE_CONTENT,
 ] as const satisfies { name: ToolName }[];
 
 // Plugin tools - collected at startup, gated by org settings at runtime

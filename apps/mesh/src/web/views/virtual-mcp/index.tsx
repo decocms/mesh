@@ -15,6 +15,7 @@ import {
 import { KEYS } from "@/web/lib/query-keys";
 import { unwrapToolResult } from "@/web/lib/unwrap-tool-result";
 import { getConnectionSlug } from "@/shared/utils/connection-slug";
+import { RepositoryTabContent } from "@/web/views/settings/repository";
 
 import {
   AlertDialog,
@@ -1043,6 +1044,11 @@ function VirtualMcpDetailViewWithData({
   // Watch connections for reactive UI
   const connections = form.watch("connections");
 
+  // GitHub repo connected — instructions become read-only
+  const hasGithubRepo = !!(
+    virtualMcp.metadata as { githubRepo?: unknown } | undefined
+  )?.githubRepo;
+
   // Dialog states
   const [dialogState, dispatch] = useReducer(dialogReducer, {
     shareDialogOpen: false,
@@ -1052,7 +1058,7 @@ function VirtualMcpDetailViewWithData({
   });
 
   // Tab state
-  const validTabIds = ["instructions", "connections", "layout"];
+  const validTabIds = ["instructions", "connections", "repository", "layout"];
   const [activeTab, setActiveTab] = useState(() => {
     const stored = localStorage.getItem("agent-detail-tab") || "instructions";
     // Migrate old "sidebar" tab to "layout"
@@ -1371,6 +1377,7 @@ Define step-by-step how the agent should handle requests.
       label: "Connections",
       count: connections.length || undefined,
     },
+    { id: "repository", label: "Repository" },
     { id: "layout", label: "Layout" },
   ];
 
@@ -1453,7 +1460,7 @@ Define step-by-step how the agent should handle requests.
                   Add
                 </Button>
               )}
-              {activeTab === "instructions" && (
+              {activeTab === "instructions" && !hasGithubRepo && (
                 <div className="flex items-center gap-2">
                   {!form.watch("metadata.instructions")?.trim() && (
                     <Button
@@ -1487,6 +1494,7 @@ Define step-by-step how the agent should handle requests.
                     {...field}
                     value={field.value ?? ""}
                     onBlur={field.onBlur}
+                    disabled={hasGithubRepo}
                     placeholder="Define how this agent should behave, what tone to use, any constraints or guidelines..."
                     className="min-h-[300px] flex-1 resize-none text-[15px] placeholder:text-muted-foreground/40 leading-relaxed border-0 rounded-none shadow-none px-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-0 bg-transparent"
                     style={{ boxShadow: "none" }}
@@ -1538,6 +1546,8 @@ Define step-by-step how the agent should handle requests.
                 )}
               </div>
             )}
+
+            {activeTab === "repository" && <RepositoryTabContent />}
 
             {activeTab === "layout" && (
               <LayoutTabContent virtualMcpId={virtualMcp.id} />
