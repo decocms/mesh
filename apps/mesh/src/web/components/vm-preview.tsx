@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   useProjectContext,
   useMCPClient,
@@ -6,13 +6,25 @@ import {
 } from "@decocms/mesh-sdk";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import {
+  CursorClick01,
   LinkExternal01,
   Loading01,
   Monitor04,
+  Stop,
   Terminal,
 } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
+import {
+  ViewModeToggle,
+  type ViewModeOption,
+} from "@deco/ui/components/view-mode-toggle.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
+import {
+  VISUAL_EDITOR_SCRIPT,
+  VisualEditorPayloadSchema,
+  type VisualEditorPayload,
+} from "./preview/visual-editor-script";
+import { VisualEditorPrompt } from "./preview/visual-editor-prompt";
 
 interface VmData {
   terminalUrl: string | null;
@@ -21,6 +33,15 @@ interface VmData {
 }
 
 type ViewStatus = "idle" | "starting" | "running" | "error";
+type PreviewViewMode = "preview" | "visual";
+
+const VIEW_MODE_OPTIONS: [
+  ViewModeOption<PreviewViewMode>,
+  ViewModeOption<PreviewViewMode>,
+] = [
+  { value: "preview", icon: <Monitor04 size={14} /> },
+  { value: "visual", icon: <CursorClick01 size={14} /> },
+];
 
 export function VmPreviewContent() {
   const { org } = useProjectContext();
@@ -34,6 +55,58 @@ export function VmPreviewContent() {
   const vmDataRef = useRef<VmData | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startingRef = useRef(false);
+
+  // Visual editor state
+  const [viewMode, setViewMode] = useState<PreviewViewMode>("preview");
+  const [visualElement, setVisualElement] =
+    useState<VisualEditorPayload | null>(null);
+  const previewIframeRef = useRef<HTMLIFrameElement>(null);
+
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — postMessage listener requires DOM event subscription; no React 19 alternative
+  useEffect(() => {
+    const vmData = vmDataRef.current;
+    if (status !== "running" || !vmData?.previewUrl) return;
+
+    let allowedOrigin: string;
+    try {
+      allowedOrigin = new URL(vmData.previewUrl).origin;
+    } catch {
+      return; // Malformed URL — skip listener setup
+    }
+
+    const handler = (e: MessageEvent) => {
+      if (e.origin !== allowedOrigin) return;
+      if (e.data?.type !== "visual-editor::element-clicked") return;
+      const result = VisualEditorPayloadSchema.safeParse(e.data.payload);
+      if (result.success) {
+        setVisualElement(result.data);
+      }
+    };
+
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [status]);
+
+  const injectVisualEditor = () => {
+    const win = previewIframeRef.current?.contentWindow;
+    if (!win) return;
+    // Send activation message to the bootstrap script injected by the
+    // VM's iframe proxy. The bootstrap listens for this message and evals
+    // the visual editor script. This works cross-origin since postMessage
+    // doesn't require same-origin access.
+    win.postMessage(
+      { type: "visual-editor::activate", script: VISUAL_EDITOR_SCRIPT },
+      "*",
+    );
+  };
+
+  const handleViewModeChange = (mode: PreviewViewMode) => {
+    setViewMode(mode);
+    setVisualElement(null);
+    if (mode === "visual") {
+      injectVisualEditor();
+    }
+  };
 
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -109,6 +182,8 @@ export function VmPreviewContent() {
     vmDataRef.current = null;
     setStatus("idle");
     setPreviewReady(false);
+    setVisualElement(null);
+    setViewMode("preview");
 
     if (vmId) {
       try {
@@ -174,7 +249,13 @@ export function VmPreviewContent() {
   return (
     <div className="flex flex-col w-full h-full">
       <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          <ViewModeToggle
+            value={viewMode}
+            onValueChange={handleViewModeChange}
+            options={VIEW_MODE_OPTIONS}
+            size="sm"
+          />
           {hasTerminal && (
             <button
               type="button"
@@ -207,7 +288,10 @@ export function VmPreviewContent() {
             {!previewReady && <Loading01 size={10} className="animate-spin" />}
           </button>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground font-mono">
+            {vmData.vmId}
+          </span>
           <Button
             variant="ghost"
             size="sm"
@@ -216,7 +300,7 @@ export function VmPreviewContent() {
             <LinkExternal01 size={14} />
           </Button>
           <Button variant="ghost" size="sm" onClick={handleStop}>
-            Stop
+            <Stop size={14} />
           </Button>
         </div>
       </div>
@@ -248,14 +332,38 @@ export function VmPreviewContent() {
           </div>
         )}
         {(previewReady || activeView === "preview") && (
-          <iframe
-            src={vmData.previewUrl}
-            className={cn(
-              "absolute inset-0 w-full h-full border-0",
-              activeView !== "preview" && "hidden",
+          <div className="absolute inset-0">
+            {/* Visual mode hint */}
+            {viewMode === "visual" && !visualElement && (
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 rounded-full border border-violet-400/40 bg-violet-500/90 px-3 py-1 text-xs font-medium text-white shadow-md backdrop-blur-sm pointer-events-none select-none">
+                <CursorClick01 size={12} />
+                Click any element to ask the AI
+              </div>
             )}
-            title="Dev Server Preview"
-          />
+
+            {/* Floating prompt on element click */}
+            {viewMode === "visual" && visualElement && (
+              <VisualEditorPrompt
+                element={visualElement}
+                onDismiss={() => setVisualElement(null)}
+              />
+            )}
+
+            <iframe
+              ref={previewIframeRef}
+              src={vmData.previewUrl}
+              className={cn(
+                "w-full h-full border-0",
+                activeView !== "preview" && "hidden",
+              )}
+              title="Dev Server Preview"
+              onLoad={() => {
+                if (viewMode === "visual") {
+                  injectVisualEditor();
+                }
+              }}
+            />
+          </div>
         )}
       </div>
     </div>

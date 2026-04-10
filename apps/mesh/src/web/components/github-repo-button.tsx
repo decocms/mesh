@@ -1,4 +1,3 @@
-import { LinkExternal01 } from "@untitledui/icons";
 import {
   Tooltip,
   TooltipContent,
@@ -72,7 +71,6 @@ export function GitHubRepoButton() {
             <span className="max-w-32 truncate">
               {githubRepo.owner}/{githubRepo.name}
             </span>
-            <LinkExternal01 size={11} />
           </a>
         </TooltipTrigger>
         <TooltipContent side="bottom">

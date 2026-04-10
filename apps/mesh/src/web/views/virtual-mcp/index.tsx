@@ -601,6 +601,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   const serverDefaultMainKey = (() => {
     if (!serverDefaultMain || serverDefaultMain.type === "chat") return "chat";
     if (serverDefaultMain.type === "settings") return "settings";
+    if (serverDefaultMain.type === "preview") return "preview";
     return `${serverDefaultMain.type}:${serverDefaultMain.id ?? ""}:${serverDefaultMain.toolName ?? ""}`;
   })();
 
@@ -617,6 +618,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
     const [type, id, toolName] = value.split(":");
     if (type === "chat") return { type: "chat" as const };
     if (type === "settings") return { type: "settings" as const };
+    if (type === "preview") return { type: "preview" as const };
     if (type === "ext-apps" && id)
       return { type: "ext-apps" as const, id, toolName: toolName || undefined };
     return null;
@@ -815,11 +817,19 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   const noInteractiveTools =
     connectionsWithTools && connectionsData.length === 0;
 
+  // Check if virtual MCP has a GitHub repo (enables preview)
+  const hasGithubRepo = !!(
+    virtualMcp?.metadata as { githubRepo?: unknown } | undefined
+  )?.githubRepo;
+
   // Build options for default main view selector
   const defaultMainOptions: { value: string; label: string }[] = [
     { value: "chat", label: "Chat" },
     { value: "settings", label: "Settings" },
   ];
+  if (hasGithubRepo) {
+    defaultMainOptions.push({ value: "preview", label: "Preview" });
+  }
   for (const pv of pinnedViews) {
     defaultMainOptions.push({
       value: `ext-apps:${pv.connectionId}:${pv.toolName}`,

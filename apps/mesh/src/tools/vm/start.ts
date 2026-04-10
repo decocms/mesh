@@ -109,17 +109,45 @@ export const VM_START = defineTool({
 
     // Reverse proxy that strips X-Frame-Options and CSP headers so the
     // dev server preview can be embedded in an iframe.
+    // For HTML responses, injects a bootstrap script that listens for
+    // visual-editor::activate postMessage to enable the visual editor.
     // Node's http module is available in Freestyle VMs by default.
     const proxyPort = 9000;
+    const bootstrapScript = `<script>(function(){window.addEventListener("message",function(e){if(e.data&&e.data.type==="visual-editor::activate"&&e.data.script){try{new Function(e.data.script)()}catch(err){console.error("[visual-editor] injection failed",err)}}});})();</script>`;
     const proxyScript = `const http = require("http");
 const UPSTREAM = process.env.UPSTREAM_PORT || "3000";
+const BOOTSTRAP = ${JSON.stringify(bootstrapScript)};
 http.createServer((req, res) => {
-  const opts = { hostname: "127.0.0.1", port: UPSTREAM, path: req.url, method: req.method, headers: req.headers };
+  const hdrs = Object.assign({}, req.headers);
+  // Remove accept-encoding so upstream sends uncompressed responses.
+  // The proxy needs to read and modify HTML as plain text.
+  delete hdrs["accept-encoding"];
+  const opts = { hostname: "127.0.0.1", port: UPSTREAM, path: req.url, method: req.method, headers: hdrs };
   const p = http.request(opts, (upstream) => {
     delete upstream.headers["x-frame-options"];
     delete upstream.headers["content-security-policy"];
-    res.writeHead(upstream.statusCode, upstream.headers);
-    upstream.pipe(res);
+    delete upstream.headers["content-encoding"];
+    const ct = (upstream.headers["content-type"] || "").toLowerCase();
+    if (ct.includes("text/html")) {
+      // Buffer HTML responses to inject the visual editor bootstrap
+      delete upstream.headers["content-length"];
+      res.writeHead(upstream.statusCode, upstream.headers);
+      const chunks = [];
+      upstream.on("data", (c) => chunks.push(c));
+      upstream.on("end", () => {
+        let html = Buffer.concat(chunks).toString("utf-8");
+        const idx = html.lastIndexOf("</body>");
+        if (idx !== -1) {
+          html = html.slice(0, idx) + BOOTSTRAP + html.slice(idx);
+        } else {
+          html += BOOTSTRAP;
+        }
+        res.end(html);
+      });
+    } else {
+      res.writeHead(upstream.statusCode, upstream.headers);
+      upstream.pipe(res);
+    }
   });
   p.on("error", (e) => { res.writeHead(502); res.end("proxy error: " + e.message); });
   req.pipe(p);

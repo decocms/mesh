@@ -102,7 +102,8 @@ export function resolveDefaultPanelState(ctx: {
   const showMain =
     defaultViewType === "automation" ||
     defaultViewType === "ext-apps" ||
-    defaultViewType === "settings";
+    defaultViewType === "settings" ||
+    defaultViewType === "preview";
 
   if (!showMain) {
     // Default view is chat or unset — chat visible, main collapsed

@@ -52,6 +52,8 @@ function useResolvedMainView(): MainView & {} {
         : { type: "chat" };
     case "settings":
       return { type: "settings" };
+    case "preview":
+      return { type: "preview" };
     default:
       return { type: "chat" };
   }
