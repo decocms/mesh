@@ -154,7 +154,12 @@ const homeRoute = createRoute({
 const onboardingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/onboarding",
-  beforeLoad: async () => {
+  validateSearch: z.object({
+    email: z.string().optional(),
+  }),
+  beforeLoad: async ({ search }) => {
+    // Skip guard when testing with ?email= override
+    if (search.email) return;
     const { data: orgs } = await authClient.organization.list();
     if (orgs && orgs.length > 0) {
       throw redirect({ to: "/" });
