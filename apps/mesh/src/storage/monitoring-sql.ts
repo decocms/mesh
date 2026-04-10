@@ -115,7 +115,11 @@ function parseInterval(interval: string): { amount: number; unit: string } {
   return { amount, unit };
 }
 
-function intervalToSQL(interval: string, dialect: SqlDialect): string {
+function intervalToSQL(
+  interval: string,
+  dialect: SqlDialect,
+  column: string = "timestamp",
+): string {
   const { amount, unit } = parseInterval(interval);
   const unitMap: Record<string, string> = {
     m: "MINUTE",
@@ -124,9 +128,9 @@ function intervalToSQL(interval: string, dialect: SqlDialect): string {
   };
   const sqlUnit = unitMap[unit];
   if (dialect === "duckdb") {
-    return `time_bucket(INTERVAL '${amount} ${sqlUnit}', CAST(timestamp AS TIMESTAMP))`;
+    return `time_bucket(INTERVAL '${amount} ${sqlUnit}', CAST(${column} AS TIMESTAMP))`;
   }
-  return `toStartOfInterval(timestamp, INTERVAL ${amount} ${sqlUnit})`;
+  return `toStartOfInterval(${column}, INTERVAL ${amount} ${sqlUnit})`;
 }
 
 // ---------------------------------------------------------------------------
@@ -333,18 +337,32 @@ function buildCommonFilterClauses(
   return clauses;
 }
 
-function tsGte(date: Date, dialect: SqlDialect): string {
+function tsGte(
+  date: Date,
+  dialect: SqlDialect,
+  column: string = "timestamp",
+): string {
   if (dialect === "duckdb") {
-    return `CAST(timestamp AS TIMESTAMP) >= TIMESTAMP '${date.toISOString()}'`;
+    return `CAST(${column} AS TIMESTAMP) >= TIMESTAMP '${date.toISOString()}'`;
   }
-  return `timestamp >= parseDateTime64BestEffort('${date.toISOString()}', 9)`;
+  if (column === "bucket") {
+    return `${column} >= parseDateTimeBestEffort('${date.toISOString()}')`;
+  }
+  return `${column} >= parseDateTime64BestEffort('${date.toISOString()}', 9)`;
 }
 
-function tsLte(date: Date, dialect: SqlDialect): string {
+function tsLte(
+  date: Date,
+  dialect: SqlDialect,
+  column: string = "timestamp",
+): string {
   if (dialect === "duckdb") {
-    return `CAST(timestamp AS TIMESTAMP) <= TIMESTAMP '${date.toISOString()}'`;
+    return `CAST(${column} AS TIMESTAMP) <= TIMESTAMP '${date.toISOString()}'`;
   }
-  return `timestamp <= parseDateTime64BestEffort('${date.toISOString()}', 9)`;
+  if (column === "bucket") {
+    return `${column} <= parseDateTimeBestEffort('${date.toISOString()}')`;
+  }
+  return `${column} <= parseDateTime64BestEffort('${date.toISOString()}', 9)`;
 }
 
 /**
@@ -358,11 +376,14 @@ function applyStartDateBound(
   where: string[],
   startDate: Date | undefined,
   dialect: SqlDialect,
+  column: string = "timestamp",
 ): void {
   if (startDate) {
-    where.push(tsGte(startDate, dialect));
+    where.push(tsGte(startDate, dialect, column));
   } else if (dialect === "clickhouse") {
-    where.push(tsGte(new Date(Date.now() - DEFAULT_LOOKBACK_MS), dialect));
+    where.push(
+      tsGte(new Date(Date.now() - DEFAULT_LOOKBACK_MS), dialect, column),
+    );
   }
 }
 
@@ -696,15 +717,20 @@ export class SqlMonitoringStorage implements MonitoringStorage {
       }
 
       const metricSource = this.metricSourceFactory(params.organizationId);
-      const bucketExpr = intervalToSQL(params.interval, this.dialect);
+      // For ClickHouse rollup table, use "bucket" column; otherwise "timestamp"
+      const isRollup =
+        this.dialect === "clickhouse" &&
+        metricSource === "monitoring_metrics_rollup_1m";
+      const tsCol = isRollup ? "bucket" : "timestamp";
+      const bucketExpr = intervalToSQL(params.interval, this.dialect, tsCol);
 
       const where: string[] = [
         `organization_id = '${esc(params.organizationId)}'`,
       ];
 
-      applyStartDateBound(where, params.startDate, this.dialect);
+      applyStartDateBound(where, params.startDate, this.dialect, tsCol);
       if (params.endDate) {
-        where.push(tsLte(params.endDate, this.dialect));
+        where.push(tsLte(params.endDate, this.dialect, tsCol));
       }
       if (params.filters?.toolNames?.length) {
         const names = params.filters.toolNames
@@ -744,6 +770,19 @@ export class SqlMonitoringStorage implements MonitoringStorage {
   SUM(hist_count) FILTER (WHERE name = 'tool.execution.duration') AS total_hist_count,
   LIST(hist_boundaries) FILTER (WHERE name = 'tool.execution.duration') AS boundaries_arr,
   LIST(hist_bucket_counts) FILTER (WHERE name = 'tool.execution.duration') AS bucket_counts_arr
+FROM ${metricSource}
+WHERE ${whereClause}
+GROUP BY bucket
+ORDER BY bucket ASC`;
+      } else if (isRollup) {
+        sql = `SELECT
+  ${bucketExpr} AS bucket,
+  sumIf(value, name = 'tool.execution.count') AS calls,
+  sumIf(value, name = 'tool.execution.count' AND status = 'error') AS errors,
+  sumIf(hist_sum, name = 'tool.execution.duration') AS total_hist_sum,
+  sumIf(hist_count, name = 'tool.execution.duration') AS total_hist_count,
+  anyIf(hist_boundaries, name = 'tool.execution.duration') AS boundaries_arr,
+  sumForEachMergeIf(hist_bucket_counts, name = 'tool.execution.duration') AS bucket_counts_arr
 FROM ${metricSource}
 WHERE ${whereClause}
 GROUP BY bucket
@@ -961,14 +1000,18 @@ LIMIT 1000`;
       }
 
       const metricSource = this.metricSourceFactory(params.organizationId);
-      const bucketExpr = intervalToSQL(params.interval, this.dialect);
+      const isRollup =
+        this.dialect === "clickhouse" &&
+        metricSource === "monitoring_metrics_rollup_1m";
+      const tsCol = isRollup ? "bucket" : "timestamp";
+      const bucketExpr = intervalToSQL(params.interval, this.dialect, tsCol);
       const where: string[] = [
         `organization_id = '${esc(params.organizationId)}'`,
       ];
 
-      applyStartDateBound(where, params.startDate, this.dialect);
+      applyStartDateBound(where, params.startDate, this.dialect, tsCol);
       if (params.endDate) {
-        where.push(tsLte(params.endDate, this.dialect));
+        where.push(tsLte(params.endDate, this.dialect, tsCol));
       }
       if (params.filters?.toolNames?.length) {
         const names = params.filters.toolNames
@@ -1059,6 +1102,20 @@ LIMIT ${topN}`;
   SUM(hist_count) FILTER (WHERE name = 'tool.execution.duration') AS total_hist_count,
   LIST(hist_boundaries) FILTER (WHERE name = 'tool.execution.duration') AS boundaries_arr,
   LIST(hist_bucket_counts) FILTER (WHERE name = 'tool.execution.duration') AS bucket_counts_arr
+FROM ${metricSource}
+WHERE ${whereClause} AND tool_name IN (${toolNamesSql})
+GROUP BY bucket, tool_name
+ORDER BY bucket ASC, tool_name ASC`;
+      } else if (isRollup) {
+        timeseriesSql = `SELECT
+  ${bucketExpr} AS bucket,
+  tool_name,
+  sumIf(value, name = 'tool.execution.count') AS calls,
+  sumIf(value, name = 'tool.execution.count' AND status = 'error') AS errors,
+  sumIf(hist_sum, name = 'tool.execution.duration') AS total_hist_sum,
+  sumIf(hist_count, name = 'tool.execution.duration') AS total_hist_count,
+  anyIf(hist_boundaries, name = 'tool.execution.duration') AS boundaries_arr,
+  sumForEachMergeIf(hist_bucket_counts, name = 'tool.execution.duration') AS bucket_counts_arr
 FROM ${metricSource}
 WHERE ${whereClause} AND tool_name IN (${toolNamesSql})
 GROUP BY bucket, tool_name
