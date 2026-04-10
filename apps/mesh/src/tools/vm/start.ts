@@ -157,13 +157,13 @@ http.createServer((req, res) => {
 }).listen(${proxyPort}, "0.0.0.0");
 `;
 
-    // Install ttyd to /opt/ (writable) — /usr/local/bin/ is read-only
-    // in Freestyle VMs which causes curl write errors.
+    // Install ttyd to /tmp/ — Freestyle VM overlay filesystem restricts
+    // writes to /usr/local/bin/ and /opt/ at runtime (curl error 23).
     const ttydVersion = "1.7.7";
     const installTtydScript = `#!/bin/bash
 set -e
 TTYD_URL="https://github.com/tsl0922/ttyd/releases/download/${ttydVersion}/ttyd.x86_64"
-DEST="/opt/ttyd"
+DEST="/tmp/ttyd"
 for i in 1 2 3; do
   if curl -fsSL --retry 3 --retry-delay 2 -o "$DEST" "$TTYD_URL"; then
     chmod +x "$DEST"
@@ -266,7 +266,7 @@ exit 1
     services.push({
       name: "web-terminal",
       mode: "service",
-      exec: [`/opt/ttyd -p ${terminalPort} --writable bash -l`],
+      exec: [`/tmp/ttyd -p ${terminalPort} --writable bash -l`],
       workdir: "/app",
       after: ["install-ttyd.service", "freestyle-git-sync.service"],
       requires: ["install-ttyd.service"],
