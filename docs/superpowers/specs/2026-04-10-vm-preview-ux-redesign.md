@@ -125,6 +125,7 @@ VM_EXEC({
 → {
   success: boolean,
   error?: string,
+  contentType?: string,  // returned by "dev" action after server is up
 }
 ```
 
@@ -147,7 +148,8 @@ For `action: "dev"`:
 4. Start dev server with nohup + PID file:
    `vm.exec("nohup bash -c 'cd /app && <devScript> >> /tmp/vm.log 2>&1 & echo $! > /tmp/dev.pid'")`
 5. Start iframe-proxy if not already running
-6. Returns `{ success: true }` immediately (dev server runs in background via nohup)
+6. **Smart preview detection:** poll the preview URL server-side (HEAD request every 3 seconds, up to 20 attempts / 60 seconds). Once the server responds with a 2xx status, read the `Content-Type` header.
+7. Returns `{ success: true, contentType: "text/html" }` or `{ success: true, contentType: "application/json" }` etc. If the server never responds within 60s, returns `{ success: true, contentType: null }` (frontend keeps terminal full height).
 
 ### VM_STOP (unchanged)
 
@@ -158,15 +160,21 @@ Stays the same — kills the VM and clears the metadata entry.
 ### State Machine
 
 ```
-idle → creating → installing → running → error
+idle → creating → installing → running → suspended → error
+                                  ↑          │
+                                  └──────────┘ (user clicks Resume)
 ```
 
 State transitions:
 - `idle` → user clicks Start → call VM_START
 - `creating` → show spinner "Creating VM..." → VM_START returns → if `isNewVm`: show terminal full height, call VM_EXEC("install"). If `!isNewVm`: go directly to `running`.
-- `installing` → VM_EXEC("install") returns → call VM_EXEC("dev"), start polling preview URL
-- `running` → preview URL responds → collapse terminal, show preview. Terminal accessible via dropdown.
-- `error` → any step fails → show error with context-aware retry (retry install if install failed, retry VM_START if creation failed)
+- `installing` → VM_EXEC("install") returns → call VM_EXEC("dev") (which polls server-side and returns `contentType`)
+- `running` → based on `contentType` from VM_EXEC("dev"):
+  - `text/html` → collapse terminal, show only preview
+  - other or null → keep terminal full height (API server, no preview)
+- `running` → heartbeat detects VM down → `suspended`
+- `suspended` → user clicks Resume → call VM_EXEC("dev") (wakes VM) → back to `running`
+- `error` → any step fails → show error with context-aware retry
 
 ### UI States
 
@@ -177,16 +185,33 @@ State transitions:
 **State 3 — Terminal full height (installing + starting dev):**
 Terminal takes full view height. Shows live output: npm install, npm run dev.
 
-**State 4 — Running:**
+**State 4a — Running with preview (HTML detected):**
 Terminal collapses. Preview iframe takes full height. User can re-open terminal via dropdown.
 
-### Preview Detection (simplified for v1)
+**State 4b — Running without preview (API server):**
+Terminal stays full height. No preview iframe shown. Toolbar still shows URL bar.
 
-After `VM_EXEC("dev")` returns, the frontend polls the preview URL using the existing favicon probe (every 5 seconds, no attempt limit — cleared on component unmount). When the server responds:
-- Collapse terminal, show preview iframe
-- Force-reload the iframe src (to clear any stale chrome-error://)
+**State 5 — Suspended:**
+Overlay message on top of current view: "VM suspended due to inactivity. [Resume]"
+Clicking Resume calls `VM_EXEC("dev")` which wakes the VM (any `vm.exec()` call auto-resumes a suspended Freestyle VM), restarts the dev server, and returns `contentType` for smart preview detection.
 
-No Content-Type detection in v1. All servers get the preview iframe. Smart HTML-vs-API detection deferred to v2.
+### Smart Preview Detection
+
+Handled server-side inside `VM_EXEC("dev")` to avoid CORS issues. After starting the dev server, the tool polls the preview URL (HEAD request every 3s, up to 20 attempts). Once a 2xx response arrives, it reads `Content-Type` and returns it in the response.
+
+The frontend uses `contentType` to decide:
+- Contains `text/html` → collapse terminal, show preview iframe, force-reload iframe src
+- Other (`application/json`, `text/plain`, etc.) → keep terminal full height, no preview
+- `null` (server never responded in 60s) → keep terminal full height
+
+### Suspended VM Detection
+
+The frontend runs a **server-side heartbeat** while in `running` state: every 10 seconds, calls a lightweight backend probe (HEAD request to the terminal URL). When the terminal URL returns non-200 or the probe times out:
+- Transition to `suspended` state
+- Show overlay with "VM suspended due to inactivity. [Resume]" button
+- Stop the heartbeat
+
+This avoids the cross-origin iframe WebSocket detection problem — the probe runs server-side via an MCP tool call (can reuse `VM_EXEC` with a new `"heartbeat"` action, or a dedicated lightweight tool).
 
 ### Terminal Dropdown Menu
 
@@ -232,8 +257,6 @@ All dropdown actions are disabled while a VM_EXEC call is in flight.
 
 ## Deferred to v2
 
-- **Smart preview detection** (HEAD + Content-Type check to distinguish HTML apps vs API servers)
-- **Suspended VM detection** (reliable cross-origin iframe disconnect detection + Resume button)
 - **Terminal URL authentication** (ttyd `--credential` or token-based access)
 
 ## Critique Decisions
@@ -250,9 +273,9 @@ All dropdown actions are disabled while a VM_EXEC call is in flight.
 - Set `idleTimeoutSeconds: 1800` (Docs critic: 300s default too aggressive for dev)
 - Frontend concurrency guard on VM_EXEC actions (Correctness critic)
 
-**Adopted (scope reduction):**
-- Drop `suspended` state from v1 (Scope + Correctness: cross-origin iframe can't detect WebSocket drops)
-- Drop smart preview detection from v1 (Scope: over-engineered for uncertain value)
+**Adopted (scope kept, implementation fixed):**
+- Smart preview detection — moved server-side into VM_EXEC("dev") response as `contentType` field (avoids CORS, avoids extra tool)
+- Suspended VM detection — replaced unreliable cross-origin iframe detection with server-side heartbeat polling
 
 **Rejected:**
 - Manage dev server via systemd instead of vm.exec — defeats the purpose (instant terminal feedback)
