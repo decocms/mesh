@@ -11,9 +11,13 @@
 
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
-import { requireAuth, getUserId } from "../../core/mesh-context";
+import {
+  requireAuth,
+  requireOrganization,
+  getUserId,
+} from "../../core/mesh-context";
 import { freestyle } from "freestyle-sandboxes";
-import { getActiveVm, setActiveVm } from "./registry";
+import { type VmEntry, type VmMetadata, patchActiveVms } from "./types";
 
 export const VM_START = defineTool({
   name: "VM_START",
@@ -38,6 +42,7 @@ export const VM_START = defineTool({
 
   handler: async (input, ctx) => {
     requireAuth(ctx);
+    const organization = requireOrganization(ctx);
     await ctx.access.check();
 
     const userId = getUserId(ctx);
@@ -45,12 +50,8 @@ export const VM_START = defineTool({
       throw new Error("User ID required");
     }
 
-    // Return existing VM if one is already running for this user + virtual MCP
-    const existing = getActiveVm(input.virtualMcpId, userId);
-    if (existing) {
-      return existing;
-    }
-
+    // Fetch the virtual MCP first — needed for both the existing-VM check
+    // and the creation config below.
     const virtualMcp = await ctx.storage.virtualMcps.findById(
       input.virtualMcpId,
     );
@@ -58,20 +59,21 @@ export const VM_START = defineTool({
       throw new Error("Virtual MCP not found");
     }
 
-    const metadata = virtualMcp.metadata as {
-      githubRepo?: {
-        url: string;
-        owner: string;
-        name: string;
-      } | null;
-      runtime?: {
-        detected: string | null;
-        selected: string | null;
-        installScript?: string | null;
-        devScript?: string | null;
-        port?: string | null;
-      } | null;
-    };
+    // Org-scope guard: ensure this Virtual MCP belongs to the caller's org.
+    if (virtualMcp.organization_id !== organization.id) {
+      throw new Error("Virtual MCP not found");
+    }
+
+    const metadata = virtualMcp.metadata as VmMetadata;
+
+    // Return existing VM if one is already running for this user + virtual MCP.
+    // NOTE: this entry may be stale if the Freestyle VM was force-deleted
+    // externally. In that case the returned previewUrl will 502. A liveness
+    // check is deferred as a follow-up.
+    const existing = metadata.activeVms?.[userId];
+    if (existing) {
+      return existing;
+    }
 
     if (!metadata.githubRepo) {
       throw new Error("No GitHub repo connected");
@@ -245,9 +247,16 @@ http.createServer((req, res) => {
 
     const { vmId } = createResult;
     const previewUrl = `https://${previewDomain}`;
-    const entry = { terminalUrl: null, previewUrl, vmId };
+    const entry: VmEntry = { terminalUrl: null, previewUrl, vmId };
 
-    setActiveVm(input.virtualMcpId, userId, entry);
+    // Persist the active VM entry in the Virtual MCP metadata so all pods
+    // can discover it and avoid spinning up duplicate VMs.
+    await patchActiveVms(
+      ctx.storage.virtualMcps,
+      input.virtualMcpId,
+      userId,
+      (vms) => ({ ...vms, [userId]: entry }),
+    );
 
     return entry;
   },
