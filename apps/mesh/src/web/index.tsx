@@ -154,6 +154,12 @@ const homeRoute = createRoute({
 const onboardingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/onboarding",
+  beforeLoad: async () => {
+    const { data: orgs } = await authClient.organization.list();
+    if (orgs && orgs.length > 0) {
+      throw redirect({ to: "/" });
+    }
+  },
   component: lazyRouteComponent(() => import("./routes/onboarding.tsx")),
 });
 
