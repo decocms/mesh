@@ -15,6 +15,7 @@ import { AgentAvatar } from "@/web/components/agent-icon";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
+import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,6 +48,7 @@ export default function AgentsListPage() {
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
   const [studioPackModalOpen, setStudioPackModalOpen] = useState(false);
+  const [leanCanvasModalOpen, setLeanCanvasModalOpen] = useState(false);
 
   const lowerSearch = search.toLowerCase();
 
@@ -76,6 +78,12 @@ export default function AgentsListPage() {
       "site-diagnostics",
   );
 
+  // Find existing recruited Lean Canvas agent
+  const existingLeanCanvas = agents.find(
+    (a) =>
+      (a as { metadata?: { type?: string } }).metadata?.type === "lean-canvas",
+  );
+
   const handleTemplateClick = (templateId: string) => {
     if (templateId === "site-editor") {
       setSiteEditorModalOpen(true);
@@ -84,6 +92,12 @@ export default function AgentsListPage() {
         navigateToAgent(existingDiagnostics.id);
       } else {
         setDiagnosticsModalOpen(true);
+      }
+    } else if (templateId === "lean-canvas") {
+      if (existingLeanCanvas) {
+        navigateToAgent(existingLeanCanvas.id);
+      } else {
+        setLeanCanvasModalOpen(true);
       }
     } else if (templateId === "studio-pack") {
       setStudioPackModalOpen(true);
@@ -230,6 +244,11 @@ export default function AgentsListPage() {
       <SiteDiagnosticsRecruitModal
         open={diagnosticsModalOpen}
         onOpenChange={setDiagnosticsModalOpen}
+      />
+      <LeanCanvasRecruitModal
+        open={leanCanvasModalOpen}
+        onOpenChange={setLeanCanvasModalOpen}
+        existingAgent={existingLeanCanvas}
       />
       <StudioPackRecruitModal
         open={studioPackModalOpen}

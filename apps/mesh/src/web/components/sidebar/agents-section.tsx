@@ -64,6 +64,7 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
+import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
 import { useAgentBadges } from "@/web/hooks/use-agent-badges";
 
 function AgentListItem({
@@ -292,11 +293,13 @@ function PinAgentPopoverContent({
   onClose,
   onOpenSiteEditorModal,
   onOpenDiagnosticsModal,
+  onOpenLeanCanvasModal,
   onOpenStudioPackModal,
 }: {
   onClose: () => void;
   onOpenSiteEditorModal: () => void;
   onOpenDiagnosticsModal: () => void;
+  onOpenLeanCanvasModal: () => void;
   onOpenStudioPackModal: () => void;
 }) {
   const [search, setSearch] = useState("");
@@ -335,6 +338,18 @@ function PinAgentPopoverContent({
       )
     : undefined;
 
+  // Find existing recruited Lean Canvas agent
+  const leanCanvasTemplate = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "lean-canvas",
+  );
+  const existingLeanCanvas = leanCanvasTemplate
+    ? allAgents.find(
+        (a) =>
+          (a as { metadata?: { type?: string } }).metadata?.type ===
+          leanCanvasTemplate.id,
+      )
+    : undefined;
+
   const handleSelect = (agent: VirtualMCPEntity) => {
     if (!isPinned(agent.id)) {
       pin(agent.id);
@@ -354,6 +369,12 @@ function PinAgentPopoverContent({
         navigateToAgent(existingDiagnostics.id);
       } else {
         onOpenDiagnosticsModal();
+      }
+    } else if (templateId === "lean-canvas") {
+      if (existingLeanCanvas) {
+        navigateToAgent(existingLeanCanvas.id);
+      } else {
+        onOpenLeanCanvasModal();
       }
     } else if (templateId === "studio-pack") {
       onOpenStudioPackModal();
@@ -466,6 +487,7 @@ function PinAgentPopover() {
   const [open, setOpen] = useState(false);
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
+  const [leanCanvasModalOpen, setLeanCanvasModalOpen] = useState(false);
   const [studioPackModalOpen, setStudioPackModalOpen] = useState(false);
   const isMobile = useIsMobile();
   const { setOpenMobile } = useSidebar();
@@ -487,6 +509,7 @@ function PinAgentPopover() {
         onClose={handleClose}
         onOpenSiteEditorModal={() => setSiteEditorModalOpen(true)}
         onOpenDiagnosticsModal={() => setDiagnosticsModalOpen(true)}
+        onOpenLeanCanvasModal={() => setLeanCanvasModalOpen(true)}
         onOpenStudioPackModal={() => setStudioPackModalOpen(true)}
       />
     </Suspense>
@@ -540,6 +563,10 @@ function PinAgentPopover() {
       <SiteDiagnosticsRecruitModal
         open={diagnosticsModalOpen}
         onOpenChange={setDiagnosticsModalOpen}
+      />
+      <LeanCanvasRecruitModal
+        open={leanCanvasModalOpen}
+        onOpenChange={setLeanCanvasModalOpen}
       />
       <StudioPackRecruitModal
         open={studioPackModalOpen}

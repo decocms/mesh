@@ -28,6 +28,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { ChevronRight, Plus, Users03 } from "@untitledui/icons";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
+import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { Suspense, useState } from "react";
@@ -157,6 +158,7 @@ function AgentsListContent() {
   const { locator } = useProjectContext();
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
+  const [leanCanvasModalOpen, setLeanCanvasModalOpen] = useState(false);
   const navigateToAgent = useNavigateToAgent();
 
   const siteEditorAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
@@ -164,6 +166,9 @@ function AgentsListContent() {
   )!;
   const siteDiagnosticsAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
     (t) => t.id === "site-diagnostics",
+  )!;
+  const leanCanvasAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "lean-canvas",
   )!;
 
   const recentIds = readRecentAgentIds(locator);
@@ -195,6 +200,15 @@ function AgentsListContent() {
         a.title === siteDiagnosticsAgent.title),
   );
 
+  // Check if Lean Canvas agent already exists
+  const existingLeanCanvas = virtualMcps.find(
+    (a): a is typeof a & { id: string } =>
+      a.id !== null &&
+      ((a as { metadata?: { type?: string } }).metadata?.type ===
+        leanCanvasAgent.id ||
+        a.title === leanCanvasAgent.title),
+  );
+
   const hasAgents = agents.length > 0;
 
   return (
@@ -215,8 +229,21 @@ function AgentsListContent() {
                 : () => setDiagnosticsModalOpen(true)
             }
           />
+          <AgentPreview
+            key={leanCanvasAgent.id}
+            agent={existingLeanCanvas ?? leanCanvasAgent}
+            onSpecialClick={
+              existingLeanCanvas
+                ? () => navigateToAgent(existingLeanCanvas.id)
+                : () => setLeanCanvasModalOpen(true)
+            }
+          />
           {agents
-            .filter((a) => a.id !== existingDiagnostics?.id)
+            .filter(
+              (a) =>
+                a.id !== existingDiagnostics?.id &&
+                a.id !== existingLeanCanvas?.id,
+            )
             .map((agent) => (
               <AgentPreview
                 key={agent.id ?? "default"}
@@ -238,6 +265,12 @@ function AgentsListContent() {
         open={diagnosticsModalOpen}
         onOpenChange={setDiagnosticsModalOpen}
         existingAgent={existingDiagnostics}
+      />
+
+      <LeanCanvasRecruitModal
+        open={leanCanvasModalOpen}
+        onOpenChange={setLeanCanvasModalOpen}
+        existingAgent={existingLeanCanvas}
       />
     </>
   );
