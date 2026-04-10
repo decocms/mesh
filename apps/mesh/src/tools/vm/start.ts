@@ -157,8 +157,29 @@ http.createServer((req, res) => {
 }).listen(${proxyPort}, "0.0.0.0");
 `;
 
+    // Install ttyd (web terminal) with retries — the GitHub download can
+    // be flaky inside Freestyle VMs.
+    const ttydVersion = "1.7.7";
+    const installTtydScript = `#!/bin/bash
+set -e
+TTYD_URL="https://github.com/tsl0922/ttyd/releases/download/${ttydVersion}/ttyd.x86_64"
+DEST="/usr/local/bin/ttyd"
+for i in 1 2 3 4 5; do
+  if curl -fsSL --retry 3 --retry-delay 2 -o "$DEST" "$TTYD_URL"; then
+    chmod +x "$DEST"
+    ttyd --version
+    exit 0
+  fi
+  echo "ttyd download attempt $i failed, retrying in 5s..."
+  sleep 5
+done
+echo "ttyd download failed after 5 attempts"
+exit 1
+`;
+
     const additionalFiles: Record<string, { content: string }> = {
       "/opt/iframe-proxy.js": { content: proxyScript },
+      "/opt/install-ttyd.sh": { content: installTtydScript },
     };
     if (needsRuntimeInstall) {
       additionalFiles["/opt/setup-runtime.sh"] = { content: setupScript };
@@ -230,10 +251,26 @@ http.createServer((req, res) => {
       },
     });
 
-    // ttyd (web terminal) is pre-installed in Freestyle VMs and listens
-    // on port 7682 by default. We route it to a separate subdomain so the
-    // frontend can embed it in an iframe.
+    // Install and run ttyd (web terminal) so the frontend can embed it.
     const terminalPort = 7682;
+
+    services.push({
+      name: "install-ttyd",
+      mode: "oneshot",
+      exec: ["/bin/bash /opt/install-ttyd.sh"],
+      wantedBy: ["multi-user.target"],
+      timeoutSec: 180,
+      remainAfterExit: true,
+    });
+
+    services.push({
+      name: "web-terminal",
+      mode: "service",
+      exec: [`/usr/local/bin/ttyd -p ${terminalPort} --writable bash -l`],
+      workdir: "/app",
+      after: ["install-ttyd.service", "freestyle-git-sync.service"],
+      requires: ["install-ttyd.service"],
+    });
 
     // Create VM with repo and systemd services.
     // Domain routes to the iframe proxy which strips X-Frame-Options/CSP
