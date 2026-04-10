@@ -41,12 +41,14 @@ const CATEGORY_ITEMS: AtItem[] = [
     title: "Agents",
     description: "Mention an agent to hand off work",
     kind: "category",
+    drillable: true,
   },
   {
     name: "resources",
     title: "Resources",
     description: "Attach a resource as context",
     kind: "category",
+    drillable: true,
   },
 ];
 
@@ -186,6 +188,12 @@ export const AtMention = ({ editor, virtualMcpId }: AtMentionProps) => {
     }));
   };
 
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      setMode("categories");
+    }
+  };
+
   return (
     <Suggestion<AtItem>
       editor={editor}
@@ -194,6 +202,7 @@ export const AtMention = ({ editor, virtualMcpId }: AtMentionProps) => {
       queryKey={queryKey}
       queryFn={fetchItems}
       onSelect={handleItemSelect}
+      onOpenChange={handleOpenChange}
     />
   );
 };

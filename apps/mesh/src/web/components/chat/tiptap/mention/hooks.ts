@@ -26,6 +26,8 @@ export interface BaseItem {
   name: string;
   description?: string;
   icon?: string | null;
+  /** Show an Enter key hint — indicates this item drills into a submenu */
+  drillable?: boolean;
 }
 
 export type OnSelectProps<T extends BaseItem = BaseItem> = {
@@ -334,6 +336,7 @@ export function useMentionState({
   char,
   pluginKey,
   allow: customAllow,
+  onOpenChange,
 }: {
   editor: Editor;
   char: string;
@@ -342,6 +345,7 @@ export function useMentionState({
     state: unknown;
     range: { from: number; to: number };
   }) => boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   // Create the reducer state here - this is the source of truth
   const [state, dispatch] = useReducer(reducer, {
@@ -351,6 +355,10 @@ export function useMentionState({
     range: null,
     selectedItem: null,
   });
+
+  // Ref for onOpenChange to avoid stale closures in the plugin
+  const onOpenChangeRef = useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
 
   // Register the suggestion plugin here at the top level
   // This ensures it's always active even when the menu is closed
@@ -408,6 +416,7 @@ export function useMentionState({
               range: props.range,
             },
           });
+          onOpenChangeRef.current?.(true);
         },
 
         onUpdate: (props: SuggestionProps<BaseItem>) => {
@@ -431,6 +440,7 @@ export function useMentionState({
 
         onExit: () => {
           dispatch({ type: "ON_EXIT" });
+          onOpenChangeRef.current?.(false);
         },
       }),
 

@@ -56,6 +56,8 @@ interface SuggestionSelectProps<T extends BaseItem> {
     state: unknown;
     range: { from: number; to: number };
   }) => boolean;
+  /** Called when the menu opens or closes */
+  onOpenChange?: (open: boolean) => void;
 }
 
 interface MentionItemProps<T extends BaseItem> {
@@ -173,6 +175,11 @@ const MentionItem = <T extends BaseItem>({
           </div>
         )}
       </div>
+      {item.drillable && (
+        <kbd className="shrink-0 ml-2 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground bg-muted border border-border rounded">
+          ↵
+        </kbd>
+      )}
     </div>
   );
 };
@@ -268,12 +275,14 @@ export function Suggestion<T extends BaseItem>({
   queryFn,
   onSelect,
   allow,
+  onOpenChange,
 }: SuggestionSelectProps<T>) {
   const { state, dispatch } = useMentionState({
     editor,
     char,
     pluginKey,
     allow,
+    onOpenChange,
   });
 
   // Provide both state and dispatch to children (for useSuggestion)
