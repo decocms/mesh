@@ -39,7 +39,7 @@ import {
 } from "@deco/ui/components/drawer.tsx";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { CollectionSearch } from "@deco/ui/components/collection-search.tsx";
-import { Plus, Settings01, X } from "@untitledui/icons";
+import { Plus, Settings02, X } from "@untitledui/icons";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -164,7 +164,7 @@ function AgentListItem({
               });
             }}
           >
-            <Settings01 size={14} />
+            <Settings02 size={14} />
             Settings
           </ContextMenuItem>
           <ContextMenuSeparator />

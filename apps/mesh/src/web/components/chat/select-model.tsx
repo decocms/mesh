@@ -34,7 +34,7 @@ import {
   Key01,
   RefreshCcw01,
   SearchMd,
-  Settings01,
+  Settings02,
   Stars01,
   Tool01,
 } from "@untitledui/icons";
@@ -1179,7 +1179,7 @@ function ModelSelectorInner({
               onClick={() => startTransition(() => setManaging(true))}
               className="flex items-center gap-2 flex-1 px-4 py-2.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer"
             >
-              <Settings01 className="size-3.5 shrink-0" />
+              <Settings02 className="size-3.5 shrink-0" />
               Manage models
             </button>
             <div className="w-px bg-border shrink-0" />

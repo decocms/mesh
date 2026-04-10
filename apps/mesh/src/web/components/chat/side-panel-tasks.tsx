@@ -11,7 +11,7 @@ import { Page } from "@/web/components/page";
 import { getIconComponent, parseIconString } from "../agent-icon";
 
 import { usePanelActions } from "@/web/layouts/shell-layout";
-import { Edit05, LayoutLeft, Loading01, Settings01 } from "@untitledui/icons";
+import { Edit05, LayoutLeft, Loading01, Settings02 } from "@untitledui/icons";
 import { useVirtualMCPActions, useVirtualMCP } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { Suspense, useEffect, useRef, useState, useTransition } from "react";
@@ -320,7 +320,7 @@ function TasksPanelContent({
               isSettingsActive && "bg-accent text-foreground",
             )}
           >
-            <Settings01 size={16} className="shrink-0" />
+            <Settings02 size={16} className="shrink-0" />
             <span className="text-foreground">Settings</span>
           </button>
         )}

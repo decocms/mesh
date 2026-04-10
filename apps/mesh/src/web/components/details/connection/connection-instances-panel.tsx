@@ -3,7 +3,7 @@ import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Button } from "@deco/ui/components/button.tsx";
 import type { ConnectionEntity } from "@decocms/mesh-sdk";
-import { Loading01, Plus, Settings01, Trash01 } from "@untitledui/icons";
+import { Loading01, Plus, Settings02, Trash01 } from "@untitledui/icons";
 import { Suspense } from "react";
 
 interface ConnectionInstancesPanelProps {
@@ -72,7 +72,7 @@ function InstanceItem({
           onClick={() => onConfigure(instance)}
           title="Configure"
         >
-          <Settings01 size={13} />
+          <Settings02 size={13} />
         </Button>
         <Button
           variant="ghost"
@@ -114,7 +114,7 @@ function InstanceItemFallback({
           onClick={() => onConfigure(instance)}
           title="Configure"
         >
-          <Settings01 size={13} />
+          <Settings02 size={13} />
         </Button>
       </div>
     </div>
