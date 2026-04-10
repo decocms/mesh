@@ -14,6 +14,7 @@
  */
 
 import type { VirtualMCPStoragePort } from "../../storage/ports";
+import type { VirtualMCPUpdateData } from "../virtual/schema";
 
 export interface VmEntry {
   vmId: string;
@@ -39,14 +40,12 @@ export type VmMetadata = {
   [key: string]: unknown;
 };
 
-type Storage = VirtualMCPStoragePort;
-
 /**
  * Read-modify-write helper: applies `patch` to `metadata.activeVms` and
  * persists the result. Returns the new activeVms map.
  */
 export async function patchActiveVms(
-  storage: Storage,
+  storage: VirtualMCPStoragePort,
   virtualMcpId: string,
   userId: string,
   patch: (current: Record<string, VmEntry>) => Record<string, VmEntry>,
@@ -61,6 +60,6 @@ export async function patchActiveVms(
     metadata: {
       ...meta,
       activeVms: updated,
-    } as unknown as Parameters<Storage["update"]>[2]["metadata"],
+    } as VirtualMCPUpdateData["metadata"],
   });
 }
