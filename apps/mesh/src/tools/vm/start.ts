@@ -82,7 +82,6 @@ export const VM_START = defineTool({
     const devScript = metadata.runtime?.devScript ?? "npm run dev";
     const detected = metadata.runtime?.detected ?? "npm";
     const port = metadata.runtime?.port ?? "3000";
-    const portNum = parseInt(port, 10);
 
     // Create the Freestyle Git repo reference
     const { repoId } = await freestyle.git.repos.create({
@@ -108,7 +107,28 @@ export const VM_START = defineTool({
           ? '#!/bin/bash\nset -e\nexport BUN_INSTALL="/usr/local"\ncurl -fsSL https://bun.sh/install | bash\necho "Bun installed to /usr/local/bin"\n'
           : "";
 
-    const additionalFiles: Record<string, { content: string }> = {};
+    // Reverse proxy that strips X-Frame-Options and CSP headers so the
+    // dev server preview can be embedded in an iframe.
+    // Node's http module is available in Freestyle VMs by default.
+    const proxyPort = 9000;
+    const proxyScript = `const http = require("http");
+const UPSTREAM = process.env.UPSTREAM_PORT || "3000";
+http.createServer((req, res) => {
+  const opts = { hostname: "127.0.0.1", port: UPSTREAM, path: req.url, method: req.method, headers: req.headers };
+  const p = http.request(opts, (upstream) => {
+    delete upstream.headers["x-frame-options"];
+    delete upstream.headers["content-security-policy"];
+    res.writeHead(upstream.statusCode, upstream.headers);
+    upstream.pipe(res);
+  });
+  p.on("error", (e) => { res.writeHead(502); res.end("proxy error: " + e.message); });
+  req.pipe(p);
+}).listen(${proxyPort}, "0.0.0.0");
+`;
+
+    const additionalFiles: Record<string, { content: string }> = {
+      "/opt/iframe-proxy.js": { content: proxyScript },
+    };
     if (needsRuntimeInstall) {
       additionalFiles["/opt/setup-runtime.sh"] = { content: setupScript };
     }
@@ -168,13 +188,25 @@ export const VM_START = defineTool({
       },
     });
 
+    // Reverse proxy strips iframe-blocking headers (X-Frame-Options, CSP)
+    services.push({
+      name: "iframe-proxy",
+      mode: "service",
+      exec: [`/usr/local/bin/node /opt/iframe-proxy.js`],
+      after: ["dev-server.service"],
+      env: {
+        UPSTREAM_PORT: port,
+      },
+    });
+
     // Create VM with repo and systemd services.
-    // Domain maps directly to dev server port — no socat proxy needed.
+    // Domain routes to the iframe proxy which strips X-Frame-Options/CSP
+    // so the preview can be embedded in an iframe.
     // Freestyle docs: /v2/vms/configuration/domains
     const createResult = await freestyle.vms.create({
       gitRepos: [{ repo: repoId, path: "/app" }],
       workdir: "/app",
-      domains: [{ domain: previewDomain, vmPort: portNum }],
+      domains: [{ domain: previewDomain, vmPort: proxyPort }],
       additionalFiles,
       systemd: { services },
     });
