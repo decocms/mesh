@@ -107,7 +107,11 @@ export const VM_START = defineTool({
     // Use a proxy port for socat to forward 0.0.0.0 traffic to localhost
     const proxyPort = 9999;
 
-    // Create VM with runtime, repo, and systemd services
+    // Write wrapper scripts to avoid systemd exec quoting issues
+    const pathPrefix =
+      'export PATH="/root/.deno/bin:/root/.bun/bin:/usr/local/bin:$PATH"';
+
+    // Create VM with runtime, repo, scripts, and systemd services
     // Freestyle docs: /v2/vms/configuration/systemd-services
     const createResult = await freestyle.vms.create({
       with: {
@@ -116,16 +120,23 @@ export const VM_START = defineTool({
       gitRepos: [{ repo: repoId, path: "/app" }],
       workdir: "/app",
       domains: [{ domain: previewDomain, vmPort: proxyPort }],
+      additionalFiles: {
+        "/opt/install-deps.sh": {
+          content: `#!/bin/bash\n${pathPrefix}\ncd /app\n${installScript}\n`,
+        },
+        "/opt/dev-server.sh": {
+          content: `#!/bin/bash\n${pathPrefix}\ncd /app\nexport HOST=0.0.0.0\nexport HOSTNAME=0.0.0.0\nexport PORT=${port}\n${devScript}\n`,
+        },
+        "/opt/port-proxy.sh": {
+          content: `#!/bin/bash\napt-get update -qq > /dev/null 2>&1\napt-get install -y -qq socat > /dev/null 2>&1\nsocat TCP-LISTEN:${proxyPort},bind=0.0.0.0,fork,reuseaddr TCP:127.0.0.1:${port}\n`,
+        },
+      },
       systemd: {
         services: [
           {
             name: "install-deps",
             mode: "oneshot" as const,
-            exec: [
-              "bash",
-              "-c",
-              `export PATH="/root/.deno/bin:/root/.bun/bin:/usr/local/bin:$PATH" && cd /app && ${installScript}`,
-            ],
+            exec: ["/bin/bash /opt/install-deps.sh"],
             after: ["freestyle-git-sync.service"],
             wantedBy: ["multi-user.target"],
             timeoutSec: 300,
@@ -133,31 +144,22 @@ export const VM_START = defineTool({
           {
             name: "dev-server",
             mode: "service" as const,
-            exec: [
-              "bash",
-              "-c",
-              `export PATH="/root/.deno/bin:/root/.bun/bin:/usr/local/bin:$PATH" && cd /app && ${devScript}`,
-            ],
+            exec: ["/bin/bash /opt/dev-server.sh"],
             after: ["install-deps.service"],
-            env: {
-              HOST: "0.0.0.0",
-              HOSTNAME: "0.0.0.0",
-              PORT: port,
-            },
           },
           {
             name: "port-proxy",
             mode: "service" as const,
-            exec: [
-              "bash",
-              "-c",
-              `apt-get update -qq > /dev/null 2>&1 && apt-get install -y -qq socat > /dev/null 2>&1; socat TCP-LISTEN:${proxyPort},bind=0.0.0.0,fork,reuseaddr TCP:127.0.0.1:${port}`,
-            ],
+            exec: ["/bin/bash /opt/port-proxy.sh"],
             after: ["dev-server.service"],
           },
         ],
       },
     });
+
+    console.log(
+      `[VM_START] VM created: ${createResult.vmId} domain: ${previewDomain}`,
+    );
 
     const { vmId } = createResult;
     const previewUrl = `https://${previewDomain}`;
