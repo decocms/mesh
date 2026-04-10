@@ -36,6 +36,17 @@ mock.module("freestyle-sandboxes", () => ({
   },
 }));
 
+// Mock Freestyle integration packages
+mock.module("@freestyle-sh/with-nodejs", () => ({
+  VmNodeJs: class VmNodeJs {},
+}));
+mock.module("@freestyle-sh/with-deno", () => ({
+  VmDeno: class VmDeno {},
+}));
+mock.module("@freestyle-sh/with-bun", () => ({
+  VmBun: class VmBun {},
+}));
+
 // Now import after mocking
 const { VM_START } = await import("./start");
 
@@ -250,7 +261,6 @@ describe("VM_START", () => {
       (s: { name: string }) => s.name === "web-terminal",
     )!;
     expect(webTerminal.exec[0]).toContain("/opt/log-viewer.js");
-    expect(webTerminal.exec[0]).toContain("touch /tmp/vm.log");
   });
 
   it("iframe-proxy has no after dependency on dev-server", async () => {
@@ -283,7 +293,7 @@ describe("VM_START", () => {
     expect(createCall.idleTimeoutSeconds).toBe(1800);
   });
 
-  it("keeps /opt/setup-runtime.sh additionalFile for bun runtime", async () => {
+  it("passes `with` integrations for bun runtime instead of setup script", async () => {
     const metadata: VmMetadata = {
       ...BASE_METADATA,
       runtime: {
@@ -298,11 +308,15 @@ describe("VM_START", () => {
     await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
 
     const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
+      with: Record<string, unknown>;
       additionalFiles: Record<string, { content: string }>;
     };
-    const setupFile = createCall.additionalFiles["/opt/setup-runtime.sh"];
-    expect(setupFile).toBeDefined();
-    expect(setupFile!.content).toContain("bun.sh/install");
+
+    // Runtime is provided via `with` integrations, not setup scripts
+    expect(createCall.with).toBeDefined();
+    expect(createCall.with.runtime).toBeDefined();
+    // No setup-runtime.sh file
+    expect(createCall.additionalFiles["/opt/setup-runtime.sh"]).toBeUndefined();
   });
 
   it("throws 'Virtual MCP not found' when findById returns null", async () => {

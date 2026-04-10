@@ -136,7 +136,6 @@ export function VmPreviewContent() {
         if (probe.status >= 200 && probe.status < 300) {
           const isHtml = probe.contentType?.includes("text/html") ?? false;
           setHasHtmlPreview(isHtml);
-          setShowTerminal(!isHtml);
           if (isHtml && previewIframeRef.current) {
             previewIframeRef.current.src = vmData.previewUrl;
           }
@@ -405,8 +404,6 @@ export function VmPreviewContent() {
                   setActionError("");
                   try {
                     await handleExec("install");
-                    await handleExec("dev");
-                    await pollPreview();
                   } catch (error) {
                     setActionError(
                       formatActionError(error, "Reinstall failed"),
@@ -456,9 +453,18 @@ export function VmPreviewContent() {
             {vmData.previewUrl}
           </span>
           {vmData.vmId && (
-            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
-              {vmData.vmId}
-            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground cursor-pointer hover:bg-accent hover:text-foreground transition-colors"
+                  onClick={() => navigator.clipboard.writeText(vmData.vmId)}
+                >
+                  {vmData.vmId}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Copy VM ID</TooltipContent>
+            </Tooltip>
           )}
         </div>
         <Tooltip>

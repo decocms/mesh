@@ -16,7 +16,6 @@ describe("resolveRuntimeConfig", () => {
     expect(result.devScript).toBe("npm run dev");
     expect(result.detected).toBe("npm");
     expect(result.port).toBe("3000");
-    expect(result.needsRuntimeInstall).toBe(false);
   });
 
   it("returns npm defaults when runtime is null", () => {
@@ -28,10 +27,9 @@ describe("resolveRuntimeConfig", () => {
     expect(result.devScript).toBe("npm run dev");
     expect(result.detected).toBe("npm");
     expect(result.port).toBe("3000");
-    expect(result.needsRuntimeInstall).toBe(false);
   });
 
-  it("detects deno and sets needsRuntimeInstall to true", () => {
+  it("detects deno runtime", () => {
     const metadata: VmMetadata = {
       runtime: {
         detected: "deno",
@@ -45,10 +43,9 @@ describe("resolveRuntimeConfig", () => {
     const result = resolveRuntimeConfig(metadata);
 
     expect(result.detected).toBe("deno");
-    expect(result.needsRuntimeInstall).toBe(true);
   });
 
-  it("detects bun and sets needsRuntimeInstall to true", () => {
+  it("detects bun runtime", () => {
     const metadata: VmMetadata = {
       runtime: {
         detected: "bun",
@@ -62,10 +59,9 @@ describe("resolveRuntimeConfig", () => {
     const result = resolveRuntimeConfig(metadata);
 
     expect(result.detected).toBe("bun");
-    expect(result.needsRuntimeInstall).toBe(true);
   });
 
-  it("npm does NOT need runtime install", () => {
+  it("detects npm runtime", () => {
     const metadata: VmMetadata = {
       runtime: {
         detected: "npm",
@@ -79,7 +75,6 @@ describe("resolveRuntimeConfig", () => {
     const result = resolveRuntimeConfig(metadata);
 
     expect(result.detected).toBe("npm");
-    expect(result.needsRuntimeInstall).toBe(false);
   });
 
   it("uses custom scripts from metadata", () => {
@@ -98,7 +93,6 @@ describe("resolveRuntimeConfig", () => {
     expect(result.installScript).toBe("pnpm install");
     expect(result.devScript).toBe("pnpm dev");
     expect(result.port).toBe("4200");
-    expect(result.needsRuntimeInstall).toBe(false);
   });
 
   it("falls back to defaults when individual runtime fields are null", () => {
@@ -118,6 +112,5 @@ describe("resolveRuntimeConfig", () => {
     expect(result.devScript).toBe("npm run dev");
     expect(result.detected).toBe("npm");
     expect(result.port).toBe("3000");
-    expect(result.needsRuntimeInstall).toBe(false);
   });
 });

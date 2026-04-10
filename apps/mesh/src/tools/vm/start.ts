@@ -14,6 +14,8 @@
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import { freestyle } from "freestyle-sandboxes";
+import { VmDeno } from "@freestyle-sh/with-deno";
+import { VmBun } from "@freestyle-sh/with-bun";
 import { type VmEntry, patchActiveVms } from "./types";
 import { requireVmEntry, resolveRuntimeConfig } from "./helpers";
 
@@ -37,6 +39,8 @@ async function ensureLogViewer(
 const LOG_VIEWER_SCRIPT = `const http = require("http");
 const fs = require("fs");
 const LOG = "/tmp/vm.log";
+// Ensure log file exists (avoids needing bash -c touch wrapper in systemd)
+try { fs.writeFileSync(LOG, "", { flag: "a" }); } catch {}
 const HTML = \`<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>VM Log</title>
 <style>
@@ -139,8 +143,7 @@ export const VM_START = defineTool({
     }
 
     const { owner, name } = metadata.githubRepo;
-    const { detected, port, needsRuntimeInstall } =
-      resolveRuntimeConfig(metadata);
+    const { detected, port } = resolveRuntimeConfig(metadata);
 
     // Create the Freestyle Git repo reference
     const { repoId } = await freestyle.git.repos.create({
@@ -154,13 +157,16 @@ export const VM_START = defineTool({
     const previewDomain = `${input.virtualMcpId.replace(/[^a-z0-9]/gi, "-")}.deco.studio`;
     const terminalDomain = `${input.virtualMcpId.replace(/[^a-z0-9]/gi, "-")}-term.deco.studio`;
 
-    // Setup script for deno/bun runtimes — kept as additionalFile for VM_EXEC
-    const setupScript =
+    // Build the `with` config for Freestyle VM integrations.
+    // Uses official @freestyle-sh packages — runtimes are pre-installed and cached.
+    // Only needed for deno/bun — Node.js is already in the base Freestyle VM at /usr/local/bin/node.
+    // Freestyle docs: /v2/vms/integrations/deno, /v2/vms/integrations/bun
+    const withIntegrations: Record<string, VmDeno | VmBun> | undefined =
       detected === "deno"
-        ? '#!/bin/bash\nset -e\nexport DENO_INSTALL="/usr/local"\ncurl -fsSL https://deno.land/install.sh | sh\necho "Deno installed to /usr/local/bin"\n'
+        ? { runtime: new VmDeno() }
         : detected === "bun"
-          ? '#!/bin/bash\nset -e\nexport BUN_INSTALL="/usr/local"\ncurl -fsSL https://bun.sh/install | bash\necho "Bun installed to /usr/local/bin"\n'
-          : "";
+          ? { runtime: new VmBun() }
+          : undefined;
 
     // Reverse proxy that strips X-Frame-Options and CSP headers so the
     // dev server preview can be embedded in an iframe.
@@ -215,9 +221,6 @@ http.createServer((req, res) => {
       "/opt/iframe-proxy.js": { content: proxyScript },
       "/opt/log-viewer.js": { content: LOG_VIEWER_SCRIPT },
     };
-    if (needsRuntimeInstall) {
-      additionalFiles["/opt/setup-runtime.sh"] = { content: setupScript };
-    }
 
     // Build systemd services list — infrastructure only.
     // Install/dev lifecycle is handled by VM_EXEC.
@@ -238,9 +241,7 @@ http.createServer((req, res) => {
       {
         name: "web-terminal",
         mode: "service",
-        exec: [
-          `bash -c 'touch /tmp/vm.log && exec /usr/local/bin/node /opt/log-viewer.js'`,
-        ],
+        exec: [`/usr/local/bin/node /opt/log-viewer.js`],
       },
       {
         name: "iframe-proxy",
@@ -257,6 +258,7 @@ http.createServer((req, res) => {
     // so the preview can be embedded in an iframe.
     // Freestyle docs: /v2/vms/configuration/domains
     const createResult = await freestyle.vms.create({
+      ...(withIntegrations && { with: withIntegrations }),
       gitRepos: [{ repo: repoId, path: "/app" }],
       workdir: "/app",
       domains: [

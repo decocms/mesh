@@ -30,28 +30,20 @@ export const VM_EXEC = defineTool({
     }
 
     const vm = freestyle.vms.ref({ vmId: entry.vmId });
-    const { installScript, devScript, detected, port, needsRuntimeInstall } =
-      resolveRuntimeConfig(metadata);
+    const { installScript, devScript, port } = resolveRuntimeConfig(metadata);
 
     try {
       if (input.action === "install") {
         // Build the full install script that runs in the background.
         // All output goes to /tmp/vm.log so the ttyd terminal shows progress.
+        // Runtime (node/deno/bun) is pre-installed via Freestyle integrations.
+        // No manual curl installs needed.
         const steps: string[] = [
           'echo "" && echo "--- Reinstalling dependencies ---"',
           // Wait for git repo to be synced
           "systemctl is-active --wait freestyle-git-sync.service",
+          `echo "$ ${installScript}" && cd /app && ${installScript}`,
         ];
-
-        if (needsRuntimeInstall) {
-          const setupCmd =
-            detected === "deno"
-              ? 'echo "Installing deno runtime..." && export DENO_INSTALL="/usr/local" && curl -fsSL https://deno.land/install.sh | sh'
-              : 'echo "Installing bun runtime..." && export BUN_INSTALL="/usr/local" && curl -fsSL https://bun.sh/install | bash';
-          steps.push(setupCmd);
-        }
-
-        steps.push(`echo "$ ${installScript}" && cd /app && ${installScript}`);
 
         const script = steps.join(" && ");
 

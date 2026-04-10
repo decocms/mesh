@@ -224,7 +224,7 @@ describe("VM_EXEC", () => {
     expect(result).toEqual({ success: false, error: "exec failed: timeout" });
   });
 
-  it("install action with deno runtime calls setup script before install", async () => {
+  it("install action with deno runtime runs deno install without curl setup", async () => {
     const denoMetadata: VmMetadata = {
       githubRepo: BASE_METADATA.githubRepo,
       runtime: {
@@ -246,20 +246,25 @@ describe("VM_EXEC", () => {
 
     expect(result).toEqual({ success: true });
 
-    // Find the deno setup script call
+    // Verify no curl install script — runtime is pre-installed via Freestyle integrations
     const calls = mockVmExec.mock.calls as unknown[][];
-    const denoSetupCall = calls.find((args) => {
+    const curlCall = calls.find((args) => {
       const cmd = args[0];
       if (typeof cmd === "object" && cmd !== null && "command" in cmd) {
-        return (cmd as { command: string }).command.includes(
-          "deno.land/install.sh",
-        );
+        return (cmd as { command: string }).command.includes("curl");
       }
       return false;
     });
-    expect(denoSetupCall).toBeDefined();
-    const denoCmd = denoSetupCall![0] as { command: string };
-    expect(denoCmd.command).toContain("Installing deno runtime...");
-    expect(denoCmd.command).toContain("DENO_INSTALL");
+    expect(curlCall).toBeUndefined();
+
+    // Verify deno install is called
+    const installCall = calls.find((args) => {
+      const cmd = args[0];
+      if (typeof cmd === "object" && cmd !== null && "command" in cmd) {
+        return (cmd as { command: string }).command.includes("deno install");
+      }
+      return false;
+    });
+    expect(installCall).toBeDefined();
   });
 });

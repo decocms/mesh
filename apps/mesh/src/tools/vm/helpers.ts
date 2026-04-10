@@ -39,14 +39,14 @@ export async function requireVmEntry(
 
 /**
  * Extracts runtime detection logic from Virtual MCP metadata.
- * Returns normalized runtime config with defaults and a `needsRuntimeInstall`
- * flag for runtimes (deno/bun) that are not pre-installed in Freestyle VMs.
+ * Returns normalized runtime config with defaults.
+ * Runtimes (node/deno/bun) are pre-installed via Freestyle integrations
+ * (@freestyle-sh/with-nodejs, @freestyle-sh/with-deno, @freestyle-sh/with-bun).
  */
 export function resolveRuntimeConfig(metadata: VmMetadata) {
   const installScript = metadata.runtime?.installScript ?? "npm install";
   const devScript = metadata.runtime?.devScript ?? "npm run dev";
   const detected = metadata.runtime?.detected ?? "npm";
   const port = metadata.runtime?.port ?? "3000";
-  const needsRuntimeInstall = detected === "deno" || detected === "bun";
-  return { installScript, devScript, detected, port, needsRuntimeInstall };
+  return { installScript, devScript, detected, port };
 }
