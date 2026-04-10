@@ -232,6 +232,7 @@ export function extractConnectionData(
     configuration_scopes: configScopes ?? null,
     metadata: {
       source: "store",
+      displayName: baseName,
       registry_item_id: item.id,
       verified: meshMeta?.verified ?? false,
       scopeName: meshMeta?.scopeName ?? null,

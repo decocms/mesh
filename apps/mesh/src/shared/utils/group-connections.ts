@@ -8,12 +8,17 @@ import { getConnectionSlug } from "./connection-slug";
 const INSTANCE_SUFFIX_RE = /\s*\([^)]{1,6}\)\s*$/;
 
 /**
- * Strip instance suffix from a connection title.
- * "Vercel (2)" → "Vercel", "Gmail (a1b2)" → "Gmail"
+ * Returns the canonical display title for a connection.
+ * Checks metadata.displayName first (set at install time, never changes),
+ * then falls back to stripping instance suffixes from the title.
  */
 export function getConnectionDisplayTitle(
   connection: ConnectionEntity,
 ): string {
+  const metadata = connection.metadata as Record<string, unknown> | null;
+  if (metadata?.displayName && typeof metadata.displayName === "string") {
+    return metadata.displayName;
+  }
   return connection.title.replace(INSTANCE_SUFFIX_RE, "");
 }
 

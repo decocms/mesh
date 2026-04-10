@@ -1202,6 +1202,7 @@ function VirtualMcpDetailViewWithData({
         app_name: base.app_name ?? null,
         app_id: base.app_id ?? null,
         connection_headers: base.connection_headers ?? null,
+        metadata: base.metadata ?? null,
       });
 
       // Handle OAuth if needed

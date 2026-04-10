@@ -597,7 +597,7 @@ function ConnectionInspectorViewWithConnection({
                         connection_headers: base.connection_headers ?? null,
                         oauth_config: null,
                         configuration_state: base.configuration_state ?? null,
-                        metadata: null,
+                        metadata: base.metadata ?? null,
                         tools: null,
                         bindings: null,
                         status: "inactive",
