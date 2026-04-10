@@ -128,7 +128,7 @@ export function VmPreviewContent() {
 
   if (status === "idle") {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
+      <div className="flex flex-col items-center justify-center w-full h-full gap-4">
         <Monitor04 size={48} className="text-muted-foreground/40" />
         <h3 className="text-lg font-medium">Preview</h3>
         <p className="text-sm text-muted-foreground text-center max-w-sm">
@@ -141,7 +141,7 @@ export function VmPreviewContent() {
 
   if (status === "starting") {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
+      <div className="flex flex-col items-center justify-center w-full h-full gap-4">
         <Loading01 size={24} className="animate-spin text-muted-foreground" />
         <p className="text-sm text-muted-foreground">
           Creating VM and starting dev server...
@@ -152,7 +152,7 @@ export function VmPreviewContent() {
 
   if (status === "error") {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
+      <div className="flex flex-col items-center justify-center w-full h-full gap-4">
         <p className="text-sm text-destructive">{errorMsg}</p>
         <Button variant="outline" onClick={handleStart}>
           Retry
@@ -167,7 +167,7 @@ export function VmPreviewContent() {
   const hasTerminal = !!vmData.terminalUrl;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col w-full h-full">
       <div className="flex items-center justify-between px-3 py-2 border-b border-border">
         <div className="flex items-center gap-1">
           {hasTerminal && (
