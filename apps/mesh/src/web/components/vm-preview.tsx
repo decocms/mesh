@@ -10,6 +10,7 @@ import {
   LinkExternal01,
   Loading01,
   Monitor04,
+  RefreshCw01,
   Stop,
   Terminal,
 } from "@untitledui/icons";
@@ -178,18 +179,18 @@ export function VmPreviewContent() {
       clearInterval(pollRef.current);
       pollRef.current = null;
     }
-    const vmId = vmDataRef.current?.vmId;
+    const virtualMcpId = inset?.entity?.id;
     vmDataRef.current = null;
     setStatus("idle");
     setPreviewReady(false);
     setVisualElement(null);
     setViewMode("preview");
 
-    if (vmId) {
+    if (virtualMcpId) {
       try {
         await client.callTool({
           name: "VM_STOP",
-          arguments: { vmId },
+          arguments: { virtualMcpId },
         });
       } catch {
         // Best effort
@@ -248,61 +249,67 @@ export function VmPreviewContent() {
 
   return (
     <div className="flex flex-col w-full h-full">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-        <div className="flex items-center gap-2">
-          <ViewModeToggle
-            value={viewMode}
-            onValueChange={handleViewModeChange}
-            options={VIEW_MODE_OPTIONS}
-            size="sm"
-          />
-          {hasTerminal && (
-            <button
-              type="button"
-              onClick={() => setActiveView("terminal")}
-              className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition-colors",
-                activeView === "terminal"
-                  ? "bg-accent text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Terminal size={14} />
-              Terminal
-            </button>
-          )}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+        <ViewModeToggle
+          value={viewMode}
+          onValueChange={handleViewModeChange}
+          options={VIEW_MODE_OPTIONS}
+          size="sm"
+        />
+        {hasTerminal && (
           <button
             type="button"
-            onClick={() =>
-              previewReady ? setActiveView("preview") : handleOpenPreview()
-            }
+            onClick={() => setActiveView("terminal")}
             className={cn(
-              "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition-colors",
-              activeView === "preview"
+              "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition-colors shrink-0",
+              activeView === "terminal"
                 ? "bg-accent text-foreground"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            <Monitor04 size={14} />
-            Preview
-            {!previewReady && <Loading01 size={10} className="animate-spin" />}
+            <Terminal size={14} />
+            Terminal
           </button>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground font-mono">
-            {vmData.vmId}
-          </span>
+        )}
+        <div className="flex items-center gap-1 flex-1 min-w-0 rounded-md border border-border bg-muted/40 px-2 py-1">
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => window.open(vmData.previewUrl, "_blank", "noopener")}
+            className="shrink-0 h-5 w-5 p-0"
+            onClick={() => {
+              if (previewIframeRef.current) {
+                previewIframeRef.current.src = previewIframeRef.current.src;
+              }
+            }}
           >
-            <LinkExternal01 size={14} />
+            <RefreshCw01 size={12} />
           </Button>
-          <Button variant="ghost" size="sm" onClick={handleStop}>
-            <Stop size={14} />
-          </Button>
+          <span className="text-xs text-muted-foreground font-mono truncate flex-1">
+            {vmData.previewUrl}
+          </span>
+          {!previewReady && (
+            <Loading01
+              size={10}
+              className="animate-spin shrink-0 text-muted-foreground"
+            />
+          )}
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="shrink-0"
+          onClick={() => window.open(vmData.previewUrl, "_blank", "noopener")}
+        >
+          <LinkExternal01 size={14} />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="shrink-0"
+          onClick={handleStop}
+        >
+          <Stop size={14} />
+        </Button>
       </div>
 
       <div className="flex-1 relative">
