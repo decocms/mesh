@@ -32,7 +32,8 @@ export type ToolCategory =
   | "Automations"
   | "Object Storage"
   | "Registry"
-  | "GitHub";
+  | "GitHub"
+  | "VM";
 
 /**
  * All tool names - keep in sync with ALL_TOOLS in index.ts
@@ -184,6 +185,11 @@ const ALL_TOOL_NAMES = [
   "GITHUB_LIST_REPOS",
   "GITHUB_DEVICE_FLOW_START",
   "GITHUB_DEVICE_FLOW_POLL",
+  "GITHUB_GET_FILE_CONTENT",
+
+  // VM tools (app-only)
+  "VM_START",
+  "VM_STOP",
 ] as const;
 
 /**
@@ -884,6 +890,21 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "Poll GitHub Device Flow for access token",
     category: "GitHub",
   },
+  {
+    name: "GITHUB_GET_FILE_CONTENT",
+    description: "Fetch file content from a GitHub repository",
+    category: "GitHub",
+  },
+  {
+    name: "VM_START",
+    description: "Start a Freestyle VM with dev server preview",
+    category: "VM",
+  },
+  {
+    name: "VM_STOP",
+    description: "Stop and delete a Freestyle VM",
+    category: "VM",
+  },
 ];
 
 /**
@@ -1024,6 +1045,11 @@ const TOOL_LABELS: Record<ToolName, string> = {
   GITHUB_LIST_REPOS: "List GitHub repositories",
   GITHUB_DEVICE_FLOW_START: "Start GitHub Device Flow",
   GITHUB_DEVICE_FLOW_POLL: "Poll GitHub Device Flow",
+  GITHUB_GET_FILE_CONTENT: "Get GitHub file content",
+
+  // VM
+  VM_START: "Start VM preview",
+  VM_STOP: "Stop VM preview",
 };
 
 // ============================================================================

@@ -74,13 +74,19 @@ import { GitHubRepoButton } from "@/web/components/github-repo-button";
 // Types & Context
 // ---------------------------------------------------------------------------
 
-export type MainViewType = "chat" | "settings" | "automation" | "ext-apps";
+export type MainViewType =
+  | "chat"
+  | "settings"
+  | "automation"
+  | "ext-apps"
+  | "preview";
 
 export type MainView =
   | { type: "chat" }
   | { type: "settings" }
   | { type: "automation"; id: string }
   | { type: "ext-apps"; id: string; toolName?: string; [key: string]: unknown }
+  | { type: "preview" }
   | null;
 
 export interface InsetContextValue {
@@ -410,6 +416,8 @@ function AgentInsetProvider() {
     mainView = id
       ? { type: "ext-apps", id, toolName: search.toolName }
       : { type: "settings" };
+  } else if (search.main === "preview") {
+    mainView = { type: "preview" };
   } else {
     mainView = null;
   }
