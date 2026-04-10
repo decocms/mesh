@@ -4,6 +4,8 @@ import {
   EmailProviderConfig,
   findEmailProvider,
 } from "./email-providers";
+import { getBaseUrl } from "@/core/server-constants";
+import { emailButton, emailTemplate } from "./email-template";
 
 type BetterAuthMagicLinkConfig = Parameters<typeof magicLink>[0];
 
@@ -25,8 +27,16 @@ export const createMagicLinkConfig = (
     sendMagicLink: async ({ email, url }) => {
       await sendEmail({
         to: email,
-        subject: "Magic Link",
-        html: `<p>Click <a href="${url}">here</a> to login</p>`,
+        subject: "Sign in to deco Studio",
+        html: emailTemplate({
+          baseUrl: getBaseUrl(),
+          preheader: "Click the button to securely sign in to your account.",
+          heading: "Sign in to deco Studio",
+          subheading: `We received a sign-in request for <strong>${email}</strong>. Click the button below to continue.`,
+          body: emailButton("Sign in", url),
+          footnote:
+            "If you didn\u2019t request this link, you can safely ignore this email. This link expires shortly.",
+        }),
       });
     },
   };

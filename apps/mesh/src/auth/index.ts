@@ -1,5 +1,5 @@
 /**
- * Better Auth Configuration for MCP Mesh
+ * Better Auth Configuration for deco Studio
  *
  * Provides:
  * - MCP OAuth 2.1 server (via MCP plugin)
@@ -36,6 +36,7 @@ import { getDb, getDatabaseUrl, getDbDialect } from "../database";
 import { OrganizationDomainStorage } from "../storage/organization-domains";
 import { createEmailOtpConfig } from "./email-otp";
 import { createEmailSender, findEmailProvider } from "./email-providers";
+import { emailButton, emailParagraph, emailTemplate } from "./email-template";
 import { createMagicLinkConfig } from "./magic-link";
 import { seedOrgDb } from "./org";
 import { ADMIN_ROLES } from "./roles";
@@ -136,12 +137,16 @@ if (
 
       await sendEmail({
         to: data.email,
-        subject: `Invitation to join ${data.organization.name}`,
-        html: `
-          <h2>You've been invited!</h2>
-          <p>${inviterName} has invited you to join <strong>${data.organization.name}</strong>.</p>
-          <p><a href="${acceptUrl}">Click here to accept the invitation</a></p>
-        `,
+        subject: `You've been invited to join ${data.organization.name}`,
+        html: emailTemplate({
+          baseUrl: getBaseUrl(),
+          preheader: `${inviterName} has invited you to join ${data.organization.name} on deco Studio.`,
+          heading: "You've been invited",
+          subheading: `<strong>${inviterName}</strong> has invited you to join <strong>${data.organization.name}</strong> on deco Studio.`,
+          body: emailButton("Accept invitation", acceptUrl),
+          footnote:
+            "If you weren\u2019t expecting an invitation, you can safely ignore this email.",
+        }),
       });
     };
   }
@@ -172,12 +177,22 @@ if (
       await sendEmail({
         to: user.email,
         subject: "Reset your password",
-        html: `
-          <h2>Reset your password</h2>
-          <p>Click the link below to reset your password:</p>
-          <p><a href="${url}">Reset password</a></p>
-          <p>If you didn't request this, you can safely ignore this email.</p>
-        `,
+        html: emailTemplate({
+          baseUrl: getBaseUrl(),
+          preheader:
+            "We received a request to reset the password on your deco Studio account.",
+          heading: "Reset your password",
+          subheading:
+            "We received a password reset request for your account. Click the button below to choose a new password.",
+          body:
+            emailButton("Reset password", url) +
+            emailParagraph(
+              "This link expires in 24\u00a0hours. If you didn\u2019t request a password reset, no action is needed.",
+              true,
+            ),
+          footnote:
+            "If you didn\u2019t request a password reset, you can safely ignore this email.",
+        }),
       });
     };
   }

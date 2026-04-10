@@ -4,6 +4,8 @@ import {
   EmailProviderConfig,
   findEmailProvider,
 } from "./email-providers";
+import { getBaseUrl } from "@/core/server-constants";
+import { emailOtpCode, emailParagraph, emailTemplate } from "./email-template";
 
 type BetterAuthEmailOTPConfig = Parameters<typeof emailOTP>[0];
 
@@ -36,15 +38,30 @@ export const createEmailOtpConfig = (
             ? "Password reset code"
             : "Email verification code";
 
+      const subheading =
+        type === "sign-in"
+          ? "Enter the code below to sign in to your account."
+          : type === "forget-password"
+            ? "Enter the code below to reset your password."
+            : "Enter the code below to verify your email address.";
+
       await sendEmail({
         to: email,
         subject,
-        html: `
-          <h2>${subject}</h2>
-          <p>Your verification code is: <strong>${otp}</strong></p>
-          <p>This code expires in ${expiryLabel}.</p>
-          <p>If you didn't request this, you can safely ignore this email.</p>
-        `,
+        html: emailTemplate({
+          baseUrl: getBaseUrl(),
+          preheader: `Your ${subject.toLowerCase()} is ${otp}`,
+          heading: subject,
+          subheading,
+          body:
+            emailOtpCode(otp) +
+            emailParagraph(
+              `This code expires in <strong>${expiryLabel}</strong>. Do not share it with anyone.`,
+              true,
+            ),
+          footnote:
+            "If you didn\u2019t request this code, you can safely ignore this email.",
+        }),
       });
     },
     ...(config.otpLength ? { otpLength: config.otpLength } : {}),
