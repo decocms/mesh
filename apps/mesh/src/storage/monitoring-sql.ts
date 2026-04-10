@@ -115,7 +115,11 @@ function parseInterval(interval: string): { amount: number; unit: string } {
   return { amount, unit };
 }
 
-function intervalToSQL(interval: string, dialect: SqlDialect): string {
+function intervalToSQL(
+  interval: string,
+  dialect: SqlDialect,
+  column: string = "timestamp",
+): string {
   const { amount, unit } = parseInterval(interval);
   const unitMap: Record<string, string> = {
     m: "MINUTE",
@@ -124,9 +128,9 @@ function intervalToSQL(interval: string, dialect: SqlDialect): string {
   };
   const sqlUnit = unitMap[unit];
   if (dialect === "duckdb") {
-    return `time_bucket(INTERVAL '${amount} ${sqlUnit}', CAST(timestamp AS TIMESTAMP))`;
+    return `time_bucket(INTERVAL '${amount} ${sqlUnit}', CAST(${column} AS TIMESTAMP))`;
   }
-  return `toStartOfInterval(timestamp, INTERVAL ${amount} ${sqlUnit})`;
+  return `toStartOfInterval(${column}, INTERVAL ${amount} ${sqlUnit})`;
 }
 
 // ---------------------------------------------------------------------------
@@ -333,18 +337,32 @@ function buildCommonFilterClauses(
   return clauses;
 }
 
-function tsGte(date: Date, dialect: SqlDialect): string {
+function tsGte(
+  date: Date,
+  dialect: SqlDialect,
+  column: string = "timestamp",
+): string {
   if (dialect === "duckdb") {
-    return `CAST(timestamp AS TIMESTAMP) >= TIMESTAMP '${date.toISOString()}'`;
+    return `CAST(${column} AS TIMESTAMP) >= TIMESTAMP '${date.toISOString()}'`;
   }
-  return `timestamp >= parseDateTime64BestEffort('${date.toISOString()}', 9)`;
+  if (column === "bucket") {
+    return `${column} >= parseDateTimeBestEffort('${date.toISOString()}')`;
+  }
+  return `${column} >= parseDateTime64BestEffort('${date.toISOString()}', 9)`;
 }
 
-function tsLte(date: Date, dialect: SqlDialect): string {
+function tsLte(
+  date: Date,
+  dialect: SqlDialect,
+  column: string = "timestamp",
+): string {
   if (dialect === "duckdb") {
-    return `CAST(timestamp AS TIMESTAMP) <= TIMESTAMP '${date.toISOString()}'`;
+    return `CAST(${column} AS TIMESTAMP) <= TIMESTAMP '${date.toISOString()}'`;
   }
-  return `timestamp <= parseDateTime64BestEffort('${date.toISOString()}', 9)`;
+  if (column === "bucket") {
+    return `${column} <= parseDateTimeBestEffort('${date.toISOString()}')`;
+  }
+  return `${column} <= parseDateTime64BestEffort('${date.toISOString()}', 9)`;
 }
 
 /**
@@ -358,11 +376,14 @@ function applyStartDateBound(
   where: string[],
   startDate: Date | undefined,
   dialect: SqlDialect,
+  column: string = "timestamp",
 ): void {
   if (startDate) {
-    where.push(tsGte(startDate, dialect));
+    where.push(tsGte(startDate, dialect, column));
   } else if (dialect === "clickhouse") {
-    where.push(tsGte(new Date(Date.now() - DEFAULT_LOOKBACK_MS), dialect));
+    where.push(
+      tsGte(new Date(Date.now() - DEFAULT_LOOKBACK_MS), dialect, column),
+    );
   }
 }
 
@@ -690,53 +711,69 @@ export class SqlMonitoringStorage implements MonitoringStorage {
       timeseries: [],
     };
 
-    try {
-      if (!params.organizationId) {
-        throw new Error("organizationId is required");
-      }
+    if (!params.organizationId) {
+      return emptyResult;
+    }
 
-      const metricSource = this.metricSourceFactory(params.organizationId);
-      const bucketExpr = intervalToSQL(params.interval, this.dialect);
+    const metricSource = this.metricSourceFactory(params.organizationId);
+    const isRollup =
+      this.dialect === "clickhouse" &&
+      metricSource === "monitoring_metrics_rollup_1m";
 
-      const where: string[] = [
-        `organization_id = '${esc(params.organizationId)}'`,
-      ];
+    // Try rollup table first; if it fails (e.g. table doesn't exist),
+    // fall back to the raw monitoring_metrics table.
+    const sources = isRollup
+      ? [metricSource, "monitoring_metrics"]
+      : [metricSource];
 
-      applyStartDateBound(where, params.startDate, this.dialect);
-      if (params.endDate) {
-        where.push(tsLte(params.endDate, this.dialect));
-      }
-      if (params.filters?.toolNames?.length) {
-        const names = params.filters.toolNames
-          .slice(0, 100)
-          .map((n) => `'${esc(n)}'`)
-          .join(",");
-        where.push(`tool_name IN (${names})`);
-      }
-      if (params.filters?.connectionIds?.length) {
-        const ids = params.filters.connectionIds
-          .slice(0, 100)
-          .map((id) => `'${esc(id)}'`)
-          .join(",");
-        where.push(`connection_id IN (${ids})`);
-      }
-      if (params.filters?.excludeConnectionIds?.length) {
-        const ids = params.filters.excludeConnectionIds
-          .slice(0, 100)
-          .map((id) => `'${esc(id)}'`)
-          .join(",");
-        where.push(`connection_id NOT IN (${ids})`);
-      }
-      // NOTE: status is intentionally NOT added to the WHERE clause here.
-      // The errors and errorRate aggregations use sumIf/SUM FILTER (WHERE ...),
-      // which would always return 0 if WHERE already filters to status = 'success'
-      // (and conversely, errorRate would always be 100% when filtering to 'error').
+    for (const source of sources) {
+      try {
+        const usingRollup =
+          this.dialect === "clickhouse" &&
+          source === "monitoring_metrics_rollup_1m";
+        // For ClickHouse rollup table, use "bucket" column; otherwise "timestamp"
+        const tsCol = usingRollup ? "bucket" : "timestamp";
+        const bucketExpr = intervalToSQL(params.interval, this.dialect, tsCol);
 
-      const whereClause = where.join(" AND ");
+        const where: string[] = [
+          `organization_id = '${esc(params.organizationId)}'`,
+        ];
 
-      let sql: string;
-      if (this.dialect === "duckdb") {
-        sql = `SELECT
+        applyStartDateBound(where, params.startDate, this.dialect, tsCol);
+        if (params.endDate) {
+          where.push(tsLte(params.endDate, this.dialect, tsCol));
+        }
+        if (params.filters?.toolNames?.length) {
+          const names = params.filters.toolNames
+            .slice(0, 100)
+            .map((n) => `'${esc(n)}'`)
+            .join(",");
+          where.push(`tool_name IN (${names})`);
+        }
+        if (params.filters?.connectionIds?.length) {
+          const ids = params.filters.connectionIds
+            .slice(0, 100)
+            .map((id) => `'${esc(id)}'`)
+            .join(",");
+          where.push(`connection_id IN (${ids})`);
+        }
+        if (params.filters?.excludeConnectionIds?.length) {
+          const ids = params.filters.excludeConnectionIds
+            .slice(0, 100)
+            .map((id) => `'${esc(id)}'`)
+            .join(",");
+          where.push(`connection_id NOT IN (${ids})`);
+        }
+        // NOTE: status is intentionally NOT added to the WHERE clause here.
+        // The errors and errorRate aggregations use sumIf/SUM FILTER (WHERE ...),
+        // which would always return 0 if WHERE already filters to status = 'success'
+        // (and conversely, errorRate would always be 100% when filtering to 'error').
+
+        const whereClause = where.join(" AND ");
+
+        let sql: string;
+        if (this.dialect === "duckdb") {
+          sql = `SELECT
   ${bucketExpr} AS bucket,
   SUM(value) FILTER (WHERE name = 'tool.execution.count') AS calls,
   SUM(value) FILTER (WHERE name = 'tool.execution.count' AND status = 'error') AS errors,
@@ -744,12 +781,25 @@ export class SqlMonitoringStorage implements MonitoringStorage {
   SUM(hist_count) FILTER (WHERE name = 'tool.execution.duration') AS total_hist_count,
   LIST(hist_boundaries) FILTER (WHERE name = 'tool.execution.duration') AS boundaries_arr,
   LIST(hist_bucket_counts) FILTER (WHERE name = 'tool.execution.duration') AS bucket_counts_arr
-FROM ${metricSource}
+FROM ${source}
 WHERE ${whereClause}
 GROUP BY bucket
 ORDER BY bucket ASC`;
-      } else {
-        sql = `SELECT
+        } else if (usingRollup) {
+          sql = `SELECT
+  ${bucketExpr} AS bucket,
+  sumIf(value, name = 'tool.execution.count') AS calls,
+  sumIf(value, name = 'tool.execution.count' AND status = 'error') AS errors,
+  sumIf(hist_sum, name = 'tool.execution.duration') AS total_hist_sum,
+  sumIf(hist_count, name = 'tool.execution.duration') AS total_hist_count,
+  anyIf(hist_boundaries, name = 'tool.execution.duration') AS boundaries_arr,
+  sumForEachMergeIf(hist_bucket_counts, name = 'tool.execution.duration') AS bucket_counts_arr
+FROM ${source}
+WHERE ${whereClause}
+GROUP BY bucket
+ORDER BY bucket ASC`;
+        } else {
+          sql = `SELECT
   ${bucketExpr} AS bucket,
   sumIf(value, name = 'tool.execution.count') AS calls,
   sumIf(value, name = 'tool.execution.count' AND status = 'error') AS errors,
@@ -757,47 +807,152 @@ ORDER BY bucket ASC`;
   sumIf(hist_count, name = 'tool.execution.duration') AS total_hist_count,
   anyIf(JSONExtract(hist_boundaries, 'Array(Float64)'), name = 'tool.execution.duration') AS boundaries_arr,
   sumForEachIf(JSONExtract(hist_bucket_counts, 'Array(Float64)'), name = 'tool.execution.duration') AS bucket_counts_arr
-FROM ${metricSource}
+FROM ${source}
 WHERE ${whereClause}
 GROUP BY bucket
 ORDER BY bucket ASC`;
-      }
+        }
 
-      const rows = await this.metricEngine.query(sql);
+        const rows = await this.metricEngine.query(sql);
 
-      let breakdownSql: string;
-      if (this.dialect === "duckdb") {
-        breakdownSql = `SELECT
+        let breakdownSql: string;
+        if (this.dialect === "duckdb") {
+          breakdownSql = `SELECT
   connection_id,
   SUM(value) FILTER (WHERE name = 'tool.execution.count') AS calls,
   SUM(value) FILTER (WHERE name = 'tool.execution.count' AND status = 'error') AS errors,
   SUM(hist_sum) FILTER (WHERE name = 'tool.execution.duration') AS total_hist_sum,
   SUM(hist_count) FILTER (WHERE name = 'tool.execution.duration') AS total_hist_count
-FROM ${metricSource}
+FROM ${source}
 WHERE ${whereClause} AND connection_id != ''
 GROUP BY connection_id
 ORDER BY calls DESC
 LIMIT 1000`;
-      } else {
-        breakdownSql = `SELECT
+        } else {
+          breakdownSql = `SELECT
   connection_id,
   sumIf(value, name = 'tool.execution.count') AS calls,
   sumIf(value, name = 'tool.execution.count' AND status = 'error') AS errors,
   sumIf(hist_sum, name = 'tool.execution.duration') AS total_hist_sum,
   sumIf(hist_count, name = 'tool.execution.duration') AS total_hist_count
-FROM ${metricSource}
+FROM ${source}
 WHERE ${whereClause} AND connection_id != ''
 GROUP BY connection_id
 ORDER BY calls DESC
 LIMIT 1000`;
-      }
+        }
 
-      const connectionBreakdownRows =
-        await this.metricEngine.query(breakdownSql);
+        const connectionBreakdownRows =
+          await this.metricEngine.query(breakdownSql);
 
-      if (rows.length === 0) {
+        if (rows.length === 0) {
+          return {
+            ...emptyResult,
+            connectionBreakdown: connectionBreakdownRows.map((row) => {
+              const calls = Number(row.calls ?? 0);
+              const errors = Number(row.errors ?? 0);
+              const totalHistSum = Number(row.total_hist_sum ?? 0);
+              const totalHistCount = Number(row.total_hist_count ?? 0);
+
+              return {
+                connectionId: String(row.connection_id ?? ""),
+                calls,
+                errors,
+                errorRate: calls > 0 ? (errors / calls) * 100 : 0,
+                avgDurationMs:
+                  totalHistCount > 0 ? totalHistSum / totalHistCount : 0,
+              };
+            }),
+          };
+        }
+
+        // Accumulate totals across all buckets
+        let totalCalls = 0;
+        let totalErrors = 0;
+        let totalHistSum = 0;
+        let totalHistCount = 0;
+        const allBoundaries: number[][] = [];
+        const allBucketCounts: number[][] = [];
+
+        const timeseries = rows.map((row) => {
+          const calls = Number(row.calls ?? 0);
+          const errors = Number(row.errors ?? 0);
+          const histSum = Number(row.total_hist_sum ?? 0);
+          const histCount = Number(row.total_hist_count ?? 0);
+          const avg = histCount > 0 ? histSum / histCount : 0;
+          const errorRate = calls > 0 ? errors / calls : 0;
+
+          totalCalls += calls;
+          totalErrors += errors;
+          totalHistSum += histSum;
+          totalHistCount += histCount;
+
+          // Parse and merge histogram data for percentile computation
+          let mergedBounds: number[];
+          let mergedCounts: number[];
+
+          if (this.dialect === "clickhouse") {
+            // ClickHouse: already merged via anyIf/sumForEachIf
+            mergedBounds = parseSingleArray(row.boundaries_arr);
+            mergedCounts = parseSingleArray(row.bucket_counts_arr);
+          } else {
+            // DuckDB: merge in JS
+            const boundariesArr = parseGroupedArrays(row.boundaries_arr);
+            const bucketCountsArr = parseGroupedArrays(row.bucket_counts_arr);
+            const merged = mergeHistogramBuckets(
+              boundariesArr,
+              bucketCountsArr,
+            );
+            mergedBounds = merged.boundaries;
+            mergedCounts = merged.counts;
+          }
+
+          // Accumulate for global percentiles
+          if (mergedBounds.length > 0) {
+            allBoundaries.push(mergedBounds);
+            allBucketCounts.push(mergedCounts);
+          }
+
+          const p50 = computePercentileFromHistogramBuckets(
+            mergedBounds,
+            mergedCounts,
+            0.5,
+          );
+          const p95 = computePercentileFromHistogramBuckets(
+            mergedBounds,
+            mergedCounts,
+            0.95,
+          );
+
+          return {
+            timestamp: toISOBucket(row.bucket),
+            calls,
+            errors,
+            errorRate,
+            avg,
+            p50,
+            p95,
+          };
+        });
+
+        // Global percentiles from merged histogram data
+        const { boundaries: globalBounds, counts: globalCounts } =
+          mergeHistogramBuckets(allBoundaries, allBucketCounts);
+
         return {
-          ...emptyResult,
+          totalCalls,
+          totalErrors,
+          avgDurationMs: totalHistCount > 0 ? totalHistSum / totalHistCount : 0,
+          p50DurationMs: computePercentileFromHistogramBuckets(
+            globalBounds,
+            globalCounts,
+            0.5,
+          ),
+          p95DurationMs: computePercentileFromHistogramBuckets(
+            globalBounds,
+            globalCounts,
+            0.95,
+          ),
           connectionBreakdown: connectionBreakdownRows.map((row) => {
             const calls = Number(row.calls ?? 0);
             const errors = Number(row.errors ?? 0);
@@ -813,114 +968,22 @@ LIMIT 1000`;
                 totalHistCount > 0 ? totalHistSum / totalHistCount : 0,
             };
           }),
+          timeseries,
         };
+      } catch (err) {
+        if (source !== sources[sources.length - 1]) {
+          console.warn(
+            `queryMetricTimeseries: rollup table query failed, falling back to raw table:`,
+            err,
+          );
+          continue;
+        }
+        console.error("queryMetricTimeseries failed:", err);
+        return emptyResult;
       }
-
-      // Accumulate totals across all buckets
-      let totalCalls = 0;
-      let totalErrors = 0;
-      let totalHistSum = 0;
-      let totalHistCount = 0;
-      const allBoundaries: number[][] = [];
-      const allBucketCounts: number[][] = [];
-
-      const timeseries = rows.map((row) => {
-        const calls = Number(row.calls ?? 0);
-        const errors = Number(row.errors ?? 0);
-        const histSum = Number(row.total_hist_sum ?? 0);
-        const histCount = Number(row.total_hist_count ?? 0);
-        const avg = histCount > 0 ? histSum / histCount : 0;
-        const errorRate = calls > 0 ? errors / calls : 0;
-
-        totalCalls += calls;
-        totalErrors += errors;
-        totalHistSum += histSum;
-        totalHistCount += histCount;
-
-        // Parse and merge histogram data for percentile computation
-        let mergedBounds: number[];
-        let mergedCounts: number[];
-
-        if (this.dialect === "clickhouse") {
-          // ClickHouse: already merged via anyIf/sumForEachIf
-          mergedBounds = parseSingleArray(row.boundaries_arr);
-          mergedCounts = parseSingleArray(row.bucket_counts_arr);
-        } else {
-          // DuckDB: merge in JS
-          const boundariesArr = parseGroupedArrays(row.boundaries_arr);
-          const bucketCountsArr = parseGroupedArrays(row.bucket_counts_arr);
-          const merged = mergeHistogramBuckets(boundariesArr, bucketCountsArr);
-          mergedBounds = merged.boundaries;
-          mergedCounts = merged.counts;
-        }
-
-        // Accumulate for global percentiles
-        if (mergedBounds.length > 0) {
-          allBoundaries.push(mergedBounds);
-          allBucketCounts.push(mergedCounts);
-        }
-
-        const p50 = computePercentileFromHistogramBuckets(
-          mergedBounds,
-          mergedCounts,
-          0.5,
-        );
-        const p95 = computePercentileFromHistogramBuckets(
-          mergedBounds,
-          mergedCounts,
-          0.95,
-        );
-
-        return {
-          timestamp: toISOBucket(row.bucket),
-          calls,
-          errors,
-          errorRate,
-          avg,
-          p50,
-          p95,
-        };
-      });
-
-      // Global percentiles from merged histogram data
-      const { boundaries: globalBounds, counts: globalCounts } =
-        mergeHistogramBuckets(allBoundaries, allBucketCounts);
-
-      return {
-        totalCalls,
-        totalErrors,
-        avgDurationMs: totalHistCount > 0 ? totalHistSum / totalHistCount : 0,
-        p50DurationMs: computePercentileFromHistogramBuckets(
-          globalBounds,
-          globalCounts,
-          0.5,
-        ),
-        p95DurationMs: computePercentileFromHistogramBuckets(
-          globalBounds,
-          globalCounts,
-          0.95,
-        ),
-        connectionBreakdown: connectionBreakdownRows.map((row) => {
-          const calls = Number(row.calls ?? 0);
-          const errors = Number(row.errors ?? 0);
-          const totalHistSum = Number(row.total_hist_sum ?? 0);
-          const totalHistCount = Number(row.total_hist_count ?? 0);
-
-          return {
-            connectionId: String(row.connection_id ?? ""),
-            calls,
-            errors,
-            errorRate: calls > 0 ? (errors / calls) * 100 : 0,
-            avgDurationMs:
-              totalHistCount > 0 ? totalHistSum / totalHistCount : 0,
-          };
-        }),
-        timeseries,
-      };
-    } catch (err) {
-      console.error("queryMetricTimeseries failed:", err);
-      return emptyResult;
     }
+
+    return emptyResult;
   }
 
   async queryMetricTopToolsTimeseries(params: {
@@ -955,52 +1018,67 @@ LIMIT 1000`;
       timeseries: [],
     };
 
-    try {
-      if (!params.organizationId) {
-        throw new Error("organizationId is required");
-      }
+    if (!params.organizationId) {
+      return emptyResult;
+    }
 
-      const metricSource = this.metricSourceFactory(params.organizationId);
-      const bucketExpr = intervalToSQL(params.interval, this.dialect);
-      const where: string[] = [
-        `organization_id = '${esc(params.organizationId)}'`,
-      ];
+    const metricSource = this.metricSourceFactory(params.organizationId);
+    const isRollup =
+      this.dialect === "clickhouse" &&
+      metricSource === "monitoring_metrics_rollup_1m";
 
-      applyStartDateBound(where, params.startDate, this.dialect);
-      if (params.endDate) {
-        where.push(tsLte(params.endDate, this.dialect));
-      }
-      if (params.filters?.toolNames?.length) {
-        const names = params.filters.toolNames
-          .slice(0, 100)
-          .map((n) => `'${esc(n)}'`)
-          .join(",");
-        where.push(`tool_name IN (${names})`);
-      }
-      if (params.filters?.connectionIds?.length) {
-        const ids = params.filters.connectionIds
-          .slice(0, 100)
-          .map((id) => `'${esc(id)}'`)
-          .join(",");
-        where.push(`connection_id IN (${ids})`);
-      }
-      if (params.filters?.excludeConnectionIds?.length) {
-        const ids = params.filters.excludeConnectionIds
-          .slice(0, 100)
-          .map((id) => `'${esc(id)}'`)
-          .join(",");
-        where.push(`connection_id NOT IN (${ids})`);
-      }
-      // NOTE: status is intentionally NOT added to the WHERE clause here.
-      // The errors aggregation uses SUM FILTER (WHERE ...)/sumIf(... AND status = 'error'),
-      // which would always return 0 if WHERE already filters to status = 'success'.
+    // Try rollup table first; if it fails (e.g. table doesn't exist),
+    // fall back to the raw monitoring_metrics table.
+    const sources = isRollup
+      ? [metricSource, "monitoring_metrics"]
+      : [metricSource];
 
-      const whereClause = where.join(" AND ");
-      const topN = Math.min(Math.max(1, Math.floor(params.topN ?? 10)), 20);
+    for (const source of sources) {
+      try {
+        const usingRollup =
+          this.dialect === "clickhouse" &&
+          source === "monitoring_metrics_rollup_1m";
+        const tsCol = usingRollup ? "bucket" : "timestamp";
+        const bucketExpr = intervalToSQL(params.interval, this.dialect, tsCol);
+        const where: string[] = [
+          `organization_id = '${esc(params.organizationId)}'`,
+        ];
 
-      let topToolsSql: string;
-      if (this.dialect === "duckdb") {
-        topToolsSql = `SELECT
+        applyStartDateBound(where, params.startDate, this.dialect, tsCol);
+        if (params.endDate) {
+          where.push(tsLte(params.endDate, this.dialect, tsCol));
+        }
+        if (params.filters?.toolNames?.length) {
+          const names = params.filters.toolNames
+            .slice(0, 100)
+            .map((n) => `'${esc(n)}'`)
+            .join(",");
+          where.push(`tool_name IN (${names})`);
+        }
+        if (params.filters?.connectionIds?.length) {
+          const ids = params.filters.connectionIds
+            .slice(0, 100)
+            .map((id) => `'${esc(id)}'`)
+            .join(",");
+          where.push(`connection_id IN (${ids})`);
+        }
+        if (params.filters?.excludeConnectionIds?.length) {
+          const ids = params.filters.excludeConnectionIds
+            .slice(0, 100)
+            .map((id) => `'${esc(id)}'`)
+            .join(",");
+          where.push(`connection_id NOT IN (${ids})`);
+        }
+        // NOTE: status is intentionally NOT added to the WHERE clause here.
+        // The errors aggregation uses SUM FILTER (WHERE ...)/sumIf(... AND status = 'error'),
+        // which would always return 0 if WHERE already filters to status = 'success'.
+
+        const whereClause = where.join(" AND ");
+        const topN = Math.min(Math.max(1, Math.floor(params.topN ?? 10)), 20);
+
+        let topToolsSql: string;
+        if (this.dialect === "duckdb") {
+          topToolsSql = `SELECT
   tool_name,
   argMax(connection_id, connection_calls) AS connection_id,
   sum(connection_calls) AS calls
@@ -1009,15 +1087,15 @@ FROM (
     tool_name,
     connection_id,
     SUM(value) FILTER (WHERE name = 'tool.execution.count') AS connection_calls
-  FROM ${metricSource}
+  FROM ${source}
   WHERE ${whereClause} AND tool_name != ''
   GROUP BY tool_name, connection_id
 )
 GROUP BY tool_name
 ORDER BY calls DESC
 LIMIT ${topN}`;
-      } else {
-        topToolsSql = `SELECT
+        } else {
+          topToolsSql = `SELECT
   tool_name,
   argMax(connection_id, connection_calls) AS connection_id,
   sum(connection_calls) AS calls
@@ -1026,31 +1104,31 @@ FROM (
     tool_name,
     connection_id,
     sumIf(value, name = 'tool.execution.count') AS connection_calls
-  FROM ${metricSource}
+  FROM ${source}
   WHERE ${whereClause} AND tool_name != ''
   GROUP BY tool_name, connection_id
 )
 GROUP BY tool_name
 ORDER BY calls DESC
 LIMIT ${topN}`;
-      }
+        }
 
-      const topToolRows = await this.metricEngine.query(topToolsSql);
+        const topToolRows = await this.metricEngine.query(topToolsSql);
 
-      if (topToolRows.length === 0) {
-        return emptyResult;
-      }
+        if (topToolRows.length === 0) {
+          return emptyResult;
+        }
 
-      const topToolNames = topToolRows
-        .map((row) => String(row.tool_name ?? ""))
-        .filter(Boolean);
-      const toolNamesSql = topToolNames
-        .map((name) => `'${esc(name)}'`)
-        .join(",");
+        const topToolNames = topToolRows
+          .map((row) => String(row.tool_name ?? ""))
+          .filter(Boolean);
+        const toolNamesSql = topToolNames
+          .map((name) => `'${esc(name)}'`)
+          .join(",");
 
-      let timeseriesSql: string;
-      if (this.dialect === "duckdb") {
-        timeseriesSql = `SELECT
+        let timeseriesSql: string;
+        if (this.dialect === "duckdb") {
+          timeseriesSql = `SELECT
   ${bucketExpr} AS bucket,
   tool_name,
   SUM(value) FILTER (WHERE name = 'tool.execution.count') AS calls,
@@ -1059,12 +1137,26 @@ LIMIT ${topN}`;
   SUM(hist_count) FILTER (WHERE name = 'tool.execution.duration') AS total_hist_count,
   LIST(hist_boundaries) FILTER (WHERE name = 'tool.execution.duration') AS boundaries_arr,
   LIST(hist_bucket_counts) FILTER (WHERE name = 'tool.execution.duration') AS bucket_counts_arr
-FROM ${metricSource}
+FROM ${source}
 WHERE ${whereClause} AND tool_name IN (${toolNamesSql})
 GROUP BY bucket, tool_name
 ORDER BY bucket ASC, tool_name ASC`;
-      } else {
-        timeseriesSql = `SELECT
+        } else if (usingRollup) {
+          timeseriesSql = `SELECT
+  ${bucketExpr} AS bucket,
+  tool_name,
+  sumIf(value, name = 'tool.execution.count') AS calls,
+  sumIf(value, name = 'tool.execution.count' AND status = 'error') AS errors,
+  sumIf(hist_sum, name = 'tool.execution.duration') AS total_hist_sum,
+  sumIf(hist_count, name = 'tool.execution.duration') AS total_hist_count,
+  anyIf(hist_boundaries, name = 'tool.execution.duration') AS boundaries_arr,
+  sumForEachMergeIf(hist_bucket_counts, name = 'tool.execution.duration') AS bucket_counts_arr
+FROM ${source}
+WHERE ${whereClause} AND tool_name IN (${toolNamesSql})
+GROUP BY bucket, tool_name
+ORDER BY bucket ASC, tool_name ASC`;
+        } else {
+          timeseriesSql = `SELECT
   ${bucketExpr} AS bucket,
   tool_name,
   sumIf(value, name = 'tool.execution.count') AS calls,
@@ -1073,61 +1165,71 @@ ORDER BY bucket ASC, tool_name ASC`;
   sumIf(hist_count, name = 'tool.execution.duration') AS total_hist_count,
   anyIf(JSONExtract(hist_boundaries, 'Array(Float64)'), name = 'tool.execution.duration') AS boundaries_arr,
   sumForEachIf(JSONExtract(hist_bucket_counts, 'Array(Float64)'), name = 'tool.execution.duration') AS bucket_counts_arr
-FROM ${metricSource}
+FROM ${source}
 WHERE ${whereClause} AND tool_name IN (${toolNamesSql})
 GROUP BY bucket, tool_name
 ORDER BY bucket ASC, tool_name ASC`;
-      }
+        }
 
-      const rows = await this.metricEngine.query(timeseriesSql);
+        const rows = await this.metricEngine.query(timeseriesSql);
 
-      return {
-        topTools: topToolRows.map((row) => ({
-          toolName: String(row.tool_name ?? ""),
-          connectionId:
-            row.connection_id != null ? String(row.connection_id) : null,
-          calls: Number(row.calls ?? 0),
-        })),
-        timeseries: rows.map((row) => {
-          const calls = Number(row.calls ?? 0);
-          const errors = Number(row.errors ?? 0);
-          const histSum = Number(row.total_hist_sum ?? 0);
-          const histCount = Number(row.total_hist_count ?? 0);
-          let boundaries: number[];
-          let counts: number[];
-
-          if (this.dialect === "clickhouse") {
-            boundaries = parseSingleArray(row.boundaries_arr);
-            counts = parseSingleArray(row.bucket_counts_arr);
-          } else {
-            const boundariesArr = parseGroupedArrays(row.boundaries_arr);
-            const bucketCountsArr = parseGroupedArrays(row.bucket_counts_arr);
-            const merged = mergeHistogramBuckets(
-              boundariesArr,
-              bucketCountsArr,
-            );
-            boundaries = merged.boundaries;
-            counts = merged.counts;
-          }
-
-          return {
-            timestamp: toISOBucket(row.bucket),
+        return {
+          topTools: topToolRows.map((row) => ({
             toolName: String(row.tool_name ?? ""),
-            calls,
-            errors,
-            avg: histCount > 0 ? histSum / histCount : 0,
-            p95: computePercentileFromHistogramBuckets(
-              boundaries,
-              counts,
-              0.95,
-            ),
-          };
-        }),
-      };
-    } catch (err) {
-      console.error("queryMetricTopToolsTimeseries failed:", err);
-      return emptyResult;
+            connectionId:
+              row.connection_id != null ? String(row.connection_id) : null,
+            calls: Number(row.calls ?? 0),
+          })),
+          timeseries: rows.map((row) => {
+            const calls = Number(row.calls ?? 0);
+            const errors = Number(row.errors ?? 0);
+            const histSum = Number(row.total_hist_sum ?? 0);
+            const histCount = Number(row.total_hist_count ?? 0);
+            let boundaries: number[];
+            let counts: number[];
+
+            if (this.dialect === "clickhouse") {
+              boundaries = parseSingleArray(row.boundaries_arr);
+              counts = parseSingleArray(row.bucket_counts_arr);
+            } else {
+              const boundariesArr = parseGroupedArrays(row.boundaries_arr);
+              const bucketCountsArr = parseGroupedArrays(row.bucket_counts_arr);
+              const merged = mergeHistogramBuckets(
+                boundariesArr,
+                bucketCountsArr,
+              );
+              boundaries = merged.boundaries;
+              counts = merged.counts;
+            }
+
+            return {
+              timestamp: toISOBucket(row.bucket),
+              toolName: String(row.tool_name ?? ""),
+              calls,
+              errors,
+              avg: histCount > 0 ? histSum / histCount : 0,
+              p95: computePercentileFromHistogramBuckets(
+                boundaries,
+                counts,
+                0.95,
+              ),
+            };
+          }),
+        };
+      } catch (err) {
+        if (source !== sources[sources.length - 1]) {
+          console.warn(
+            `queryMetricTopToolsTimeseries: rollup table query failed, falling back to raw table:`,
+            err,
+          );
+          continue;
+        }
+        console.error("queryMetricTopToolsTimeseries failed:", err);
+        return emptyResult;
+      }
     }
+
+    return emptyResult;
   }
 }
 
