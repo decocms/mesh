@@ -238,6 +238,29 @@ export class SchemaResolver {
   }
 
   /**
+   * Resolve a section with decofile fallback for saved blocks.
+   *
+   * When a section's __resolveType is a saved block name (e.g. "Footer"),
+   * it won't exist in definitions. This method looks it up in the decofile
+   * to find the actual component resolveType.
+   */
+  resolveSectionWithDecofile(
+    resolveType: string,
+    decofile: Record<string, Record<string, unknown>> | null,
+  ): FieldDescriptor | null {
+    const direct = this.resolveSection(resolveType);
+    if (direct) return direct;
+
+    if (!decofile) return null;
+
+    const savedBlock = decofile[resolveType];
+    if (!savedBlock?.__resolveType) return null;
+
+    const realResolveType = savedBlock.__resolveType as string;
+    return this.resolveSection(realResolveType);
+  }
+
+  /**
    * Look up a raw definition by key (escape hatch).
    */
   getDefinition(key: string): JSONSchemaNode | undefined {
@@ -463,4 +486,65 @@ export class SchemaResolver {
       variants,
     };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Section unwrapping helpers
+// ---------------------------------------------------------------------------
+
+const LAZY_SUFFIX = "Rendering/Lazy.tsx";
+const SINGLE_DEFERRED_SUFFIX = "Rendering/SingleDeferred.tsx";
+
+export interface UnwrappedSection {
+  resolveType: string;
+  isLazy: boolean;
+}
+
+/**
+ * Unwrap a section's data to find the real resolveType, handling:
+ * - Lazy/SingleDeferred wrappers (unwrap to inner `section.__resolveType`)
+ * - Saved blocks (look up in decofile to find the real component path)
+ */
+export function unwrapSection(
+  sectionData: { __resolveType: string; [k: string]: unknown },
+  decofile: Record<string, Record<string, unknown>> | null,
+): UnwrappedSection {
+  const rt = sectionData.__resolveType;
+
+  const isLazy =
+    rt.endsWith(LAZY_SUFFIX) || rt.endsWith(SINGLE_DEFERRED_SUFFIX);
+
+  if (isLazy) {
+    const inner = sectionData.section as
+      | { __resolveType: string; [k: string]: unknown }
+      | undefined;
+
+    if (!inner?.__resolveType) {
+      return { resolveType: rt, isLazy: true };
+    }
+
+    const innerResolved = resolveBlockName(inner.__resolveType, decofile);
+    return { resolveType: innerResolved, isLazy: true };
+  }
+
+  return { resolveType: resolveBlockName(rt, decofile), isLazy: false };
+}
+
+/**
+ * If a resolveType looks like a saved block name (no "/" in it),
+ * look it up in the decofile to get the actual component path.
+ */
+function resolveBlockName(
+  resolveType: string,
+  decofile: Record<string, Record<string, unknown>> | null,
+): string {
+  if (resolveType.includes("/")) return resolveType;
+  if (!decofile) return resolveType;
+
+  const block = decofile[resolveType];
+  if (block?.__resolveType && typeof block.__resolveType === "string") {
+    return block.__resolveType as string;
+  }
+
+  return resolveType;
 }

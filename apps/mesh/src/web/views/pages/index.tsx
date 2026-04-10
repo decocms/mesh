@@ -14,6 +14,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import {
   SchemaResolver,
+  unwrapSection,
   type FieldDescriptor,
   type SiteMeta,
 } from "@/web/lib/schema-resolver";
@@ -26,9 +27,11 @@ import {
   RefreshCw01,
   SearchLg,
 } from "@untitledui/icons";
+import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
+import { Label } from "@deco/ui/components/label.tsx";
+import { Switch } from "@deco/ui/components/switch.tsx";
 import { useRef, useState } from "react";
 
 // ---------------------------------------------------------------------------
@@ -433,7 +436,8 @@ export function PageSectionsPanel({
             {sections.map((section, idx) => (
               <SectionSchemaCard
                 key={`${section.__resolveType}-${idx}`}
-                resolveType={section.__resolveType}
+                sectionData={section}
+                decofile={decofile}
                 resolver={resolver}
                 index={idx}
               />
@@ -559,16 +563,20 @@ function PagePreviewView({
 // ---------------------------------------------------------------------------
 
 function SectionSchemaCard({
-  resolveType,
+  sectionData,
+  decofile,
   resolver,
   index,
 }: {
-  resolveType: string;
+  sectionData: { __resolveType: string; [k: string]: unknown };
+  decofile: Decofile | null;
   resolver: SchemaResolver;
   index: number;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const descriptor = resolver.resolveSection(resolveType);
+
+  const { resolveType, isLazy } = unwrapSection(sectionData, decofile);
+  const descriptor = resolver.resolveSectionWithDecofile(resolveType, decofile);
 
   const sectionName =
     resolveType
@@ -592,15 +600,17 @@ function SectionSchemaCard({
           #{index + 1}
         </span>
         <span className="text-sm font-medium truncate">{sectionName}</span>
-        <span className="text-xs text-muted-foreground truncate ml-auto">
-          {resolveType}
-        </span>
+        {isLazy && (
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+            Async
+          </Badge>
+        )}
       </button>
 
       {expanded && (
         <div className="mt-3 ml-8 border-l border-border/50 pl-4">
           {descriptor ? (
-            <FieldDescriptorTree descriptor={descriptor} depth={0} />
+            <ReadonlyFieldRenderer descriptor={descriptor} depth={0} />
           ) : (
             <p className="text-xs text-muted-foreground italic">
               Schema not found for this section.
@@ -613,20 +623,131 @@ function SectionSchemaCard({
 }
 
 // ---------------------------------------------------------------------------
-// Field Descriptor Tree (read-only display)
+// Readonly Field Renderer — renders actual form inputs from FieldDescriptors
 // ---------------------------------------------------------------------------
 
-const TYPE_COLORS: Record<string, string> = {
-  string: "text-green-600 dark:text-green-400",
-  number: "text-blue-600 dark:text-blue-400",
-  boolean: "text-amber-600 dark:text-amber-400",
-  object: "text-purple-600 dark:text-purple-400",
-  array: "text-cyan-600 dark:text-cyan-400",
-  union: "text-pink-600 dark:text-pink-400",
-  unknown: "text-muted-foreground",
-};
+function humanizeKey(key: string): string {
+  return key
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[_-]/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
-function FieldDescriptorTree({
+function FieldLabel({ descriptor }: { descriptor: FieldDescriptor }) {
+  const label = descriptor.title || humanizeKey(descriptor.key);
+  return (
+    <div className="flex items-center gap-1.5 mb-1">
+      <Label className="text-xs font-medium">{label}</Label>
+      {!descriptor.required && (
+        <span className="text-[10px] text-muted-foreground">(optional)</span>
+      )}
+    </div>
+  );
+}
+
+function FieldDescription({ text }: { text?: string }) {
+  if (!text) return null;
+  return <p className="text-[11px] text-muted-foreground mt-0.5">{text}</p>;
+}
+
+function ReadonlyFieldRenderer({
+  descriptor,
+  depth,
+}: {
+  descriptor: FieldDescriptor;
+  depth: number;
+}) {
+  switch (descriptor.type) {
+    case "string":
+      return <StringField descriptor={descriptor} />;
+    case "number":
+      return <NumberField descriptor={descriptor} />;
+    case "boolean":
+      return <BooleanField descriptor={descriptor} />;
+    case "object":
+      return <ObjectField descriptor={descriptor} depth={depth} />;
+    case "array":
+      return <ArrayField descriptor={descriptor} depth={depth} />;
+    case "union":
+      return <UnionField descriptor={descriptor} depth={depth} />;
+    default:
+      return (
+        <div className="py-1.5">
+          <FieldLabel descriptor={descriptor} />
+          <Input readOnly className="h-8 text-xs bg-muted/30" placeholder="—" />
+        </div>
+      );
+  }
+}
+
+function StringField({ descriptor }: { descriptor: FieldDescriptor }) {
+  if (descriptor.enumValues && descriptor.enumValues.length > 0) {
+    return (
+      <div className="py-1.5">
+        <FieldLabel descriptor={descriptor} />
+        <div className="flex flex-wrap gap-1">
+          {descriptor.enumValues.map((val) => (
+            <Badge key={val} variant="outline" className="text-[10px]">
+              {val}
+            </Badge>
+          ))}
+        </div>
+        <FieldDescription text={descriptor.description} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="py-1.5">
+      <FieldLabel descriptor={descriptor} />
+      <Input
+        readOnly
+        className="h-8 text-xs bg-muted/30"
+        placeholder={descriptor.format ? `(${descriptor.format})` : "—"}
+      />
+      {descriptor.format && (
+        <span className="text-[10px] text-muted-foreground mt-0.5 block">
+          Format: {descriptor.format}
+        </span>
+      )}
+      <FieldDescription text={descriptor.description} />
+    </div>
+  );
+}
+
+function NumberField({ descriptor }: { descriptor: FieldDescriptor }) {
+  return (
+    <div className="py-1.5">
+      <FieldLabel descriptor={descriptor} />
+      <Input
+        readOnly
+        type="number"
+        className="h-8 text-xs bg-muted/30"
+        placeholder="—"
+      />
+      <FieldDescription text={descriptor.description} />
+    </div>
+  );
+}
+
+function BooleanField({ descriptor }: { descriptor: FieldDescriptor }) {
+  const label = descriptor.title || humanizeKey(descriptor.key);
+  return (
+    <div className="py-1.5 flex items-center justify-between gap-2">
+      <div className="flex-1 min-w-0">
+        <Label className="text-xs font-medium">{label}</Label>
+        {descriptor.description && (
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            {descriptor.description}
+          </p>
+        )}
+      </div>
+      <Switch disabled checked={false} className="shrink-0" />
+    </div>
+  );
+}
+
+function ObjectField({
   descriptor,
   depth,
 }: {
@@ -634,91 +755,152 @@ function FieldDescriptorTree({
   depth: number;
 }) {
   const [expanded, setExpanded] = useState(depth < 1);
-  const hasChildren =
-    (descriptor.properties && descriptor.properties.length > 0) ||
-    descriptor.itemDescriptor ||
-    (descriptor.variants && descriptor.variants.length > 0);
+  const props = descriptor.properties ?? [];
 
-  const typeLabel =
-    descriptor.type === "array" && descriptor.itemDescriptor
-      ? `${descriptor.itemDescriptor.type}[]`
-      : descriptor.type;
+  if (props.length === 0) {
+    return (
+      <div className="py-1.5">
+        <FieldLabel descriptor={descriptor} />
+        <p className="text-[11px] text-muted-foreground italic">Empty object</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="text-xs">
+    <div className="py-1.5">
       <button
         type="button"
-        onClick={() => hasChildren && setExpanded(!expanded)}
-        className={cn(
-          "flex items-center gap-1.5 py-0.5 w-full text-left",
-          hasChildren && "cursor-pointer hover:bg-accent/30 rounded -mx-1 px-1",
-          !hasChildren && "cursor-default",
-        )}
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-1.5 text-left"
       >
-        {hasChildren ? (
-          expanded ? (
-            <ChevronDown size={12} className="text-muted-foreground shrink-0" />
-          ) : (
-            <ChevronRight
-              size={12}
-              className="text-muted-foreground shrink-0"
-            />
-          )
+        {expanded ? (
+          <ChevronDown size={12} className="text-muted-foreground shrink-0" />
         ) : (
-          <span className="w-3 shrink-0" />
+          <ChevronRight size={12} className="text-muted-foreground shrink-0" />
         )}
-        <span className="font-mono font-medium">{descriptor.key}</span>
-        <span className={cn("font-mono", TYPE_COLORS[descriptor.type])}>
-          {typeLabel}
+        <Label className="text-xs font-medium cursor-pointer">
+          {descriptor.title || humanizeKey(descriptor.key)}
+        </Label>
+        <span className="text-[10px] text-muted-foreground">
+          {props.length} {props.length === 1 ? "field" : "fields"}
         </span>
-        {descriptor.nullable && (
-          <span className="text-muted-foreground">| null</span>
-        )}
-        {descriptor.required && (
-          <span className="text-red-500 dark:text-red-400">*</span>
-        )}
-        {descriptor.format && (
-          <span className="text-muted-foreground bg-muted px-1 rounded">
-            {descriptor.format}
-          </span>
-        )}
-        {descriptor.enumValues && (
-          <span className="text-muted-foreground">
-            [{descriptor.enumValues.join(" | ")}]
-          </span>
-        )}
       </button>
-
-      {expanded && hasChildren && (
-        <div className="ml-4 border-l border-border/30 pl-2 mt-0.5">
-          {descriptor.properties?.map((prop) => (
-            <FieldDescriptorTree
+      {expanded && (
+        <div className="ml-3 mt-1 border-l border-border/40 pl-3 space-y-0.5">
+          {props.map((prop) => (
+            <ReadonlyFieldRenderer
               key={prop.key}
               descriptor={prop}
               depth={depth + 1}
             />
           ))}
-          {descriptor.itemDescriptor && (
-            <FieldDescriptorTree
-              descriptor={descriptor.itemDescriptor}
-              depth={depth + 1}
-            />
-          )}
-          {descriptor.variants?.map((variant) => (
-            <div key={variant.resolveType} className="mt-1">
-              <span className="text-muted-foreground font-mono text-[10px]">
-                variant: {variant.title}
-              </span>
-              <div className="ml-2">
-                <FieldDescriptorTree
-                  descriptor={variant.schema}
-                  depth={depth + 1}
-                />
-              </div>
-            </div>
-          ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function ArrayField({
+  descriptor,
+  depth,
+}: {
+  descriptor: FieldDescriptor;
+  depth: number;
+}) {
+  const [expanded, setExpanded] = useState(depth < 1);
+  const itemDescriptor = descriptor.itemDescriptor;
+
+  return (
+    <div className="py-1.5">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-1.5 text-left"
+      >
+        {expanded ? (
+          <ChevronDown size={12} className="text-muted-foreground shrink-0" />
+        ) : (
+          <ChevronRight size={12} className="text-muted-foreground shrink-0" />
+        )}
+        <Label className="text-xs font-medium cursor-pointer">
+          {descriptor.title || humanizeKey(descriptor.key)}
+        </Label>
+        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+          {itemDescriptor?.type ?? "item"}[]
+        </Badge>
+      </button>
+      {expanded && itemDescriptor && (
+        <div className="ml-3 mt-1 border-l border-border/40 pl-3">
+          <ReadonlyFieldRenderer
+            descriptor={itemDescriptor}
+            depth={depth + 1}
+          />
+        </div>
+      )}
+      <FieldDescription text={descriptor.description} />
+    </div>
+  );
+}
+
+function UnionField({
+  descriptor,
+  depth,
+}: {
+  descriptor: FieldDescriptor;
+  depth: number;
+}) {
+  const [expanded, setExpanded] = useState(depth < 1);
+  const variants = descriptor.variants ?? [];
+
+  return (
+    <div className="py-1.5">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-1.5 text-left"
+      >
+        {expanded ? (
+          <ChevronDown size={12} className="text-muted-foreground shrink-0" />
+        ) : (
+          <ChevronRight size={12} className="text-muted-foreground shrink-0" />
+        )}
+        <Label className="text-xs font-medium cursor-pointer">
+          {descriptor.title || humanizeKey(descriptor.key)}
+        </Label>
+        <span className="text-[10px] text-muted-foreground">
+          {variants.length} {variants.length === 1 ? "variant" : "variants"}
+        </span>
+      </button>
+      {expanded && variants.length > 0 && (
+        <div className="ml-3 mt-1 space-y-2">
+          {variants.map((variant) => {
+            const variantName =
+              variant.title ||
+              variant.resolveType
+                .split("/")
+                .pop()
+                ?.replace(/\.tsx?$/, "") ||
+              variant.resolveType;
+            return (
+              <div
+                key={variant.resolveType}
+                className="border border-border/40 rounded-md p-2"
+              >
+                <Badge variant="outline" className="text-[10px] mb-1.5">
+                  {variantName}
+                </Badge>
+                <div className="pl-1 space-y-0.5">
+                  <ReadonlyFieldRenderer
+                    descriptor={variant.schema}
+                    depth={depth + 1}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <FieldDescription text={descriptor.description} />
     </div>
   );
 }
