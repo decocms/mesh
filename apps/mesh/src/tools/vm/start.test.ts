@@ -11,9 +11,19 @@ const mockReposCreate = mock(
     Promise.resolve({ repoId: "repo_abc" }),
 );
 
+const mockRoute = mock((): Promise<void> => Promise.resolve());
+
 const mockVmsCreate = mock(
-  (_input: unknown): Promise<{ vmId: string }> =>
-    Promise.resolve({ vmId: "vm_xyz" }),
+  (
+    _input: unknown,
+  ): Promise<{
+    vmId: string;
+    vm: { terminal: { logs: { route: typeof mockRoute } } };
+  }> =>
+    Promise.resolve({
+      vmId: "vm_xyz",
+      vm: { terminal: { logs: { route: mockRoute } } },
+    }),
 );
 
 const mockVmStart = mock((): Promise<void> => Promise.resolve());
@@ -45,6 +55,11 @@ mock.module("@freestyle-sh/with-deno", () => ({
 }));
 mock.module("@freestyle-sh/with-bun", () => ({
   VmBun: class VmBun {},
+}));
+mock.module("@freestyle-sh/with-web-terminal", () => ({
+  VmWebTerminal: class VmWebTerminal {
+    constructor(_config: unknown) {}
+  },
 }));
 
 // Now import after mocking
@@ -167,8 +182,17 @@ describe("VM_START", () => {
   beforeEach(() => {
     mockReposCreate.mockReset();
     mockVmsCreate.mockReset();
+    mockVmStart.mockReset();
+    mockVmExec.mockReset();
+    mockRoute.mockReset();
     mockReposCreate.mockImplementation(async () => ({ repoId: "repo_abc" }));
-    mockVmsCreate.mockImplementation(async () => ({ vmId: "vm_xyz" }));
+    mockVmsCreate.mockImplementation(async () => ({
+      vmId: "vm_xyz",
+      vm: { terminal: { logs: { route: mockRoute } } },
+    }));
+    mockVmStart.mockImplementation(async () => {});
+    mockVmExec.mockImplementation(async () => {});
+    mockRoute.mockImplementation(async () => {});
   });
 
   it("returns cached entry with isNewVm: false when activeVms[userId] is already set (no freestyle call)", async () => {
@@ -185,6 +209,10 @@ describe("VM_START", () => {
     expect(result.isNewVm).toBe(false);
     expect(mockReposCreate).not.toHaveBeenCalled();
     expect(mockVmsCreate).not.toHaveBeenCalled();
+    // ensureLogViewer is gone — exec must not be called
+    expect(mockVmExec).not.toHaveBeenCalled();
+    // route() must not be called on resume — domain mapping is persistent
+    expect(mockRoute).not.toHaveBeenCalled();
   });
 
   it("creates a new VM with isNewVm: true and persists entry when no existing activeVms entry", async () => {
@@ -221,7 +249,7 @@ describe("VM_START", () => {
     });
   });
 
-  it("only includes infrastructure systemd services (web-terminal, iframe-proxy)", async () => {
+  it("only includes iframe-proxy in systemd services — web-terminal is managed by VmWebTerminal", async () => {
     const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
     const ctx = makeCtx({ virtualMcp });
 
@@ -229,38 +257,15 @@ describe("VM_START", () => {
 
     const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
       systemd: {
-        services: Array<{ name: string; exec: string[] }>;
+        services: Array<{ name: string }>;
       };
     };
 
     const serviceNames = createCall.systemd.services.map(
       (s: { name: string }) => s.name,
     );
-    expect(serviceNames).toEqual(["web-terminal", "iframe-proxy"]);
-
-    // Verify removed services are NOT present
-    expect(serviceNames).not.toContain("setup-runtime");
-    expect(serviceNames).not.toContain("install-deps");
-    expect(serviceNames).not.toContain("dev-server");
-    expect(serviceNames).not.toContain("install-ttyd");
-  });
-
-  it("web-terminal runs Node.js log viewer", async () => {
-    const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
-    const ctx = makeCtx({ virtualMcp });
-
-    await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
-
-    const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
-      systemd: {
-        services: Array<{ name: string; exec: string[] }>;
-      };
-    };
-
-    const webTerminal = createCall.systemd.services.find(
-      (s: { name: string }) => s.name === "web-terminal",
-    )!;
-    expect(webTerminal.exec[0]).toContain("/opt/log-viewer.js");
+    expect(serviceNames).toEqual(["iframe-proxy"]);
+    expect(serviceNames).not.toContain("web-terminal");
   });
 
   it("iframe-proxy has no after dependency on dev-server", async () => {
@@ -293,7 +298,85 @@ describe("VM_START", () => {
     expect(createCall.idleTimeoutSeconds).toBe(1800);
   });
 
-  it("passes `with` integrations for bun runtime instead of setup script", async () => {
+  it("passes VmWebTerminal as with.terminal and excludes terminal domain from domains array", async () => {
+    const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
+    const ctx = makeCtx({ virtualMcp });
+
+    await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
+
+    const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
+      with: Record<string, unknown>;
+      domains: Array<{ domain: string; vmPort: number }>;
+    };
+
+    // VmWebTerminal must be in the with object
+    expect(createCall.with).toBeDefined();
+    expect(createCall.with.terminal).toBeDefined();
+
+    // Terminal domain is NOT in the domains array — it's routed via route() instead
+    const domainNames = createCall.domains.map((d) => d.domain);
+    expect(domainNames).not.toContain("vmcp-1-term.deco.studio");
+  });
+
+  it("calls vm.terminal.logs.route with the terminal domain after creating a new VM", async () => {
+    const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
+    const ctx = makeCtx({ virtualMcp });
+
+    await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
+
+    expect(mockRoute).toHaveBeenCalledTimes(1);
+    expect(mockRoute).toHaveBeenCalledWith({
+      domain: "vmcp-1-term.deco.studio",
+    });
+  });
+
+  it("returns terminalUrl: null when route() fails — VM is not orphaned", async () => {
+    mockRoute.mockRejectedValueOnce(new Error("domain service unavailable"));
+    const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
+    const updateSpy = mock(async () => {});
+    const ctx = makeCtx({ virtualMcp, updateSpy });
+
+    const result = await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
+
+    // VM was created and entry was persisted
+    expect(mockVmsCreate).toHaveBeenCalledTimes(1);
+    expect(updateSpy).toHaveBeenCalledTimes(1);
+
+    // Terminal URL is null — terminal unavailable but VM exists
+    expect(result.terminalUrl).toBeNull();
+    expect(result.vmId).toBe("vm_xyz");
+    expect(result.isNewVm).toBe(true);
+  });
+
+  it("clears stale VM entry, creates new VM, and calls route() when vm.start() throws", async () => {
+    mockVmStart.mockRejectedValueOnce(new Error("VM not found"));
+    const metadata: VmMetadata = {
+      ...BASE_METADATA,
+      activeVms: { user_1: CACHED_ENTRY },
+    };
+    const virtualMcp = makeVirtualMcp("org_1", metadata);
+    const updateSpy = mock(async () => {});
+    const ctx = makeCtx({ virtualMcp, updateSpy });
+
+    const result = await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
+
+    // Fell through to creating a new VM
+    expect(mockReposCreate).toHaveBeenCalledTimes(1);
+    expect(mockVmsCreate).toHaveBeenCalledTimes(1);
+    expect(result.isNewVm).toBe(true);
+    expect(result.vmId).toBe("vm_xyz");
+
+    // route() was called on the newly created VM
+    expect(mockRoute).toHaveBeenCalledTimes(1);
+    expect(mockRoute).toHaveBeenCalledWith({
+      domain: "vmcp-1-term.deco.studio",
+    });
+
+    // updateSpy called twice: once to clear stale, once to persist new entry
+    expect(updateSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("passes `with` integrations for bun runtime — includes both runtime and terminal", async () => {
     const metadata: VmMetadata = {
       ...BASE_METADATA,
       runtime: {
@@ -312,9 +395,10 @@ describe("VM_START", () => {
       additionalFiles: Record<string, { content: string }>;
     };
 
-    // Runtime is provided via `with` integrations, not setup scripts
+    // Both the runtime integration and VmWebTerminal must be present
     expect(createCall.with).toBeDefined();
     expect(createCall.with.runtime).toBeDefined();
+    expect(createCall.with.terminal).toBeDefined();
     // No setup-runtime.sh file
     expect(createCall.additionalFiles["/opt/setup-runtime.sh"]).toBeUndefined();
   });

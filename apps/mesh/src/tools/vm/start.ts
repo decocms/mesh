@@ -16,71 +16,9 @@ import { defineTool } from "../../core/define-tool";
 import { freestyle } from "freestyle-sandboxes";
 import { VmDeno } from "@freestyle-sh/with-deno";
 import { VmBun } from "@freestyle-sh/with-bun";
+import { VmWebTerminal } from "@freestyle-sh/with-web-terminal";
 import { type VmEntry, patchActiveVms } from "./types";
 import { requireVmEntry, resolveRuntimeConfig } from "./helpers";
-
-/**
- * Deploy the Node.js log viewer on a resumed VM if it's missing.
- * Uses base64 encoding to avoid shell escaping issues.
- * Kills any existing process on port 7682 and starts the log viewer.
- */
-async function ensureLogViewer(
-  vm: ReturnType<typeof freestyle.vms.ref>,
-): Promise<void> {
-  const script = LOG_VIEWER_SCRIPT;
-  const b64 = Buffer.from(script).toString("base64");
-
-  await vm.exec({
-    command: `nohup bash -c 'echo "${b64}" | base64 -d > /opt/log-viewer.js && fuser -k 7682/tcp 2>/dev/null; touch /tmp/vm.log && /usr/local/bin/node /opt/log-viewer.js' > /tmp/ensure-log-viewer.log 2>&1 &`,
-  });
-}
-
-/** Log viewer Node.js script — used both for new VM creation and ensureLogViewer. */
-const LOG_VIEWER_SCRIPT = `const http = require("http");
-const fs = require("fs");
-const LOG = "/tmp/vm.log";
-// Ensure log file exists (avoids needing bash -c touch wrapper in systemd)
-try { fs.writeFileSync(LOG, "", { flag: "a" }); } catch {}
-const HTML = \`<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>VM Log</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#1e1e1e;color:#d4d4d4;font:13px/1.5 "Cascadia Code","Fira Code",Consolas,monospace;overflow:hidden}
-#log{white-space:pre-wrap;word-break:break-all;padding:8px 12px;height:100vh;overflow-y:auto}
-</style></head><body><pre id="log"></pre>
-<script>
-const el=document.getElementById("log");
-const es=new EventSource("/stream");
-es.onmessage=e=>{el.textContent+=e.data+"\\\\n";el.scrollTop=el.scrollHeight};
-es.onerror=()=>{setTimeout(()=>es.close(),1000);setTimeout(()=>location.reload(),3000)};
-</script></body></html>\`;
-http.createServer((req, res) => {
-  if (req.url === "/stream") {
-    res.writeHead(200, {"Content-Type":"text/event-stream","Cache-Control":"no-cache","Connection":"keep-alive","Access-Control-Allow-Origin":"*"});
-    try { const c = fs.readFileSync(LOG,"utf-8"); if(c) res.write("data: "+c.replace(/\\n/g,"\\ndata: ")+"\\n\\n"); } catch {}
-    let pos = 0;
-    try { pos = fs.statSync(LOG).size; } catch {}
-    const iv = setInterval(() => {
-      try {
-        const st = fs.statSync(LOG);
-        if (st.size < pos) pos = 0;
-        if (st.size > pos) {
-          const buf = Buffer.alloc(st.size - pos);
-          const fd = fs.openSync(LOG, "r");
-          fs.readSync(fd, buf, 0, buf.length, pos);
-          fs.closeSync(fd);
-          pos = st.size;
-          res.write("data: " + buf.toString("utf-8").replace(/\\n/g, "\\ndata: ") + "\\n\\n");
-        }
-      } catch {}
-    }, 500);
-    req.on("close", () => clearInterval(iv));
-    return;
-  }
-  if (req.url === "/token") { res.writeHead(200, {"Content-Type":"application/json","Access-Control-Allow-Origin":"*"}); res.end("{}"); return; }
-  res.writeHead(200, {"Content-Type":"text/html"}); res.end(HTML);
-}).listen(7682, "0.0.0.0");
-`;
 
 export const VM_START = defineTool({
   name: "VM_START",
@@ -116,8 +54,6 @@ export const VM_START = defineTool({
       try {
         const vm = freestyle.vms.ref({ vmId: existing.vmId });
         await vm.start();
-        // Ensure the log viewer is deployed (fixes VMs created before the log viewer was added)
-        await ensureLogViewer(vm);
         console.log(`[VM_START] Resumed existing VM: ${existing.vmId}`);
         return { ...existing, isNewVm: false };
       } catch {
@@ -160,13 +96,18 @@ export const VM_START = defineTool({
     // Build the `with` config for Freestyle VM integrations.
     // Uses official @freestyle-sh packages — runtimes are pre-installed and cached.
     // Only needed for deno/bun — Node.js is already in the base Freestyle VM at /usr/local/bin/node.
-    // Freestyle docs: /v2/vms/integrations/deno, /v2/vms/integrations/bun
-    const withIntegrations: Record<string, VmDeno | VmBun> | undefined =
+    // Freestyle docs: /v2/vms/integrations/deno, /v2/vms/integrations/bun, /v2/vms/integrations/web-terminal
+    const terminalIntegration = {
+      terminal: new VmWebTerminal([
+        { id: "logs", command: "tail -f /tmp/vm.log", readOnly: true },
+      ] as const),
+    };
+    const withIntegrations =
       detected === "deno"
-        ? { runtime: new VmDeno() }
+        ? { ...terminalIntegration, runtime: new VmDeno() }
         : detected === "bun"
-          ? { runtime: new VmBun() }
-          : undefined;
+          ? { ...terminalIntegration, runtime: new VmBun() }
+          : terminalIntegration;
 
     // Reverse proxy that strips X-Frame-Options and CSP headers so the
     // dev server preview can be embedded in an iframe.
@@ -215,11 +156,8 @@ http.createServer((req, res) => {
 }).listen(${proxyPort}, "0.0.0.0");
 `;
 
-    const terminalPort = 7682;
-
     const additionalFiles: Record<string, { content: string }> = {
       "/opt/iframe-proxy.js": { content: proxyScript },
-      "/opt/log-viewer.js": { content: LOG_VIEWER_SCRIPT },
     };
 
     // Build systemd services list — infrastructure only.
@@ -239,11 +177,6 @@ http.createServer((req, res) => {
       env?: Record<string, string>;
     }> = [
       {
-        name: "web-terminal",
-        mode: "service",
-        exec: [`/usr/local/bin/node /opt/log-viewer.js`],
-      },
-      {
         name: "iframe-proxy",
         mode: "service",
         exec: [`/usr/local/bin/node /opt/iframe-proxy.js`],
@@ -256,15 +189,13 @@ http.createServer((req, res) => {
     // Create VM with repo and systemd services.
     // Domain routes to the iframe proxy which strips X-Frame-Options/CSP
     // so the preview can be embedded in an iframe.
+    // Terminal domain is routed post-creation via vm.terminal.logs.route() — a persistent mapping.
     // Freestyle docs: /v2/vms/configuration/domains
     const createResult = await freestyle.vms.create({
-      ...(withIntegrations && { with: withIntegrations }),
+      with: withIntegrations,
       gitRepos: [{ repo: repoId, path: "/app" }],
       workdir: "/app",
-      domains: [
-        { domain: previewDomain, vmPort: proxyPort },
-        { domain: terminalDomain, vmPort: terminalPort },
-      ],
+      domains: [{ domain: previewDomain, vmPort: proxyPort }],
       additionalFiles,
       systemd: { services },
       idleTimeoutSeconds: 1800,
@@ -277,7 +208,20 @@ http.createServer((req, res) => {
     const { vmId } = createResult;
 
     const previewUrl = `https://${previewDomain}`;
-    const terminalUrl = `https://${terminalDomain}`;
+
+    // Route the terminal domain to ttyd. This creates a persistent domain mapping
+    // (same infrastructure as domains:[]) — only needed once at VM creation.
+    // Survives VM resumes — ttyd comes back automatically via restart: always.
+    let terminalUrl: string | null = null;
+    try {
+      await createResult.vm.terminal.logs.route({ domain: terminalDomain });
+      terminalUrl = `https://${terminalDomain}`;
+    } catch (err) {
+      console.warn(
+        `[VM_START] route() failed for terminal domain — VM will have no terminal URL: ${err}`,
+      );
+    }
+
     const entry: VmEntry = { terminalUrl, previewUrl, vmId };
 
     // Persist the active VM entry in the Virtual MCP metadata so all pods
