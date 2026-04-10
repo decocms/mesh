@@ -2,8 +2,10 @@
  * VM_START Tool
  *
  * Creates a Freestyle VM with the connected GitHub repo
- * and systemd services for install + dev.
+ * and infrastructure-only systemd services (ttyd, terminal, iframe-proxy).
  * App-only tool — not visible to AI models.
+ *
+ * Install/dev lifecycle is handled by VM_EXEC so VM_START returns fast.
  *
  * Freestyle docs: /v2/vms, /v2/vms/configuration/systemd-services,
  * /v2/vms/configuration/ports-networking, /v2/vms/configuration/domains
@@ -11,13 +13,9 @@
 
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
-import {
-  requireAuth,
-  requireOrganization,
-  getUserId,
-} from "../../core/mesh-context";
 import { freestyle } from "freestyle-sandboxes";
-import { type VmEntry, type VmMetadata, patchActiveVms } from "./types";
+import { type VmEntry, patchActiveVms } from "./types";
+import { requireVmEntry, resolveRuntimeConfig } from "./helpers";
 
 export const VM_START = defineTool({
   name: "VM_START",
@@ -38,33 +36,11 @@ export const VM_START = defineTool({
     terminalUrl: z.string().nullable(),
     previewUrl: z.string(),
     vmId: z.string(),
+    isNewVm: z.boolean(),
   }),
 
   handler: async (input, ctx) => {
-    requireAuth(ctx);
-    const organization = requireOrganization(ctx);
-    await ctx.access.check();
-
-    const userId = getUserId(ctx);
-    if (!userId) {
-      throw new Error("User ID required");
-    }
-
-    // Fetch the virtual MCP first — needed for both the existing-VM check
-    // and the creation config below.
-    const virtualMcp = await ctx.storage.virtualMcps.findById(
-      input.virtualMcpId,
-    );
-    if (!virtualMcp) {
-      throw new Error("Virtual MCP not found");
-    }
-
-    // Org-scope guard: ensure this Virtual MCP belongs to the caller's org.
-    if (virtualMcp.organization_id !== organization.id) {
-      throw new Error("Virtual MCP not found");
-    }
-
-    const metadata = virtualMcp.metadata as VmMetadata;
+    const { metadata, userId } = await requireVmEntry(input, ctx);
 
     // Return existing VM if one is still reachable.
     // If the VM was force-deleted externally, the preview URL returns 503
@@ -75,11 +51,11 @@ export const VM_START = defineTool({
       try {
         const res = await fetch(existing.previewUrl, { method: "HEAD" });
         if (res.status !== 503) {
-          return existing;
+          return { ...existing, isNewVm: false };
         }
       } catch {
         // Network error — treat as reachable (could be transient)
-        return existing;
+        return { ...existing, isNewVm: false };
       }
       // 503 — VM is dead, clear stale entry and fall through to create a new one
       console.log(
@@ -102,10 +78,8 @@ export const VM_START = defineTool({
     }
 
     const { owner, name } = metadata.githubRepo;
-    const installScript = metadata.runtime?.installScript ?? "npm install";
-    const devScript = metadata.runtime?.devScript ?? "npm run dev";
-    const detected = metadata.runtime?.detected ?? "npm";
-    const port = metadata.runtime?.port ?? "3000";
+    const { detected, port, needsRuntimeInstall } =
+      resolveRuntimeConfig(metadata);
 
     // Create the Freestyle Git repo reference
     const { repoId } = await freestyle.git.repos.create({
@@ -119,12 +93,7 @@ export const VM_START = defineTool({
     const previewDomain = `${input.virtualMcpId.replace(/[^a-z0-9]/gi, "-")}.deco.studio`;
     const terminalDomain = `${input.virtualMcpId.replace(/[^a-z0-9]/gi, "-")}-term.deco.studio`;
 
-    // Determine if we need to install a runtime (deno/bun).
-    // Node/npm is available by default in Freestyle VMs.
-    // We install to /usr/local/ so the binary lands in /usr/local/bin/,
-    // which is in systemd's default PATH — no PATH hacks needed.
-    const needsRuntimeInstall = detected === "deno" || detected === "bun";
-
+    // Setup script for deno/bun runtimes — kept as additionalFile for VM_EXEC
     const setupScript =
       detected === "deno"
         ? '#!/bin/bash\nset -e\nexport DENO_INSTALL="/usr/local"\ncurl -fsSL https://deno.land/install.sh | sh\necho "Deno installed to /usr/local/bin"\n'
@@ -207,8 +176,11 @@ exit 1
       additionalFiles["/opt/setup-runtime.sh"] = { content: setupScript };
     }
 
-    // Build systemd services list
+    // Build systemd services list — infrastructure only.
+    // Install/dev lifecycle is handled by VM_EXEC.
     // Freestyle docs: /v2/vms/configuration/systemd-services
+    const terminalPort = 7682;
+
     const services: Array<{
       name: string;
       mode: "oneshot" | "service";
@@ -220,80 +192,33 @@ exit 1
       timeoutSec?: number;
       remainAfterExit?: boolean;
       env?: Record<string, string>;
-    }> = [];
-
-    if (needsRuntimeInstall) {
-      services.push({
-        name: "setup-runtime",
+    }> = [
+      {
+        name: "install-ttyd",
         mode: "oneshot",
-        exec: ["/bin/bash /opt/setup-runtime.sh"],
+        exec: ["/bin/bash /opt/install-ttyd.sh"],
         wantedBy: ["multi-user.target"],
-        timeoutSec: 120,
+        timeoutSec: 180,
         remainAfterExit: true,
-      });
-    }
-
-    services.push({
-      name: "install-deps",
-      mode: "oneshot",
-      exec: [installScript],
-      workdir: "/app",
-      after: [
-        "freestyle-git-sync.service",
-        ...(needsRuntimeInstall ? ["setup-runtime.service"] : []),
-      ],
-      requires: needsRuntimeInstall ? ["setup-runtime.service"] : undefined,
-      wantedBy: ["multi-user.target"],
-      timeoutSec: 300,
-      remainAfterExit: true,
-    });
-
-    services.push({
-      name: "dev-server",
-      mode: "service",
-      exec: [devScript],
-      workdir: "/app",
-      after: ["install-deps.service"],
-      requires: ["install-deps.service"],
-      env: {
-        HOST: "0.0.0.0",
-        HOSTNAME: "0.0.0.0",
-        PORT: port,
       },
-    });
-
-    // Reverse proxy strips iframe-blocking headers (X-Frame-Options, CSP)
-    services.push({
-      name: "iframe-proxy",
-      mode: "service",
-      exec: [`/usr/local/bin/node /opt/iframe-proxy.js`],
-      after: ["dev-server.service"],
-      env: {
-        UPSTREAM_PORT: port,
+      {
+        name: "web-terminal",
+        mode: "service",
+        exec: [
+          `bash -c 'touch /tmp/vm.log && exec /tmp/ttyd -p ${terminalPort} --readonly tail -f /tmp/vm.log'`,
+        ],
+        after: ["install-ttyd.service"],
+        requires: ["install-ttyd.service"],
       },
-    });
-
-    // Read-only web terminal streaming dev-server logs via journalctl.
-    const terminalPort = 7682;
-
-    services.push({
-      name: "install-ttyd",
-      mode: "oneshot",
-      exec: ["/bin/bash /opt/install-ttyd.sh"],
-      wantedBy: ["multi-user.target"],
-      timeoutSec: 180,
-      remainAfterExit: true,
-    });
-
-    services.push({
-      name: "web-terminal",
-      mode: "service",
-      exec: [
-        `/tmp/ttyd -p ${terminalPort} --readonly journalctl -u dev-server.service -f --no-pager -o cat`,
-      ],
-      after: ["install-ttyd.service", "dev-server.service"],
-      requires: ["install-ttyd.service"],
-    });
+      {
+        name: "iframe-proxy",
+        mode: "service",
+        exec: [`/usr/local/bin/node /opt/iframe-proxy.js`],
+        env: {
+          UPSTREAM_PORT: port,
+        },
+      },
+    ];
 
     // Create VM with repo and systemd services.
     // Domain routes to the iframe proxy which strips X-Frame-Options/CSP
@@ -308,6 +233,7 @@ exit 1
       ],
       additionalFiles,
       systemd: { services },
+      idleTimeoutSeconds: 1800,
     });
 
     console.log(
@@ -329,6 +255,6 @@ exit 1
       (vms) => ({ ...vms, [userId]: entry }),
     );
 
-    return entry;
+    return { ...entry, isNewVm: true };
   },
 });

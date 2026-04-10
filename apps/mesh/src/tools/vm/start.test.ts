@@ -153,7 +153,7 @@ describe("VM_START", () => {
     mockVmsCreate.mockImplementation(async () => ({ vmId: "vm_xyz" }));
   });
 
-  it("returns cached entry when activeVms[userId] is already set (no freestyle call)", async () => {
+  it("returns cached entry with isNewVm: false when activeVms[userId] is already set (no freestyle call)", async () => {
     const metadata: VmMetadata = {
       ...BASE_METADATA,
       activeVms: { user_1: CACHED_ENTRY },
@@ -163,12 +163,13 @@ describe("VM_START", () => {
 
     const result = await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
 
-    expect(result).toEqual(CACHED_ENTRY);
+    expect(result).toEqual({ ...CACHED_ENTRY, isNewVm: false });
+    expect(result.isNewVm).toBe(false);
     expect(mockReposCreate).not.toHaveBeenCalled();
     expect(mockVmsCreate).not.toHaveBeenCalled();
   });
 
-  it("creates a new VM and persists entry when no existing activeVms entry", async () => {
+  it("creates a new VM with isNewVm: true and persists entry when no existing activeVms entry", async () => {
     const metadata: VmMetadata = {
       ...BASE_METADATA,
       activeVms: { other_user: CACHED_ENTRY }, // existing entry for a different user
@@ -183,10 +184,11 @@ describe("VM_START", () => {
     expect(mockReposCreate).toHaveBeenCalledTimes(1);
     expect(mockVmsCreate).toHaveBeenCalledTimes(1);
 
-    // Result contains the newly created VM data
+    // Result contains the newly created VM data with isNewVm flag
     expect(result.vmId).toBe("vm_xyz");
     expect(result.previewUrl).toBe("https://vmcp-1.deco.studio");
-    expect(result.terminalUrl).toBeNull();
+    expect(result.terminalUrl).toBe("https://vmcp-1-term.deco.studio");
+    expect(result.isNewVm).toBe(true);
 
     // patchActiveVms called storage.update
     expect(updateSpy).toHaveBeenCalledTimes(1);
@@ -199,6 +201,104 @@ describe("VM_START", () => {
     expect(updatedMetadata.activeVms?.["user_1"]).toMatchObject({
       vmId: "vm_xyz",
     });
+  });
+
+  it("only includes infrastructure systemd services (install-ttyd, web-terminal, iframe-proxy)", async () => {
+    const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
+    const ctx = makeCtx({ virtualMcp });
+
+    await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
+
+    const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
+      systemd: {
+        services: Array<{ name: string; exec: string[] }>;
+      };
+    };
+
+    const serviceNames = createCall.systemd.services.map(
+      (s: { name: string }) => s.name,
+    );
+    expect(serviceNames).toEqual([
+      "install-ttyd",
+      "web-terminal",
+      "iframe-proxy",
+    ]);
+
+    // Verify removed services are NOT present
+    expect(serviceNames).not.toContain("setup-runtime");
+    expect(serviceNames).not.toContain("install-deps");
+    expect(serviceNames).not.toContain("dev-server");
+  });
+
+  it("web-terminal exec tails /tmp/vm.log", async () => {
+    const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
+    const ctx = makeCtx({ virtualMcp });
+
+    await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
+
+    const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
+      systemd: {
+        services: Array<{ name: string; exec: string[] }>;
+      };
+    };
+
+    const webTerminal = createCall.systemd.services.find(
+      (s: { name: string }) => s.name === "web-terminal",
+    )!;
+    expect(webTerminal.exec[0]).toContain("tail -f /tmp/vm.log");
+    expect(webTerminal.exec[0]).toContain("touch /tmp/vm.log");
+  });
+
+  it("iframe-proxy has no after dependency on dev-server", async () => {
+    const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
+    const ctx = makeCtx({ virtualMcp });
+
+    await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
+
+    const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
+      systemd: {
+        services: Array<{ name: string; after?: string[] }>;
+      };
+    };
+
+    const iframeProxy = createCall.systemd.services.find(
+      (s: { name: string }) => s.name === "iframe-proxy",
+    )!;
+    expect(iframeProxy.after).toBeUndefined();
+  });
+
+  it("passes idleTimeoutSeconds: 1800 to freestyle.vms.create", async () => {
+    const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
+    const ctx = makeCtx({ virtualMcp });
+
+    await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
+
+    const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
+      idleTimeoutSeconds: number;
+    };
+    expect(createCall.idleTimeoutSeconds).toBe(1800);
+  });
+
+  it("keeps /opt/setup-runtime.sh additionalFile for bun runtime", async () => {
+    const metadata: VmMetadata = {
+      ...BASE_METADATA,
+      runtime: {
+        ...BASE_METADATA.runtime,
+        detected: "bun",
+        selected: "bun",
+      },
+    };
+    const virtualMcp = makeVirtualMcp("org_1", metadata);
+    const ctx = makeCtx({ virtualMcp });
+
+    await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
+
+    const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
+      additionalFiles: Record<string, { content: string }>;
+    };
+    const setupFile = createCall.additionalFiles["/opt/setup-runtime.sh"];
+    expect(setupFile).toBeDefined();
+    expect(setupFile!.content).toContain("bun.sh/install");
   });
 
   it("throws 'Virtual MCP not found' when findById returns null", async () => {
