@@ -29,6 +29,11 @@ import {
 } from "@deco/ui/components/view-mode-toggle.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
+import {
   VISUAL_EDITOR_SCRIPT,
   VisualEditorPayloadSchema,
   type VisualEditorPayload,
@@ -468,13 +473,18 @@ export function VmPreviewContent() {
         >
           <LinkExternal01 size={14} />
         </Button>
-        <button
-          type="button"
-          onClick={handleStop}
-          className="flex items-center gap-1.5 px-2.5 h-7 rounded-md text-xs transition-colors shrink-0 bg-accent text-foreground"
-        >
-          <StopCircle size={14} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={handleStop}
+              className="flex items-center gap-1.5 px-2.5 h-7 rounded-md text-xs transition-colors shrink-0 bg-accent text-foreground"
+            >
+              <StopCircle size={14} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Stop VM</TooltipContent>
+        </Tooltip>
       </div>
 
       {/* Content area — stable tree, iframes always mounted once URLs exist */}
