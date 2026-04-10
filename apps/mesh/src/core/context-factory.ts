@@ -32,6 +32,7 @@ import { VirtualMcpPluginConfigsStorage } from "../storage/virtual-mcp-plugin-co
 import { createAutomationsStorage } from "../storage/automations";
 import { KyselyTriggerCallbackTokenStorage } from "../storage/trigger-callback-tokens";
 import { BrandContextStorage } from "../storage/brand-context";
+import { OrganizationDomainStorage } from "../storage/organization-domains";
 import { OrgSsoConfigStorage } from "../storage/org-sso-config";
 import { OrgSsoSessionStorage } from "../storage/org-sso-sessions";
 import {
@@ -152,6 +153,7 @@ interface AuthenticatedUser {
   id: string;
   connectionId?: string;
   email?: string;
+  emailVerified?: boolean;
   name?: string;
   role?: string;
 }
@@ -708,7 +710,7 @@ async function authenticateRequest(
     const session = (await timings.measure("auth_get_session", () =>
       auth.api.getSession({ headers: sessionHeaders }),
     )) as {
-      user: { id: string; email: string };
+      user: { id: string; email: string; emailVerified: boolean };
       session: { activeOrganizationId?: string };
     } | null;
 
@@ -762,7 +764,12 @@ async function authenticateRequest(
       }
 
       return {
-        user: { id: session.user.id, email: session.user.email, role },
+        user: {
+          id: session.user.id,
+          email: session.user.email,
+          emailVerified: !!session.user.emailVerified,
+          role,
+        },
         role,
         // No permissions - browser sessions use hasPermission API
         organization,
@@ -896,6 +903,7 @@ export async function createMeshContextFactory(
       monitorConnections: new MonitorConnectionStorage(config.db as any),
     },
     brandContext: new BrandContextStorage(config.db),
+    organizationDomains: new OrganizationDomainStorage(config.db),
     // Note: Organizations, teams, members, roles managed by Better Auth organization plugin
     // Note: Policies handled by Better Auth permissions directly
     // Note: API keys (tokens) managed by Better Auth API Key plugin

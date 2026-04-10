@@ -8,7 +8,16 @@
 import { Hono } from "hono";
 import { getConnInfo } from "hono/bun";
 import { getSettings } from "../../settings";
-import { authConfig, resetPasswordEnabled } from "../../auth";
+import {
+  auth,
+  authConfig,
+  GENERIC_EMAIL_DOMAINS,
+  resetPasswordEnabled,
+} from "../../auth";
+import { getDb } from "../../database";
+import { extractBrandFromDomain } from "../../auth/extract-brand";
+import { BrandContextStorage } from "../../storage/brand-context";
+import { OrganizationDomainStorage } from "../../storage/organization-domains";
 import { KNOWN_OAUTH_PROVIDERS, OAuthProvider } from "@/auth/oauth-providers";
 import {
   getLocalAdminUser,
@@ -192,6 +201,338 @@ app.post("/local-session", async (c) => {
             ? error.message
             : "Failed to create local session",
       },
+      500,
+    );
+  }
+});
+
+/**
+ * Domain Lookup Endpoint (authenticated, verified email required)
+ *
+ * For the onboarding flow: checks if the authenticated user's email domain
+ * has a claimed organization. Derives the domain from the session — no
+ * query params needed.
+ *
+ * Route: GET /api/auth/custom/domain-lookup
+ */
+app.get("/domain-lookup", async (c) => {
+  const session = (await auth.api.getSession({
+    headers: c.req.raw.headers,
+  })) as {
+    user?: { id: string; email: string; emailVerified: boolean };
+  } | null;
+  if (!session?.user) {
+    return c.json({ success: false, error: "Authentication required" }, 401);
+  }
+  if (!session.user.emailVerified) {
+    return c.json({ found: false });
+  }
+
+  const domain = session.user.email?.split("@")[1]?.toLowerCase();
+  if (!domain || GENERIC_EMAIL_DOMAINS.has(domain)) {
+    return c.json({ found: false });
+  }
+
+  try {
+    const domainStorage = new OrganizationDomainStorage(getDb().db);
+    const record = await domainStorage.getByDomain(domain);
+
+    if (!record) {
+      return c.json({ found: false });
+    }
+
+    const org = await getDb()
+      .db.selectFrom("organization")
+      .select(["name", "slug"])
+      .where("id", "=", record.organizationId)
+      .executeTakeFirst();
+
+    return c.json({
+      found: true,
+      autoJoinEnabled: record.autoJoinEnabled,
+      organization: org ? { name: org.name, slug: org.slug } : null,
+    });
+  } catch (error) {
+    console.error("[Auth] Domain lookup failed:", error);
+    return c.json({ success: false, error: "Domain lookup failed" }, 500);
+  }
+});
+
+/**
+ * Domain Auto-Join Endpoint (authenticated, verified email required)
+ *
+ * Adds the authenticated user to the organization that claimed their
+ * email domain, provided auto_join_enabled is true. Everything is
+ * derived from the session — no request body needed.
+ *
+ * Route: POST /api/auth/custom/domain-join
+ */
+app.post("/domain-join", async (c) => {
+  const session = (await auth.api.getSession({
+    headers: c.req.raw.headers,
+  })) as {
+    user?: { id: string; email: string; emailVerified: boolean };
+  } | null;
+  if (!session?.user) {
+    return c.json({ success: false, error: "Authentication required" }, 401);
+  }
+  if (!session.user.emailVerified) {
+    return c.json(
+      { success: false, error: "Email must be verified to join" },
+      403,
+    );
+  }
+
+  const emailDomain = session.user.email?.split("@")[1]?.toLowerCase();
+  if (!emailDomain || GENERIC_EMAIL_DOMAINS.has(emailDomain)) {
+    return c.json(
+      { success: false, error: "Generic email domains cannot auto-join" },
+      403,
+    );
+  }
+
+  try {
+    const domainStorage = new OrganizationDomainStorage(getDb().db);
+    const domainRecord = await domainStorage.getByDomain(emailDomain);
+    if (!domainRecord || !domainRecord.autoJoinEnabled) {
+      return c.json(
+        {
+          success: false,
+          error: "Auto-join is not available for this domain",
+        },
+        403,
+      );
+    }
+
+    const org = await getDb()
+      .db.selectFrom("organization")
+      .select(["id", "slug"])
+      .where("id", "=", domainRecord.organizationId)
+      .executeTakeFirst();
+    if (!org) {
+      return c.json({ success: false, error: "Organization not found" }, 404);
+    }
+
+    // Add the user as a member — if they're already a member
+    // (e.g. the signup hook already auto-joined them), treat as success.
+    try {
+      await auth.api.addMember({
+        body: {
+          userId: session.user.id,
+          role: "user",
+          organizationId: org.id,
+        },
+      } as any);
+    } catch (addError) {
+      const msg =
+        addError instanceof Error ? addError.message.toLowerCase() : "";
+      if (!msg.includes("already a member")) {
+        console.error("[Auth] Domain join addMember failed:", addError);
+        return c.json(
+          { success: false, error: "Failed to join organization" },
+          500,
+        );
+      }
+    }
+
+    return c.json({ success: true, slug: org.slug });
+  } catch (error) {
+    console.error("[Auth] Domain join failed:", error);
+    return c.json(
+      { success: false, error: "Failed to join organization" },
+      500,
+    );
+  }
+});
+
+/**
+ * Domain Setup Endpoint (authenticated, verified email required)
+ *
+ * For first-time corporate email users: creates an org named after their
+ * email domain, claims the domain with auto-join enabled, and triggers
+ * brand extraction via Firecrawl (best-effort — org is created even if
+ * extraction fails).
+ *
+ * Route: POST /api/auth/custom/domain-setup
+ */
+app.post("/domain-setup", async (c) => {
+  const session = (await auth.api.getSession({
+    headers: c.req.raw.headers,
+  })) as {
+    user?: { id: string; email: string; emailVerified: boolean };
+  } | null;
+  if (!session?.user) {
+    return c.json({ success: false, error: "Authentication required" }, 401);
+  }
+  if (!session.user.emailVerified) {
+    return c.json({ success: false, error: "Email must be verified" }, 403);
+  }
+
+  const emailDomain = session.user.email?.split("@")[1]?.toLowerCase();
+  if (!emailDomain || GENERIC_EMAIL_DOMAINS.has(emailDomain)) {
+    return c.json({ success: false, error: "Corporate email required" }, 403);
+  }
+
+  try {
+    const db = getDb().db;
+    const domainStorage = new OrganizationDomainStorage(db);
+
+    // Check if domain is already claimed
+    const existing = await domainStorage.getByDomain(emailDomain);
+    if (existing) {
+      // Verify the user is actually a member of this org
+      const membership = await db
+        .selectFrom("member")
+        .innerJoin("organization", "organization.id", "member.organizationId")
+        .select(["organization.slug"])
+        .where("member.userId", "=", session.user.id)
+        .where("member.organizationId", "=", existing.organizationId)
+        .executeTakeFirst();
+
+      if (membership) {
+        return c.json({
+          success: true,
+          slug: membership.slug,
+          alreadyExists: true,
+        });
+      }
+
+      // Domain claimed but user isn't a member — they can't use this flow
+      return c.json(
+        {
+          success: false,
+          error:
+            "This domain is already claimed. Ask an admin for an invitation.",
+        },
+        403,
+      );
+    }
+
+    // Derive org name/slug from domain (e.g. "acme.com" → "Acme" / "acme")
+    const domainName = emailDomain.split(".")[0] ?? emailDomain;
+    const baseOrgName =
+      domainName.charAt(0).toUpperCase() + domainName.slice(1);
+    const baseSlug = domainName.toLowerCase().replace(/[^a-z0-9-]/g, "");
+
+    // Create the org. Retry with random suffix on slug collision.
+    let orgResult: { id: string; slug: string } | null = null;
+    {
+      const maxAttempts = 3;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const suffix =
+          attempt === 0 ? "" : `-${Math.random().toString(36).slice(2, 6)}`;
+        const orgName = attempt === 0 ? baseOrgName : `${baseOrgName}${suffix}`;
+        const orgSlug = `${baseSlug}${suffix}`;
+
+        try {
+          orgResult = (await auth.api.createOrganization({
+            body: {
+              name: orgName,
+              slug: orgSlug,
+              userId: session.user.id,
+            },
+          } as any)) as unknown as { id: string; slug: string } | null;
+          break;
+        } catch (createError) {
+          const isConflict =
+            createError instanceof Error &&
+            "body" in createError &&
+            (createError as { body?: { code?: string } }).body?.code ===
+              "ORGANIZATION_ALREADY_EXISTS";
+          if (!isConflict || attempt === maxAttempts - 1) {
+            throw createError;
+          }
+        }
+      }
+    }
+
+    if (!orgResult?.id) {
+      throw new Error("Failed to create organization");
+    }
+    const orgId = orgResult.id;
+
+    // Claim the domain. Only clean up the org on a domain race (specific
+    // "already claimed" error from the storage layer). Transient DB errors
+    // should not delete the org — it can be reclaimed later.
+    try {
+      await domainStorage.setDomain(orgId, emailDomain, true);
+    } catch (claimError) {
+      const isDomainRace =
+        claimError instanceof Error &&
+        claimError.message.includes("already claimed");
+      if (isDomainRace) {
+        try {
+          await auth.api.deleteOrganization({
+            headers: c.req.raw.headers,
+            body: { organizationId: orgId },
+          });
+        } catch {
+          console.error(
+            "[Auth] Failed to clean up orphaned org after domain race:",
+            orgId,
+          );
+        }
+        return c.json(
+          {
+            success: false,
+            error:
+              "This domain was just claimed by another user. Please refresh and try again.",
+          },
+          409,
+        );
+      }
+      // Transient error — org exists but domain claim failed. Don't delete.
+      throw claimError;
+    }
+
+    // Brand extraction (best-effort — don't fail the setup if this errors)
+    let brandExtracted = false;
+    try {
+      const firecrawlApiKey = getSettings().firecrawlApiKey;
+
+      if (firecrawlApiKey) {
+        const extracted = await extractBrandFromDomain(
+          emailDomain,
+          firecrawlApiKey,
+          baseOrgName,
+        );
+
+        if (extracted) {
+          const brandStorage = new BrandContextStorage(getDb().db);
+          const brand = await brandStorage.create(orgId, extracted);
+          await brandStorage.setDefault(brand.id, orgId);
+          brandExtracted = true;
+
+          // Update org: name from brand, favicon as org logo
+          // (favicons are small/reliable; full logos often hit size limits)
+          const orgLogo = extracted.favicon ?? extracted.logo ?? null;
+          const orgUpdate: Record<string, unknown> = {};
+          if (extracted.name !== baseOrgName) orgUpdate.name = extracted.name;
+          if (orgLogo) orgUpdate.logo = orgLogo;
+          if (Object.keys(orgUpdate).length > 0) {
+            await auth.api.updateOrganization({
+              headers: c.req.raw.headers,
+              body: {
+                organizationId: orgId,
+                data: orgUpdate,
+              },
+            });
+          }
+        }
+      }
+    } catch (brandError) {
+      console.error("[Auth] Brand extraction failed (non-fatal):", brandError);
+    }
+
+    return c.json({
+      success: true,
+      slug: orgResult.slug ?? baseSlug,
+      brandExtracted,
+    });
+  } catch (error) {
+    console.error("[Auth] Domain setup failed:", error);
+    return c.json(
+      { success: false, error: "Failed to set up organization" },
       500,
     );
   }

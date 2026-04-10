@@ -144,7 +144,17 @@ const homeRoute = createRoute({
         params: { org: firstOrg.slug },
       });
     }
+
+    // No orgs at all — send to onboarding
+    throw redirect({ to: "/onboarding" });
   },
+});
+
+// Onboarding route (for users with no orgs)
+const onboardingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/onboarding",
+  component: lazyRouteComponent(() => import("./routes/onboarding.tsx")),
 });
 
 // ============================================
@@ -562,6 +572,7 @@ const shellRouteTree = shellLayout.addChildren([
 
 const routeTree = rootRoute.addChildren([
   shellRouteTree,
+  onboardingRoute,
   loginRoute,
   resetPasswordRoute,
   betterAuthRoutes,

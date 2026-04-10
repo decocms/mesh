@@ -204,18 +204,11 @@ function ChatPanelContent({ variant }: { variant?: "home" | "default" }) {
   const [activePanel, setActivePanel] = useState<"chat" | "context">("chat");
 
   if (allKeys.length === 0) {
-    const title = "No model provider connected";
-    const description =
-      "Connect to a model provider to unlock AI-powered features.";
-
     return (
       <Chat className="animate-in fade-in-0 duration-200">
         <Chat.Main className="flex flex-col items-center">
           <Chat.EmptyState>
-            <Chat.NoAiProviderEmptyState
-              title={title}
-              description={description}
-            />
+            <Chat.NoAiProviderEmptyState />
           </Chat.EmptyState>
         </Chat.Main>
       </Chat>

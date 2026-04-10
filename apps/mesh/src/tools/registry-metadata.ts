@@ -51,6 +51,10 @@ const ALL_TOOL_NAMES = [
   "BRAND_CONTEXT_UPDATE",
   "BRAND_CONTEXT_DELETE",
   "BRAND_CONTEXT_EXTRACT",
+  "ORGANIZATION_DOMAIN_GET",
+  "ORGANIZATION_DOMAIN_SET",
+  "ORGANIZATION_DOMAIN_UPDATE",
+  "ORGANIZATION_DOMAIN_CLEAR",
   "ORGANIZATION_MEMBER_ADD",
   "ORGANIZATION_MEMBER_REMOVE",
   "ORGANIZATION_MEMBER_LIST",
@@ -277,6 +281,26 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
   {
     name: "BRAND_CONTEXT_EXTRACT",
     description: "Extract brand context from website",
+    category: "Organizations",
+  },
+  {
+    name: "ORGANIZATION_DOMAIN_GET",
+    description: "Get organization domain claim",
+    category: "Organizations",
+  },
+  {
+    name: "ORGANIZATION_DOMAIN_SET",
+    description: "Set organization domain claim",
+    category: "Organizations",
+  },
+  {
+    name: "ORGANIZATION_DOMAIN_UPDATE",
+    description: "Update organization domain settings",
+    category: "Organizations",
+  },
+  {
+    name: "ORGANIZATION_DOMAIN_CLEAR",
+    description: "Clear organization domain claim",
     category: "Organizations",
   },
   {
@@ -833,6 +857,10 @@ const TOOL_LABELS: Record<ToolName, string> = {
   BRAND_CONTEXT_UPDATE: "Update brand context",
   BRAND_CONTEXT_DELETE: "Delete brand context",
   BRAND_CONTEXT_EXTRACT: "Extract brand from website",
+  ORGANIZATION_DOMAIN_GET: "Get domain claim",
+  ORGANIZATION_DOMAIN_SET: "Set domain claim",
+  ORGANIZATION_DOMAIN_UPDATE: "Update domain settings",
+  ORGANIZATION_DOMAIN_CLEAR: "Clear domain claim",
   ORGANIZATION_MEMBER_LIST: "List members",
   ORGANIZATION_MEMBER_ADD: "Add members",
   ORGANIZATION_MEMBER_REMOVE: "Remove members",
