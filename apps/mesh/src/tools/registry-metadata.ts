@@ -191,6 +191,7 @@ const ALL_TOOL_NAMES = [
   "VM_START",
   "VM_STOP",
   "VM_PROBE",
+  "VM_EXEC",
 ] as const;
 
 /**
@@ -911,6 +912,11 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "Probe a VM URL via HEAD request (backend proxy for CORS)",
     category: "VM",
   },
+  {
+    name: "VM_EXEC",
+    description: "Execute install or dev commands inside a running VM",
+    category: "VM",
+  },
 ];
 
 /**
@@ -1057,6 +1063,7 @@ const TOOL_LABELS: Record<ToolName, string> = {
   VM_START: "Start VM preview",
   VM_STOP: "Stop VM preview",
   VM_PROBE: "Probe VM URL",
+  VM_EXEC: "Execute VM command",
 };
 
 // ============================================================================
