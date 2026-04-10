@@ -154,6 +154,8 @@ export function LeanCanvasRecruitModal({
         (c) => c.app_id === "lean-canvas",
       );
 
+      const selfConnectionId = WellKnownOrgMCPId.SELF(org.id);
+
       if (matchingConnection) {
         connectionId = matchingConnection.id;
       } else {
@@ -165,6 +167,13 @@ export function LeanCanvasRecruitModal({
           connection_url: LEAN_CANVAS_MCP_URL,
           app_name: "lean-canvas",
           app_id: "lean-canvas",
+          configuration_state: {
+            OBJECT_STORAGE: {
+              __type: "@deco/object-storage",
+              value: selfConnectionId,
+            },
+          },
+          configuration_scopes: ["OBJECT_STORAGE::*"],
           metadata: {
             type: "lean-canvas",
             source: "store",
@@ -175,7 +184,6 @@ export function LeanCanvasRecruitModal({
       }
 
       // 2. Create a virtual MCP (agent) with the connection + self MCP attached
-      const selfConnectionId = WellKnownOrgMCPId.SELF(org.id);
       const virtualMcp = await virtualMcpActions.create.mutateAsync({
         title: template.title,
         description: "Lean Canvas business model builder",
