@@ -29,11 +29,6 @@ import {
 } from "@deco/ui/components/view-mode-toggle.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
-import {
   VISUAL_EDITOR_SCRIPT,
   VisualEditorPayloadSchema,
   type VisualEditorPayload,
@@ -459,6 +454,11 @@ export function VmPreviewContent() {
           <span className="text-xs text-muted-foreground font-mono truncate flex-1">
             {vmData.previewUrl}
           </span>
+          {vmData.vmId && (
+            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+              {vmData.vmId}
+            </span>
+          )}
         </div>
         <Button
           variant="ghost"
@@ -468,20 +468,13 @@ export function VmPreviewContent() {
         >
           <LinkExternal01 size={14} />
         </Button>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              onClick={handleStop}
-              className="flex items-center gap-1.5 px-2.5 h-7 rounded-md text-xs transition-colors shrink-0 bg-accent text-foreground"
-            >
-              <StopCircle size={14} />
-            </button>
-          </TooltipTrigger>
-          {vmData.vmId && (
-            <TooltipContent side="bottom">Stop VM {vmData.vmId}</TooltipContent>
-          )}
-        </Tooltip>
+        <button
+          type="button"
+          onClick={handleStop}
+          className="flex items-center gap-1.5 px-2.5 h-7 rounded-md text-xs transition-colors shrink-0 bg-accent text-foreground"
+        >
+          <StopCircle size={14} />
+        </button>
       </div>
 
       {/* Content area — stable tree, iframes always mounted once URLs exist */}
