@@ -114,12 +114,56 @@ export const AtMention = ({ editor, virtualMcpId }: AtMentionProps) => {
 
     if (currentMode === "categories") {
       if (!query.trim()) return CATEGORY_ITEMS;
+
+      // When typing at the top level, search across both agents and resources
       const lq = query.toLowerCase();
-      return CATEGORY_ITEMS.filter(
-        (c) =>
-          c.name.toLowerCase().includes(lq) ||
-          c.description?.toLowerCase().includes(lq),
-      );
+
+      const matchedAgents: AtItem[] = agents
+        .filter(
+          (agent) =>
+            agent.status === "active" &&
+            (!agent.id || !isDecopilot(agent.id)) &&
+            agent.id !== virtualMcpId &&
+            (agent.title.toLowerCase().includes(lq) ||
+              agent.description?.toLowerCase().includes(lq)),
+        )
+        .map((agent) => ({
+          name: agent.title,
+          title: agent.title,
+          description: agent.description ?? undefined,
+          icon: agent.icon ?? null,
+          kind: "agent" as const,
+          agentId: agent.id,
+        }));
+
+      const matchedResources: AtItem[] = await (async () => {
+        if (!client) return [];
+        let cached =
+          queryClient.getQueryData<ListResourcesResult>(resourcesQueryKey);
+        if (!cached) {
+          cached = await queryClient.fetchQuery({
+            queryKey: resourcesQueryKey,
+            queryFn: () => listResources(client),
+            staleTime: 60000,
+          });
+        }
+        return (cached?.resources ?? [])
+          .filter(
+            (r) =>
+              r.uri.toLowerCase().includes(lq) ||
+              r.name?.toLowerCase().includes(lq) ||
+              r.description?.toLowerCase().includes(lq),
+          )
+          .map((r) => ({
+            name: r.name ?? r.uri,
+            title: r.name,
+            description: r.description,
+            kind: "resource" as const,
+            uri: r.uri,
+          }));
+      })();
+
+      return [...matchedAgents, ...matchedResources];
     }
 
     if (currentMode === "agents") {
