@@ -14,7 +14,11 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
-import { type SystemdServiceInput, freestyle } from "freestyle-sandboxes";
+import {
+  type SystemdServiceInput,
+  VmSpec,
+  freestyle,
+} from "freestyle-sandboxes";
 import { VmDeno } from "@freestyle-sh/with-deno";
 import { VmBun } from "@freestyle-sh/with-bun";
 import { VmNodeJs } from "@freestyle-sh/with-nodejs";
@@ -151,19 +155,20 @@ export const VM_START = defineTool({
     const previewDomain = `${domainKey}.deco.studio`;
     const terminalDomain = `${domainKey}-term.deco.studio`;
 
-    // Build the `with` config for Freestyle VM integrations.
+    // Build integrations via VmSpec — the documented approach.
     // Freestyle docs: /v2/vms/integrations/deno, /v2/vms/integrations/bun, /v2/vms/integrations/web-terminal
-    const plugins = {
-      terminal: new VmWebTerminal([
+    const baseSpec = new VmSpec().with(
+      "terminal",
+      new VmWebTerminal([
         { id: "logs", command: "tail -f /tmp/vm.log", readOnly: true },
       ] as const),
-      runtime:
-        detected === "deno"
-          ? new VmDeno()
-          : detected === "bun"
-            ? new VmBun()
-            : new VmNodeJs(),
-    };
+    );
+    const spec =
+      detected === "deno"
+        ? baseSpec.with("deno", new VmDeno())
+        : detected === "bun"
+          ? baseSpec.with("js", new VmBun())
+          : baseSpec.with("node", new VmNodeJs());
 
     const additionalFiles: Record<string, { content: string }> = {
       "/opt/iframe-proxy.js": { content: PROXY_SCRIPT },
@@ -187,7 +192,7 @@ export const VM_START = defineTool({
     // Terminal domain is routed post-creation via vm.terminal.logs.route() — a persistent mapping.
     // Freestyle docs: /v2/vms/configuration/domains
     const createResult = await freestyle.vms.create({
-      with: plugins,
+      spec,
       gitRepos: [{ repo: repoId, path: "/app" }],
       workdir: "/app",
       domains: [{ domain: previewDomain, vmPort: PROXY_PORT }],

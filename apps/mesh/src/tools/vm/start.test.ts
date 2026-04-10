@@ -30,7 +30,17 @@ const mockVmsCreate = mock(
 const mockVmStart = mock((): Promise<void> => Promise.resolve());
 const mockVmExec = mock((_input: unknown): Promise<void> => Promise.resolve());
 
+class MockVmSpec {
+  builders: Record<string, unknown> = {};
+  with(key: string, builder: unknown): MockVmSpec {
+    const next = new MockVmSpec();
+    next.builders = { ...this.builders, [key]: builder };
+    return next;
+  }
+}
+
 mock.module("freestyle-sandboxes", () => ({
+  VmSpec: MockVmSpec,
   freestyle: {
     git: {
       repos: {
@@ -56,9 +66,6 @@ mock.module("@freestyle-sh/with-deno", () => ({
 }));
 mock.module("@freestyle-sh/with-bun", () => ({
   VmBun: class VmBun {},
-}));
-mock.module("@freestyle-sh/with-nodejs", () => ({
-  VmNodeJs: class VmNodeJs {},
 }));
 mock.module("@freestyle-sh/with-web-terminal", () => ({
   VmWebTerminal: class VmWebTerminal {
@@ -308,20 +315,20 @@ describe("VM_START", () => {
     expect(createCall.idleTimeoutSeconds).toBe(1800);
   });
 
-  it("passes VmWebTerminal as with.terminal and excludes terminal domain from domains array", async () => {
+  it("passes VmWebTerminal as spec.terminal and excludes terminal domain from domains array", async () => {
     const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
     const ctx = makeCtx({ virtualMcp });
 
     await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
 
     const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
-      with: Record<string, unknown>;
+      spec: MockVmSpec;
       domains: Array<{ domain: string; vmPort: number }>;
     };
 
-    // VmWebTerminal must be in the with object
-    expect(createCall.with).toBeDefined();
-    expect(createCall.with.terminal).toBeDefined();
+    // VmWebTerminal must be in the spec builders
+    expect(createCall.spec).toBeDefined();
+    expect(createCall.spec.builders.terminal).toBeDefined();
 
     // Terminal domain is NOT in the domains array — it's routed via route() instead
     const domainNames = createCall.domains.map((d) => d.domain);
@@ -386,7 +393,7 @@ describe("VM_START", () => {
     expect(updateSpy).toHaveBeenCalledTimes(2);
   });
 
-  it("passes `with` integrations for bun runtime — includes both runtime and terminal", async () => {
+  it("passes VmSpec integrations for bun runtime — includes both runtime and terminal", async () => {
     const metadata: VmMetadata = {
       ...BASE_METADATA,
       runtime: {
@@ -401,14 +408,13 @@ describe("VM_START", () => {
     await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
 
     const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
-      with: Record<string, unknown>;
+      spec: MockVmSpec;
       additionalFiles: Record<string, { content: string }>;
     };
 
-    // Both the runtime integration and VmWebTerminal must be present
-    expect(createCall.with).toBeDefined();
-    expect(createCall.with.runtime).toBeDefined();
-    expect(createCall.with.terminal).toBeDefined();
+    // VmBun under key "js" and VmWebTerminal under "terminal" must be in the spec
+    expect(createCall.spec.builders.terminal).toBeDefined();
+    expect(createCall.spec.builders.js).toBeDefined();
     // No setup-runtime.sh file
     expect(createCall.additionalFiles["/opt/setup-runtime.sh"]).toBeUndefined();
   });
