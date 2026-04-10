@@ -154,28 +154,6 @@ export function VmPreviewContent() {
         throw new Error("Invalid VM response — missing URLs");
       }
 
-      // Liveness check: if the VM is stale (e.g. force-deleted externally),
-      // the preview URL returns a 503 from Freestyle's CDN. Detect this and
-      // clean up so the user sees the idle "Start Preview" state.
-      try {
-        const check = await fetch(data.previewUrl).catch(() => null);
-        if (check && check.status === 503) {
-          // VM is dead — stop it to clear the stale entry
-          await client
-            .callTool({ name: "VM_STOP", arguments: { vmId: data.vmId } })
-            .catch(() => {});
-          setStatus("idle");
-          return;
-        }
-      } catch {
-        // Network error likely means VM is unreachable — reset to idle
-        await client
-          .callTool({ name: "VM_STOP", arguments: { vmId: data.vmId } })
-          .catch(() => {});
-        setStatus("idle");
-        return;
-      }
-
       vmDataRef.current = data;
       setStatus("running");
 

@@ -66,13 +66,35 @@ export const VM_START = defineTool({
 
     const metadata = virtualMcp.metadata as VmMetadata;
 
-    // Return existing VM if one is already running for this user + virtual MCP.
-    // NOTE: this entry may be stale if the Freestyle VM was force-deleted
-    // externally. In that case the returned previewUrl will 502. A liveness
-    // check is deferred as a follow-up.
+    // Return existing VM if one is still reachable.
+    // If the VM was force-deleted externally, the preview URL returns 503
+    // from Freestyle's CDN. Detect this and clear the stale entry so a
+    // fresh VM is created below.
     const existing = metadata.activeVms?.[userId];
     if (existing) {
-      return existing;
+      try {
+        const res = await fetch(existing.previewUrl, { method: "HEAD" });
+        if (res.status !== 503) {
+          return existing;
+        }
+      } catch {
+        // Network error — treat as reachable (could be transient)
+        return existing;
+      }
+      // 503 — VM is dead, clear stale entry and fall through to create a new one
+      console.log(
+        `[VM_START] Stale VM detected (503): ${existing.vmId}, clearing entry`,
+      );
+      await patchActiveVms(
+        ctx.storage.virtualMcps,
+        input.virtualMcpId,
+        userId,
+        (vms) => {
+          const updated = { ...vms };
+          delete updated[userId];
+          return updated;
+        },
+      );
     }
 
     if (!metadata.githubRepo) {
