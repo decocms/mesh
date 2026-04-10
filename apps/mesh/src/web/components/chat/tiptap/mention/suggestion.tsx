@@ -49,8 +49,8 @@ interface SuggestionSelectProps<T extends BaseItem> {
   queryKey: readonly unknown[];
   /** Async function to fetch items based on query */
   queryFn: (props: { query: string }) => Promise<T[]>;
-  /** Callback executed when a suggestion is selected */
-  onSelect: (props: OnSelectProps<T>) => void | Promise<void>;
+  /** Callback executed when a suggestion is selected. Return false to keep menu open (drill-in). */
+  onSelect: (props: OnSelectProps<T>) => void | false | Promise<void | false>;
   /** Optional custom allow function to control when suggestion triggers */
   allow?: (props: {
     state: unknown;
@@ -70,7 +70,7 @@ interface MentionItemListProps<T extends BaseItem> {
   editor: Editor;
   queryKey: readonly unknown[];
   queryFn: (props: { query: string }) => Promise<T[]>;
-  onSelect: (props: OnSelectProps<T>) => void | Promise<void>;
+  onSelect: (props: OnSelectProps<T>) => void | false | Promise<void | false>;
 }
 
 /**

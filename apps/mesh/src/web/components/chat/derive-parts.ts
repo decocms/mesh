@@ -199,19 +199,28 @@ export function derivePartsFromTiptapDoc(
       inlineText += mentionName;
 
       if (char === "@") {
-        // Agent mentions: instruct the AI to use open_in_agent tool
-        const meta = node.attrs.metadata as {
-          agentId?: string;
-          title?: string;
-        } | null;
-        if (meta?.agentId) {
+        // @ mentions can be agents or resources — distinguish by metadata shape
+        const meta = node.attrs.metadata as
+          | Record<string, unknown>
+          | unknown[]
+          | null;
+        if (meta && !Array.isArray(meta) && "agentId" in meta) {
+          // Agent mention: instruct the AI to use open_in_agent tool
           parts.push({
             type: "text",
             text:
-              `[OPEN IN AGENT: ${meta.title ?? node.attrs.name} (agent_id: ${meta.agentId})]\n` +
+              `[OPEN IN AGENT: ${(meta as { title?: string }).title ?? node.attrs.name} (agent_id: ${(meta as { agentId: string }).agentId})]\n` +
               `Use the open_in_agent tool to hand off this task to the agent above. ` +
               `Include the full relevant context from this conversation in the context field.`,
           });
+        } else if (Array.isArray(meta)) {
+          // Resource mention: metadata is ReadResourceResult.contents
+          parts.push(
+            ...resourcesToParts(
+              meta as ReadResourceResult["contents"],
+              mentionName,
+            ),
+          );
         }
       } else {
         // Slash mentions: prompts or resources (both use "/")

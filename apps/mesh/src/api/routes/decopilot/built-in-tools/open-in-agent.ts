@@ -173,7 +173,7 @@ function runAgentInBackground(params: {
         "passthrough",
       );
 
-      const mcpTools = await toolsFromMCP(
+      const { tools: mcpTools } = await toolsFromMCP(
         mcpClient,
         new Map(),
         noopWriter,

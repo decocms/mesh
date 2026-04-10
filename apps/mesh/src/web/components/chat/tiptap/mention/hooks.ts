@@ -40,8 +40,9 @@ export interface UseSuggestionOptions<T extends BaseItem = BaseItem> {
   queryKey: readonly unknown[];
   /** Async function to fetch items based on query */
   queryFn: (props: { query: string }) => Promise<T[]>;
-  /** Callback executed when a suggestion is selected. Can be async - menu will show loading state until resolved. */
-  onSelect: (props: OnSelectProps<T>) => void | Promise<void>;
+  /** Callback executed when a suggestion is selected. Can be async - menu will show loading state until resolved.
+   *  Return false to keep the menu open (e.g. for drill-in navigation). */
+  onSelect: (props: OnSelectProps<T>) => void | false | Promise<void | false>;
 }
 
 export interface UseSuggestionReturn<T extends BaseItem = BaseItem> {
@@ -495,7 +496,6 @@ export function useSuggestion<T extends BaseItem = BaseItem>({
     dispatch({ type: "SET_SELECTED_ITEM", payload: item });
 
     try {
-      // Add logging for debugging selection behavior
       const { view } = editor;
 
       // Calculate the range to use
@@ -510,8 +510,15 @@ export function useSuggestion<T extends BaseItem = BaseItem>({
       }
 
       // Call the global onSelect (may be async)
-      await onItemSelect({ range: rangeToUse, item: item as T });
-    } finally {
+      // Return false to keep the menu open (drill-in navigation)
+      const result = await onItemSelect({ range: rangeToUse, item: item as T });
+      if (result === false) {
+        // Drill-in: reset selected item but keep menu open
+        dispatch({ type: "SET_SELECTED_ITEM", payload: null });
+      } else {
+        close();
+      }
+    } catch {
       close();
     }
   };
