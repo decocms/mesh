@@ -18,7 +18,7 @@ import { createSubtaskTool } from "./subtask";
 import { userAskTool } from "./user-ask";
 import { proposePlanTool } from "./propose-plan";
 import type { ModelsConfig } from "../types";
-import { MeshProvider } from "@/ai-providers/types";
+import type { MeshProvider } from "@/ai-providers/types";
 
 export interface BuiltinToolParams {
   /** Provider — null for Claude Code (subtask tool is omitted when null) */
@@ -79,20 +79,18 @@ function buildAllTools(
       passthroughClient,
       toolOutputMap,
     }),
-  };
-  // subtask and open_in_agent require a provider (LLM calls) — skip when provider is null (Claude Code)
-  if (provider) {
-    tools.open_in_agent = createOpenInAgentTool(
+    open_in_agent: createOpenInAgentTool(
       writer,
       {
-        provider,
         organization,
         userId,
-        models,
         needsApproval: toolNeedsApproval(toolApprovalLevel, false) !== false,
       },
       ctx,
-    );
+    ),
+  };
+  // subtask requires a provider (LLM calls) — skip when provider is null (Claude Code)
+  if (provider) {
     tools.subtask = createSubtaskTool(
       writer,
       {

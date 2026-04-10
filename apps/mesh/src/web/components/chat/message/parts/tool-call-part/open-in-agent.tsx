@@ -2,10 +2,11 @@
 
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
-import { useVirtualMCP, type ToolDefinition } from "@decocms/mesh-sdk";
+import { useOrg, useVirtualMCP, type ToolDefinition } from "@decocms/mesh-sdk";
 import { Spinner } from "@deco/ui/components/spinner.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { ArrowRight, Users03 } from "@untitledui/icons";
+import { useRef } from "react";
 import { getEffectiveState } from "./utils.tsx";
 
 type OpenInAgentToolPart = Extract<
@@ -19,13 +20,39 @@ interface OpenInAgentPartProps {
   latency?: number;
 }
 
+/**
+ * Module-level set prevents duplicate stream starts across re-renders
+ * within the same page session. sessionStorage covers page refreshes.
+ */
+const startedTasks = new Set<string>();
+
+function isAlreadyStarted(taskId: string): boolean {
+  if (startedTasks.has(taskId)) return true;
+  try {
+    return sessionStorage.getItem(`open-in-agent:${taskId}`) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markStarted(taskId: string) {
+  startedTasks.add(taskId);
+  try {
+    sessionStorage.setItem(`open-in-agent:${taskId}`, "1");
+  } catch {
+    // sessionStorage might be unavailable
+  }
+}
+
 export function OpenInAgentPart({ part }: OpenInAgentPartProps) {
+  const org = useOrg();
   const navigateToAgent = useNavigateToAgent();
+  const startFiredRef = useRef(false);
 
   const agentId = part.input?.agent_id;
+  const context = part.input?.context;
   const agent = useVirtualMCP(agentId);
 
-  // task_id comes from the tool's output (may be typed as unknown)
   const output = part.output as Record<string, unknown> | undefined;
   const taskId = output?.task_id as string | undefined;
 
@@ -37,12 +64,52 @@ export function OpenInAgentPart({ part }: OpenInAgentPartProps) {
   const isError = part.state === "output-error";
   const isLoading = rawState === "loading";
 
+  // Start the agent stream via the standard decopilot/stream endpoint.
+  // Idempotent: module-level Set (re-renders) + sessionStorage (refreshes).
+  if (
+    isComplete &&
+    taskId &&
+    context &&
+    agentId &&
+    !startFiredRef.current &&
+    !isAlreadyStarted(taskId)
+  ) {
+    startFiredRef.current = true;
+    markStarted(taskId);
+
+    queueMicrotask(() => {
+      const now = new Date().toISOString();
+      fetch(`/api/${org.slug}/decopilot/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          messages: [
+            {
+              id: crypto.randomUUID(),
+              role: "user",
+              parts: [{ type: "text", text: context }],
+              metadata: {
+                thread_id: taskId,
+                agent: { id: agentId },
+                created_at: now,
+              },
+            },
+          ],
+          thread_id: taskId,
+          agent: { id: agentId },
+          toolApprovalLevel: "auto",
+        }),
+      }).catch((err) =>
+        console.error("[open_in_agent] stream start failed:", err),
+      );
+    });
+  }
+
   const title = agent?.title ?? (isError ? "Agent not found" : "Agent");
 
   const handleClick = () => {
     if (!agentId || !isComplete) return;
-    console.log("[open_in_agent] navigating", { agentId, taskId, output });
-    // Navigate directly to the already-running task
     navigateToAgent(agentId, {
       search: taskId ? { taskId } : undefined,
     });
