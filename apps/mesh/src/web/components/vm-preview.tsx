@@ -6,6 +6,7 @@ import {
 } from "@decocms/mesh-sdk";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import {
+  ChevronDown,
   CursorClick01,
   LinkExternal01,
   Loading01,
@@ -14,6 +15,13 @@ import {
   StopCircle,
   Terminal,
 } from "@untitledui/icons";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@deco/ui/components/dropdown-menu.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   ViewModeToggle,
@@ -399,19 +407,68 @@ export function VmPreviewContent() {
           />
         )}
         {hasTerminal && (
-          <button
-            type="button"
-            onClick={() => setShowTerminal((prev) => !prev)}
-            className={cn(
-              "flex items-center gap-1.5 px-2.5 h-7 rounded-md text-xs transition-colors shrink-0",
-              showTerminal
-                ? "bg-accent text-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <Terminal size={14} />
-            Terminal
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  "flex items-center gap-1.5 px-2.5 h-7 rounded-md text-xs transition-colors shrink-0",
+                  showTerminal
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Terminal size={14} />
+                Terminal
+                <ChevronDown size={10} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => setShowTerminal((p) => !p)}>
+                {showTerminal ? "Hide Logs" : "Show Logs"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                disabled={execInFlight}
+                onClick={async () => {
+                  setShowTerminal(true);
+                  setStatus("installing");
+                  try {
+                    await handleExec("install");
+                    await handleExec("dev");
+                    await pollPreview();
+                    setStatus("running");
+                  } catch (error) {
+                    setStatus("error");
+                    setErrorMsg(
+                      error instanceof Error
+                        ? error.message
+                        : "Reinstall failed",
+                    );
+                  }
+                }}
+              >
+                Reinstall Dependencies
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={execInFlight}
+                onClick={async () => {
+                  setShowTerminal(true);
+                  try {
+                    await handleExec("dev");
+                    await pollPreview();
+                  } catch (error) {
+                    setStatus("error");
+                    setErrorMsg(
+                      error instanceof Error ? error.message : "Restart failed",
+                    );
+                  }
+                }}
+              >
+                Restart Dev Server
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
         <div className="flex items-center gap-1 flex-1 min-w-0 rounded-md border border-border bg-muted/40 px-2 py-1">
           <Button
