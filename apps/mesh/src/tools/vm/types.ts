@@ -36,6 +36,7 @@ export type VmMetadata = {
     devScript?: string | null;
     port?: string | null;
   } | null;
+  freestyleRepoId?: string | null;
   activeVms?: Record<string, VmEntry>;
   [key: string]: unknown;
 };

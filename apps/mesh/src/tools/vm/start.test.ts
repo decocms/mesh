@@ -7,9 +7,21 @@ import type { VmEntry, VmMetadata } from "./types";
 // Mock freestyle-sandboxes BEFORE importing VM_START (Bun requires this order)
 // ---------------------------------------------------------------------------
 
+const mockGithubSyncEnable = mock(
+  (_input: unknown): Promise<void> => Promise.resolve(),
+);
+
 const mockReposCreate = mock(
-  (_input: unknown): Promise<{ repoId: string }> =>
-    Promise.resolve({ repoId: "repo_abc" }),
+  (
+    _input: unknown,
+  ): Promise<{
+    repoId: string;
+    repo: { githubSync: { enable: typeof mockGithubSyncEnable } };
+  }> =>
+    Promise.resolve({
+      repoId: "repo_abc",
+      repo: { githubSync: { enable: mockGithubSyncEnable } },
+    }),
 );
 
 const mockRoute = mock((): Promise<void> => Promise.resolve());
@@ -216,12 +228,17 @@ function makeCtx(overrides: {
 
 describe("VM_START", () => {
   beforeEach(() => {
+    mockGithubSyncEnable.mockReset();
     mockReposCreate.mockReset();
     mockVmsCreate.mockReset();
     mockVmStart.mockReset();
     mockVmExec.mockReset();
     mockRoute.mockReset();
-    mockReposCreate.mockImplementation(async () => ({ repoId: "repo_abc" }));
+    mockGithubSyncEnable.mockImplementation(async () => {});
+    mockReposCreate.mockImplementation(async () => ({
+      repoId: "repo_abc",
+      repo: { githubSync: { enable: mockGithubSyncEnable } },
+    }));
     mockVmsCreate.mockImplementation(async () => ({
       vmId: "vm_xyz",
       vm: { terminal: { logs: { route: mockRoute } } },
@@ -234,6 +251,7 @@ describe("VM_START", () => {
   it("returns cached entry with isNewVm: false when activeVms[userId] is already set (no freestyle call)", async () => {
     const metadata: VmMetadata = {
       ...BASE_METADATA,
+      freestyleRepoId: "repo_cached",
       activeVms: { user_1: CACHED_ENTRY },
     };
     const virtualMcp = makeVirtualMcp("org_1", metadata);
@@ -262,8 +280,11 @@ describe("VM_START", () => {
 
     const result = await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
 
-    // Freestyle APIs were called (no repos.create — repo is in VmSpec fluent API)
-    expect(mockReposCreate).not.toHaveBeenCalled();
+    // Freestyle Git repo created and GitHub Sync enabled
+    expect(mockReposCreate).toHaveBeenCalledTimes(1);
+    expect(mockGithubSyncEnable).toHaveBeenCalledWith({
+      githubRepoName: "acme/app",
+    });
     expect(mockVmsCreate).toHaveBeenCalledTimes(1);
 
     // Result contains the newly created VM data with isNewVm flag
@@ -272,11 +293,11 @@ describe("VM_START", () => {
     expect(result.terminalUrl).toBeNull();
     expect(result.isNewVm).toBe(true);
 
-    // patchActiveVms called storage.update
-    expect(updateSpy).toHaveBeenCalledTimes(1);
+    // storage.update called twice: persist repoId + persist new VM entry
+    expect(updateSpy).toHaveBeenCalledTimes(2);
 
-    // Verify existing entries are preserved in the update payload
-    const updateCall = (updateSpy.mock.calls as unknown[][])[0]!;
+    // Second update (patchActiveVms) preserves existing entries
+    const updateCall = (updateSpy.mock.calls as unknown[][])[1]!;
     const updatedMetadata = (updateCall[2] as { metadata: VmMetadata })
       .metadata;
     expect(updatedMetadata.activeVms?.["other_user"]).toEqual(CACHED_ENTRY);
@@ -357,14 +378,14 @@ describe("VM_START", () => {
 
     const result = await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
 
-    // Fell through to creating a new VM (no repos.create — repo is in VmSpec fluent API)
-    expect(mockReposCreate).not.toHaveBeenCalled();
+    // Fell through to creating a new VM — Freestyle repo created
+    expect(mockReposCreate).toHaveBeenCalledTimes(1);
     expect(mockVmsCreate).toHaveBeenCalledTimes(1);
     expect(result.isNewVm).toBe(true);
     expect(result.vmId).toBe("vm_xyz");
 
-    // updateSpy called twice: once to clear stale, once to persist new entry
-    expect(updateSpy).toHaveBeenCalledTimes(2);
+    // updateSpy called three times: clear stale, persist repoId, persist new entry
+    expect(updateSpy).toHaveBeenCalledTimes(3);
   });
 
   it("passes VmSpec integrations for bun runtime — includes node and bun runtime", async () => {

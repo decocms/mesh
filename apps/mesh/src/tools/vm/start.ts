@@ -18,8 +18,9 @@ import { VmSpec, freestyle } from "freestyle-sandboxes";
 import { VmDeno } from "@freestyle-sh/with-deno";
 import { VmBun } from "@freestyle-sh/with-bun";
 import { VmNodeJs } from "@freestyle-sh/with-nodejs";
-import { type VmEntry, patchActiveVms } from "./types";
+import { type VmEntry, type VmMetadata, patchActiveVms } from "./types";
 import { requireVmEntry, resolveRuntimeConfig } from "./helpers";
+import type { VirtualMCPStoragePort } from "../../storage/ports";
 
 const PROXY_PORT = 9000;
 
@@ -218,6 +219,42 @@ http.createServer((req, res) => {
 `;
 };
 
+/**
+ * Ensures a Freestyle Git repo exists for the given GitHub repo.
+ * Creates the repo and enables GitHub Sync on first call, then
+ * persists the repoId in metadata for reuse.
+ * Freestyle docs: /v2/git/repos, /v2/git/github-sync
+ */
+async function ensureFreestyleRepo(
+  metadata: VmMetadata,
+  owner: string,
+  name: string,
+  virtualMcpId: string,
+  userId: string,
+  storage: VirtualMCPStoragePort,
+): Promise<string> {
+  if (metadata.freestyleRepoId) {
+    return metadata.freestyleRepoId;
+  }
+
+  const { repo, repoId } = await freestyle.git.repos.create();
+  await repo.githubSync.enable({ githubRepoName: `${owner}/${name}` });
+  console.log(
+    `[VM_START] Created Freestyle repo ${repoId} with GitHub Sync for ${owner}/${name}`,
+  );
+
+  // Persist the repoId so subsequent calls reuse it.
+  const virtualMcp = await storage.findById(virtualMcpId);
+  if (virtualMcp) {
+    const meta = virtualMcp.metadata as VmMetadata;
+    await storage.update(virtualMcpId, userId, {
+      metadata: { ...meta, freestyleRepoId: repoId } as Record<string, unknown>,
+    });
+  }
+
+  return repoId;
+}
+
 export const VM_START = defineTool({
   name: "VM_START",
   description:
@@ -250,6 +287,18 @@ export const VM_START = defineTool({
     const { owner, name } = metadata.githubRepo;
     const { detected, port } = resolveRuntimeConfig(metadata);
 
+    // Ensure a Freestyle Git repo exists with GitHub Sync enabled.
+    // This allows cloning private repos via the GitHub App integration.
+    // Freestyle docs: /v2/git/repos, /v2/git/github-sync
+    const repoId = await ensureFreestyleRepo(
+      metadata,
+      owner,
+      name,
+      input.virtualMcpId,
+      userId,
+      ctx.storage.virtualMcps,
+    );
+
     // Generate a unique subdomain per (virtualMcpId, userId) pair.
     // MD5 of the composite key guarantees a valid, fixed-length hex subdomain
     // and avoids collisions between different users on the same Virtual MCP.
@@ -265,7 +314,7 @@ export const VM_START = defineTool({
     // Freestyle docs: /v2/vms/integrations/deno, /v2/vms/integrations/bun, /v2/vms/integrations/web-terminal
     const baseSpec = new VmSpec()
       .with("node", new VmNodeJs())
-      .repo(`https://github.com/${owner}/${name}`, "/app")
+      .repo(repoId, "/app")
       .additionalFiles({
         "/opt/daemon.js": { content: buildDaemonScript(port) },
         "/opt/run-daemon.sh": {
