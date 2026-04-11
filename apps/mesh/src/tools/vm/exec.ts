@@ -30,7 +30,11 @@ export const VM_EXEC = defineTool({
     }
 
     const vm = freestyle.vms.ref({ vmId: entry.vmId });
-    const { installScript, devScript, port } = resolveRuntimeConfig(metadata);
+    const { installScript, devScript, port, runtimeBinPath } =
+      resolveRuntimeConfig(metadata);
+    const pathPrefix = runtimeBinPath
+      ? `export PATH=${runtimeBinPath}:$PATH && `
+      : "";
 
     try {
       if (input.action === "install") {
@@ -42,7 +46,7 @@ export const VM_EXEC = defineTool({
           'echo "" && echo "--- Reinstalling dependencies ---"',
           // Wait for git repo to be synced
           "systemctl is-active --wait freestyle-git-sync.service",
-          `echo "$ ${installScript}" && cd /app && ${installScript}`,
+          `${pathPrefix}echo "$ ${installScript}" && cd /app && ${installScript}`,
         ];
 
         const script = steps.join(" && ");
@@ -61,7 +65,7 @@ export const VM_EXEC = defineTool({
 
       // Start dev server with nohup so it survives shell exit
       await vm.exec({
-        command: `nohup bash -c 'echo "" >> /tmp/vm.log && echo "--- Starting dev server ---" >> /tmp/vm.log && cd /app && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=${port} ${devScript} >> /tmp/vm.log 2>&1 & echo $! > /tmp/dev.pid'`,
+        command: `nohup bash -c '${pathPrefix}echo "" >> /tmp/vm.log && echo "--- Starting dev server ---" >> /tmp/vm.log && cd /app && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=${port} ${devScript} >> /tmp/vm.log 2>&1 & echo $! > /tmp/dev.pid'`,
       });
 
       // Start iframe-proxy if not already running

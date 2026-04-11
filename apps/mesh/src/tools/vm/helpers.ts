@@ -48,5 +48,14 @@ export function resolveRuntimeConfig(metadata: VmMetadata) {
   const devScript = metadata.runtime?.devScript ?? "npm run dev";
   const detected = metadata.runtime?.detected ?? "npm";
   const port = metadata.runtime?.port ?? "3000";
-  return { installScript, devScript, detected, port };
+  // Freestyle integrations install runtimes outside the default PATH:
+  //   VmDeno → /opt/deno/bin, VmBun → /opt/bun/bin
+  // npm uses the system node/npm already at /usr/local/bin (no prefix needed).
+  const runtimeBinPath =
+    detected === "deno"
+      ? "/opt/deno/bin"
+      : detected === "bun"
+        ? "/opt/bun/bin"
+        : null;
+  return { installScript, devScript, detected, port, runtimeBinPath };
 }
