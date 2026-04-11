@@ -32,9 +32,28 @@ const mockVmExec = mock((_input: unknown): Promise<void> => Promise.resolve());
 
 class MockVmSpec {
   builders: Record<string, unknown> = {};
+  _repo: unknown = undefined;
+  _files: unknown = undefined;
+  _services: Record<string, unknown>[] = [];
+
   with(key: string, builder: unknown): MockVmSpec {
-    const next = new MockVmSpec();
+    const next = Object.assign(new MockVmSpec(), this);
     next.builders = { ...this.builders, [key]: builder };
+    return next;
+  }
+  repo(url: string, dir: string): MockVmSpec {
+    const next = Object.assign(new MockVmSpec(), this);
+    next._repo = { url, dir };
+    return next;
+  }
+  additionalFiles(files: unknown): MockVmSpec {
+    const next = Object.assign(new MockVmSpec(), this);
+    next._files = files;
+    return next;
+  }
+  systemdService(svc: Record<string, unknown>): MockVmSpec {
+    const next = Object.assign(new MockVmSpec(), this);
+    next._services = [...this._services, svc];
     return next;
   }
 }
@@ -243,8 +262,8 @@ describe("VM_START", () => {
 
     const result = await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
 
-    // Freestyle APIs were called
-    expect(mockReposCreate).toHaveBeenCalledTimes(1);
+    // Freestyle APIs were called (no repos.create — repo is in VmSpec fluent API)
+    expect(mockReposCreate).not.toHaveBeenCalled();
     expect(mockVmsCreate).toHaveBeenCalledTimes(1);
 
     // Result contains the newly created VM data with isNewVm flag
@@ -273,14 +292,10 @@ describe("VM_START", () => {
     await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
 
     const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
-      systemd: {
-        services: Array<{ name: string }>;
-      };
+      spec: MockVmSpec;
     };
 
-    const serviceNames = createCall.systemd.services.map(
-      (s: { name: string }) => s.name,
-    );
+    const serviceNames = createCall.spec._services.map((s) => s.name as string);
     expect(serviceNames).toEqual(["iframe-proxy"]);
     expect(serviceNames).not.toContain("web-terminal");
   });
@@ -292,15 +307,13 @@ describe("VM_START", () => {
     await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
 
     const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
-      systemd: {
-        services: Array<{ name: string; after?: string[] }>;
-      };
+      spec: MockVmSpec;
     };
 
-    const iframeProxy = createCall.systemd.services.find(
-      (s: { name: string }) => s.name === "iframe-proxy",
+    const iframeProxy = createCall.spec._services.find(
+      (s) => s.name === "iframe-proxy",
     )!;
-    expect(iframeProxy.after).toBeUndefined();
+    expect((iframeProxy.after as string[] | undefined) ?? []).not.toContain("dev-server.service");
   });
 
   it("passes idleTimeoutSeconds: 1800 to freestyle.vms.create", async () => {
@@ -377,8 +390,8 @@ describe("VM_START", () => {
 
     const result = await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
 
-    // Fell through to creating a new VM
-    expect(mockReposCreate).toHaveBeenCalledTimes(1);
+    // Fell through to creating a new VM (no repos.create — repo is in VmSpec fluent API)
+    expect(mockReposCreate).not.toHaveBeenCalled();
     expect(mockVmsCreate).toHaveBeenCalledTimes(1);
     expect(result.isNewVm).toBe(true);
     expect(result.vmId).toBe("vm_xyz");
@@ -409,15 +422,15 @@ describe("VM_START", () => {
 
     const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
       spec: MockVmSpec;
-      additionalFiles: Record<string, { content: string }>;
     };
 
     // VmNodeJs (proxy), VmBun (runtime), and VmWebTerminal must all be in the spec
     expect(createCall.spec.builders.node).toBeDefined();
     expect(createCall.spec.builders.js).toBeDefined();
     expect(createCall.spec.builders.terminal).toBeDefined();
-    // No setup-runtime.sh file
-    expect(createCall.additionalFiles["/opt/setup-runtime.sh"]).toBeUndefined();
+    // No setup-runtime.sh file — additional files are now in the spec fluent API
+    const files = createCall.spec._files as Record<string, { content: string }> | undefined;
+    expect(files?.["/opt/setup-runtime.sh"]).toBeUndefined();
   });
 
   it("throws 'Virtual MCP not found' when findById returns null", async () => {
