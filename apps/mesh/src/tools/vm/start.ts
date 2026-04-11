@@ -332,6 +332,8 @@ export const VM_START = defineTool({
       // recreate: true so vm.start() rebuilds from spec if evicted.
       // Freestyle docs: /v2/vms/lifecycle/persistence
       recreate: true,
+      // 30-minute idle timeout before the VM is automatically stopped.
+      idleTimeoutSeconds: 1800,
     });
 
     console.log(

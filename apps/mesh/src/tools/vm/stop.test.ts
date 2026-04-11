@@ -12,6 +12,7 @@ mock.module("freestyle-sandboxes", () => ({
   freestyle: {
     vms: {
       ref: (_input: unknown) => ({
+        stop: () => Promise.resolve(),
         delete: () => mockVmDelete(),
       }),
     },
