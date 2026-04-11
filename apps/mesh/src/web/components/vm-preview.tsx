@@ -43,6 +43,7 @@ import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
+  type ImperativePanelHandle,
 } from "./resizable";
 
 interface VmData {
@@ -99,6 +100,8 @@ export function VmPreviewContent() {
   const [visualElement, setVisualElement] =
     useState<VisualEditorPayload | null>(null);
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
+  const previewPanelRef = useRef<ImperativePanelHandle>(null);
+  const terminalPanelRef = useRef<ImperativePanelHandle>(null);
 
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -325,6 +328,17 @@ export function VmPreviewContent() {
     );
   };
 
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — imperative panel collapse/expand requires DOM lifecycle
+  useEffect(() => {
+    const isRunning = status === "running" || status === "suspended";
+    const showPreview = hasHtmlPreview && isRunning;
+    if (showPreview) previewPanelRef.current?.expand();
+    else previewPanelRef.current?.collapse();
+
+    if (showTerminal) terminalPanelRef.current?.expand();
+    else terminalPanelRef.current?.collapse();
+  }, [hasHtmlPreview, status, showTerminal]);
+
   const handleViewModeChange = (mode: PreviewViewMode) => {
     setViewMode(mode);
     setVisualElement(null);
@@ -376,9 +390,7 @@ export function VmPreviewContent() {
   const hasTerminal = !!vmData.terminalUrl;
   const isRunning = status === "running" || status === "suspended";
 
-  // Determine which content is visible — iframes stay mounted, CSS controls visibility
   const showPreviewPane = hasHtmlPreview && isRunning;
-  const showTerminalPane = showTerminal;
 
   return (
     <div className="flex flex-col w-full h-full">
@@ -512,8 +524,8 @@ export function VmPreviewContent() {
         </Tooltip>
       </div>
 
-      {/* Content area — stable tree, iframes always mounted once URLs exist */}
-      <div className="flex-1 relative">
+      {/* Content area — single ResizablePanelGroup, imperative collapse/expand controls visibility */}
+      <div className="flex-1 relative overflow-hidden">
         {status === "suspended" && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-background/80 backdrop-blur-sm">
             <p className="text-sm text-muted-foreground">
@@ -536,94 +548,60 @@ export function VmPreviewContent() {
           </div>
         )}
 
-        {/* Preview iframe — always in the tree, hidden via CSS when not active */}
-        <div
-          className={cn(
-            "absolute inset-0",
-            showPreviewPane && !showTerminalPane
-              ? "visible"
-              : "invisible overflow-hidden",
-          )}
-        >
-          {viewMode === "visual" && !visualElement && showPreviewPane && (
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 rounded-full border border-violet-400/40 bg-violet-500/90 px-3 py-1 text-xs font-medium text-white shadow-md backdrop-blur-sm pointer-events-none select-none">
-              <CursorClick01 size={12} />
-              Click any element to ask the AI
-            </div>
-          )}
-          {viewMode === "visual" && visualElement && showPreviewPane && (
-            <VisualEditorPrompt
-              element={visualElement}
-              onDismiss={() => setVisualElement(null)}
-            />
-          )}
-          <iframe
-            ref={previewIframeRef}
-            src={vmData.previewUrl}
-            className="w-full h-full border-0"
-            title="Dev Server Preview"
-            onLoad={() => {
-              if (viewMode === "visual") {
-                injectVisualEditor();
-              }
-            }}
-          />
-        </div>
-
-        {/* Split view: preview + terminal — visible when both panes active */}
-        <div
-          className={cn(
-            "absolute inset-0",
-            showPreviewPane && showTerminalPane
-              ? "visible"
-              : "invisible overflow-hidden",
-          )}
-        >
-          <ResizablePanelGroup direction="vertical">
-            <ResizablePanel minSize={20}>
-              <iframe
-                src={vmData.previewUrl}
-                className="w-full h-full border-0"
-                title="Dev Server Preview"
-              />
-            </ResizablePanel>
-            <ResizableHandle className="h-[3px] bg-border/60 hover:bg-primary/30 transition-colors" />
-            <ResizablePanel defaultSize={40} minSize={15}>
-              <iframe
-                src={vmData.terminalUrl ?? undefined}
-                className="w-full h-full border-0"
-                title="VM Terminal"
-              />
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        </div>
-
-        {/* Terminal only — full height (installing or API server) */}
-        {hasTerminal && (
-          <div
-            className={cn(
-              "absolute inset-0",
-              showTerminalPane && !showPreviewPane
-                ? "visible"
-                : "invisible overflow-hidden",
-            )}
+        <ResizablePanelGroup direction="vertical" className="h-full">
+          <ResizablePanel
+            ref={previewPanelRef}
+            collapsible
+            collapsedSize={0}
+            minSize={20}
+            defaultSize={hasTerminal ? 60 : 100}
+            className="relative overflow-hidden rounded-[inherit]"
           >
+            {viewMode === "visual" && !visualElement && showPreviewPane && (
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 rounded-full border border-violet-400/40 bg-violet-500/90 px-3 py-1 text-xs font-medium text-white shadow-md backdrop-blur-sm pointer-events-none select-none">
+                <CursorClick01 size={12} />
+                Click any element to ask the AI
+              </div>
+            )}
+            {viewMode === "visual" && visualElement && showPreviewPane && (
+              <VisualEditorPrompt
+                element={visualElement}
+                onDismiss={() => setVisualElement(null)}
+              />
+            )}
             <iframe
-              src={vmData.terminalUrl ?? undefined}
+              ref={previewIframeRef}
+              src={vmData.previewUrl}
               className="w-full h-full border-0"
-              title="VM Terminal"
+              title="Dev Server Preview"
+              onLoad={() => {
+                if (viewMode === "visual") {
+                  injectVisualEditor();
+                }
+              }}
             />
-          </div>
-        )}
+          </ResizablePanel>
 
-        {/* No content fallback */}
-        {!hasHtmlPreview && !hasTerminal && isRunning && (
-          <div className="flex flex-col items-center justify-center w-full h-full gap-3">
-            <p className="text-sm text-muted-foreground">
-              No preview available.
-            </p>
-          </div>
-        )}
+          {hasTerminal && (
+            <>
+              <ResizableHandle className="h-[3px] bg-border/60 hover:bg-primary/30 transition-colors" />
+              <ResizablePanel
+                ref={terminalPanelRef}
+                collapsible
+                collapsedSize={0}
+                minSize={15}
+                defaultSize={40}
+                className="overflow-hidden rounded-[inherit]"
+              >
+                <iframe
+                  src={vmData.terminalUrl ?? undefined}
+                  className="w-full h-full border-0"
+                  title="VM Terminal"
+                />
+              </ResizablePanel>
+            </>
+          )}
+        </ResizablePanelGroup>
       </div>
     </div>
   );
