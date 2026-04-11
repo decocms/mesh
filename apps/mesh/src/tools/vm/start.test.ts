@@ -393,7 +393,7 @@ describe("VM_START", () => {
     expect(updateSpy).toHaveBeenCalledTimes(2);
   });
 
-  it("passes VmSpec integrations for bun runtime — includes both runtime and terminal", async () => {
+  it("passes VmSpec integrations for bun runtime — includes node, bun runtime, and terminal", async () => {
     const metadata: VmMetadata = {
       ...BASE_METADATA,
       runtime: {
@@ -412,9 +412,10 @@ describe("VM_START", () => {
       additionalFiles: Record<string, { content: string }>;
     };
 
-    // VmBun under key "js" and VmWebTerminal under "terminal" must be in the spec
-    expect(createCall.spec.builders.terminal).toBeDefined();
+    // VmNodeJs (proxy), VmBun (runtime), and VmWebTerminal must all be in the spec
+    expect(createCall.spec.builders.node).toBeDefined();
     expect(createCall.spec.builders.js).toBeDefined();
+    expect(createCall.spec.builders.terminal).toBeDefined();
     // No setup-runtime.sh file
     expect(createCall.additionalFiles["/opt/setup-runtime.sh"]).toBeUndefined();
   });

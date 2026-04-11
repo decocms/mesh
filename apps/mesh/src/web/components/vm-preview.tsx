@@ -526,7 +526,7 @@ export function VmPreviewContent() {
             "absolute inset-0",
             showPreviewPane && !showTerminalPane
               ? "visible"
-              : "invisible h-0 overflow-hidden",
+              : "invisible overflow-hidden",
           )}
         >
           {viewMode === "visual" && !visualElement && showPreviewPane && (
@@ -560,7 +560,7 @@ export function VmPreviewContent() {
             "absolute inset-0",
             showPreviewPane && showTerminalPane
               ? "visible"
-              : "invisible h-0 overflow-hidden",
+              : "invisible overflow-hidden",
           )}
         >
           <ResizablePanelGroup direction="vertical">
@@ -589,7 +589,7 @@ export function VmPreviewContent() {
               "absolute inset-0",
               showTerminalPane && !showPreviewPane
                 ? "visible"
-                : "invisible h-0 overflow-hidden",
+                : "invisible overflow-hidden",
             )}
           >
             <iframe

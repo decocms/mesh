@@ -156,19 +156,22 @@ export const VM_START = defineTool({
     const terminalDomain = `${domainKey}-term.deco.studio`;
 
     // Build integrations via VmSpec — the documented approach.
+    // VmNodeJs is always included: the iframe-proxy systemd service runs Node.js on every VM.
     // Freestyle docs: /v2/vms/integrations/deno, /v2/vms/integrations/bun, /v2/vms/integrations/web-terminal
-    const baseSpec = new VmSpec().with(
-      "terminal",
-      new VmWebTerminal([
-        { id: "logs", command: "tail -f /tmp/vm.log", readOnly: true },
-      ] as const),
-    );
+    const baseSpec = new VmSpec()
+      .with(
+        "terminal",
+        new VmWebTerminal([
+          { id: "logs", command: "tail -f /tmp/vm.log", readOnly: true },
+        ] as const),
+      )
+      .with("node", new VmNodeJs());
     const spec =
       detected === "deno"
         ? baseSpec.with("deno", new VmDeno())
         : detected === "bun"
           ? baseSpec.with("js", new VmBun())
-          : baseSpec.with("node", new VmNodeJs());
+          : baseSpec;
 
     const additionalFiles: Record<string, { content: string }> = {
       "/opt/iframe-proxy.js": { content: PROXY_SCRIPT },
