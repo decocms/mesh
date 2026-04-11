@@ -174,9 +174,11 @@ export function VmPreviewContent() {
       setStatusLabel("");
 
       if (!data.isNewVm) {
-        // Existing VM — go straight to running with preview
-        setShowTerminal(false);
-        setHasHtmlPreview(true); // assume HTML for existing VMs
+        // Existing VM — ensure dev server and iframe-proxy are running.
+        // After VM resume from suspension, nohup processes may be dead.
+        setShowTerminal(true);
+        await handleExec("dev");
+        await pollPreview();
         return;
       }
 
