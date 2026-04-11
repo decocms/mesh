@@ -269,7 +269,7 @@ describe("VM_START", () => {
     // Result contains the newly created VM data with isNewVm flag
     expect(result.vmId).toBe("vm_xyz");
     expect(result.previewUrl).toBe(`https://${DOMAIN_KEY}.deco.studio`);
-    expect(result.terminalUrl).toBe(`https://${DOMAIN_KEY}-term.deco.studio`);
+    expect(result.terminalUrl).toBeNull();
     expect(result.isNewVm).toBe(true);
 
     // patchActiveVms called storage.update
@@ -285,7 +285,7 @@ describe("VM_START", () => {
     });
   });
 
-  it("only includes iframe-proxy in systemd services — web-terminal is managed by VmWebTerminal", async () => {
+  it("only includes daemon in systemd services", async () => {
     const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
     const ctx = makeCtx({ virtualMcp });
 
@@ -296,11 +296,10 @@ describe("VM_START", () => {
     };
 
     const serviceNames = createCall.spec._services.map((s) => s.name as string);
-    expect(serviceNames).toEqual(["iframe-proxy"]);
-    expect(serviceNames).not.toContain("web-terminal");
+    expect(serviceNames).toEqual(["daemon"]);
   });
 
-  it("iframe-proxy has no after dependency on dev-server", async () => {
+  it("daemon has no after dependency on dev-server", async () => {
     const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
     const ctx = makeCtx({ virtualMcp });
 
@@ -310,10 +309,8 @@ describe("VM_START", () => {
       spec: MockVmSpec;
     };
 
-    const iframeProxy = createCall.spec._services.find(
-      (s) => s.name === "iframe-proxy",
-    )!;
-    expect((iframeProxy.after as string[] | undefined) ?? []).not.toContain(
+    const daemon = createCall.spec._services.find((s) => s.name === "daemon")!;
+    expect((daemon.after as string[] | undefined) ?? []).not.toContain(
       "dev-server.service",
     );
   });
@@ -330,7 +327,7 @@ describe("VM_START", () => {
     expect(createCall.idleTimeoutSeconds).toBe(1800);
   });
 
-  it("passes VmWebTerminal as spec.terminal and excludes terminal domain from domains array", async () => {
+  it("daemon script includes /_daemon/events SSE endpoint", async () => {
     const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
     const ctx = makeCtx({ virtualMcp });
 
@@ -338,49 +335,16 @@ describe("VM_START", () => {
 
     const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
       spec: MockVmSpec;
-      domains: Array<{ domain: string; vmPort: number }>;
     };
 
-    // VmWebTerminal must be in the spec builders
-    expect(createCall.spec).toBeDefined();
-    expect(createCall.spec.builders.terminal).toBeDefined();
-
-    // Terminal domain is NOT in the domains array — it's routed via route() instead
-    const domainNames = createCall.domains.map((d) => d.domain);
-    expect(domainNames).not.toContain(`${DOMAIN_KEY}-term.deco.studio`);
+    const files = createCall.spec._files as Record<string, { content: string }>;
+    expect(files["/opt/daemon.js"]).toBeDefined();
+    expect(files["/opt/daemon.js"].content).toContain("/_daemon/events");
+    expect(files["/opt/daemon.js"].content).toContain("text/event-stream");
+    expect(files["/opt/run-daemon.sh"]).toBeDefined();
   });
 
-  it("calls vm.terminal.logs.route with the terminal domain after creating a new VM", async () => {
-    const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
-    const ctx = makeCtx({ virtualMcp });
-
-    await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
-
-    expect(mockRoute).toHaveBeenCalledTimes(1);
-    expect(mockRoute).toHaveBeenCalledWith({
-      domain: `${DOMAIN_KEY}-term.deco.studio`,
-    });
-  });
-
-  it("returns terminalUrl: null when route() fails — VM is not orphaned", async () => {
-    mockRoute.mockRejectedValueOnce(new Error("domain service unavailable"));
-    const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
-    const updateSpy = mock(async () => {});
-    const ctx = makeCtx({ virtualMcp, updateSpy });
-
-    const result = await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
-
-    // VM was created and entry was persisted
-    expect(mockVmsCreate).toHaveBeenCalledTimes(1);
-    expect(updateSpy).toHaveBeenCalledTimes(1);
-
-    // Terminal URL is null — terminal unavailable but VM exists
-    expect(result.terminalUrl).toBeNull();
-    expect(result.vmId).toBe("vm_xyz");
-    expect(result.isNewVm).toBe(true);
-  });
-
-  it("clears stale VM entry, creates new VM, and calls route() when vm.start() throws", async () => {
+  it("clears stale VM entry, creates new VM when vm.start() throws", async () => {
     mockVmStart.mockRejectedValueOnce(new Error("VM not found"));
     const metadata: VmMetadata = {
       ...BASE_METADATA,
@@ -398,17 +362,11 @@ describe("VM_START", () => {
     expect(result.isNewVm).toBe(true);
     expect(result.vmId).toBe("vm_xyz");
 
-    // route() was called on the newly created VM
-    expect(mockRoute).toHaveBeenCalledTimes(1);
-    expect(mockRoute).toHaveBeenCalledWith({
-      domain: `${DOMAIN_KEY}-term.deco.studio`,
-    });
-
     // updateSpy called twice: once to clear stale, once to persist new entry
     expect(updateSpy).toHaveBeenCalledTimes(2);
   });
 
-  it("passes VmSpec integrations for bun runtime — includes node, bun runtime, and terminal", async () => {
+  it("passes VmSpec integrations for bun runtime — includes node and bun runtime", async () => {
     const metadata: VmMetadata = {
       ...BASE_METADATA,
       runtime: {
@@ -426,15 +384,8 @@ describe("VM_START", () => {
       spec: MockVmSpec;
     };
 
-    // VmNodeJs (proxy), VmBun (runtime), and VmWebTerminal must all be in the spec
     expect(createCall.spec.builders.node).toBeDefined();
     expect(createCall.spec.builders.js).toBeDefined();
-    expect(createCall.spec.builders.terminal).toBeDefined();
-    // No setup-runtime.sh file — additional files are now in the spec fluent API
-    const files = createCall.spec._files as
-      | Record<string, { content: string }>
-      | undefined;
-    expect(files?.["/opt/setup-runtime.sh"]).toBeUndefined();
   });
 
   it("throws 'Virtual MCP not found' when findById returns null", async () => {
