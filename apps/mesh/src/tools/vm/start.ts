@@ -136,7 +136,7 @@ export const VM_START = defineTool({
         "/opt/iframe-proxy.js": { content: buildProxyScript(port) },
         "/opt/run-iframe-proxy.sh": {
           content:
-            '#!/bin/bash\nexport NVM_DIR="$HOME/opt/nvm"\n[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"\nexec node /opt/iframe-proxy.js\n',
+            "#!/bin/bash\nsource /etc/profile.d/nvm.sh\nexec node /opt/iframe-proxy.js\n",
         },
         "/tmp/vm.log": { content: "" },
       })
