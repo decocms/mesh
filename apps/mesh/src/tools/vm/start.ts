@@ -14,11 +14,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
-import {
-  type SystemdServiceInput,
-  VmSpec,
-  freestyle,
-} from "freestyle-sandboxes";
+import { VmSpec, freestyle } from "freestyle-sandboxes";
 import { VmDeno } from "@freestyle-sh/with-deno";
 import { VmBun } from "@freestyle-sh/with-bun";
 import { VmNodeJs } from "@freestyle-sh/with-nodejs";
@@ -100,6 +96,53 @@ export const VM_START = defineTool({
   handler: async (input, ctx) => {
     const { metadata, userId } = await requireVmEntry(input, ctx);
 
+    if (!metadata.githubRepo) {
+      throw new Error("No GitHub repo connected");
+    }
+
+    const { owner, name } = metadata.githubRepo;
+    const { detected, port } = resolveRuntimeConfig(metadata);
+
+    // Generate a unique subdomain per (virtualMcpId, userId) pair.
+    // MD5 of the composite key guarantees a valid, fixed-length hex subdomain
+    // and avoids collisions between different users on the same Virtual MCP.
+    // Freestyle docs: /v2/vms/configuration/domains
+    const domainKey = createHash("md5")
+      .update(`${input.virtualMcpId}:${userId}`)
+      .digest("hex")
+      .slice(0, 16);
+    const previewDomain = `${domainKey}.deco.studio`;
+    const terminalDomain = `${domainKey}-term.deco.studio`;
+
+    // Build the full VmSpec declaratively — integrations, repo, files, and services.
+    // VmNodeJs is always included: the iframe-proxy systemd service runs Node.js on every VM.
+    // Freestyle docs: /v2/vms/integrations/deno, /v2/vms/integrations/bun, /v2/vms/integrations/web-terminal
+    const baseSpec = new VmSpec()
+      .with(
+        "terminal",
+        new VmWebTerminal([
+          { id: "logs", command: "tail -f /tmp/vm.log", readOnly: true },
+        ] as const),
+      )
+      .with("node", new VmNodeJs())
+      .repo(`https://github.com/${owner}/${name}`, "/app")
+      .additionalFiles({
+        "/opt/iframe-proxy.js": { content: PROXY_SCRIPT },
+      })
+      .systemdService({
+        name: "iframe-proxy",
+        mode: "service",
+        exec: ["/usr/local/bin/node /opt/iframe-proxy.js"],
+        env: { UPSTREAM_PORT: port },
+      });
+
+    const spec =
+      detected === "deno"
+        ? baseSpec.with("deno", new VmDeno())
+        : detected === "bun"
+          ? baseSpec.with("js", new VmBun())
+          : baseSpec;
+
     // Resume existing VM if one is tracked.
     // Try vm.start() which resumes suspended/stopped VMs. If the VM was
     // deleted externally, the call will throw — clear the stale entry and
@@ -107,7 +150,7 @@ export const VM_START = defineTool({
     const existing = metadata.activeVms?.[userId];
     if (existing) {
       try {
-        const vm = freestyle.vms.ref({ vmId: existing.vmId });
+        const vm = freestyle.vms.ref({ vmId: existing.vmId, spec });
         await vm.start();
         console.log(`[VM_START] Resumed existing VM: ${existing.vmId}`);
         return { ...existing, isNewVm: false };
@@ -129,78 +172,16 @@ export const VM_START = defineTool({
       }
     }
 
-    if (!metadata.githubRepo) {
-      throw new Error("No GitHub repo connected");
-    }
-
-    const { owner, name } = metadata.githubRepo;
-    const { detected, port } = resolveRuntimeConfig(metadata);
     console.log(`[VM_START] detected runtime: ${detected}`);
 
-    // Create the Freestyle Git repo reference
-    const { repoId } = await freestyle.git.repos.create({
-      source: {
-        url: `https://github.com/${owner}/${name}`,
-      },
-    });
-
-    // Generate a unique subdomain per (virtualMcpId, userId) pair.
-    // MD5 of the composite key guarantees a valid, fixed-length hex subdomain
-    // and avoids collisions between different users on the same Virtual MCP.
-    // Freestyle docs: /v2/vms/configuration/domains
-    const domainKey = createHash("md5")
-      .update(`${input.virtualMcpId}:${userId}`)
-      .digest("hex")
-      .slice(0, 16);
-    const previewDomain = `${domainKey}.deco.studio`;
-    const terminalDomain = `${domainKey}-term.deco.studio`;
-
-    // Build integrations via VmSpec — the documented approach.
-    // VmNodeJs is always included: the iframe-proxy systemd service runs Node.js on every VM.
-    // Freestyle docs: /v2/vms/integrations/deno, /v2/vms/integrations/bun, /v2/vms/integrations/web-terminal
-    const baseSpec = new VmSpec()
-      .with(
-        "terminal",
-        new VmWebTerminal([
-          { id: "logs", command: "tail -f /tmp/vm.log", readOnly: true },
-        ] as const),
-      )
-      .with("node", new VmNodeJs());
-    const spec =
-      detected === "deno"
-        ? baseSpec.with("deno", new VmDeno())
-        : detected === "bun"
-          ? baseSpec.with("js", new VmBun())
-          : baseSpec;
-
-    const additionalFiles: Record<string, { content: string }> = {
-      "/opt/iframe-proxy.js": { content: PROXY_SCRIPT },
-    };
-
-    // Build systemd services list — infrastructure only.
-    // Install/dev lifecycle is handled by VM_EXEC.
-    // Freestyle docs: /v2/vms/configuration/systemd-services
-    const services: SystemdServiceInput[] = [
-      {
-        name: "iframe-proxy",
-        mode: "service",
-        exec: ["/usr/local/bin/node /opt/iframe-proxy.js"],
-        env: { UPSTREAM_PORT: port },
-      },
-    ];
-
-    // Create VM with repo and systemd services.
+    // Create VM from spec.
     // Domain routes to the iframe proxy which strips X-Frame-Options/CSP
     // so the preview can be embedded in an iframe.
     // Terminal domain is routed post-creation via vm.terminal.logs.route() — a persistent mapping.
     // Freestyle docs: /v2/vms/configuration/domains
     const createResult = await freestyle.vms.create({
       spec,
-      gitRepos: [{ repo: repoId, path: "/app" }],
-      workdir: "/app",
       domains: [{ domain: previewDomain, vmPort: PROXY_PORT }],
-      additionalFiles,
-      systemd: { services },
       idleTimeoutSeconds: 1800,
     });
 
