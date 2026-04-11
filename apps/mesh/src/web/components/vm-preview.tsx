@@ -66,7 +66,7 @@ const VIEW_MODE_OPTIONS: [
   ViewModeOption<PreviewViewMode>,
   ViewModeOption<PreviewViewMode>,
 ] = [
-  { value: "preview", icon: <Monitor04 size={14} />, tooltip: "Preview" },
+  { value: "preview", icon: <Monitor04 size={14} />, tooltip: "Interactive" },
   {
     value: "visual",
     icon: <CursorClick01 size={14} />,
@@ -259,11 +259,19 @@ export function VmPreviewContent() {
     );
   };
 
+  const deactivateVisualEditor = () => {
+    const win = previewIframeRef.current?.contentWindow;
+    if (!win) return;
+    win.postMessage({ type: "visual-editor::deactivate" }, "*");
+  };
+
   const handleViewModeChange = (mode: PreviewViewMode) => {
     setViewMode(mode);
     setVisualElement(null);
     if (mode === "visual") {
       injectVisualEditor();
+    } else {
+      deactivateVisualEditor();
     }
   };
 

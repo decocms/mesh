@@ -53,7 +53,7 @@ export const VISUAL_EDITOR_SCRIPT = `(function() {
 
   var lastTarget = null;
   var rafPending = false;
-  document.addEventListener("mousemove", function(e) {
+  var moveHandler = function(e) {
     if (rafPending) return;
     rafPending = true;
     var target = e.target;
@@ -79,17 +79,19 @@ export const VISUAL_EDITOR_SCRIPT = `(function() {
       badge.style.top = Math.max(0, r.top - 20) + "px";
       badge.style.left = r.left + "px";
     });
-  }, true);
+  };
+  document.addEventListener("mousemove", moveHandler, true);
 
-  document.addEventListener("mouseout", function(e) {
+  var outHandler = function(e) {
     if (!e.relatedTarget || e.relatedTarget === document.documentElement) {
       highlight.style.display = "none";
       badge.style.display = "none";
       lastTarget = null;
     }
-  }, true);
+  };
+  document.addEventListener("mouseout", outHandler, true);
 
-  document.addEventListener("click", function(e) {
+  var clickHandler = function(e) {
     e.preventDefault();
     e.stopImmediatePropagation();
     var el = e.target;
@@ -141,5 +143,18 @@ export const VISUAL_EDITOR_SCRIPT = `(function() {
         position: { x: Math.round(e.clientX), y: Math.round(e.clientY) }
       }
     }, "*");
-  }, true);
+  };
+  document.addEventListener("click", clickHandler, true);
+
+  window.addEventListener("message", function(e) {
+    if (e.data && e.data.type === "visual-editor::deactivate") {
+      highlight.remove();
+      badge.remove();
+      cursorStyle.remove();
+      document.removeEventListener("mousemove", moveHandler, true);
+      document.removeEventListener("mouseout", outHandler, true);
+      document.removeEventListener("click", clickHandler, true);
+      window.__visualEditorActive = false;
+    }
+  });
 })();`;
