@@ -61,7 +61,7 @@ export const VM_DELETE = defineTool({
     if (entry) {
       const vm = freestyle.vms.ref({ vmId: entry.vmId });
       await Promise.race([
-        vm.delete(),
+        vm.stop().then(() => vm.delete()),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error("vm.delete() timed out")), 10_000),
         ),

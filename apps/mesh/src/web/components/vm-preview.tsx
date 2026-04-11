@@ -52,7 +52,13 @@ interface VmData {
   isNewVm: boolean;
 }
 
-type ViewStatus = "idle" | "creating" | "running" | "suspended" | "error";
+type ViewStatus =
+  | "idle"
+  | "creating"
+  | "running"
+  | "suspended"
+  | "stopping"
+  | "error";
 type PreviewViewMode = "preview" | "visual";
 
 const VIEW_MODE_OPTIONS: [
@@ -218,10 +224,17 @@ export function VmPreviewContent() {
       clearInterval(heartbeatRef.current);
       heartbeatRef.current = null;
     }
-    const virtualMcpId = inset?.entity?.id;
 
-    // Delete the VM first so the DB entry is cleared before the UI goes idle.
-    // This prevents a race where handleStart resumes a stale VM.
+    // Immediately show the idle screen with a spinner
+    vmDataRef.current = null;
+    setStatus("stopping");
+    setHasHtmlPreview(false);
+    setShowTerminal(false);
+    setVisualElement(null);
+    setViewMode("preview");
+
+    // Delete the VM in the background so the DB entry is cleared.
+    const virtualMcpId = inset?.entity?.id;
     if (virtualMcpId) {
       try {
         await client.callTool({
@@ -233,12 +246,7 @@ export function VmPreviewContent() {
       }
     }
 
-    vmDataRef.current = null;
     setStatus("idle");
-    setHasHtmlPreview(false);
-    setShowTerminal(false);
-    setVisualElement(null);
-    setViewMode("preview");
   };
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — auto-start on mount requires DOM lifecycle; no React 19 alternative
@@ -325,7 +333,8 @@ export function VmPreviewContent() {
     }
   };
 
-  if (status === "idle") {
+  if (status === "idle" || status === "stopping") {
+    const isStopping = status === "stopping";
     return (
       <div className="flex flex-col items-center justify-center w-full h-full gap-4">
         <Monitor04 size={48} className="text-muted-foreground/40" />
@@ -333,7 +342,10 @@ export function VmPreviewContent() {
         <p className="text-sm text-muted-foreground text-center max-w-sm">
           Start a development server from your connected GitHub repository.
         </p>
-        <Button onClick={handleStart}>Start Preview</Button>
+        <Button onClick={handleStart} disabled={isStopping}>
+          {isStopping && <Loading01 size={14} className="animate-spin" />}
+          {isStopping ? "Stopping..." : "Start Preview"}
+        </Button>
       </div>
     );
   }

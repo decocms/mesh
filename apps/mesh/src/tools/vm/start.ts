@@ -134,12 +134,19 @@ export const VM_START = defineTool({
       .repo(`https://github.com/${owner}/${name}`, "/app")
       .additionalFiles({
         "/opt/iframe-proxy.js": { content: buildProxyScript(port) },
+        "/opt/run-iframe-proxy.sh": {
+          content:
+            '#!/bin/bash\nexport NVM_DIR="$HOME/opt/nvm"\n[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"\nexec node /opt/iframe-proxy.js\n',
+        },
         "/tmp/vm.log": { content: "" },
       })
       .systemdService({
         name: "iframe-proxy",
         mode: "service",
-        exec: ["bash -lc 'node /opt/iframe-proxy.js'"],
+        exec: ["/bin/bash /opt/run-iframe-proxy.sh"],
+        after: ["install-nodejs.service"],
+        requires: ["install-nodejs.service"],
+        wantedBy: ["multi-user.target"],
       });
 
     const spec =
