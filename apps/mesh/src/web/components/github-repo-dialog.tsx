@@ -232,6 +232,9 @@ export function GitHubRepoDialog({
                 name: repo.name,
                 installationId: effectiveInstallation!.installationId,
               },
+              // Clear stale VMs so VM_START creates a fresh VM with the new repo
+              // instead of resuming one that has the old repo cloned.
+              activeVms: {},
             },
           },
         },

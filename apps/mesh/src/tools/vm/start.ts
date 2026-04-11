@@ -124,12 +124,13 @@ export const VM_START = defineTool({
     // VmNodeJs is always included: the iframe-proxy systemd service runs Node.js on every VM.
     // Freestyle docs: /v2/vms/integrations/deno, /v2/vms/integrations/bun, /v2/vms/integrations/web-terminal
     const baseSpec = new VmSpec()
-      .with(
-        "terminal",
-        new VmWebTerminal([
-          { id: "logs", command: "tail -f /tmp/vm.log", readOnly: true },
-        ] as const),
-      )
+      // TODO: re-enable VmWebTerminal once install-ttyd boot issue is resolved
+      // .with(
+      //   "terminal",
+      //   new VmWebTerminal([
+      //     { id: "logs", command: "tail -f /tmp/vm.log", readOnly: true },
+      //   ] as const),
+      // )
       .with("node", new VmNodeJs())
       .repo(`https://github.com/${owner}/${name}`, "/app")
       .additionalFiles({
@@ -185,7 +186,7 @@ export const VM_START = defineTool({
       }
     }
 
-    console.log(`[VM_START] detected runtime: ${detected}`);
+    console.log(`[VM_START] repo: ${owner}/${name} runtime: ${detected}`);
 
     // Create VM from spec.
     // Domain routes to the iframe proxy which strips X-Frame-Options/CSP
@@ -195,7 +196,9 @@ export const VM_START = defineTool({
     const createResult = await freestyle.vms.create({
       spec,
       domains: [{ domain: previewDomain, vmPort: PROXY_PORT }],
-      idleTimeoutSeconds: 1800,
+      // recreate: true so vm.start() rebuilds from spec if evicted.
+      // Freestyle docs: /v2/vms/lifecycle/persistence
+      recreate: true,
     });
 
     console.log(
@@ -206,18 +209,8 @@ export const VM_START = defineTool({
 
     const previewUrl = `https://${previewDomain}`;
 
-    // Route the terminal domain to ttyd. This creates a persistent domain mapping
-    // (same infrastructure as domains:[]) — only needed once at VM creation.
-    // Survives VM resumes — ttyd comes back automatically via restart: always.
-    let terminalUrl: string | null = null;
-    try {
-      await createResult.vm.terminal.logs.route({ domain: terminalDomain });
-      terminalUrl = `https://${terminalDomain}`;
-    } catch (err) {
-      console.warn(
-        `[VM_START] route() failed for terminal domain — VM will have no terminal URL: ${err}`,
-      );
-    }
+    // TODO: re-enable terminal routing when VmWebTerminal is re-enabled
+    const terminalUrl: string | null = null;
 
     const entry: VmEntry = { terminalUrl, previewUrl, vmId };
 
