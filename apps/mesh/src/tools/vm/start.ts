@@ -31,9 +31,15 @@ const BOOTSTRAP_SCRIPT = `<script>(function(){window.addEventListener("message",
 // For HTML responses, injects a bootstrap script that listens for
 // visual-editor::activate postMessage to enable the visual editor.
 // Node's http module is available in Freestyle VMs by default.
-const PROXY_SCRIPT = `const http = require("http");
-const UPSTREAM = process.env.UPSTREAM_PORT || "3000";
+const buildProxyScript = (
+  upstreamPort: string,
+) => `const http = require("http");
+const fs = require("fs");
+const UPSTREAM = "${upstreamPort}";
+const LOG = "/tmp/vm.log";
+const log = (msg) => { const line = new Date().toISOString() + " [iframe-proxy] " + msg + "\\n"; fs.appendFileSync(LOG, line); };
 const BOOTSTRAP = ${JSON.stringify(BOOTSTRAP_SCRIPT)};
+log("starting — upstream=:" + UPSTREAM + " listen=:" + ${PROXY_PORT});
 http.createServer((req, res) => {
   const hdrs = Object.assign({}, req.headers);
   // Remove accept-encoding so upstream sends uncompressed responses.
@@ -66,9 +72,9 @@ http.createServer((req, res) => {
       upstream.pipe(res);
     }
   });
-  p.on("error", (e) => { res.writeHead(502); res.end("proxy error: " + e.message); });
+  p.on("error", (e) => { log("proxy error: " + e.message); res.writeHead(502); res.end("proxy error: " + e.message); });
   req.pipe(p);
-}).listen(${PROXY_PORT}, "0.0.0.0");
+}).listen(${PROXY_PORT}, "0.0.0.0", () => { log("listening on :" + ${PROXY_PORT}); });
 `;
 
 export const VM_START = defineTool({
@@ -127,13 +133,13 @@ export const VM_START = defineTool({
       .with("node", new VmNodeJs())
       .repo(`https://github.com/${owner}/${name}`, "/app")
       .additionalFiles({
-        "/opt/iframe-proxy.js": { content: PROXY_SCRIPT },
+        "/opt/iframe-proxy.js": { content: buildProxyScript(port) },
+        "/tmp/vm.log": { content: "" },
       })
       .systemdService({
         name: "iframe-proxy",
         mode: "service",
-        exec: ["/usr/local/bin/node /opt/iframe-proxy.js"],
-        env: { UPSTREAM_PORT: port },
+        exec: ["bash -lc 'node /opt/iframe-proxy.js'"],
       });
 
     const spec =

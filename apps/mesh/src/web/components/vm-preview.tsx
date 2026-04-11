@@ -174,11 +174,13 @@ export function VmPreviewContent() {
       setStatusLabel("");
 
       if (!data.isNewVm) {
-        // Existing VM — ensure dev server and iframe-proxy are running.
-        // After VM resume from suspension, nohup processes may be dead.
-        setShowTerminal(true);
-        await handleExec("dev");
-        await pollPreview();
+        // Existing VM — kick off dev server restart without blocking.
+        // vm.exec() can hang on freshly-resumed VMs, so fire-and-forget
+        // and go straight to polling the preview URL.
+        setShowTerminal(false);
+        setHasHtmlPreview(true);
+        handleExec("dev").catch(() => {});
+        pollPreview();
         return;
       }
 

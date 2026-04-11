@@ -58,10 +58,16 @@ export const VM_DELETE = defineTool({
       );
     }
 
-    // Fire-and-forget: VM destruction can be slow and the caller doesn't need to wait.
     if (entry) {
       const vm = freestyle.vms.ref({ vmId: entry.vmId });
-      vm.delete().catch(console.error);
+      await Promise.race([
+        vm.delete(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("vm.delete() timed out")), 10_000),
+        ),
+      ]).catch((err) =>
+        console.error(`[VM_DELETE] ${entry.vmId}: ${err.message}`),
+      );
     }
 
     return { success: true };

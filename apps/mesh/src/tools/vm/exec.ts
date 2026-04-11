@@ -51,27 +51,22 @@ export const VM_EXEC = defineTool({
 
         const script = steps.join(" && ");
 
-        // Fire and forget — output streams to /tmp/vm.log via ttyd
-        await vm.exec({
+        // Fire and forget — output streams to /tmp/vm.log via ttyd.
+        // Don't await: vm.exec() blocks until all child processes exit.
+        vm.exec({
           command: `nohup bash -c '(${script}) >> /tmp/vm.log 2>&1 &'`,
-        });
+        }).catch(console.error);
 
         return { success: true };
       }
 
       // action === "dev"
-      // Kill existing dev server via PID file
-      await vm.exec("kill $(cat /tmp/dev.pid) 2>/dev/null || true");
-
-      // Start dev server with nohup so it survives shell exit
-      await vm.exec({
-        command: `nohup bash -c '${pathPrefix}echo "" >> /tmp/vm.log && echo "--- Starting dev server ---" >> /tmp/vm.log && cd /app && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=${port} ${devScript} >> /tmp/vm.log 2>&1 & echo $! > /tmp/dev.pid'`,
-      });
-
-      // Start iframe-proxy if not already running
-      await vm.exec(
-        "pgrep -f iframe-proxy || nohup /usr/local/bin/node /opt/iframe-proxy.js >> /tmp/vm.log 2>&1 &",
-      );
+      // Kill old dev server and start a new one. Fire-and-forget to avoid
+      // blocking — vm.exec() waits for all child processes to exit.
+      // iframe-proxy is managed by its systemd service, no manual start needed.
+      vm.exec({
+        command: `nohup bash -c 'kill $(cat /tmp/dev.pid) 2>/dev/null || true; ${pathPrefix}echo "" >> /tmp/vm.log && echo "--- Starting dev server ---" >> /tmp/vm.log && cd /app && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=${port} ${devScript} >> /tmp/vm.log 2>&1 & echo $! > /tmp/dev.pid'`,
+      }).catch(console.error);
 
       return { success: true };
     } catch (error) {
