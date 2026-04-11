@@ -338,9 +338,10 @@ describe("VM_START", () => {
     };
 
     const files = createCall.spec._files as Record<string, { content: string }>;
-    expect(files["/opt/daemon.js"]).toBeDefined();
-    expect(files["/opt/daemon.js"].content).toContain("/_daemon/events");
-    expect(files["/opt/daemon.js"].content).toContain("text/event-stream");
+    const daemonJs = files["/opt/daemon.js"];
+    expect(daemonJs).toBeDefined();
+    expect(daemonJs!.content).toContain("/_daemon/events");
+    expect(daemonJs!.content).toContain("text/event-stream");
     expect(files["/opt/run-daemon.sh"]).toBeDefined();
   });
 

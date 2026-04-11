@@ -19,7 +19,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -43,8 +42,9 @@ import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
-  type ImperativePanelHandle,
 } from "./resizable";
+import { useVmEvents } from "@/web/hooks/use-vm-events";
+import { VmTerminal } from "./vm-terminal";
 
 interface VmData {
   terminalUrl: string | null;
@@ -88,25 +88,27 @@ export function VmPreviewContent() {
   const [statusLabel, setStatusLabel] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [actionError, setActionError] = useState("");
-  const [showTerminal, setShowTerminal] = useState(false);
-  const [hasHtmlPreview, setHasHtmlPreview] = useState(false);
   const [execInFlight, setExecInFlight] = useState(false);
   const vmDataRef = useRef<VmData | null>(null);
   const startingRef = useRef(false);
-  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Visual editor state
   const [viewMode, setViewMode] = useState<PreviewViewMode>("preview");
   const [visualElement, setVisualElement] =
     useState<VisualEditorPayload | null>(null);
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
-  const previewPanelRef = useRef<ImperativePanelHandle>(null);
-  const terminalPanelRef = useRef<ImperativePanelHandle>(null);
 
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
+
+  // SSE connection to daemon — only active when VM is running
+  const vmEvents = useVmEvents(
+    status === "running" ? (vmDataRef.current?.previewUrl ?? null) : null,
+  );
+
+  const hasHtmlPreview = vmEvents.status.htmlSupport;
 
   const callTool = async (name: string, args: Record<string, unknown>) => {
     const result = await client.callTool({ name, arguments: args });
@@ -133,40 +135,12 @@ export function VmPreviewContent() {
     }
   };
 
-  const pollPreview = async () => {
-    const vmData = vmDataRef.current;
-    if (!vmData || !inset?.entity) return;
-    for (let i = 0; i < 20; i++) {
-      try {
-        const probe = (await callTool("VM_PROBE", {
-          virtualMcpId: inset.entity.id,
-          url: vmData.previewUrl,
-        })) as { status: number; contentType: string | null };
-        if (probe.status >= 200 && probe.status < 300) {
-          const isHtml = probe.contentType?.includes("text/html") ?? false;
-          setHasHtmlPreview(isHtml);
-          if (isHtml && previewIframeRef.current) {
-            previewIframeRef.current.src = vmData.previewUrl;
-          }
-          return;
-        }
-      } catch {
-        /* ignore probe errors, keep polling */
-      }
-      await new Promise((r) => setTimeout(r, 3000));
-    }
-    // Server never responded — keep terminal
-    setHasHtmlPreview(false);
-    setShowTerminal(true);
-  };
-
   const handleStart = async () => {
     if (startingRef.current) return;
     startingRef.current = true;
     setStatus("creating");
     setStatusLabel("Connecting...");
     setErrorMsg("");
-    setHasHtmlPreview(false);
 
     try {
       if (!inset?.entity) throw new Error("No virtual MCP context");
@@ -184,22 +158,13 @@ export function VmPreviewContent() {
 
       if (!data.isNewVm) {
         // Existing VM — kick off dev server restart without blocking.
-        // vm.exec() can hang on freshly-resumed VMs, so fire-and-forget
-        // and go straight to polling the preview URL.
-        setShowTerminal(false);
-        setHasHtmlPreview(true);
         handleExec("dev").catch(() => {});
-        pollPreview();
         return;
       }
 
-      // New VM — show terminal, run install + dev
-      // The ttyd watches /tmp/vm.log so progress is visible there
-      setShowTerminal(true);
-
+      // New VM — run install + dev
       await handleExec("install");
       await handleExec("dev");
-      await pollPreview();
     } catch (error) {
       setStatus("error");
       setErrorMsg(
@@ -212,31 +177,20 @@ export function VmPreviewContent() {
 
   const handleResume = async () => {
     setStatus("running");
-    setShowTerminal(true);
     setActionError("");
     try {
       await handleExec("dev");
-      await pollPreview();
     } catch (error) {
       setActionError(formatActionError(error, "Failed to resume VM"));
     }
   };
 
   const handleStop = async () => {
-    if (heartbeatRef.current) {
-      clearInterval(heartbeatRef.current);
-      heartbeatRef.current = null;
-    }
-
-    // Immediately show the idle screen with a spinner
     vmDataRef.current = null;
     setStatus("stopping");
-    setHasHtmlPreview(false);
-    setShowTerminal(false);
     setVisualElement(null);
     setViewMode("preview");
 
-    // Delete the VM in the background so the DB entry is cleared.
     const virtualMcpId = inset?.entity?.id;
     if (virtualMcpId) {
       try {
@@ -285,39 +239,16 @@ export function VmPreviewContent() {
     return () => window.removeEventListener("message", handler);
   }, [status]);
 
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — heartbeat polling requires interval lifecycle; no React 19 alternative
+  // Detect suspension via SSE disconnect
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — responds to vmEvents.suspended changing; drives status transition
   useEffect(() => {
-    if (
-      status !== "running" ||
-      !vmDataRef.current?.terminalUrl ||
-      !inset?.entity
-    ) {
-      if (heartbeatRef.current) {
-        clearInterval(heartbeatRef.current);
-        heartbeatRef.current = null;
-      }
-      return;
+    if (vmEvents.suspended && status === "running") {
+      setStatus("suspended");
     }
-    heartbeatRef.current = setInterval(async () => {
-      try {
-        const probe = (await callTool("VM_PROBE", {
-          virtualMcpId: inset.entity!.id,
-          url: vmDataRef.current!.terminalUrl!,
-        })) as { status: number; contentType: string | null };
-        if (probe.status !== 200 && probe.status !== 0) {
-          setStatus("suspended");
-        }
-      } catch {
-        /* ignore */
-      }
-    }, 10_000);
-    return () => {
-      if (heartbeatRef.current) {
-        clearInterval(heartbeatRef.current);
-        heartbeatRef.current = null;
-      }
-    };
-  }, [status]);
+    if (!vmEvents.suspended && status === "suspended") {
+      setStatus("running");
+    }
+  }, [vmEvents.suspended, status]);
 
   const injectVisualEditor = () => {
     const win = previewIframeRef.current?.contentWindow;
@@ -327,17 +258,6 @@ export function VmPreviewContent() {
       "*",
     );
   };
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — imperative panel collapse/expand requires DOM lifecycle
-  useEffect(() => {
-    const isRunning = status === "running" || status === "suspended";
-    const showPreview = hasHtmlPreview && isRunning;
-    if (showPreview) previewPanelRef.current?.expand();
-    else previewPanelRef.current?.collapse();
-
-    if (showTerminal) terminalPanelRef.current?.expand();
-    else terminalPanelRef.current?.collapse();
-  }, [hasHtmlPreview, status, showTerminal]);
 
   const handleViewModeChange = (mode: PreviewViewMode) => {
     setViewMode(mode);
@@ -387,14 +307,11 @@ export function VmPreviewContent() {
   const vmData = vmDataRef.current;
   if (!vmData) return null;
 
-  const hasTerminal = !!vmData.terminalUrl;
   const isRunning = status === "running" || status === "suspended";
-
-  const showPreviewPane = hasHtmlPreview && isRunning;
 
   return (
     <div className="flex flex-col w-full h-full">
-      {/* Unified toolbar — one instance, adapts to status */}
+      {/* Unified toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
         {isRunning && hasHtmlPreview && (
           <ViewModeToggle
@@ -404,16 +321,14 @@ export function VmPreviewContent() {
             size="sm"
           />
         )}
-        {isRunning && hasTerminal && (
+        {isRunning && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
                 className={cn(
                   "flex items-center gap-1.5 px-2.5 h-7 rounded-md text-xs transition-colors shrink-0",
-                  showTerminal
-                    ? "bg-accent text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
+                  "text-muted-foreground hover:text-foreground",
                 )}
               >
                 <Terminal size={14} />
@@ -421,14 +336,9 @@ export function VmPreviewContent() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => setShowTerminal((p) => !p)}>
-                {showTerminal ? "Hide Logs" : "Show Logs"}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem
                 disabled={execInFlight}
                 onClick={async () => {
-                  setShowTerminal(true);
                   setActionError("");
                   try {
                     await handleExec("install");
@@ -444,11 +354,9 @@ export function VmPreviewContent() {
               <DropdownMenuItem
                 disabled={execInFlight}
                 onClick={async () => {
-                  setShowTerminal(true);
                   setActionError("");
                   try {
                     await handleExec("dev");
-                    await pollPreview();
                   } catch (error) {
                     setActionError(formatActionError(error, "Restart failed"));
                   }
@@ -524,7 +432,7 @@ export function VmPreviewContent() {
         </Tooltip>
       </div>
 
-      {/* Content area — single ResizablePanelGroup, imperative collapse/expand controls visibility */}
+      {/* Content area */}
       <div className="flex-1 relative overflow-hidden">
         {status === "suspended" && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-background/80 backdrop-blur-sm">
@@ -550,57 +458,59 @@ export function VmPreviewContent() {
 
         <ResizablePanelGroup direction="vertical" className="h-full">
           <ResizablePanel
-            ref={previewPanelRef}
             collapsible
             collapsedSize={0}
             minSize={20}
-            defaultSize={hasTerminal ? 60 : 100}
+            defaultSize={60}
             className="relative overflow-hidden rounded-[inherit]"
           >
-            {viewMode === "visual" && !visualElement && showPreviewPane && (
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 rounded-full border border-violet-400/40 bg-violet-500/90 px-3 py-1 text-xs font-medium text-white shadow-md backdrop-blur-sm pointer-events-none select-none">
-                <CursorClick01 size={12} />
-                Click any element to ask the AI
+            {hasHtmlPreview ? (
+              <>
+                {viewMode === "visual" && !visualElement && (
+                  <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 rounded-full border border-violet-400/40 bg-violet-500/90 px-3 py-1 text-xs font-medium text-white shadow-md backdrop-blur-sm pointer-events-none select-none">
+                    <CursorClick01 size={12} />
+                    Click any element to ask the AI
+                  </div>
+                )}
+                {viewMode === "visual" && visualElement && (
+                  <VisualEditorPrompt
+                    element={visualElement}
+                    onDismiss={() => setVisualElement(null)}
+                  />
+                )}
+                <iframe
+                  ref={previewIframeRef}
+                  src={vmData.previewUrl}
+                  className="w-full h-full border-0"
+                  title="Dev Server Preview"
+                  onLoad={() => {
+                    if (viewMode === "visual") {
+                      injectVisualEditor();
+                    }
+                  }}
+                />
+              </>
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <Loading01
+                  size={20}
+                  className="animate-spin text-muted-foreground"
+                />
               </div>
             )}
-            {viewMode === "visual" && visualElement && showPreviewPane && (
-              <VisualEditorPrompt
-                element={visualElement}
-                onDismiss={() => setVisualElement(null)}
-              />
-            )}
-            <iframe
-              ref={previewIframeRef}
-              src={vmData.previewUrl}
-              className="w-full h-full border-0"
-              title="Dev Server Preview"
-              onLoad={() => {
-                if (viewMode === "visual") {
-                  injectVisualEditor();
-                }
-              }}
-            />
           </ResizablePanel>
 
-          {hasTerminal && (
-            <>
-              <ResizableHandle className="h-[3px] bg-border/60 hover:bg-primary/30 transition-colors" />
-              <ResizablePanel
-                ref={terminalPanelRef}
-                collapsible
-                collapsedSize={0}
-                minSize={15}
-                defaultSize={40}
-                className="overflow-hidden rounded-[inherit]"
-              >
-                <iframe
-                  src={vmData.terminalUrl ?? undefined}
-                  className="w-full h-full border-0"
-                  title="VM Terminal"
-                />
-              </ResizablePanel>
-            </>
-          )}
+          <ResizableHandle className="h-[3px] bg-border/60 hover:bg-primary/30 transition-colors" />
+
+          <ResizablePanel
+            collapsible
+            collapsedSize={0}
+            minSize={15}
+            defaultSize={40}
+            className="overflow-hidden rounded-[inherit]"
+          >
+            <VmTerminal lines={vmEvents.logs} className="h-full" />
+          </ResizablePanel>
         </ResizablePanelGroup>
       </div>
     </div>
