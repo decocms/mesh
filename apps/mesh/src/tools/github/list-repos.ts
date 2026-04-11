@@ -40,32 +40,49 @@ export const GITHUB_LIST_REPOS = defineTool({
     requireAuth(ctx);
     await ctx.access.check();
 
-    const response = await fetch(
-      `https://api.github.com/user/installations/${input.installationId}/repositories?per_page=100`,
-      {
-        headers: {
-          Authorization: `Bearer ${input.token}`,
-          Accept: "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-        },
-      },
-    );
-
-    if (!response.ok) {
-      throw new Error(`GitHub API error: ${response.status}`);
-    }
-
-    const data = (await response.json()) as {
-      repositories: Array<{
-        owner: { login: string };
-        name: string;
-        full_name: string;
-        html_url: string;
-        private: boolean;
-      }>;
+    const headers = {
+      Authorization: `Bearer ${input.token}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
     };
 
-    const repos = data.repositories.map((repo) => ({
+    type GitHubRepo = {
+      owner: { login: string };
+      name: string;
+      full_name: string;
+      html_url: string;
+      private: boolean;
+    };
+
+    const allRepos: GitHubRepo[] = [];
+    let nextUrl: string | undefined =
+      `https://api.github.com/user/installations/${input.installationId}/repositories?per_page=100`;
+
+    while (nextUrl) {
+      const response: Response = await fetch(nextUrl, { headers });
+
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.status}`);
+      }
+
+      const data = (await response.json()) as { repositories: GitHubRepo[] };
+      allRepos.push(...data.repositories);
+
+      // Parse Link header for next page
+      nextUrl = undefined;
+      const link = response.headers.get("link");
+      if (link) {
+        const next = link
+          .split(",")
+          .find((part: string) => part.includes('rel="next"'));
+        if (next) {
+          const match = next.match(/<([^>]+)>/);
+          if (match?.[1]) nextUrl = match[1];
+        }
+      }
+    }
+
+    const repos = allRepos.map((repo) => ({
       owner: repo.owner.login,
       name: repo.name,
       fullName: repo.full_name,

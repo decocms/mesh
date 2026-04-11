@@ -38,32 +38,51 @@ export const GITHUB_LIST_INSTALLATIONS = defineTool({
     requireAuth(ctx);
     await ctx.access.check();
 
-    const response = await fetch(
-      "https://api.github.com/user/installations?per_page=100",
-      {
-        headers: {
-          Authorization: `Bearer ${input.token}`,
-          Accept: "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-        },
-      },
-    );
-
-    if (!response.ok) {
-      throw new Error(`GitHub API error: ${response.status}`);
-    }
-
-    const data = (await response.json()) as {
-      installations: Array<{
-        id: number;
-        account: {
-          login: string;
-          avatar_url: string;
-        };
-      }>;
+    const headers = {
+      Authorization: `Bearer ${input.token}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
     };
 
-    const installations = data.installations.map((inst) => ({
+    type GitHubInstallation = {
+      id: number;
+      account: {
+        login: string;
+        avatar_url: string;
+      };
+    };
+
+    const allInstallations: GitHubInstallation[] = [];
+    let nextUrl: string | undefined =
+      "https://api.github.com/user/installations?per_page=100";
+
+    while (nextUrl) {
+      const response: Response = await fetch(nextUrl, { headers });
+
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.status}`);
+      }
+
+      const data = (await response.json()) as {
+        installations: GitHubInstallation[];
+      };
+      allInstallations.push(...data.installations);
+
+      // Parse Link header for next page
+      nextUrl = undefined;
+      const link = response.headers.get("link");
+      if (link) {
+        const next = link
+          .split(",")
+          .find((part: string) => part.includes('rel="next"'));
+        if (next) {
+          const match = next.match(/<([^>]+)>/);
+          if (match?.[1]) nextUrl = match[1];
+        }
+      }
+    }
+
+    const installations = allInstallations.map((inst) => ({
       installationId: inst.id,
       orgName: inst.account.login,
       avatarUrl: inst.account.avatar_url,

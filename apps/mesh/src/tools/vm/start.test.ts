@@ -313,7 +313,9 @@ describe("VM_START", () => {
     const iframeProxy = createCall.spec._services.find(
       (s) => s.name === "iframe-proxy",
     )!;
-    expect((iframeProxy.after as string[] | undefined) ?? []).not.toContain("dev-server.service");
+    expect((iframeProxy.after as string[] | undefined) ?? []).not.toContain(
+      "dev-server.service",
+    );
   });
 
   it("passes idleTimeoutSeconds: 1800 to freestyle.vms.create", async () => {
@@ -429,7 +431,9 @@ describe("VM_START", () => {
     expect(createCall.spec.builders.js).toBeDefined();
     expect(createCall.spec.builders.terminal).toBeDefined();
     // No setup-runtime.sh file — additional files are now in the spec fluent API
-    const files = createCall.spec._files as Record<string, { content: string }> | undefined;
+    const files = createCall.spec._files as
+      | Record<string, { content: string }>
+      | undefined;
     expect(files?.["/opt/setup-runtime.sh"]).toBeUndefined();
   });
 
