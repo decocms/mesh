@@ -44,16 +44,7 @@ export const VM_DELETE = defineTool({
     }
     const { entry, userId } = vmEntry;
 
-    if (entry) {
-      try {
-        const vm = freestyle.vms.ref({ vmId: entry.vmId });
-        await vm.delete();
-      } catch {
-        // VM may already be deleted — treat as success
-      }
-    }
-
-    // Clear the DB entry so the UI returns to idle state.
+    // Clear the DB entry first so the UI returns to idle immediately.
     if (entry) {
       await patchActiveVms(
         ctx.storage.virtualMcps,
@@ -65,6 +56,14 @@ export const VM_DELETE = defineTool({
           return updated;
         },
       );
+    }
+
+    // Fire-and-forget: VM destruction can be slow and the caller doesn't need to wait.
+    if (entry) {
+      const vm = freestyle.vms.ref({ vmId: entry.vmId });
+      vm.delete().catch(() => {
+        // VM may already be deleted — ignore errors
+      });
     }
 
     return { success: true };
