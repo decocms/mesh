@@ -18,7 +18,6 @@ import { VmSpec, freestyle } from "freestyle-sandboxes";
 import { VmDeno } from "@freestyle-sh/with-deno";
 import { VmBun } from "@freestyle-sh/with-bun";
 import { VmNodeJs } from "@freestyle-sh/with-nodejs";
-import { VmWebTerminal } from "@freestyle-sh/with-web-terminal";
 import { type VmEntry, patchActiveVms } from "./types";
 import { requireVmEntry, resolveRuntimeConfig } from "./helpers";
 
@@ -26,24 +25,166 @@ const PROXY_PORT = 9000;
 
 const BOOTSTRAP_SCRIPT = `<script>(function(){window.addEventListener("message",function(e){if(e.data&&e.data.type==="visual-editor::activate"&&e.data.script){try{new Function(e.data.script)()}catch(err){console.error("[visual-editor] injection failed",err)}}});})();</script>`;
 
-// Reverse proxy that strips X-Frame-Options and CSP headers so the
-// dev server preview can be embedded in an iframe.
-// For HTML responses, injects a bootstrap script that listens for
-// visual-editor::activate postMessage to enable the visual editor.
-// Node's http module is available in Freestyle VMs by default.
-const buildProxyScript = (
-  upstreamPort: string,
-) => `const http = require("http");
+// Daemon service that runs inside Freestyle VMs.
+// Responsibilities:
+//   1. Reverse proxy: strips X-Frame-Options/CSP so the dev server can be embedded in an iframe.
+//      Injects visual-editor bootstrap script into HTML responses.
+//   2. Log tailing: watches /tmp/vm.log via fs.watch (inotify) and streams new lines over SSE.
+//   3. Liveness probing: probes upstream dev server (every 3s during startup, 30s steady state).
+//   4. SSE endpoint: GET /_daemon/events multiplexes log and status events to connected clients.
+// Node's http/fs modules are available in Freestyle VMs by default.
+const buildDaemonScript = (upstreamPort: string) => {
+  if (!/^\d+$/.test(upstreamPort)) {
+    throw new Error(`Invalid upstream port: ${upstreamPort}`);
+  }
+  return `const http = require("http");
 const fs = require("fs");
 const UPSTREAM = "${upstreamPort}";
 const LOG = "/tmp/vm.log";
-const log = (msg) => { const line = new Date().toISOString() + " [iframe-proxy] " + msg + "\\n"; fs.appendFileSync(LOG, line); };
+const PROXY_PORT = ${PROXY_PORT};
 const BOOTSTRAP = ${JSON.stringify(BOOTSTRAP_SCRIPT)};
-log("starting — upstream=:" + UPSTREAM + " listen=:" + ${PROXY_PORT});
+const MAX_SSE_CLIENTS = 10;
+
+// --- SSE state ---
+const sseClients = new Set();
+let logOffset = 0;
+let tailing = false;
+let lastStatus = { ready: false, htmlSupport: false };
+
+// --- Log tailing via fs.watch (inotify) ---
+function tailLog() {
+  if (tailing) return;
+  tailing = true;
+  fs.open(LOG, "r", (err, fd) => {
+    if (err) { tailing = false; return; }
+    drainLog(fd);
+  });
+}
+
+function drainLog(fd) {
+  const buf = Buffer.alloc(64 * 1024);
+  fs.read(fd, buf, 0, buf.length, logOffset, (err, bytesRead) => {
+    if (err || bytesRead === 0) {
+      fs.close(fd, () => {});
+      tailing = false;
+      return;
+    }
+    logOffset += bytesRead;
+    const text = buf.toString("utf-8", 0, bytesRead);
+    const lines = text.split("\\n").filter(Boolean);
+    if (lines.length > 0) {
+      const payload = JSON.stringify({ type: "log", lines: lines });
+      for (const res of sseClients) {
+        if (res.writable) res.write("event: log\\ndata: " + payload + "\\n\\n");
+      }
+    }
+    // Continue reading if there may be more data
+    if (bytesRead === buf.length) {
+      drainLog(fd);
+    } else {
+      fs.close(fd, () => {});
+      tailing = false;
+    }
+  });
+}
+
+// Use fs.watch (inotify) for low-latency change detection.
+// Falls back to polling if watch is unavailable.
+try {
+  fs.watch(LOG, () => { tailLog(); });
+} catch (e) {
+  fs.watchFile(LOG, { interval: 500 }, tailLog);
+}
+// Initial read of existing content
+tailLog();
+
+// --- Liveness probe ---
+// Probes every 3s during first 60s (startup), then every 30s (steady state)
+let probeCount = 0;
+const FAST_PROBE_MS = 3000;
+const SLOW_PROBE_MS = 30000;
+const FAST_PROBE_LIMIT = 20; // 20 * 3s = 60s
+
+function probeUpstream() {
+  const req = http.request(
+    { hostname: "127.0.0.1", port: UPSTREAM, path: "/", method: "HEAD", timeout: 5000 },
+    (res) => {
+      const ct = (res.headers["content-type"] || "").toLowerCase();
+      const newStatus = {
+        ready: res.statusCode >= 200 && res.statusCode < 400,
+        htmlSupport: ct.includes("text/html"),
+      };
+      if (newStatus.ready !== lastStatus.ready || newStatus.htmlSupport !== lastStatus.htmlSupport) {
+        lastStatus = newStatus;
+        broadcastStatus();
+      }
+    }
+  );
+  req.on("error", () => {
+    if (lastStatus.ready) {
+      lastStatus = { ready: false, htmlSupport: false };
+      broadcastStatus();
+    }
+  });
+  req.on("timeout", () => { req.destroy(); });
+  req.end();
+
+  probeCount++;
+  const nextDelay = probeCount < FAST_PROBE_LIMIT ? FAST_PROBE_MS : SLOW_PROBE_MS;
+  setTimeout(probeUpstream, nextDelay);
+}
+
+function broadcastStatus() {
+  const payload = JSON.stringify({ type: "status", ...lastStatus });
+  for (const res of sseClients) {
+    if (res.writable) res.write("event: status\\ndata: " + payload + "\\n\\n");
+  }
+}
+
+// Start probing after 1s
+setTimeout(probeUpstream, 1000);
+
+// --- HTTP server ---
 http.createServer((req, res) => {
+  // SSE endpoint
+  if (req.url === "/_daemon/events" && req.method === "GET") {
+    if (sseClients.size >= MAX_SSE_CLIENTS) {
+      res.writeHead(429);
+      res.end("Too many connections");
+      return;
+    }
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+      "Access-Control-Allow-Origin": "*",
+    });
+    // Send current status immediately
+    res.write("event: status\\ndata: " + JSON.stringify({ type: "status", ...lastStatus }) + "\\n\\n");
+    sseClients.add(res);
+    req.on("close", () => { sseClients.delete(res); });
+    // Keepalive every 15s
+    const ka = setInterval(() => {
+      if (!res.writable) { clearInterval(ka); sseClients.delete(res); return; }
+      res.write(": keepalive\\n\\n");
+    }, 15000);
+    req.on("close", () => { clearInterval(ka); });
+    return;
+  }
+
+  // CORS preflight for SSE
+  if (req.url === "/_daemon/events" && req.method === "OPTIONS") {
+    res.writeHead(204, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET",
+      "Access-Control-Allow-Headers": "Content-Type",
+    });
+    res.end();
+    return;
+  }
+
+  // Reverse proxy to upstream
   const hdrs = Object.assign({}, req.headers);
-  // Remove accept-encoding so upstream sends uncompressed responses.
-  // The proxy needs to read and modify HTML as plain text.
   delete hdrs["accept-encoding"];
   const opts = { hostname: "127.0.0.1", port: UPSTREAM, path: req.url, method: req.method, headers: hdrs };
   const p = http.request(opts, (upstream) => {
@@ -52,7 +193,6 @@ http.createServer((req, res) => {
     delete upstream.headers["content-encoding"];
     const ct = (upstream.headers["content-type"] || "").toLowerCase();
     if (ct.includes("text/html")) {
-      // Buffer HTML responses to inject the visual editor bootstrap
       delete upstream.headers["content-length"];
       res.writeHead(upstream.statusCode, upstream.headers);
       const chunks = [];
@@ -72,10 +212,11 @@ http.createServer((req, res) => {
       upstream.pipe(res);
     }
   });
-  p.on("error", (e) => { log("proxy error: " + e.message); res.writeHead(502); res.end("proxy error: " + e.message); });
+  p.on("error", (e) => { res.writeHead(502); res.end("proxy error: " + e.message); });
   req.pipe(p);
-}).listen(${PROXY_PORT}, "0.0.0.0", () => { log("listening on :" + ${PROXY_PORT}); });
+}).listen(PROXY_PORT, "0.0.0.0");
 `;
+};
 
 export const VM_START = defineTool({
   name: "VM_START",
@@ -118,33 +259,25 @@ export const VM_START = defineTool({
       .digest("hex")
       .slice(0, 16);
     const previewDomain = `${domainKey}.deco.studio`;
-    const terminalDomain = `${domainKey}-term.deco.studio`;
 
     // Build the full VmSpec declaratively — integrations, repo, files, and services.
     // VmNodeJs is always included: the iframe-proxy systemd service runs Node.js on every VM.
     // Freestyle docs: /v2/vms/integrations/deno, /v2/vms/integrations/bun, /v2/vms/integrations/web-terminal
     const baseSpec = new VmSpec()
-      // TODO: re-enable VmWebTerminal once install-ttyd boot issue is resolved
-      // .with(
-      //   "terminal",
-      //   new VmWebTerminal([
-      //     { id: "logs", command: "tail -f /tmp/vm.log", readOnly: true },
-      //   ] as const),
-      // )
       .with("node", new VmNodeJs())
       .repo(`https://github.com/${owner}/${name}`, "/app")
       .additionalFiles({
-        "/opt/iframe-proxy.js": { content: buildProxyScript(port) },
-        "/opt/run-iframe-proxy.sh": {
+        "/opt/daemon.js": { content: buildDaemonScript(port) },
+        "/opt/run-daemon.sh": {
           content:
-            "#!/bin/bash\nsource /etc/profile.d/nvm.sh\nexec node /opt/iframe-proxy.js\n",
+            "#!/bin/bash\nsource /etc/profile.d/nvm.sh\nexec node /opt/daemon.js\n",
         },
         "/tmp/vm.log": { content: "" },
       })
       .systemdService({
-        name: "iframe-proxy",
+        name: "daemon",
         mode: "service",
-        exec: ["/bin/bash /opt/run-iframe-proxy.sh"],
+        exec: ["/bin/bash /opt/run-daemon.sh"],
         after: ["install-nodejs.service"],
         requires: ["install-nodejs.service"],
         wantedBy: ["multi-user.target"],
@@ -202,14 +335,12 @@ export const VM_START = defineTool({
     });
 
     console.log(
-      `[VM_START] VM created: ${createResult.vmId} domain: ${previewDomain} terminal: ${terminalDomain}`,
+      `[VM_START] VM created: ${createResult.vmId} domain: ${previewDomain}`,
     );
 
     const { vmId } = createResult;
 
     const previewUrl = `https://${previewDomain}`;
-
-    // TODO: re-enable terminal routing when VmWebTerminal is re-enabled
     const terminalUrl: string | null = null;
 
     const entry: VmEntry = { terminalUrl, previewUrl, vmId };
