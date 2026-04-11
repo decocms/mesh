@@ -1,5 +1,10 @@
 import { useRef, useEffect } from "react";
 import { cn } from "@deco/ui/lib/utils.ts";
+import Convert from "ansi-to-html";
+
+const MAX_LINES = 100;
+
+const ansiConverter = new Convert({ escapeXML: true });
 
 interface VmTerminalProps {
   lines: string[];
@@ -9,6 +14,9 @@ interface VmTerminalProps {
 export function VmTerminal({ lines, className }: VmTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScroll = useRef(true);
+
+  const visibleLines =
+    lines.length > MAX_LINES ? lines.slice(-MAX_LINES) : lines;
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — scroll-to-bottom requires DOM measurement after render; no React 19 alternative
   useEffect(() => {
@@ -34,16 +42,17 @@ export function VmTerminal({ lines, className }: VmTerminalProps) {
         className,
       )}
     >
-      {lines.length === 0 ? (
+      {visibleLines.length === 0 ? (
         <span className="text-muted-foreground">Waiting for output...</span>
       ) : (
-        lines.map((line, i) => (
+        visibleLines.map((line, i) => (
           <div
             key={i}
             className="whitespace-pre-wrap break-all text-foreground"
-          >
-            {line}
-          </div>
+            dangerouslySetInnerHTML={{
+              __html: ansiConverter.toHtml(line),
+            }}
+          />
         ))
       )}
     </div>

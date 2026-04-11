@@ -190,7 +190,6 @@ const ALL_TOOL_NAMES = [
   // VM tools (app-only)
   "VM_START",
   "VM_DELETE",
-  "VM_PROBE",
   "VM_EXEC",
 ] as const;
 
@@ -908,11 +907,6 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "VM",
   },
   {
-    name: "VM_PROBE",
-    description: "Probe a VM URL via HEAD request (backend proxy for CORS)",
-    category: "VM",
-  },
-  {
     name: "VM_EXEC",
     description: "Execute install or dev commands inside a running VM",
     category: "VM",
@@ -1062,7 +1056,6 @@ const TOOL_LABELS: Record<ToolName, string> = {
   // VM
   VM_START: "Start VM preview",
   VM_DELETE: "Delete VM preview",
-  VM_PROBE: "Probe VM URL",
   VM_EXEC: "Execute VM command",
 };
 
