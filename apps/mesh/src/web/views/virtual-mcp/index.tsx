@@ -1067,16 +1067,19 @@ function VirtualMcpDetailViewWithData({
     settingsConnectionId: null,
   });
 
+  // Chat hooks
+  const [preferences, setPreferences] = usePreferences();
+
   // Tab state
-  const validTabIds = ["instructions", "connections", "repository", "layout"];
+  const validTabIds = preferences.experimental_vibecode
+    ? ["instructions", "connections", "repository", "layout"]
+    : ["instructions", "connections", "layout"];
   const [activeTab, setActiveTab] = useState(() => {
     const stored = localStorage.getItem("agent-detail-tab") || "instructions";
     // Migrate old "sidebar" tab to "layout"
     const effective = stored === "sidebar" ? "layout" : stored;
     return validTabIds.includes(effective) ? effective : "instructions";
   });
-
-  // Chat hooks
   const { createTaskWithMessage } = useChatTask();
   const { setChatMode } = useChatPrefs();
   const { createNewTask } = usePanelActions();
@@ -1387,7 +1390,9 @@ Define step-by-step how the agent should handle requests.
       label: "Connections",
       count: connections.length || undefined,
     },
-    { id: "repository", label: "Repository" },
+    ...(preferences.experimental_vibecode
+      ? [{ id: "repository", label: "Repository" }]
+      : []),
     { id: "layout", label: "Layout" },
   ];
 

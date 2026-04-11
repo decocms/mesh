@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { useChatTask } from "@/web/components/chat/context";
+import { useChatBridge } from "@/web/components/chat/context";
+import { usePanelActions } from "@/web/layouts/shell-layout";
 import type { VisualEditorPayload } from "./visual-editor-script";
 
 /** Sanitize a string for safe embedding in markdown (escape backticks and asterisks) */
@@ -89,15 +90,15 @@ export function VisualEditorPrompt({
 }: VisualEditorPromptProps) {
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  const { createTaskWithMessage } = useChatTask();
+  const { sendMessage } = useChatBridge();
+  const { setChatOpen } = usePanelActions();
 
   const handleSend = () => {
     if (!input.trim()) return;
 
     const text = formatVisualEditorMessage(element, input);
-    createTaskWithMessage({
-      message: { parts: [{ type: "text", text }] },
-    });
+    setChatOpen(true);
+    sendMessage({ parts: [{ type: "text", text }] });
     onDismiss();
   };
 

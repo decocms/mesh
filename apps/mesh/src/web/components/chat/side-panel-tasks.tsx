@@ -22,6 +22,7 @@ import { useVirtualMCPActions, useVirtualMCP } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { Suspense, useEffect, useRef, useState, useTransition } from "react";
 import { isMac } from "@/web/lib/keyboard-shortcuts";
+import { usePreferences } from "@/web/hooks/use-preferences";
 import { ErrorBoundary } from "../error-boundary";
 import { Chat } from "./index";
 import { OwnerFilter, TaskListContent } from "./tasks-panel";
@@ -288,9 +289,11 @@ function TasksPanelContent({
   const isSettingsActive = virtualMcpCtx?.mainView?.type === "settings";
   const isPreviewActive = virtualMcpCtx?.mainView?.type === "preview";
 
-  const hasGithubRepo = !!(
-    virtualMcp?.metadata as { githubRepo?: unknown } | undefined
-  )?.githubRepo;
+  const [preferences] = usePreferences();
+  const hasGithubRepo =
+    preferences.experimental_vibecode &&
+    !!(virtualMcp?.metadata as { githubRepo?: unknown } | undefined)
+      ?.githubRepo;
 
   return (
     <div className="flex flex-col h-full">

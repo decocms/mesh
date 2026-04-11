@@ -69,6 +69,7 @@ import {
   usePanelState,
 } from "@/web/hooks/use-layout-state";
 import { GitHubRepoButton } from "@/web/components/github-repo-button";
+import { usePreferences } from "@/web/hooks/use-preferences";
 
 // ---------------------------------------------------------------------------
 // Types & Context
@@ -444,6 +445,7 @@ function AgentInsetProvider() {
   // Tasks panel virtualMcpId
   const tasksVirtualMcpId = virtualMcpId;
 
+  const [preferences] = usePreferences();
   const { setOpenMobile, openMobile: mobileSidebarOpen } = useSidebar();
   const setMobileSidebarOpen = setOpenMobile;
 
@@ -574,7 +576,7 @@ function AgentInsetProvider() {
           </button>
         </div>
         <div className="flex items-center gap-0.5">
-          <GitHubRepoButton />
+          {preferences.experimental_vibecode && <GitHubRepoButton />}
           {showThreePanels && (
             <>
               <Tooltip>
