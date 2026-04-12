@@ -15,6 +15,7 @@ const BINDING_TYPE_TO_BUILTIN: Record<string, string> = {
   "@deco/llm": "LLMS",
   "@deco/trigger": "TRIGGER",
   "@deco/object-storage": "OBJECT_STORAGE",
+  "@deco/brand": "BRAND",
 };
 
 /**

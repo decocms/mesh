@@ -49,6 +49,8 @@ const CORE_TOOLS = [
   OrganizationTools.BRAND_CONTEXT_UPDATE,
   OrganizationTools.BRAND_CONTEXT_DELETE,
   OrganizationTools.BRAND_CONTEXT_EXTRACT,
+  OrganizationTools.BRAND_GET,
+  OrganizationTools.BRAND_LIST,
   OrganizationTools.ORGANIZATION_DOMAIN_GET,
   OrganizationTools.ORGANIZATION_DOMAIN_SET,
   OrganizationTools.ORGANIZATION_DOMAIN_UPDATE,
@@ -299,29 +301,22 @@ export const managementMCP = async (ctx: MeshContext) => {
       ];
 
       if (brand.colors) {
-        // Colors can be {label,value}[] (UI) or Record<string,string> (legacy)
-        const colorEntries = Array.isArray(brand.colors)
-          ? (brand.colors as { label?: string; value?: string }[])
-              .filter((c) => c.label || c.value)
-              .map((c) => [c.label ?? "", c.value ?? ""] as const)
-          : Object.entries(brand.colors);
+        const colorEntries = Object.entries(brand.colors).filter(([, v]) => v);
         if (colorEntries.length > 0) {
           lines.push("", "## Colors");
-          for (const [label, value] of colorEntries) {
-            lines.push(`- **${label}:** ${value}`);
+          for (const [role, value] of colorEntries) {
+            lines.push(`- **${role}:** ${value}`);
           }
         }
       }
 
-      if (brand.fonts && brand.fonts.length > 0) {
-        lines.push("", "## Fonts");
-        for (const font of brand.fonts) {
-          // Fonts can be {name,role} (UI) or {family,weight,style} (legacy)
-          const f = font as Record<string, unknown>;
-          const label = f.name ?? f.family ?? "";
-          const detail =
-            f.role ?? [f.weight, f.style].filter(Boolean).join(" ");
-          lines.push(`- ${label}${detail ? ` (${detail})` : ""}`);
+      if (brand.fonts) {
+        const fontEntries = Object.entries(brand.fonts).filter(([, v]) => v);
+        if (fontEntries.length > 0) {
+          lines.push("", "## Fonts");
+          for (const [role, family] of fontEntries) {
+            lines.push(`- ${family} (${role})`);
+          }
         }
       }
 

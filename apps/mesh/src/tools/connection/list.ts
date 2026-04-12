@@ -10,6 +10,7 @@ import {
   createBindingChecker,
   EVENT_BUS_BINDING,
   TRIGGER_BINDING,
+  BRAND_BINDING,
 } from "@decocms/bindings";
 import { ASSISTANTS_BINDING } from "@decocms/bindings/assistant";
 import {
@@ -64,6 +65,7 @@ const BUILTIN_BINDING_CHECKERS: Record<string, Binder> = {
   EVENT_BUS: EVENT_BUS_BINDING,
   TRIGGER: TRIGGER_BINDING,
   REGISTRY: REGISTRY_BINDING,
+  BRAND: BRAND_BINDING,
 };
 
 /**

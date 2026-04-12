@@ -18,6 +18,7 @@ export {
   BRAND_CONTEXT_DELETE,
 } from "./brand-context-update";
 export { BRAND_CONTEXT_EXTRACT } from "./brand-context-extract";
+export { BRAND_GET, BRAND_LIST } from "./brand-get";
 
 // Domain management
 export { ORGANIZATION_DOMAIN_GET } from "./domain-get";

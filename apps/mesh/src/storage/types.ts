@@ -987,8 +987,18 @@ export interface BrandContext {
   logo: string | null;
   favicon: string | null;
   ogImage: string | null;
-  fonts: Record<string, unknown>[] | null;
-  colors: Record<string, unknown>[] | Record<string, unknown> | null;
+  fonts: {
+    heading?: string;
+    body?: string;
+    code?: string;
+  } | null;
+  colors: {
+    primary?: string;
+    secondary?: string;
+    accent?: string;
+    background?: string;
+    foreground?: string;
+  } | null;
   images: Record<string, unknown>[] | null;
   metadata: Record<string, unknown> | null;
   archivedAt: Date | string | null;

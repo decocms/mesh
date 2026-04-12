@@ -51,6 +51,8 @@ const ALL_TOOL_NAMES = [
   "BRAND_CONTEXT_UPDATE",
   "BRAND_CONTEXT_DELETE",
   "BRAND_CONTEXT_EXTRACT",
+  "BRAND_GET",
+  "BRAND_LIST",
   "ORGANIZATION_DOMAIN_GET",
   "ORGANIZATION_DOMAIN_SET",
   "ORGANIZATION_DOMAIN_UPDATE",
@@ -281,6 +283,16 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
   {
     name: "BRAND_CONTEXT_EXTRACT",
     description: "Extract brand context from website",
+    category: "Organizations",
+  },
+  {
+    name: "BRAND_GET",
+    description: "Get brand (binding)",
+    category: "Organizations",
+  },
+  {
+    name: "BRAND_LIST",
+    description: "List brands (binding)",
     category: "Organizations",
   },
   {
@@ -857,6 +869,8 @@ const TOOL_LABELS: Record<ToolName, string> = {
   BRAND_CONTEXT_UPDATE: "Update brand context",
   BRAND_CONTEXT_DELETE: "Delete brand context",
   BRAND_CONTEXT_EXTRACT: "Extract brand from website",
+  BRAND_GET: "Get brand",
+  BRAND_LIST: "List brands",
   ORGANIZATION_DOMAIN_GET: "Get domain claim",
   ORGANIZATION_DOMAIN_SET: "Set domain claim",
   ORGANIZATION_DOMAIN_UPDATE: "Update domain settings",

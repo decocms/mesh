@@ -41,8 +41,8 @@ export const BRAND_CONTEXT_CREATE = defineTool({
       logo: input.logo ?? null,
       favicon: input.favicon ?? null,
       ogImage: input.ogImage ?? null,
-      fonts: (input.fonts as Record<string, unknown>[] | null) ?? null,
-      colors: (input.colors as Record<string, unknown> | null) ?? null,
+      fonts: input.fonts ?? null,
+      colors: input.colors ?? null,
       images: (input.images as Record<string, unknown>[] | null) ?? null,
       metadata: (input.metadata as Record<string, unknown> | null) ?? null,
     });
@@ -112,14 +112,8 @@ export const BRAND_CONTEXT_UPDATE = defineTool({
       logo: data.logo !== undefined ? (data.logo ?? null) : undefined,
       favicon: data.favicon !== undefined ? (data.favicon ?? null) : undefined,
       ogImage: data.ogImage !== undefined ? (data.ogImage ?? null) : undefined,
-      fonts:
-        data.fonts !== undefined
-          ? ((data.fonts as Record<string, unknown>[] | null) ?? null)
-          : undefined,
-      colors:
-        data.colors !== undefined
-          ? ((data.colors as Record<string, unknown> | null) ?? null)
-          : undefined,
+      fonts: data.fonts !== undefined ? (data.fonts ?? null) : undefined,
+      colors: data.colors !== undefined ? (data.colors ?? null) : undefined,
       images:
         data.images !== undefined
           ? ((data.images as Record<string, unknown>[] | null) ?? null)
