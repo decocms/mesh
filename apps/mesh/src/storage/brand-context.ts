@@ -101,8 +101,10 @@ function normalizeFonts(raw: unknown): BrandContext["fonts"] {
     return null;
   }
   // Legacy array: [{name:"Inter",role:"heading"},...]
+  // Two-pass: first assign explicitly mapped roles, then fill body with unmapped
   if (Array.isArray(raw)) {
     const result: Record<string, string> = {};
+    const unmapped: string[] = [];
     for (const item of raw) {
       const entry = item as Record<string, unknown>;
       const name =
@@ -112,10 +114,12 @@ function normalizeFonts(raw: unknown): BrandContext["fonts"] {
       const mapped = FONT_ROLE_MAP[role];
       if (mapped && !result[mapped]) {
         result[mapped] = name;
-      } else if (!result.body) {
-        // First font without a recognized role becomes body
-        result.body = name;
+      } else {
+        unmapped.push(name);
       }
+    }
+    if (!result.body && unmapped[0]) {
+      result.body = unmapped[0];
     }
     return Object.keys(result).length > 0
       ? (result as BrandContext["fonts"])

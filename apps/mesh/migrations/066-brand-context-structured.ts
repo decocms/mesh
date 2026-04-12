@@ -114,9 +114,11 @@ function transformFonts(raw: unknown): string | null {
     return null;
   }
 
-  // Legacy array
+  // Legacy array — two-pass: first assign explicitly mapped roles,
+  // then fill remaining slots with unmapped entries
   if (Array.isArray(raw)) {
     const result: Record<string, string> = {};
+    const unmapped: string[] = [];
     for (const item of raw) {
       const entry = item as Record<string, unknown>;
       const name =
@@ -126,9 +128,13 @@ function transformFonts(raw: unknown): string | null {
       const mapped = FONT_ROLE_MAP[role];
       if (mapped && !result[mapped]) {
         result[mapped] = name;
-      } else if (!result.body) {
-        result.body = name;
+      } else {
+        unmapped.push(name);
       }
+    }
+    // Fill body slot with first unmapped font if not already assigned
+    if (!result.body && unmapped[0]) {
+      result.body = unmapped[0];
     }
     return Object.keys(result).length > 0 ? JSON.stringify(result) : null;
   }
