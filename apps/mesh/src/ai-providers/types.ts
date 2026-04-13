@@ -77,6 +77,12 @@ export interface ProviderAdapter {
     meshJwt: string,
     organizationId: string,
   ): Promise<{ balanceCents: number }>;
+
+  /**
+   * Server-to-server key provisioning (e.g. on org creation).
+   * meshJwt is a gateway-compatible JWT minted by mintGatewayJwt(userId).
+   */
+  provisionKey?(meshJwt: string, organizationId: string): Promise<string>;
 }
 
 export interface OpenRouterAPIModel {

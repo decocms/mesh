@@ -90,6 +90,23 @@ export const decoAiGatewayAdapter: ProviderAdapter = {
     return { balanceCents: data.balance_cents };
   },
 
+  async provisionKey(meshJwt: string, organizationId: string) {
+    const res = await fetch(`${getBase()}/api/keys/provision`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${meshJwt}`,
+      },
+      body: JSON.stringify({ organization_id: organizationId }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) {
+      throw new Error(`Deco AI Gateway key provisioning failed: ${res.status}`);
+    }
+    const data = (await res.json()) as { key: string };
+    return data.key;
+  },
+
   create(apiKey) {
     const base = openrouterAdapter.create(apiKey);
     return { ...base, info: this.info };
