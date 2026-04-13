@@ -79,8 +79,7 @@ export function createReadPromptTool(params: PromptToolParams) {
           arguments: args ?? {},
         });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : String(error);
+        const message = error instanceof Error ? error.message : String(error);
         return { error: `Failed to read prompt "${name}": ${message}` };
       }
       const messages = result.messages;
