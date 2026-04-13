@@ -19,7 +19,7 @@ const MAX_LOG_LINES = 5000;
 
 const daemonSSE = createSSESubscription({
   buildUrl: (previewUrl) => `${previewUrl}/_daemon/events`,
-  eventTypes: ["log", "status"],
+  eventTypes: ["log", "status", "heartbeat"],
 });
 
 /**
@@ -29,7 +29,8 @@ const daemonSSE = createSSESubscription({
 const MAX_DISCONNECT_MS = 45_000;
 
 export function useVmEvents(previewUrl: string | null) {
-  const [logs, setLogs] = useState<string[]>([]);
+  const [installLogs, setInstallLogs] = useState<string[]>([]);
+  const [devLogs, setDevLogs] = useState<string[]>([]);
   const [status, setStatus] = useState<VmStatus>({
     ready: false,
     htmlSupport: false,
@@ -42,7 +43,8 @@ export function useVmEvents(previewUrl: string | null) {
     if (!previewUrl) return;
 
     // Reset state for new connection
-    setLogs([]);
+    setInstallLogs([]);
+    setDevLogs([]);
     setStatus({ ready: false, htmlSupport: false });
     setSuspended(false);
 
@@ -63,7 +65,8 @@ export function useVmEvents(previewUrl: string | null) {
         const data = JSON.parse(e.data);
 
         if (e.type === "log" && Array.isArray(data.lines)) {
-          setLogs((prev) => {
+          const setter = data.source === "dev" ? setDevLogs : setInstallLogs;
+          setter((prev) => {
             const next = [...prev, ...data.lines];
             return next.length > MAX_LOG_LINES
               ? next.slice(next.length - MAX_LOG_LINES)
@@ -95,5 +98,5 @@ export function useVmEvents(previewUrl: string | null) {
     };
   }, [previewUrl]);
 
-  return { logs, status, suspended };
+  return { installLogs, devLogs, status, suspended };
 }
