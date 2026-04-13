@@ -40,6 +40,9 @@ function buildExtensions(placeholderRef: React.RefObject<string | undefined>) {
 export interface TiptapInputHandle {
   focus: () => void;
   clear: () => void;
+  appendText: (text: string) => void;
+  syncVoiceText: (baseline: Metadata["tiptapDoc"], voiceText: string) => void;
+  restoreContent: (baseline: Metadata["tiptapDoc"]) => void;
 }
 
 interface TiptapProviderProps {
@@ -178,6 +181,30 @@ export function TiptapInput({
       },
       clear: () => {
         editor?.commands.clearContent(true);
+      },
+      appendText: (text: string) => {
+        if (!editor) return;
+        const isEmpty = editor.state.doc.textContent.trim() === "";
+        editor.commands.focus("end");
+        if (!isEmpty) {
+          editor.commands.insertContent(" ");
+        }
+        editor.commands.insertContent(text);
+      },
+      syncVoiceText: (baseline: Metadata["tiptapDoc"], voiceText: string) => {
+        if (!editor) return;
+        editor.commands.setContent(baseline || { type: "doc", content: [] });
+        if (voiceText) {
+          editor.commands.focus("end");
+          const hasBaseline = editor.state.doc.textContent.trim().length > 0;
+          editor.commands.insertContent(
+            hasBaseline ? " " + voiceText : voiceText,
+          );
+        }
+      },
+      restoreContent: (baseline: Metadata["tiptapDoc"]) => {
+        if (!editor) return;
+        editor.commands.setContent(baseline || { type: "doc", content: [] });
       },
     }),
     [editor],
