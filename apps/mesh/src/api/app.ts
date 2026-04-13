@@ -10,6 +10,7 @@
 
 import { getSettings } from "../settings";
 import { DECO_STORE_URL, isDecoHostedMcp } from "@/core/deco-constants";
+import { isFigmaConnection } from "@/core/provider-helpers";
 import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 import { PrometheusSerializer } from "@opentelemetry/exporter-prometheus";
 import { Hono } from "hono";
@@ -707,6 +708,13 @@ export async function createApp(options: CreateAppOptions = {}) {
     const authorization = c.req.header("Authorization");
     if (authorization) headers["Authorization"] = authorization;
 
+    // Figma MCP: inject X-Figma-Token header for register endpoint
+    // Figma's Dynamic Client Registration requires a Personal Access Token
+    const isFigma = isFigmaConnection(connection.connection_url);
+    if (isFigma && endpoint === "register" && connection.connection_token) {
+      headers["X-Figma-Token"] = connection.connection_token;
+    }
+
     // For token endpoint, we may need to rewrite the 'resource' parameter in the body
     // (same reason as authorize: auth servers validate it's their actual endpoint)
     let requestBody: BodyInit | undefined;
@@ -726,6 +734,16 @@ export async function createApp(options: CreateAppOptions = {}) {
           params.append(key, value.toString());
         }
         requestBody = params.toString();
+      } else if (
+        isFigma &&
+        endpoint === "register" &&
+        contentType?.includes("application/json")
+      ) {
+        // Figma: rewrite client_name and ensure scope for registration
+        const body = await c.req.json();
+        body.client_name = "Claude Code (figma)";
+        body.scope = body.scope || "mcp:connect";
+        requestBody = JSON.stringify(body);
       } else {
         // For other content types, pass through as-is
         requestBody = c.req.raw.body ?? undefined;
@@ -741,6 +759,19 @@ export async function createApp(options: CreateAppOptions = {}) {
       duplex: "half",
       redirect: "manual",
     });
+
+    // Figma: enhance 403 errors on register with actionable message
+    if (isFigma && endpoint === "register" && response.status === 403) {
+      return c.json(
+        {
+          error: "Figma registration failed",
+          error_description: connection.connection_token
+            ? "Figma rejected the PAT. Verify it hasn't expired and has the correct scopes."
+            : "Figma requires a PAT for MCP registration. Add your Figma PAT in the connection settings.",
+        },
+        403,
+      );
+    }
 
     // Copy response headers, excluding hop-by-hop and encoding headers
     // Note: Node.js fetch auto-decompresses, so content-encoding/content-length would be wrong
