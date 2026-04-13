@@ -74,7 +74,7 @@ export function useVoiceInput(): UseVoiceInputReturn {
       const bars: number[] = [];
       for (let i = 0; i < WAVEFORM_BARS; i++) {
         const idx = Math.floor((i / WAVEFORM_BARS) * freqData.length);
-        bars.push(Math.max(0.04, freqData[idx] / 255));
+        bars.push(Math.max(0.04, (freqData[idx] ?? 0) / 255));
       }
       setWaveformData(bars);
       animFrameRef.current = requestAnimationFrame(tick);
@@ -122,8 +122,9 @@ export function useVoiceInput(): UseVoiceInputReturn {
       let interim = "";
       let newFinal = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        const text = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
+        const result = event.results[i];
+        const text = result?.[0]?.transcript ?? "";
+        if (result?.isFinal) {
           newFinal += text;
         } else {
           interim += text;
