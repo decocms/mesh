@@ -111,6 +111,9 @@ export function resolveConfig(
     decoSupabaseUrl: envVars.DECO_SUPABASE_URL,
     decoSupabaseServiceKey: envVars.DECO_SUPABASE_SERVICE_KEY,
     firecrawlApiKey: envVars.FIRECRAWL_API_KEY,
+
+    // Studio Provision Secret Key
+    studioProvisionSecretKey: envVars.STUDIO_PROVISION_SECRET_KEY,
   };
 
   return {
