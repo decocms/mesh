@@ -20,6 +20,7 @@ import {
   ChevronDown,
   Edit01,
   Lock01,
+  Microphone01,
   Plus,
   Stop,
   Upload01,
@@ -55,6 +56,8 @@ import { useSound } from "@/web/hooks/use-sound.ts";
 import { question004Sound } from "@deco/ui/lib/question-004.ts";
 import { AddConnectionDialog } from "@/web/views/virtual-mcp/add-connection-dialog";
 import { ConnectionsBanner } from "./connections-banner";
+import { useVoiceInput } from "@/web/hooks/use-voice-input.ts";
+import { VoiceInputOverlay } from "./voice-input";
 
 // ============================================================================
 // VirtualMCPBadge - Internal component for displaying selected virtual MCP
@@ -321,6 +324,24 @@ export function ChatInput({
   const playSwitchSound = useSound(question004Sound);
   const [connectionsOpen, setConnectionsOpen] = useState(false);
 
+  const voice = useVoiceInput();
+
+  const handleVoiceStart = async () => {
+    await voice.startRecording();
+  };
+
+  const handleVoiceConfirm = () => {
+    const text = voice.stopRecording();
+    if (text.trim()) {
+      tiptapRef.current?.appendText(text.trim());
+      setTimeout(() => tiptapRef.current?.focus(), 0);
+    }
+  };
+
+  const handleVoiceCancel = () => {
+    voice.cancelRecording();
+  };
+
   // Navigate to the agent route (like the sidebar does) instead of only
   // setting an ephemeral search-param override, so the thread list re-scopes.
   const handleAgentChange = (virtualMcpId: string | null) => {
@@ -537,104 +558,149 @@ export function ChatInput({
                 <FileDropZone selectedModel={selectedModel} />
 
                 <div className="group/input relative flex flex-col gap-2 flex-1">
-                  {/* Input Area with Tiptap */}
-                  <TiptapInput
-                    ref={tiptapRef}
-                    disabled={isStreaming || !selectedModel}
-                    virtualMcpId={selectedVirtualMcp?.id ?? decopilotId}
-                    showFileUploader={true}
-                    selectedModel={selectedModel}
-                  />
+                  {/* Voice recording overlay */}
+                  {voice.status === "recording" ? (
+                    <VoiceInputOverlay
+                      waveformData={voice.waveformData}
+                      transcript={voice.transcript}
+                      interimTranscript={voice.interimTranscript}
+                      onCancel={handleVoiceCancel}
+                      onConfirm={handleVoiceConfirm}
+                    />
+                  ) : (
+                    /* Input Area with Tiptap */
+                    <TiptapInput
+                      ref={tiptapRef}
+                      disabled={isStreaming || !selectedModel}
+                      virtualMcpId={selectedVirtualMcp?.id ?? decopilotId}
+                      showFileUploader={true}
+                      selectedModel={selectedModel}
+                    />
+                  )}
                 </div>
 
                 {/* Bottom Actions Row */}
                 <div className="flex items-center justify-between p-2.5 gap-1">
                   {/* Left Actions (+, Tools, active tool pills, stats) */}
                   <div className="flex items-center gap-1.5 min-w-0 shrink-0">
-                    <FileUploadButton
-                      selectedModel={selectedModel}
-                      isStreaming={isStreaming}
-                      icon={<Plus size={16} />}
-                    />
-                    <ToolsPopover
-                      disabled={isStreaming}
-                      onOpenConnections={() => setConnectionsOpen(true)}
-                      virtualMcpId={selectedVirtualMcp?.id ?? decopilotId}
-                      isAgentContext={hasAgentBadge}
-                    />
-                    {isPlanMode && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          playSwitchSound();
-                          setPreferences({
-                            ...preferences,
-                            toolApprovalLevel: "auto",
-                          });
-                        }}
-                        className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 group whitespace-nowrap animate-in fade-in duration-200"
-                      >
-                        <BookOpen01 size={14} className="shrink-0" />
-                        Plan mode
-                        <X
-                          size={14}
-                          className="shrink-0 hidden group-hover:block"
+                    {voice.status !== "recording" && (
+                      <>
+                        <FileUploadButton
+                          selectedModel={selectedModel}
+                          isStreaming={isStreaming}
+                          icon={<Plus size={16} />}
                         />
-                      </button>
-                    )}
-                    {contextWindow && lastTotalTokens > 0 && (
-                      <SessionStats
-                        usage={usage}
-                        totalTokens={lastTotalTokens}
-                        contextWindow={contextWindow}
-                        onOpenContextPanel={onOpenContextPanel}
-                      />
+                        <ToolsPopover
+                          disabled={isStreaming}
+                          onOpenConnections={() => setConnectionsOpen(true)}
+                          virtualMcpId={selectedVirtualMcp?.id ?? decopilotId}
+                          isAgentContext={hasAgentBadge}
+                        />
+                        {isPlanMode && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              playSwitchSound();
+                              setPreferences({
+                                ...preferences,
+                                toolApprovalLevel: "auto",
+                              });
+                            }}
+                            className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 group whitespace-nowrap animate-in fade-in duration-200"
+                          >
+                            <BookOpen01 size={14} className="shrink-0" />
+                            Plan mode
+                            <X
+                              size={14}
+                              className="shrink-0 hidden group-hover:block"
+                            />
+                          </button>
+                        )}
+                        {contextWindow && lastTotalTokens > 0 && (
+                          <SessionStats
+                            usage={usage}
+                            totalTokens={lastTotalTokens}
+                            contextWindow={contextWindow}
+                            onOpenContextPanel={onOpenContextPanel}
+                          />
+                        )}
+                      </>
                     )}
                   </div>
 
-                  {/* Right Actions (model, send) */}
+                  {/* Right Actions (mic, model, send) */}
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <ModelSelector
-                      placeholder="Model"
-                      variant="borderless"
-                      className="h-8 text-sm py-2 min-w-0"
-                    />
+                    {voice.status !== "recording" && (
+                      <ModelSelector
+                        placeholder="Model"
+                        variant="borderless"
+                        className="h-8 text-sm py-2 min-w-0"
+                      />
+                    )}
 
-                    <Button
-                      type={showStopOrCancel ? "button" : "submit"}
-                      onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                        if (showStopOrCancel) {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (isStreaming) stop();
-                          else stop();
+                    {/* Microphone button — only shown when not streaming and speech is supported */}
+                    {voice.isSupported &&
+                      !isStreaming &&
+                      !isRunInProgress &&
+                      voice.status !== "recording" && (
+                        <Button
+                          type="button"
+                          onClick={handleVoiceStart}
+                          variant="ghost"
+                          size="icon"
+                          className={cn(
+                            "size-8 rounded-lg transition-colors",
+                            voice.status === "permission-denied"
+                              ? "text-destructive hover:text-destructive hover:bg-destructive/10"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                          title={
+                            voice.status === "permission-denied"
+                              ? "Microphone access denied — click to try again"
+                              : "Voice input"
+                          }
+                        >
+                          <Microphone01 size={18} />
+                        </Button>
+                      )}
+
+                    {voice.status !== "recording" && (
+                      <Button
+                        type={showStopOrCancel ? "button" : "submit"}
+                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                          if (showStopOrCancel) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (isStreaming) stop();
+                            else stop();
+                          }
+                        }}
+                        variant={
+                          canSubmit || showStopOrCancel ? "default" : "ghost"
                         }
-                      }}
-                      variant={
-                        canSubmit || showStopOrCancel ? "default" : "ghost"
-                      }
-                      size="icon"
-                      disabled={!canSubmit && !showStopOrCancel}
-                      className={cn(
-                        "size-8 rounded-lg transition-all",
-                        !canSubmit &&
-                          !showStopOrCancel &&
-                          "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground cursor-not-allowed",
-                      )}
-                      title={
-                        isStreaming
-                          ? "Stop generating"
-                          : isRunInProgress
-                            ? "Cancel run"
-                            : "Send message (Enter)"
-                      }
-                    >
-                      {showStopOrCancel ? (
-                        <Stop size={20} />
-                      ) : (
-                        <ArrowUp size={20} />
-                      )}
-                    </Button>
+                        size="icon"
+                        disabled={!canSubmit && !showStopOrCancel}
+                        className={cn(
+                          "size-8 rounded-lg transition-all",
+                          !canSubmit &&
+                            !showStopOrCancel &&
+                            "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground cursor-not-allowed",
+                        )}
+                        title={
+                          isStreaming
+                            ? "Stop generating"
+                            : isRunInProgress
+                              ? "Cancel run"
+                              : "Send message (Enter)"
+                        }
+                      >
+                        {showStopOrCancel ? (
+                          <Stop size={20} />
+                        ) : (
+                          <ArrowUp size={20} />
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </div>
               </form>

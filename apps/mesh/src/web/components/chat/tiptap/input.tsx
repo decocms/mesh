@@ -40,6 +40,7 @@ function buildExtensions(placeholderRef: React.RefObject<string | undefined>) {
 export interface TiptapInputHandle {
   focus: () => void;
   clear: () => void;
+  appendText: (text: string) => void;
 }
 
 interface TiptapProviderProps {
@@ -178,6 +179,15 @@ export function TiptapInput({
       },
       clear: () => {
         editor?.commands.clearContent(true);
+      },
+      appendText: (text: string) => {
+        if (!editor) return;
+        const isEmpty = editor.state.doc.textContent.trim() === "";
+        editor.commands.focus("end");
+        if (!isEmpty) {
+          editor.commands.insertContent(" ");
+        }
+        editor.commands.insertContent(text);
       },
     }),
     [editor],
