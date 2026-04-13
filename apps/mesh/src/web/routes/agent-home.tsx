@@ -19,6 +19,8 @@ const ProjectAppViewContent = lazy(() =>
   })),
 );
 
+const PagesView = lazy(() => import("@/web/views/pages"));
+
 /**
  * Resolve the effective main view: if the URL specifies one, use it;
  * otherwise fall back to the entity's layout config, then to settings.
@@ -51,6 +53,8 @@ function useResolvedMainView(): MainView & {} {
         : { type: "chat" };
     case "settings":
       return { type: "settings" };
+    case "pages":
+      return { type: "pages" };
     default:
       return { type: "chat" };
   }
@@ -115,6 +119,10 @@ function AgentHomeContent() {
     );
   }
 
+  if (resolved.type === "pages") {
+    return <PagesView pageKey={resolved.pageKey} />;
+  }
+
   // settings
   return (
     <VirtualMcpDetailView key={virtualMcpId} virtualMcpId={virtualMcpId} />
@@ -132,6 +140,8 @@ function mainViewKey(view: MainView): string {
       return `automation:${view.id}`;
     case "ext-apps":
       return `ext-apps:${view.id}:${view.toolName ?? ""}`;
+    case "pages":
+      return `pages:${view.pageKey ?? "list"}`;
   }
 }
 
