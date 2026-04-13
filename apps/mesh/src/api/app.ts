@@ -672,7 +672,10 @@ export async function createApp(options: CreateAppOptions = {}) {
       const redirectUri = targetUrl.searchParams.get("redirect_uri");
       if (!redirectUri) {
         return c.json(
-          { error: "invalid_request", error_description: "redirect_uri is required" },
+          {
+            error: "invalid_request",
+            error_description: "redirect_uri is required",
+          },
           400,
         );
       }
@@ -685,13 +688,19 @@ export async function createApp(options: CreateAppOptions = {}) {
           redirectHost.endsWith(".studio.decocms.com");
         if (!allowed) {
           return c.json(
-            { error: "invalid_request", error_description: "redirect_uri is not allowed" },
+            {
+              error: "invalid_request",
+              error_description: "redirect_uri is not allowed",
+            },
             400,
           );
         }
       } catch {
         return c.json(
-          { error: "invalid_request", error_description: "redirect_uri is malformed" },
+          {
+            error: "invalid_request",
+            error_description: "redirect_uri is malformed",
+          },
           400,
         );
       }
