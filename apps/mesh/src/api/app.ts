@@ -742,7 +742,12 @@ export async function createApp(options: CreateAppOptions = {}) {
         // Figma: rewrite client_name and ensure scope for registration
         const body = await c.req.json();
         body.client_name = "Claude Code (figma)";
-        body.scope = body.scope || "mcp:connect";
+        const scopes =
+          typeof body.scope === "string"
+            ? body.scope.split(/\s+/).filter(Boolean)
+            : [];
+        if (!scopes.includes("mcp:connect")) scopes.push("mcp:connect");
+        body.scope = scopes.join(" ");
         requestBody = JSON.stringify(body);
       } else {
         // For other content types, pass through as-is
