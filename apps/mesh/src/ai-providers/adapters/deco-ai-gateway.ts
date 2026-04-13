@@ -91,10 +91,16 @@ export const decoAiGatewayAdapter: ProviderAdapter = {
   },
 
   async provisionKey(meshJwt: string, organizationId: string) {
+    const studioProvisionSecretKey =
+      getSettings().studioProvisionSecretKey ?? "";
+    if (!studioProvisionSecretKey) {
+      throw new Error("STUDIO_PROVISION_SECRET_KEY is not set");
+    }
     const res = await fetch(`${getBase()}/api/keys/provision`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Provision-Key": studioProvisionSecretKey,
         Authorization: `Bearer ${meshJwt}`,
       },
       body: JSON.stringify({ organization_id: organizationId }),
