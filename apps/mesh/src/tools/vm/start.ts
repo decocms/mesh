@@ -30,7 +30,9 @@ const BOOTSTRAP_SCRIPT = `<script>(function(){window.addEventListener("message",
 // Responsibilities:
 //   1. Reverse proxy: strips X-Frame-Options/CSP so the dev server can be embedded in an iframe.
 //      Injects visual-editor bootstrap script into HTML responses.
-//   2. Log tailing: watches /tmp/vm.log via fs.watch (inotify) and streams new lines over SSE.
+//   2. Log tailing: watches /tmp/install.log and /tmp/dev.log via fs.watch,
+//      streams new lines over SSE with a `source` field ("install" | "dev").
+//      On SSE connect, replays the last 5 lines of each file.
 //   3. Liveness probing: probes upstream dev server (every 3s during startup, 30s steady state).
 //   4. SSE endpoint: GET /_daemon/events multiplexes log and status events to connected clients.
 // Node's http/fs modules are available in Freestyle VMs by default.
@@ -41,63 +43,62 @@ const buildDaemonScript = (upstreamPort: string) => {
   return `const http = require("http");
 const fs = require("fs");
 const UPSTREAM = "${upstreamPort}";
-const LOG = "/tmp/vm.log";
+const LOG_FILES = { install: "/tmp/install.log", dev: "/tmp/dev.log" };
 const PROXY_PORT = ${PROXY_PORT};
 const BOOTSTRAP = ${JSON.stringify(BOOTSTRAP_SCRIPT)};
 const MAX_SSE_CLIENTS = 10;
 
 // --- SSE state ---
 const sseClients = new Set();
-let logOffset = 0;
-let tailing = false;
 let lastStatus = { ready: false, htmlSupport: false };
 
-// --- Log tailing via fs.watch (inotify) ---
-function tailLog() {
-  if (tailing) return;
-  tailing = true;
-  fs.open(LOG, "r", (err, fd) => {
-    if (err) { tailing = false; return; }
-    drainLog(fd);
+// --- Per-file log tailing ---
+const logState = {
+  install: { offset: 0, tailing: false },
+  dev: { offset: 0, tailing: false },
+};
+
+function tailLog(source) {
+  const s = logState[source];
+  if (s.tailing) return;
+  s.tailing = true;
+  fs.open(LOG_FILES[source], "r", (err, fd) => {
+    if (err) { s.tailing = false; return; }
+    drainLog(source, fd);
   });
 }
 
-function drainLog(fd) {
+function drainLog(source, fd) {
+  const s = logState[source];
   const buf = Buffer.alloc(64 * 1024);
-  fs.read(fd, buf, 0, buf.length, logOffset, (err, bytesRead) => {
+  fs.read(fd, buf, 0, buf.length, s.offset, (err, bytesRead) => {
     if (err || bytesRead === 0) {
       fs.close(fd, () => {});
-      tailing = false;
+      s.tailing = false;
       return;
     }
-    logOffset += bytesRead;
+    s.offset += bytesRead;
     const text = buf.toString("utf-8", 0, bytesRead);
     const lines = text.split("\\n").filter(Boolean);
     if (lines.length > 0) {
-      const payload = JSON.stringify({ type: "log", lines: lines });
+      const payload = JSON.stringify({ type: "log", source: source, lines: lines });
       for (const res of sseClients) {
         if (res.writable) res.write("event: log\\ndata: " + payload + "\\n\\n");
       }
     }
-    // Continue reading if there may be more data
     if (bytesRead === buf.length) {
-      drainLog(fd);
+      drainLog(source, fd);
     } else {
       fs.close(fd, () => {});
-      tailing = false;
+      s.tailing = false;
     }
   });
 }
 
-// Use fs.watch (inotify) for low-latency change detection.
-// Falls back to polling if watch is unavailable.
-try {
-  fs.watch(LOG, () => { tailLog(); });
-} catch (e) {
-  fs.watchFile(LOG, { interval: 500 }, tailLog);
+for (const source of Object.keys(LOG_FILES)) {
+  fs.watch(LOG_FILES[source], () => { tailLog(source); });
+  tailLog(source);
 }
-// Initial read of existing content
-tailLog();
 
 // --- Liveness probe ---
 // Probes every 3s during first 60s (startup), then every 30s (steady state)
@@ -145,6 +146,21 @@ function broadcastStatus() {
 // Start probing after 1s
 setTimeout(probeUpstream, 1000);
 
+// --- Replay last lines on connect ---
+function replayLastLines(res, source) {
+  try {
+    const content = fs.readFileSync(LOG_FILES[source], "utf-8");
+    const allLines = content.split("\\n").filter(Boolean);
+    const last5 = allLines.slice(-5);
+    if (last5.length > 0) {
+      const payload = JSON.stringify({ type: "log", source: source, lines: last5 });
+      res.write("event: log\\ndata: " + payload + "\\n\\n");
+    }
+  } catch (e) {
+    // File may not exist yet
+  }
+}
+
 // --- HTTP server ---
 http.createServer((req, res) => {
   // SSE endpoint
@@ -162,12 +178,15 @@ http.createServer((req, res) => {
     });
     // Send current status immediately
     res.write("event: status\\ndata: " + JSON.stringify({ type: "status", ...lastStatus }) + "\\n\\n");
+    // Replay last 5 lines from each log file
+    replayLastLines(res, "install");
+    replayLastLines(res, "dev");
     sseClients.add(res);
     req.on("close", () => { sseClients.delete(res); });
     // Keepalive every 15s
     const ka = setInterval(() => {
       if (!res.writable) { clearInterval(ka); sseClients.delete(res); return; }
-      res.write(": keepalive\\n\\n");
+      res.write("event: heartbeat\\ndata: {}\\n\\n");
     }, 15000);
     req.on("close", () => { clearInterval(ka); });
     return;
@@ -321,7 +340,8 @@ export const VM_START = defineTool({
           content:
             "#!/bin/bash\nsource /etc/profile.d/nvm.sh\nexec node /opt/daemon.js\n",
         },
-        "/tmp/vm.log": { content: "" },
+        "/tmp/install.log": { content: "" },
+        "/tmp/dev.log": { content: "" },
       })
       .systemdService({
         name: "daemon",
