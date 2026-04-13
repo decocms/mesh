@@ -87,9 +87,9 @@ function runProcess(source, cmd, label) {
     children[source] = null;
   }
   broadcastLog(source, [label]);
-  const child = spawn("bash", ["-c", cmd], {
+  const child = spawn("script", ["-q", "-c", cmd, "/dev/null"], {
     stdio: ["ignore", "pipe", "pipe"],
-    env: Object.assign({}, process.env, { TERM: "xterm-256color", FORCE_COLOR: "1" }),
+    env: Object.assign({}, process.env, { TERM: "xterm-256color" }),
   });
   children[source] = child;
   let partial = "";
