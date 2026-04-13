@@ -39,7 +39,7 @@ export const VM_EXEC = defineTool({
     try {
       if (input.action === "install") {
         // Build the full install script that runs in the background.
-        // All output goes to /tmp/vm.log so the ttyd terminal shows progress.
+        // All output goes to /tmp/install.log so the daemon streams it over SSE.
         // Runtime (node/deno/bun) is pre-installed via Freestyle integrations.
         // No manual curl installs needed.
         const steps: string[] = [
@@ -55,7 +55,7 @@ export const VM_EXEC = defineTool({
         // Fire and forget — output streams to /tmp/vm.log via ttyd.
         // Don't await: vm.exec() blocks until all child processes exit.
         vm.exec({
-          command: `nohup bash -c '(${script}) >> /tmp/vm.log 2>&1 &'`,
+          command: `nohup bash -c '(${script}) >> /tmp/install.log 2>&1 &'`,
         }).catch(console.error);
 
         return { success: true };
@@ -66,7 +66,7 @@ export const VM_EXEC = defineTool({
       // blocking — vm.exec() waits for all child processes to exit.
       // iframe-proxy is managed by its systemd service, no manual start needed.
       vm.exec({
-        command: `nohup bash -c 'kill $(cat /tmp/dev.pid) 2>/dev/null || true; ${pathPrefix}echo "" >> /tmp/vm.log && echo "--- Starting dev server ---" >> /tmp/vm.log && cd /app && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=${port} ${devScript} >> /tmp/vm.log 2>&1 & echo $! > /tmp/dev.pid'`,
+        command: `nohup bash -c 'kill $(cat /tmp/dev.pid) 2>/dev/null || true; ${pathPrefix}echo "" >> /tmp/dev.log && echo "--- Starting dev server ---" >> /tmp/dev.log && cd /app && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=${port} ${devScript} >> /tmp/dev.log 2>&1 & echo $! > /tmp/dev.pid'`,
       }).catch(console.error);
 
       return { success: true };
