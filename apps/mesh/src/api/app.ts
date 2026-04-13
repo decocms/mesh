@@ -670,39 +670,32 @@ export async function createApp(options: CreateAppOptions = {}) {
     if (endpoint === "authorize") {
       // Validate redirect_uri to prevent OAuth hijacking — only allow our own origins
       const redirectUri = targetUrl.searchParams.get("redirect_uri");
-      if (!redirectUri) {
-        return c.json(
-          {
-            error: "invalid_request",
-            error_description: "redirect_uri is required",
-          },
-          400,
-        );
-      }
-      try {
-        const redirectHost = new URL(redirectUri).hostname;
-        const allowed =
-          redirectHost === "localhost" ||
-          redirectHost === "127.0.0.1" ||
-          redirectHost === "studio.decocms.com" ||
-          redirectHost.endsWith(".studio.decocms.com");
-        if (!allowed) {
+      if (redirectUri) {
+        try {
+          const redirectHost = new URL(redirectUri).hostname;
+          const allowed =
+            redirectHost === "localhost" ||
+            redirectHost === "127.0.0.1" ||
+            redirectHost === "studio.decocms.com" ||
+            redirectHost.endsWith(".studio.decocms.com");
+          if (!allowed) {
+            return c.json(
+              {
+                error: "invalid_request",
+                error_description: "redirect_uri is not allowed",
+              },
+              400,
+            );
+          }
+        } catch {
           return c.json(
             {
               error: "invalid_request",
-              error_description: "redirect_uri is not allowed",
+              error_description: "redirect_uri is malformed",
             },
             400,
           );
         }
-      } catch {
-        return c.json(
-          {
-            error: "invalid_request",
-            error_description: "redirect_uri is malformed",
-          },
-          400,
-        );
       }
 
       // IMPORTANT: Rewrite the 'resource' parameter to point to the origin MCP endpoint
