@@ -334,7 +334,8 @@ export function ChatInput({
   };
 
   const handleVoiceConfirm = () => {
-    voice.stopRecording();
+    const finalText = voice.stopRecording();
+    tiptapRef.current?.syncVoiceText(voiceBaselineDocRef.current, finalText);
     tiptapRef.current?.focus();
   };
 

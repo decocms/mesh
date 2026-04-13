@@ -196,7 +196,10 @@ export function TiptapInput({
         editor.commands.setContent(baseline || { type: "doc", content: [] });
         if (voiceText) {
           editor.commands.focus("end");
-          editor.commands.insertContent(voiceText);
+          const hasBaseline = editor.state.doc.textContent.trim().length > 0;
+          editor.commands.insertContent(
+            hasBaseline ? " " + voiceText : voiceText,
+          );
         }
       },
       restoreContent: (baseline: Metadata["tiptapDoc"]) => {
