@@ -237,7 +237,7 @@ async function ensureFreestyleRepo(
     return metadata.freestyleRepoId;
   }
 
-  const { repo, repoId } = await freestyle.git.repos.create();
+  const { repo, repoId } = await freestyle.git.repos.create({});
   await repo.githubSync.enable({ githubRepoName: `${owner}/${name}` });
   console.log(
     `[VM_START] Created Freestyle repo ${repoId} with GitHub Sync for ${owner}/${name}`,

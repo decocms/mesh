@@ -44,8 +44,9 @@ export const VM_EXEC = defineTool({
         // No manual curl installs needed.
         const steps: string[] = [
           'echo "" && echo "--- Reinstalling dependencies ---"',
-          // Wait for git repo to be synced
-          "systemctl is-active --wait freestyle-git-sync.service",
+          // Wait for git repo to be synced (oneshot services become "inactive" on
+          // success, so is-active returns exit 3 — treat that as OK).
+          "systemctl is-active --wait freestyle-git-sync.service || [ $? -eq 3 ]",
           `${pathPrefix}echo "$ ${installScript}" && cd /app && ${installScript}`,
         ];
 

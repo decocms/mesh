@@ -185,6 +185,9 @@ export function GitHubRepoDialog({
       return payload as { installations: Installation[] };
     },
     enabled: open && !!token,
+    // Auto-poll while waiting for the user to install the GitHub App.
+    // Once installations are found the UI moves to the next screen.
+    refetchInterval: 3000,
   });
 
   // Derive effective installation
@@ -530,7 +533,29 @@ export function GitHubRepoDialog({
           <p className="text-sm text-muted-foreground text-center">
             Install the Deco CMS GitHub App on your organization to continue.
           </p>
-          <Button onClick={handleInstallApp}>Install GitHub App</Button>
+          <div className="flex gap-2">
+            <Button onClick={handleInstallApp}>Install GitHub App</Button>
+            <Button
+              variant="outline"
+              onClick={() => installationsQuery.refetch()}
+              disabled={installationsQuery.isFetching}
+            >
+              {installationsQuery.isFetching
+                ? "Checking..."
+                : "I've installed it"}
+            </Button>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              clearStoredToken();
+              setToken(null);
+              setDeviceFlow(null);
+            }}
+            className="text-xs text-muted-foreground hover:text-foreground underline"
+          >
+            Wrong account? Re-authenticate
+          </button>
         </div>
       );
     }
