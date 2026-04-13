@@ -43,10 +43,9 @@ export const VM_EXEC = defineTool({
         // Runtime (node/deno/bun) is pre-installed via Freestyle integrations.
         // No manual curl installs needed.
         const steps: string[] = [
-          'echo "" && echo "--- Reinstalling dependencies ---"',
           // Wait for git repo to be synced (oneshot services become "inactive" on
           // success, so is-active returns exit 3 — treat that as OK).
-          "systemctl is-active --wait freestyle-git-sync.service || [ $? -eq 3 ]",
+          "systemctl is-active --wait freestyle-git-sync.service > /dev/null 2>&1 || [ $? -eq 3 ]",
           `${pathPrefix}echo "$ ${installScript}" && cd /app && ${installScript}`,
         ];
 
@@ -66,7 +65,7 @@ export const VM_EXEC = defineTool({
       // blocking — vm.exec() waits for all child processes to exit.
       // iframe-proxy is managed by its systemd service, no manual start needed.
       vm.exec({
-        command: `nohup bash -c 'kill $(cat /tmp/dev.pid) 2>/dev/null || true; ${pathPrefix}echo "" >> /tmp/dev.log && echo "--- Starting dev server ---" >> /tmp/dev.log && cd /app && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=${port} ${devScript} >> /tmp/dev.log 2>&1 & echo $! > /tmp/dev.pid'`,
+        command: `nohup bash -c 'kill $(cat /tmp/dev.pid) 2>/dev/null || true; ${pathPrefix}echo "$ ${devScript}" >> /tmp/dev.log && cd /app && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=${port} ${devScript} >> /tmp/dev.log 2>&1 & echo $! > /tmp/dev.pid'`,
       }).catch(console.error);
 
       return { success: true };

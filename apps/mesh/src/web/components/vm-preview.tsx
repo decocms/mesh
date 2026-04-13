@@ -40,6 +40,7 @@ import {
 } from "./resizable";
 import { useVmEvents } from "@/web/hooks/use-vm-events";
 import { VmTerminal } from "./vm-terminal";
+import { EmptyState } from "./empty-state";
 
 interface VmData {
   terminalUrl: string | null;
@@ -90,7 +91,7 @@ export function VmPreviewContent() {
   // Terminal panel state
   const [terminalOpen, setTerminalOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<"setup" | "install" | "dev">(
-    "setup",
+    "dev",
   );
   const terminalPanelRef = useRef<ImperativePanelHandle>(null);
 
@@ -159,14 +160,11 @@ export function VmPreviewContent() {
       setStatusLabel("");
 
       if (!data.isNewVm) {
-        // Existing VM — kick off dev server restart without blocking.
-        handleExec("dev").catch(() => {});
         return;
       }
 
-      // New VM — run install + dev
+      // New VM — run install automatically
       await handleExec("install");
-      await handleExec("dev");
     } catch (error) {
       setStatus("error");
       setErrorMsg(
@@ -180,11 +178,6 @@ export function VmPreviewContent() {
   const handleResume = async () => {
     setStatus("running");
     setActionError("");
-    try {
-      await handleExec("dev");
-    } catch (error) {
-      setActionError(formatActionError(error, "Failed to resume VM"));
-    }
   };
 
   const handleStop = async () => {
@@ -284,7 +277,7 @@ export function VmPreviewContent() {
         <Monitor04 size={48} className="text-muted-foreground/40" />
         <h3 className="text-lg font-medium">Preview</h3>
         <p className="text-sm text-muted-foreground text-center max-w-sm">
-          Start a development server from your connected GitHub repository.
+          Start development environment
         </p>
         <Button onClick={handleStart} disabled={isStopping}>
           {isStopping && <Loading01 size={14} className="animate-spin" />}
@@ -531,7 +524,9 @@ export function VmPreviewContent() {
                       ? "Running..."
                       : activeTab === "install"
                         ? "Re-install"
-                        : "Restart Dev"}
+                        : vmEvents.devLogs.length > 0
+                          ? "Restart Dev"
+                          : "Run Dev"}
                   </button>
                 )}
               </div>
@@ -542,12 +537,61 @@ export function VmPreviewContent() {
                     className="h-full"
                   />
                 )}
-                {activeTab === "install" && (
-                  <VmTerminal lines={vmEvents.installLogs} className="h-full" />
-                )}
-                {activeTab === "dev" && (
-                  <VmTerminal lines={vmEvents.devLogs} className="h-full" />
-                )}
+                {activeTab === "install" &&
+                  (vmEvents.installLogs.length > 0 ? (
+                    <VmTerminal
+                      lines={vmEvents.installLogs}
+                      className="h-full"
+                    />
+                  ) : (
+                    <EmptyState
+                      className="h-full"
+                      image={null}
+                      title="No install output"
+                      description="Run the install script to see dependency installation logs here."
+                      actions={
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={execInFlight}
+                          onClick={() => handleExec("install")}
+                        >
+                          {execInFlight ? (
+                            <Loading01 size={14} className="animate-spin" />
+                          ) : (
+                            <Play size={14} />
+                          )}
+                          Install
+                        </Button>
+                      }
+                    />
+                  ))}
+                {activeTab === "dev" &&
+                  (vmEvents.devLogs.length > 0 ? (
+                    <VmTerminal lines={vmEvents.devLogs} className="h-full" />
+                  ) : (
+                    <EmptyState
+                      className="h-full"
+                      image={null}
+                      title="No dev output"
+                      description="Start the dev server to see its output here."
+                      actions={
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={execInFlight}
+                          onClick={() => handleExec("dev")}
+                        >
+                          {execInFlight ? (
+                            <Loading01 size={14} className="animate-spin" />
+                          ) : (
+                            <Play size={14} />
+                          )}
+                          Run Dev
+                        </Button>
+                      }
+                    />
+                  ))}
               </div>
             </div>
           </ResizablePanel>
