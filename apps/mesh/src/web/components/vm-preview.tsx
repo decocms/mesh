@@ -6,21 +6,15 @@ import {
 } from "@decocms/mesh-sdk";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import {
-  ChevronDown,
   CursorClick01,
   LinkExternal01,
   Loading01,
   Monitor04,
+  Play,
   RefreshCw01,
   StopCircle,
   Terminal,
 } from "@untitledui/icons";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@deco/ui/components/dropdown-menu.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   ViewModeToggle,
@@ -42,6 +36,7 @@ import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
+  type ImperativePanelHandle,
 } from "./resizable";
 import { useVmEvents } from "@/web/hooks/use-vm-events";
 import { VmTerminal } from "./vm-terminal";
@@ -91,6 +86,13 @@ export function VmPreviewContent() {
   const [execInFlight, setExecInFlight] = useState(false);
   const vmDataRef = useRef<VmData | null>(null);
   const startingRef = useRef(false);
+
+  // Terminal panel state
+  const [terminalOpen, setTerminalOpen] = useState(true);
+  const [activeTab, setActiveTab] = useState<"setup" | "install" | "dev">(
+    "setup",
+  );
+  const terminalPanelRef = useRef<ImperativePanelHandle>(null);
 
   // Visual editor state
   const [viewMode, setViewMode] = useState<PreviewViewMode>("preview");
@@ -330,50 +332,26 @@ export function VmPreviewContent() {
           />
         )}
         {isRunning && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className={cn(
-                  "flex items-center gap-1.5 px-2.5 h-7 rounded-md text-xs transition-colors shrink-0",
-                  "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <Terminal size={14} />
-                <ChevronDown size={10} />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem
-                disabled={execInFlight}
-                onClick={async () => {
-                  setActionError("");
-                  try {
-                    await handleExec("install");
-                  } catch (error) {
-                    setActionError(
-                      formatActionError(error, "Reinstall failed"),
-                    );
-                  }
-                }}
-              >
-                Reinstall Dependencies
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={execInFlight}
-                onClick={async () => {
-                  setActionError("");
-                  try {
-                    await handleExec("dev");
-                  } catch (error) {
-                    setActionError(formatActionError(error, "Restart failed"));
-                  }
-                }}
-              >
-                Restart Dev Server
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <button
+            type="button"
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 h-7 rounded-md text-xs transition-colors shrink-0",
+              terminalOpen
+                ? "bg-accent text-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+            onClick={() => {
+              const panel = terminalPanelRef.current;
+              if (!panel) return;
+              if (panel.isCollapsed()) {
+                panel.expand();
+              } else {
+                panel.collapse();
+              }
+            }}
+          >
+            <Terminal size={14} />
+          </button>
         )}
         <div className="flex items-center gap-1 flex-1 min-w-0 rounded-md border border-border bg-muted/40 px-2 py-1">
           <Tooltip>
@@ -470,7 +448,7 @@ export function VmPreviewContent() {
             collapsedSize={0}
             minSize={20}
             defaultSize={60}
-            className="relative overflow-hidden rounded-[inherit]"
+            className="relative overflow-hidden"
           >
             {hasHtmlPreview ? (
               <>
@@ -508,16 +486,70 @@ export function VmPreviewContent() {
             )}
           </ResizablePanel>
 
-          <ResizableHandle className="h-[3px] bg-border/60 hover:bg-primary/30 transition-colors" />
+          <ResizableHandle />
 
           <ResizablePanel
+            ref={terminalPanelRef}
             collapsible
             collapsedSize={0}
             minSize={15}
             defaultSize={40}
-            className="overflow-hidden rounded-[inherit]"
+            className="overflow-hidden"
+            onCollapse={() => setTerminalOpen(false)}
+            onExpand={() => setTerminalOpen(true)}
           >
-            <VmTerminal lines={vmEvents.logs} className="h-full" />
+            <div className="flex flex-col h-full">
+              <div className="flex items-center gap-0 border-b border-border px-2 shrink-0">
+                {(["setup", "install", "dev"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setActiveTab(tab)}
+                    className={cn(
+                      "px-3 py-1.5 text-xs font-medium capitalize transition-colors",
+                      activeTab === tab
+                        ? "text-foreground border-b-2 border-primary"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {tab}
+                  </button>
+                ))}
+                {(activeTab === "install" || activeTab === "dev") && (
+                  <button
+                    type="button"
+                    disabled={execInFlight}
+                    onClick={() => handleExec(activeTab)}
+                    className="ml-auto flex items-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                  >
+                    {execInFlight ? (
+                      <Loading01 size={12} className="animate-spin" />
+                    ) : (
+                      <Play size={12} />
+                    )}
+                    {execInFlight
+                      ? "Running..."
+                      : activeTab === "install"
+                        ? "Re-install"
+                        : "Restart Dev"}
+                  </button>
+                )}
+              </div>
+              <div className="flex-1 overflow-hidden">
+                {activeTab === "setup" && (
+                  <VmTerminal
+                    lines={[...vmEvents.installLogs, ...vmEvents.devLogs]}
+                    className="h-full"
+                  />
+                )}
+                {activeTab === "install" && (
+                  <VmTerminal lines={vmEvents.installLogs} className="h-full" />
+                )}
+                {activeTab === "dev" && (
+                  <VmTerminal lines={vmEvents.devLogs} className="h-full" />
+                )}
+              </div>
+            </div>
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
