@@ -72,10 +72,17 @@ export function createReadPromptTool(params: PromptToolParams) {
       }),
     ),
     execute: async ({ name, arguments: args }) => {
-      const result = await passthroughClient.getPrompt({
-        name,
-        arguments: args,
-      });
+      let result;
+      try {
+        result = await passthroughClient.getPrompt({
+          name,
+          arguments: args ?? {},
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : String(error);
+        return { error: `Failed to read prompt "${name}": ${message}` };
+      }
       const messages = result.messages;
 
       if (!messages || messages.length === 0) {
