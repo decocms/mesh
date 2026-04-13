@@ -15,6 +15,8 @@ interface GoogleModel {
   description: string;
   topP: number;
   topK: number;
+  /** Lifecycle stage returned by the API (e.g. "ACTIVE", "DEPRECATED"). */
+  lifecycleState?: string;
 }
 
 export const googleAdapter: ProviderAdapter = {
@@ -42,19 +44,21 @@ export const googleAdapter: ProviderAdapter = {
           throw new Error(`Google listModels failed: ${res.status}`);
         }
         const data: { models: GoogleModel[] } = await res.json();
-        return data.models.map((m: GoogleModel) => ({
-          modelId: m.name.replace("models/", ""),
-          providerId: "google",
-          title: m.displayName,
-          description: m.description,
-          logo: null,
-          capabilities: [],
-          limits: {
-            contextWindow: m.inputTokenLimit,
-            maxOutputTokens: m.outputTokenLimit,
-          },
-          costs: null,
-        }));
+        return data.models
+          .filter((m: GoogleModel) => m.lifecycleState !== "DEPRECATED")
+          .map((m: GoogleModel) => ({
+            modelId: m.name.replace("models/", ""),
+            providerId: "google",
+            title: m.displayName,
+            description: m.description,
+            logo: null,
+            capabilities: [],
+            limits: {
+              contextWindow: m.inputTokenLimit,
+              maxOutputTokens: m.outputTokenLimit,
+            },
+            costs: null,
+          }));
       },
     };
   },
