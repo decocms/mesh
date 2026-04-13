@@ -668,6 +668,34 @@ export async function createApp(options: CreateAppOptions = {}) {
     // 2. Cookies are set on the correct domain
     // 3. The user can interact with the consent screen
     if (endpoint === "authorize") {
+      // Validate redirect_uri to prevent OAuth hijacking — only allow our own origins
+      const redirectUri = targetUrl.searchParams.get("redirect_uri");
+      if (!redirectUri) {
+        return c.json(
+          { error: "invalid_request", error_description: "redirect_uri is required" },
+          400,
+        );
+      }
+      try {
+        const redirectHost = new URL(redirectUri).hostname;
+        const allowed =
+          redirectHost === "localhost" ||
+          redirectHost === "127.0.0.1" ||
+          redirectHost === "studio.decocms.com" ||
+          redirectHost.endsWith(".studio.decocms.com");
+        if (!allowed) {
+          return c.json(
+            { error: "invalid_request", error_description: "redirect_uri is not allowed" },
+            400,
+          );
+        }
+      } catch {
+        return c.json(
+          { error: "invalid_request", error_description: "redirect_uri is malformed" },
+          400,
+        );
+      }
+
       // IMPORTANT: Rewrite the 'resource' parameter to point to the origin MCP endpoint
       // Some auth servers (like Supabase) validate that the resource is their actual endpoint,
       // not our proxy. We keep the proxy URL for redirect_uri since that's where we handle the callback.
