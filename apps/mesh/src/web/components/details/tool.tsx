@@ -63,7 +63,10 @@ import {
 import { contentBlocksToTiptapDoc } from "@/mcp-apps/content-blocks.ts";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { ToolAnnotationBadges } from "@/web/components/tools/tools-list.tsx";
-import { useChatBridge, useChatPrefs } from "@/web/components/chat/context.tsx";
+import {
+  useChatBridge,
+  useOptionalChatPrefs,
+} from "@/web/components/chat/context.tsx";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { MonacoCodeEditor } from "./workflow/components/monaco-editor";
 
@@ -200,7 +203,7 @@ function ToolDetailsAuthenticated({
   const { org } = useProjectContext();
   const connection = useConnection(connectionId);
   const { sendMessage } = useChatBridge();
-  const { setAppContext, clearAppContext } = useChatPrefs();
+  const chatPrefs = useOptionalChatPrefs();
   const { setChatOpen } = usePanelActions();
   const sourceId = `${connectionId}:${toolName}`;
 
@@ -654,8 +657,10 @@ function ToolDetailsAuthenticated({
               maxHeight={MCP_APP_DISPLAY_MODES.view.maxHeight}
               client={client}
               onMessage={handleAppMessage}
-              onUpdateModelContext={(params) => setAppContext(sourceId, params)}
-              onTeardown={() => clearAppContext(sourceId)}
+              onUpdateModelContext={(params) =>
+                chatPrefs?.setAppContext(sourceId, params)
+              }
+              onTeardown={() => chatPrefs?.clearAppContext(sourceId)}
               className="h-full"
             />
           </Suspense>
