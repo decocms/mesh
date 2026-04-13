@@ -47,6 +47,8 @@ export interface AiProviderModel {
   capabilities: ModelCapability[];
   limits: AiProviderModelLimits | null;
   costs: AiProviderModelCosts | null;
+  /** When true the upstream provider has flagged this model as deprecated. */
+  deprecated?: boolean;
   /** Client-side only — the credential key ID used to fetch this model. */
   keyId?: string;
 }

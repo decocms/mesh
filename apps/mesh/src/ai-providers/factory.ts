@@ -144,9 +144,10 @@ export class AIProviderFactory {
     const provider = adapter.create(apiKey);
     const rawModels = await provider.listModels();
 
-    // Providers occasionally return duplicate modelIds — keep first occurrence
+    // Drop deprecated and duplicate models
     const seen = new Set<string>();
     let models = rawModels.filter((m) => {
+      if (m.deprecated) return false;
       if (seen.has(m.modelId)) return false;
       seen.add(m.modelId);
       return true;

@@ -19,6 +19,8 @@ export interface ModelInfo {
   capabilities: ModelCapability[];
   limits?: { contextWindow: number; maxOutputTokens: number | null } | null;
   costs: { input: number; output: number } | null;
+  /** When true the upstream provider has flagged this model as deprecated. */
+  deprecated?: boolean;
 }
 
 export interface TokenCounter {
