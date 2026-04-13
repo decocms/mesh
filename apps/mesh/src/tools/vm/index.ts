@@ -6,4 +6,3 @@
 
 export { VM_START } from "./start";
 export { VM_DELETE } from "./stop";
-export { VM_EXEC } from "./exec";

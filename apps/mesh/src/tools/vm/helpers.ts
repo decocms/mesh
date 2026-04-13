@@ -1,5 +1,5 @@
 /**
- * Shared VM helper functions used across VM tools (VM_START, VM_EXEC, VM_DELETE).
+ * Shared VM helper functions used across VM tools (VM_START, VM_DELETE).
  *
  * Centralizes:
  * - Auth + lookup boilerplate (requireVmEntry)

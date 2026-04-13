@@ -70,13 +70,6 @@ const VIEW_MODE_OPTIONS: [
   },
 ];
 
-function formatActionError(error: unknown, fallback: string): string {
-  if (!(error instanceof Error)) return fallback;
-  // Strip MCP protocol prefixes like "MCP error -32602: "
-  const msg = error.message.replace(/^MCP error -?\d+:\s*/i, "");
-  return msg || fallback;
-}
-
 export function VmPreviewContent() {
   const { org } = useProjectContext();
   const inset = useInsetContext();
@@ -93,6 +86,7 @@ export function VmPreviewContent() {
   const [activeTab, setActiveTab] = useState<"setup" | "install" | "dev">(
     "dev",
   );
+  const previewPanelRef = useRef<ImperativePanelHandle>(null);
   const terminalPanelRef = useRef<ImperativePanelHandle>(null);
 
   // Visual editor state
@@ -125,14 +119,14 @@ export function VmPreviewContent() {
   };
 
   const handleExec = async (action: "install" | "dev") => {
-    if (execInFlight || !inset?.entity) return;
+    if (execInFlight || !vmDataRef.current) return;
     setExecInFlight(true);
     try {
-      const data = (await callTool("VM_EXEC", {
-        virtualMcpId: inset.entity.id,
-        action,
-      })) as { success: boolean; error?: string };
-      if (!data.success) throw new Error(data.error ?? "Command failed");
+      const res = await fetch(
+        `${vmDataRef.current.previewUrl}/_daemon/exec/${action}`,
+        { method: "POST" },
+      );
+      if (!res.ok) throw new Error(`Exec failed: ${res.statusText}`);
     } finally {
       setExecInFlight(false);
     }
@@ -245,6 +239,17 @@ export function VmPreviewContent() {
     }
   }, [vmEvents.suspended, status]);
 
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — expand/collapse preview panel based on htmlSupport; requires imperative panel API
+  useEffect(() => {
+    const panel = previewPanelRef.current;
+    if (!panel) return;
+    if (hasHtmlPreview) {
+      panel.resize(70);
+    } else {
+      panel.collapse();
+    }
+  }, [hasHtmlPreview]);
+
   const injectVisualEditor = () => {
     const win = previewIframeRef.current?.contentWindow;
     if (!win) return;
@@ -277,7 +282,7 @@ export function VmPreviewContent() {
         <Monitor04 size={48} className="text-muted-foreground/40" />
         <h3 className="text-lg font-medium">Preview</h3>
         <p className="text-sm text-muted-foreground text-center max-w-sm">
-          Start development environment
+          Start preview environment
         </p>
         <Button onClick={handleStart} disabled={isStopping}>
           {isStopping && <Loading01 size={14} className="animate-spin" />}
@@ -437,46 +442,36 @@ export function VmPreviewContent() {
 
         <ResizablePanelGroup direction="vertical" className="h-full">
           <ResizablePanel
+            ref={previewPanelRef}
             collapsible
             collapsedSize={0}
             minSize={20}
-            defaultSize={60}
+            defaultSize={0}
             className="relative overflow-hidden"
           >
-            {hasHtmlPreview ? (
-              <>
-                {viewMode === "visual" && !visualElement && (
-                  <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 rounded-full border border-violet-400/40 bg-violet-500/90 px-3 py-1 text-xs font-medium text-white shadow-md backdrop-blur-sm pointer-events-none select-none">
-                    <CursorClick01 size={12} />
-                    Click any element to ask the AI
-                  </div>
-                )}
-                {viewMode === "visual" && visualElement && (
-                  <VisualEditorPrompt
-                    element={visualElement}
-                    onDismiss={() => setVisualElement(null)}
-                  />
-                )}
-                <iframe
-                  ref={previewIframeRef}
-                  src={vmData.previewUrl}
-                  className="w-full h-full border-0"
-                  title="Dev Server Preview"
-                  onLoad={() => {
-                    if (viewMode === "visual") {
-                      injectVisualEditor();
-                    }
-                  }}
-                />
-              </>
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <Loading01
-                  size={20}
-                  className="animate-spin text-muted-foreground"
-                />
+            {viewMode === "visual" && !visualElement && (
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 rounded-full border border-violet-400/40 bg-violet-500/90 px-3 py-1 text-xs font-medium text-white shadow-md backdrop-blur-sm pointer-events-none select-none">
+                <CursorClick01 size={12} />
+                Click any element to ask the AI
               </div>
             )}
+            {viewMode === "visual" && visualElement && (
+              <VisualEditorPrompt
+                element={visualElement}
+                onDismiss={() => setVisualElement(null)}
+              />
+            )}
+            <iframe
+              ref={previewIframeRef}
+              src={vmData.previewUrl}
+              className="w-full h-full border-0"
+              title="Dev Server Preview"
+              onLoad={() => {
+                if (viewMode === "visual") {
+                  injectVisualEditor();
+                }
+              }}
+            />
           </ResizablePanel>
 
           <ResizableHandle />
@@ -486,7 +481,7 @@ export function VmPreviewContent() {
             collapsible
             collapsedSize={0}
             minSize={15}
-            defaultSize={40}
+            defaultSize={100}
             className="overflow-hidden"
             onCollapse={() => setTerminalOpen(false)}
             onExpand={() => setTerminalOpen(true)}
@@ -547,8 +542,8 @@ export function VmPreviewContent() {
                     <EmptyState
                       className="h-full"
                       image={null}
-                      title="No install output"
-                      description="Run the install script to see dependency installation logs here."
+                      title="Dependencies not installed"
+                      description="Install project dependencies to set up your environment."
                       actions={
                         <Button
                           variant="outline"
@@ -573,8 +568,8 @@ export function VmPreviewContent() {
                     <EmptyState
                       className="h-full"
                       image={null}
-                      title="No dev output"
-                      description="Start the dev server to see its output here."
+                      title="Dev server not running"
+                      description="Start the dev server to preview your application."
                       actions={
                         <Button
                           variant="outline"

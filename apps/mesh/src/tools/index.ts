@@ -168,7 +168,6 @@ const CORE_TOOLS = [
   // VM tools (app-only)
   VmTools.VM_START,
   VmTools.VM_DELETE,
-  VmTools.VM_EXEC,
 ] as const satisfies { name: ToolName }[];
 
 // Plugin tools - collected at startup, gated by org settings at runtime

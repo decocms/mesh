@@ -5,7 +5,7 @@
  * and infrastructure-only systemd services (ttyd, terminal, iframe-proxy).
  * App-only tool — not visible to AI models.
  *
- * Install/dev lifecycle is handled by VM_EXEC so VM_START returns fast.
+ * Install/dev lifecycle is handled by the in-VM daemon so VM_START returns fast.
  *
  * Freestyle docs: /v2/vms, /v2/vms/configuration/systemd-services,
  * /v2/vms/configuration/ports-networking, /v2/vms/configuration/domains
@@ -30,74 +30,83 @@ const BOOTSTRAP_SCRIPT = `<script>(function(){window.addEventListener("message",
 // Responsibilities:
 //   1. Reverse proxy: strips X-Frame-Options/CSP so the dev server can be embedded in an iframe.
 //      Injects visual-editor bootstrap script into HTML responses.
-//   2. Log tailing: watches /tmp/install.log and /tmp/dev.log via fs.watch,
-//      streams new lines over SSE with a `source` field ("install" | "dev").
-//      On SSE connect, replays the last 5 lines of each file.
+//   2. Process spawning: spawns install/dev child processes with PTY (via `script`)
+//      and broadcasts stdout over SSE with a `source` field ("install" | "dev").
+//      On SSE connect, replays last 5 lines per source from an in-memory buffer.
 //   3. Liveness probing: probes upstream dev server (every 3s during startup, 30s steady state).
 //   4. SSE endpoint: GET /_daemon/events multiplexes log and status events to connected clients.
-// Node's http/fs modules are available in Freestyle VMs by default.
-const buildDaemonScript = (upstreamPort: string) => {
+//   5. Exec endpoints: POST /_daemon/exec/install and /_daemon/exec/dev trigger process spawning.
+const buildDaemonScript = (opts: {
+  upstreamPort: string;
+  installScript: string;
+  devScript: string;
+  pathPrefix: string;
+  port: string;
+}) => {
+  const { upstreamPort, installScript, devScript, pathPrefix, port } = opts;
   if (!/^\d+$/.test(upstreamPort)) {
     throw new Error(`Invalid upstream port: ${upstreamPort}`);
   }
   return `const http = require("http");
-const fs = require("fs");
+const { spawn } = require("child_process");
 const UPSTREAM = "${upstreamPort}";
-const LOG_FILES = { install: "/tmp/install.log", dev: "/tmp/dev.log" };
 const PROXY_PORT = ${PROXY_PORT};
 const BOOTSTRAP = ${JSON.stringify(BOOTSTRAP_SCRIPT)};
 const MAX_SSE_CLIENTS = 10;
+const INSTALL_CMD = ${JSON.stringify(`${pathPrefix}cd /app && ${installScript}`)};
+const DEV_CMD = ${JSON.stringify(`${pathPrefix}cd /app && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=${port} ${devScript}`)};
+const INSTALL_LABEL = ${JSON.stringify(`$ ${installScript}`)};
+const DEV_LABEL = ${JSON.stringify(`$ ${devScript}`)};
 
 // --- SSE state ---
 const sseClients = new Set();
 let lastStatus = { ready: false, htmlSupport: false };
 
-// --- Per-file log tailing ---
-const logState = {
-  install: { offset: 0, tailing: false },
-  dev: { offset: 0, tailing: false },
-};
+// --- Process state ---
+const children = { install: null, dev: null };
+const replayBuffers = { install: [], dev: [] };
+const REPLAY_SIZE = 5;
 
-function tailLog(source) {
-  const s = logState[source];
-  if (s.tailing) return;
-  s.tailing = true;
-  fs.open(LOG_FILES[source], "r", (err, fd) => {
-    if (err) { s.tailing = false; return; }
-    drainLog(source, fd);
-  });
+function broadcastLog(source, lines) {
+  const filtered = lines.filter(Boolean);
+  if (filtered.length === 0) return;
+  const buf = replayBuffers[source];
+  buf.push(...filtered);
+  if (buf.length > REPLAY_SIZE) {
+    replayBuffers[source] = buf.slice(buf.length - REPLAY_SIZE);
+  }
+  const payload = JSON.stringify({ type: "log", source: source, lines: filtered });
+  for (const res of sseClients) {
+    if (res.writable) res.write("event: log\\ndata: " + payload + "\\n\\n");
+  }
 }
 
-function drainLog(source, fd) {
-  const s = logState[source];
-  const buf = Buffer.alloc(64 * 1024);
-  fs.read(fd, buf, 0, buf.length, s.offset, (err, bytesRead) => {
-    if (err || bytesRead === 0) {
-      fs.close(fd, () => {});
-      s.tailing = false;
-      return;
-    }
-    s.offset += bytesRead;
-    const text = buf.toString("utf-8", 0, bytesRead);
-    const lines = text.split("\\n").filter(Boolean);
-    if (lines.length > 0) {
-      const payload = JSON.stringify({ type: "log", source: source, lines: lines });
-      for (const res of sseClients) {
-        if (res.writable) res.write("event: log\\ndata: " + payload + "\\n\\n");
-      }
-    }
-    if (bytesRead === buf.length) {
-      drainLog(source, fd);
-    } else {
-      fs.close(fd, () => {});
-      s.tailing = false;
-    }
+function runProcess(source, cmd, label) {
+  if (children[source]) {
+    try { children[source].kill("SIGKILL"); } catch (e) {}
+    children[source] = null;
+  }
+  broadcastLog(source, [label]);
+  const child = spawn("bash", ["-c", cmd], {
+    stdio: ["ignore", "pipe", "pipe"],
+    env: Object.assign({}, process.env, { TERM: "xterm-256color", FORCE_COLOR: "1" }),
   });
-}
-
-for (const source of Object.keys(LOG_FILES)) {
-  fs.watch(LOG_FILES[source], () => { tailLog(source); });
-  tailLog(source);
+  children[source] = child;
+  let partial = "";
+  child.stdout.on("data", (chunk) => {
+    partial += chunk.toString("utf-8");
+    const parts = partial.split("\\n");
+    partial = parts.pop() || "";
+    if (parts.length > 0) broadcastLog(source, parts);
+  });
+  child.stderr.on("data", (chunk) => {
+    const lines = chunk.toString("utf-8").split("\\n");
+    broadcastLog(source, lines);
+  });
+  child.on("close", (code) => {
+    if (partial) { broadcastLog(source, [partial]); partial = ""; }
+    if (children[source] === child) children[source] = null;
+  });
 }
 
 // --- Liveness probe ---
@@ -112,21 +121,14 @@ function probeUpstream() {
     { hostname: "127.0.0.1", port: UPSTREAM, path: "/", method: "HEAD", timeout: 5000 },
     (res) => {
       const ct = (res.headers["content-type"] || "").toLowerCase();
-      const newStatus = {
+      lastStatus = {
         ready: res.statusCode >= 200 && res.statusCode < 400,
         htmlSupport: ct.includes("text/html"),
       };
-      if (newStatus.ready !== lastStatus.ready || newStatus.htmlSupport !== lastStatus.htmlSupport) {
-        lastStatus = newStatus;
-        broadcastStatus();
-      }
     }
   );
   req.on("error", () => {
-    if (lastStatus.ready) {
-      lastStatus = { ready: false, htmlSupport: false };
-      broadcastStatus();
-    }
+    lastStatus = { ready: false, htmlSupport: false };
   });
   req.on("timeout", () => { req.destroy(); });
   req.end();
@@ -146,21 +148,6 @@ function broadcastStatus() {
 // Start probing after 1s
 setTimeout(probeUpstream, 1000);
 
-// --- Replay last lines on connect ---
-function replayLastLines(res, source) {
-  try {
-    const content = fs.readFileSync(LOG_FILES[source], "utf-8");
-    const allLines = content.split("\\n").filter(Boolean);
-    const last5 = allLines.slice(-5);
-    if (last5.length > 0) {
-      const payload = JSON.stringify({ type: "log", source: source, lines: last5 });
-      res.write("event: log\\ndata: " + payload + "\\n\\n");
-    }
-  } catch (e) {
-    // File may not exist yet
-  }
-}
-
 // --- HTTP server ---
 http.createServer((req, res) => {
   // SSE endpoint
@@ -178,25 +165,46 @@ http.createServer((req, res) => {
     });
     // Send current status immediately
     res.write("event: status\\ndata: " + JSON.stringify({ type: "status", ...lastStatus }) + "\\n\\n");
-    // Replay last 5 lines from each log file
-    replayLastLines(res, "install");
-    replayLastLines(res, "dev");
+    // Replay last lines from memory
+    for (const source of ["install", "dev"]) {
+      const buf = replayBuffers[source];
+      if (buf.length > 0) {
+        const payload = JSON.stringify({ type: "log", source: source, lines: buf });
+        res.write("event: log\\ndata: " + payload + "\\n\\n");
+      }
+    }
     sseClients.add(res);
     req.on("close", () => { sseClients.delete(res); });
-    // Keepalive every 15s
+    // Broadcast status every 15s (doubles as keepalive)
     const ka = setInterval(() => {
       if (!res.writable) { clearInterval(ka); sseClients.delete(res); return; }
-      res.write("event: heartbeat\\ndata: {}\\n\\n");
+      res.write("event: status\\ndata: " + JSON.stringify({ type: "status", ...lastStatus }) + "\\n\\n");
     }, 15000);
     req.on("close", () => { clearInterval(ka); });
     return;
   }
 
-  // CORS preflight for SSE
-  if (req.url === "/_daemon/events" && req.method === "OPTIONS") {
+  // Exec endpoints
+  if (req.method === "POST" && req.url === "/_daemon/exec/install") {
+    const waitCmd = "systemctl is-active --wait freestyle-git-sync.service > /dev/null 2>&1 || [ $? -eq 3 ]";
+    runProcess("install", waitCmd + " && " + INSTALL_CMD, INSTALL_LABEL);
+    res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+    res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/_daemon/exec/dev") {
+    runProcess("dev", DEV_CMD, DEV_LABEL);
+    res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+    res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+
+  // CORS preflight for SSE and exec endpoints
+  if (req.method === "OPTIONS" && (req.url === "/_daemon/events" || req.url.startsWith("/_daemon/exec/"))) {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET",
+      "Access-Control-Allow-Methods": "GET, POST",
       "Access-Control-Allow-Headers": "Content-Type",
     });
     res.end();
@@ -304,7 +312,11 @@ export const VM_START = defineTool({
     }
 
     const { owner, name } = metadata.githubRepo;
-    const { detected, port } = resolveRuntimeConfig(metadata);
+    const { detected, port, installScript, devScript, runtimeBinPath } =
+      resolveRuntimeConfig(metadata);
+    const pathPrefix = runtimeBinPath
+      ? `export PATH=${runtimeBinPath}:$PATH && `
+      : "";
 
     // Ensure a Freestyle Git repo exists with GitHub Sync enabled.
     // This allows cloning private repos via the GitHub App integration.
@@ -335,13 +347,19 @@ export const VM_START = defineTool({
       .with("node", new VmNodeJs())
       .repo(repoId, "/app")
       .additionalFiles({
-        "/opt/daemon.js": { content: buildDaemonScript(port) },
+        "/opt/daemon.js": {
+          content: buildDaemonScript({
+            upstreamPort: port,
+            installScript,
+            devScript,
+            pathPrefix,
+            port,
+          }),
+        },
         "/opt/run-daemon.sh": {
           content:
             "#!/bin/bash\nsource /etc/profile.d/nvm.sh\nexec node /opt/daemon.js\n",
         },
-        "/tmp/install.log": { content: "" },
-        "/tmp/dev.log": { content: "" },
       })
       .systemdService({
         name: "daemon",
