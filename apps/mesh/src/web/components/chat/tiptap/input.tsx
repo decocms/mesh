@@ -41,6 +41,8 @@ export interface TiptapInputHandle {
   focus: () => void;
   clear: () => void;
   appendText: (text: string) => void;
+  syncVoiceText: (baseline: Metadata["tiptapDoc"], voiceText: string) => void;
+  restoreContent: (baseline: Metadata["tiptapDoc"]) => void;
 }
 
 interface TiptapProviderProps {
@@ -188,6 +190,18 @@ export function TiptapInput({
           editor.commands.insertContent(" ");
         }
         editor.commands.insertContent(text);
+      },
+      syncVoiceText: (baseline: Metadata["tiptapDoc"], voiceText: string) => {
+        if (!editor) return;
+        editor.commands.setContent(baseline || { type: "doc", content: [] });
+        if (voiceText) {
+          editor.commands.focus("end");
+          editor.commands.insertContent(voiceText);
+        }
+      },
+      restoreContent: (baseline: Metadata["tiptapDoc"]) => {
+        if (!editor) return;
+        editor.commands.setContent(baseline || { type: "doc", content: [] });
       },
     }),
     [editor],

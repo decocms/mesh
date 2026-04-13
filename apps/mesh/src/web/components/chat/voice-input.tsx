@@ -9,18 +9,18 @@ interface VoiceWaveformProps {
   data: number[];
 }
 
-function VoiceWaveform({ data }: VoiceWaveformProps) {
+export function VoiceWaveform({ data }: VoiceWaveformProps) {
   return (
     <div
-      className="flex items-center justify-center gap-[2px] flex-1 h-7 overflow-hidden"
+      className="flex items-center justify-center gap-[2px] h-10 overflow-hidden"
       aria-hidden="true"
     >
       {data.map((amp, i) => (
         <div
           // biome-ignore lint/suspicious/noArrayIndexKey: static bars
           key={i}
-          className="w-[2px] shrink-0 rounded-full bg-foreground/60 transition-[height] duration-75 ease-out"
-          style={{ height: `${Math.max(3, Math.round(amp * 28))}px` }}
+          className="w-[2px] shrink-0 rounded-full bg-chart-2 transition-[height] duration-75 ease-out"
+          style={{ height: `${Math.max(4, Math.round(amp * 40))}px` }}
         />
       ))}
     </div>

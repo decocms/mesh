@@ -17,6 +17,7 @@ import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import {
   ArrowUp,
   BookOpen01,
+  Check,
   ChevronDown,
   Edit01,
   Lock01,
@@ -57,7 +58,7 @@ import { question004Sound } from "@deco/ui/lib/question-004.ts";
 import { AddConnectionDialog } from "@/web/views/virtual-mcp/add-connection-dialog";
 import { ConnectionsBanner } from "./connections-banner";
 import { useVoiceInput } from "@/web/hooks/use-voice-input.ts";
-import { VoiceInputOverlay } from "./voice-input";
+import { VoiceWaveform } from "./voice-input";
 
 // ============================================================================
 // VirtualMCPBadge - Internal component for displaying selected virtual MCP
@@ -325,22 +326,33 @@ export function ChatInput({
   const [connectionsOpen, setConnectionsOpen] = useState(false);
 
   const voice = useVoiceInput();
+  const voiceBaselineDocRef = useRef<Metadata["tiptapDoc"]>(undefined);
 
   const handleVoiceStart = async () => {
+    voiceBaselineDocRef.current = tiptapDoc;
     await voice.startRecording();
   };
 
   const handleVoiceConfirm = () => {
-    const text = voice.stopRecording();
-    if (text.trim()) {
-      tiptapRef.current?.appendText(text.trim());
-      setTimeout(() => tiptapRef.current?.focus(), 0);
-    }
+    voice.stopRecording();
+    tiptapRef.current?.focus();
   };
 
   const handleVoiceCancel = () => {
     voice.cancelRecording();
+    tiptapRef.current?.restoreContent(voiceBaselineDocRef.current);
   };
+
+  // Sync live transcript into the editor while recording
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (voice.status !== "recording") return;
+    const voiceText = (
+      voice.transcript +
+      (voice.interimTranscript ? " " + voice.interimTranscript : "")
+    ).trim();
+    tiptapRef.current?.syncVoiceText(voiceBaselineDocRef.current, voiceText);
+  }, [voice.transcript, voice.interimTranscript, voice.status]);
 
   // Navigate to the agent route (like the sidebar does) instead of only
   // setting an ephemeral search-param override, so the thread list re-scopes.
@@ -558,33 +570,51 @@ export function ChatInput({
                 <FileDropZone selectedModel={selectedModel} />
 
                 <div className="group/input relative flex flex-col gap-2 flex-1">
-                  {/* Voice recording overlay */}
-                  {voice.status === "recording" ? (
-                    <VoiceInputOverlay
-                      waveformData={voice.waveformData}
-                      transcript={voice.transcript}
-                      interimTranscript={voice.interimTranscript}
-                      onCancel={handleVoiceCancel}
-                      onConfirm={handleVoiceConfirm}
-                    />
-                  ) : (
-                    /* Input Area with Tiptap */
-                    <TiptapInput
-                      ref={tiptapRef}
-                      disabled={isStreaming || !selectedModel}
-                      virtualMcpId={selectedVirtualMcp?.id ?? decopilotId}
-                      showFileUploader={true}
-                      selectedModel={selectedModel}
-                    />
-                  )}
+                  <TiptapInput
+                    ref={tiptapRef}
+                    disabled={
+                      isStreaming ||
+                      !selectedModel ||
+                      voice.status === "recording"
+                    }
+                    virtualMcpId={selectedVirtualMcp?.id ?? decopilotId}
+                    showFileUploader={true}
+                    selectedModel={selectedModel}
+                  />
                 </div>
 
                 {/* Bottom Actions Row */}
                 <div className="flex items-center justify-between p-2.5 gap-1">
-                  {/* Left Actions (+, Tools, active tool pills, stats) */}
-                  <div className="flex items-center gap-1.5 min-w-0 shrink-0">
-                    {voice.status !== "recording" && (
-                      <>
+                  {voice.status === "recording" ? (
+                    <>
+                      {/* Spacer */}
+                      <div className="flex-1" />
+
+                      {/* Waveform + Cancel + Confirm */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <VoiceWaveform data={voice.waveformData.slice(0, 28)} />
+                        <button
+                          type="button"
+                          onClick={handleVoiceCancel}
+                          className="flex items-center justify-center size-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                          aria-label="Cancel recording"
+                        >
+                          <X size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleVoiceConfirm}
+                          className="flex items-center justify-center size-8 rounded-lg bg-foreground text-background hover:opacity-80 transition-opacity"
+                          aria-label="Use transcription"
+                        >
+                          <Check size={16} />
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Left Actions (+, Tools, active tool pills, stats) */}
+                      <div className="flex items-center gap-1.5 min-w-0 shrink-0">
                         <FileUploadButton
                           selectedModel={selectedModel}
                           isStreaming={isStreaming}
@@ -624,84 +654,79 @@ export function ChatInput({
                             onOpenContextPanel={onOpenContextPanel}
                           />
                         )}
-                      </>
-                    )}
-                  </div>
+                      </div>
 
-                  {/* Right Actions (mic, model, send) */}
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    {voice.status !== "recording" && (
-                      <ModelSelector
-                        placeholder="Model"
-                        variant="borderless"
-                        className="h-8 text-sm py-2 min-w-0"
-                      />
-                    )}
+                      {/* Right Actions (mic, model, send) */}
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <ModelSelector
+                          placeholder="Model"
+                          variant="borderless"
+                          className="h-8 text-sm py-2 min-w-0"
+                        />
 
-                    {/* Microphone button — only shown when not streaming and speech is supported */}
-                    {voice.isSupported &&
-                      !isStreaming &&
-                      !isRunInProgress &&
-                      voice.status !== "recording" && (
+                        {/* Microphone button — only shown when not streaming and speech is supported */}
+                        {voice.isSupported &&
+                          !isStreaming &&
+                          !isRunInProgress && (
+                            <Button
+                              type="button"
+                              onClick={handleVoiceStart}
+                              variant="ghost"
+                              size="icon"
+                              className={cn(
+                                "size-8 rounded-lg transition-colors",
+                                voice.status === "permission-denied"
+                                  ? "text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  : "text-muted-foreground hover:text-foreground",
+                              )}
+                              title={
+                                voice.status === "permission-denied"
+                                  ? "Microphone access denied — click to try again"
+                                  : "Voice input"
+                              }
+                            >
+                              <Microphone01 size={18} />
+                            </Button>
+                          )}
+
                         <Button
-                          type="button"
-                          onClick={handleVoiceStart}
-                          variant="ghost"
+                          type={showStopOrCancel ? "button" : "submit"}
+                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                            if (showStopOrCancel) {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (isStreaming) stop();
+                              else stop();
+                            }
+                          }}
+                          variant={
+                            canSubmit || showStopOrCancel ? "default" : "ghost"
+                          }
                           size="icon"
+                          disabled={!canSubmit && !showStopOrCancel}
                           className={cn(
-                            "size-8 rounded-lg transition-colors",
-                            voice.status === "permission-denied"
-                              ? "text-destructive hover:text-destructive hover:bg-destructive/10"
-                              : "text-muted-foreground hover:text-foreground",
+                            "size-8 rounded-lg transition-all",
+                            !canSubmit &&
+                              !showStopOrCancel &&
+                              "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground cursor-not-allowed",
                           )}
                           title={
-                            voice.status === "permission-denied"
-                              ? "Microphone access denied — click to try again"
-                              : "Voice input"
+                            isStreaming
+                              ? "Stop generating"
+                              : isRunInProgress
+                                ? "Cancel run"
+                                : "Send message (Enter)"
                           }
                         >
-                          <Microphone01 size={18} />
+                          {showStopOrCancel ? (
+                            <Stop size={20} />
+                          ) : (
+                            <ArrowUp size={20} />
+                          )}
                         </Button>
-                      )}
-
-                    {voice.status !== "recording" && (
-                      <Button
-                        type={showStopOrCancel ? "button" : "submit"}
-                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                          if (showStopOrCancel) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if (isStreaming) stop();
-                            else stop();
-                          }
-                        }}
-                        variant={
-                          canSubmit || showStopOrCancel ? "default" : "ghost"
-                        }
-                        size="icon"
-                        disabled={!canSubmit && !showStopOrCancel}
-                        className={cn(
-                          "size-8 rounded-lg transition-all",
-                          !canSubmit &&
-                            !showStopOrCancel &&
-                            "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground cursor-not-allowed",
-                        )}
-                        title={
-                          isStreaming
-                            ? "Stop generating"
-                            : isRunInProgress
-                              ? "Cancel run"
-                              : "Send message (Enter)"
-                        }
-                      >
-                        {showStopOrCancel ? (
-                          <Stop size={20} />
-                        ) : (
-                          <ArrowUp size={20} />
-                        )}
-                      </Button>
-                    )}
-                  </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </form>
             </TiptapProvider>
