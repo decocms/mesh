@@ -3,9 +3,11 @@ import {
   getWellKnownRegistryConnection,
   getWellKnownSelfConnection,
 } from "@decocms/mesh-sdk";
+import { decoAiGatewayAdapter } from "@/ai-providers/adapters/deco-ai-gateway";
 import { getBaseUrl } from "@/core/server-constants";
 import { getDb } from "@/database";
 import { CredentialVault } from "@/encryption/credential-vault";
+import { AIProviderKeyStorage } from "@/storage/ai-provider-keys";
 import { ConnectionStorage } from "@/storage/connection";
 import { Permission } from "@/storage/types";
 import { VirtualMCPStorage } from "@/storage/virtual";
@@ -18,6 +20,7 @@ import { installStudioPack } from "@/tools/virtual/studio-pack";
 import { z } from "zod";
 import { getSettings } from "../settings";
 import { auth } from "./index";
+import { mintGatewayJwt } from "./jwt";
 
 interface MCPCreationSpec {
   data: ConnectionCreateData;
@@ -88,7 +91,8 @@ function getDefaultOrgMcps(organizationId: string): MCPCreationSpec[] {
 export async function seedOrgDb(organizationId: string, createdBy: string) {
   try {
     const database = getDb();
-    const vault = new CredentialVault(getSettings().encryptionKey);
+    const settings = getSettings();
+    const vault = new CredentialVault(settings.encryptionKey);
     const connectionStorage = new ConnectionStorage(database.db, vault);
     const defaultOrgMcps = getDefaultOrgMcps(organizationId);
 
@@ -151,6 +155,29 @@ export async function seedOrgDb(organizationId: string, createdBy: string) {
       await installStudioPack(organizationId, createdBy, virtualMcpStorage);
     } catch (err) {
       console.error("Failed to install studio pack agents:", err);
+    }
+
+    if (settings.aiGatewayEnabled && decoAiGatewayAdapter.provisionKey) {
+      try {
+        const meshJwt = await mintGatewayJwt(createdBy);
+        const apiKey = await decoAiGatewayAdapter.provisionKey(
+          meshJwt,
+          organizationId,
+        );
+        const aiProviderKeyStorage = new AIProviderKeyStorage(
+          database.db,
+          vault,
+        );
+        await aiProviderKeyStorage.upsert({
+          providerId: "deco",
+          label: "Auto-provisioned",
+          apiKey,
+          organizationId,
+          createdBy,
+        });
+      } catch (err) {
+        console.error("Failed to auto-provision Deco AI Gateway key:", err);
+      }
     }
   } catch (err) {
     console.error("Error creating default MCP connections:", err);

@@ -90,6 +90,29 @@ export const decoAiGatewayAdapter: ProviderAdapter = {
     return { balanceCents: data.balance_cents };
   },
 
+  async provisionKey(meshJwt: string, organizationId: string) {
+    const studioProvisionSecretKey =
+      getSettings().studioProvisionSecretKey ?? "";
+    if (!studioProvisionSecretKey) {
+      throw new Error("STUDIO_PROVISION_SECRET_KEY is not set");
+    }
+    const res = await fetch(`${getBase()}/api/keys/provision`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Provision-Key": studioProvisionSecretKey,
+        Authorization: `Bearer ${meshJwt}`,
+      },
+      body: JSON.stringify({ organization_id: organizationId }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) {
+      throw new Error(`Deco AI Gateway key provisioning failed: ${res.status}`);
+    }
+    const data = (await res.json()) as { key: string };
+    return data.key;
+  },
+
   create(apiKey) {
     const base = openrouterAdapter.create(apiKey);
     return { ...base, info: this.info };

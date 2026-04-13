@@ -24,6 +24,7 @@ export interface Settings {
   localMode: boolean;
   allowLocalProd: boolean;
   disableRateLimit: boolean;
+  studioProvisionSecretKey: string | undefined; // Secret key to call the Deco AI Gateway API to provision keys
 
   // Observability
   clickhouseUrl: string | undefined;
