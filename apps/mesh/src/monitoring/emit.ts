@@ -17,6 +17,7 @@ import type { Context } from "@opentelemetry/api";
 import { SeverityNumber, logs } from "@opentelemetry/api-logs";
 import { RegexRedactor } from "./redactor";
 import { MONITORING_LOG_ATTR, MONITORING_LOG_TYPE_VALUE } from "./schema";
+import { truncateString } from "./truncate-string";
 
 const redactor = new RegexRedactor();
 
@@ -70,8 +71,12 @@ export function emitMonitoringLog(
         [MONITORING_LOG_ATTR.CONNECTION_ID]: params.connectionId,
         [MONITORING_LOG_ATTR.CONNECTION_TITLE]: "",
         [MONITORING_LOG_ATTR.TOOL_NAME]: params.toolName,
-        [MONITORING_LOG_ATTR.INPUT]: JSON.stringify(redactedInput),
-        [MONITORING_LOG_ATTR.OUTPUT]: JSON.stringify(redactedOutput),
+        [MONITORING_LOG_ATTR.INPUT]: truncateString(
+          JSON.stringify(redactedInput),
+        ),
+        [MONITORING_LOG_ATTR.OUTPUT]: truncateString(
+          JSON.stringify(redactedOutput),
+        ),
         [MONITORING_LOG_ATTR.IS_ERROR]: params.isError,
         [MONITORING_LOG_ATTR.ERROR_MESSAGE]: redactedErrorMessage,
         [MONITORING_LOG_ATTR.DURATION_MS]: params.duration,

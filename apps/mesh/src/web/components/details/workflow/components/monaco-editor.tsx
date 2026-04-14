@@ -61,7 +61,7 @@ class MonacoErrorBoundary extends Component<
   override render() {
     if (this.state.hasError) {
       return (
-        <div className="flex items-center justify-center h-full w-full bg-[#1e1e1e] text-gray-400">
+        <div className="flex items-center justify-center h-full w-full bg-white dark:bg-[#1e1e1e] text-gray-400">
           <Spinner size="sm" />
         </div>
       );
@@ -146,7 +146,6 @@ const EDITOR_BASE_OPTIONS: EditorProps["options"] = {
     verticalScrollbarSize: 8,
     horizontalScrollbarSize: 8,
   },
-  theme: "light",
 };
 
 const LoadingPlaceholder = (
@@ -287,6 +286,11 @@ const InternalMonacoEditor = memo(function InternalMonacoEditor({
         key={editorKey}
         height={height}
         language={language}
+        theme={
+          document.documentElement.classList.contains("dark")
+            ? "vs-dark"
+            : "light"
+        }
         value={code}
         path={filePath}
         onChange={onChange}

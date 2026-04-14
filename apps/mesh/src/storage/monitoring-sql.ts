@@ -168,10 +168,13 @@ function jsonExtractFloat(
 function safeJsonParse(val: unknown): Record<string, unknown> {
   if (val === null || val === undefined) return {};
   if (typeof val === "object") return val as Record<string, unknown>;
+  const str = String(val);
   try {
-    return JSON.parse(String(val));
+    return JSON.parse(str);
   } catch {
-    return {};
+    // Truncated JSON strings (from truncateString) are not valid JSON.
+    // Wrap the raw string so the UI can still display it.
+    return { _decocms_truncated: str };
   }
 }
 
