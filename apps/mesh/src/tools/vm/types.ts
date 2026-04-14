@@ -29,7 +29,6 @@ export type VmMetadata = {
     connectionId: string; // mcp-github connection ID → fetch token from downstream_tokens
   } | null;
   runtime?: {
-    detected: string | null;
     selected: string | null;
     installScript?: string | null;
     devScript?: string | null;

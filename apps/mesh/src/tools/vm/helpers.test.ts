@@ -29,10 +29,9 @@ describe("resolveRuntimeConfig", () => {
     expect(result.port).toBe("3000");
   });
 
-  it("detects deno runtime", () => {
+  it("resolves deno runtime", () => {
     const metadata: VmMetadata = {
       runtime: {
-        detected: "deno",
         selected: "deno",
         installScript: "deno install",
         devScript: "deno task dev",
@@ -43,12 +42,12 @@ describe("resolveRuntimeConfig", () => {
     const result = resolveRuntimeConfig(metadata);
 
     expect(result.selected).toBe("deno");
+    expect(result.runtimeBinPath).toBe("/opt/deno/bin");
   });
 
-  it("detects bun runtime", () => {
+  it("resolves bun runtime", () => {
     const metadata: VmMetadata = {
       runtime: {
-        detected: "bun",
         selected: "bun",
         installScript: "bun install",
         devScript: "bun run dev",
@@ -59,12 +58,12 @@ describe("resolveRuntimeConfig", () => {
     const result = resolveRuntimeConfig(metadata);
 
     expect(result.selected).toBe("bun");
+    expect(result.runtimeBinPath).toBe("/opt/bun/bin");
   });
 
-  it("selects node runtime for npm-based projects", () => {
+  it("resolves node runtime", () => {
     const metadata: VmMetadata = {
       runtime: {
-        detected: "npm",
         selected: "node",
         installScript: "npm install",
         devScript: "npm run dev",
@@ -75,13 +74,13 @@ describe("resolveRuntimeConfig", () => {
     const result = resolveRuntimeConfig(metadata);
 
     expect(result.selected).toBe("node");
+    expect(result.runtimeBinPath).toBeNull();
   });
 
   it("uses custom scripts from metadata", () => {
     const metadata: VmMetadata = {
       runtime: {
-        detected: "npm",
-        selected: "npm",
+        selected: "node",
         installScript: "pnpm install",
         devScript: "pnpm dev",
         port: "4200",
@@ -98,7 +97,6 @@ describe("resolveRuntimeConfig", () => {
   it("falls back to defaults when individual runtime fields are null", () => {
     const metadata: VmMetadata = {
       runtime: {
-        detected: null,
         selected: null,
         installScript: null,
         devScript: null,
@@ -112,22 +110,5 @@ describe("resolveRuntimeConfig", () => {
     expect(result.devScript).toBe("npm run dev");
     expect(result.selected).toBe("node");
     expect(result.port).toBe("3000");
-  });
-
-  it("uses selected (not detected) for runtimeBinPath", () => {
-    const metadata: VmMetadata = {
-      runtime: {
-        detected: "npm",
-        selected: "deno",
-        installScript: "deno install",
-        devScript: "deno task start",
-        port: "8000",
-      },
-    };
-
-    const result = resolveRuntimeConfig(metadata);
-
-    expect(result.selected).toBe("deno");
-    expect(result.runtimeBinPath).toBe("/opt/deno/bin");
   });
 });

@@ -136,8 +136,7 @@ const BASE_METADATA: VmMetadata = {
     connectionId: "conn_github_1",
   },
   runtime: {
-    detected: "npm",
-    selected: "npm",
+    selected: "node",
     installScript: "npm install",
     devScript: "npm run dev",
     port: "3000",
@@ -404,7 +403,6 @@ describe("VM_START", () => {
       ...BASE_METADATA,
       runtime: {
         ...BASE_METADATA.runtime,
-        detected: "bun",
         selected: "bun",
       },
     };

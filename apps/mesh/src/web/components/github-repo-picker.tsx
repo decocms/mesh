@@ -316,7 +316,6 @@ function PickerContent({
             data: {
               metadata: {
                 runtime: {
-                  detected,
                   selected,
                   installScript,
                   devScript,

@@ -54,8 +54,6 @@ export function resolveRuntimeConfig(metadata: VmMetadata) {
   // Freestyle integrations install runtimes outside the default PATH:
   //   VmDeno → /opt/deno/bin, VmBun → /opt/bun/bin
   // Node uses the system node/npm already at /usr/local/bin (no prefix needed).
-  // Use `selected` (user's choice) not `detected` (auto-detected package manager)
-  // so that manually changing the runtime in the UI takes effect.
   const runtimeBinPath =
     selected === "deno"
       ? "/opt/deno/bin"

@@ -54,7 +54,6 @@ export function RepositoryTabContent() {
     | {
         githubRepo?: { owner: string; name: string } | null;
         runtime?: {
-          detected: string | null;
           selected: string | null;
           installScript?: string | null;
           devScript?: string | null;
