@@ -24,10 +24,9 @@ export interface VmEntry {
 
 export type VmMetadata = {
   githubRepo?: {
-    url: string;
     owner: string;
     name: string;
-    installationId?: number;
+    connectionId: string; // mcp-github connection ID → fetch token from downstream_tokens
   } | null;
   runtime?: {
     detected: string | null;
@@ -36,7 +35,6 @@ export type VmMetadata = {
     devScript?: string | null;
     port?: string | null;
   } | null;
-  freestyleRepoId?: string | null;
   activeVms?: Record<string, VmEntry>;
   [key: string]: unknown;
 };
