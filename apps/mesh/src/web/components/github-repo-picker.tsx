@@ -128,7 +128,11 @@ function PickerContent({
         .content?.[0]?.text;
       if (!content) return { repos: [] };
       try {
-        const parsed = JSON.parse(content) as Array<{
+        const parsed = JSON.parse(content);
+        // search_repositories returns { total_count, items: [...] }
+        const items = (
+          Array.isArray(parsed) ? parsed : (parsed.items ?? [])
+        ) as Array<{
           full_name: string;
           owner: { login: string };
           name: string;
@@ -136,7 +140,7 @@ function PickerContent({
           private: boolean;
         }>;
         return {
-          repos: parsed.map((r) => ({
+          repos: items.map((r) => ({
             owner: r.owner.login,
             name: r.name,
             fullName: r.full_name,
