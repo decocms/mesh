@@ -372,7 +372,7 @@ function PickerContent({
     },
   });
 
-  const filteredRepos = reposQuery.data?.repos ?? [];
+  const filteredRepos = (reposQuery.data?.repos ?? []).slice(0, 5);
 
   // No GitHub connections anywhere — open Add Connection dialog filtered by "github"
   if (githubConnections.length === 0) {
@@ -462,7 +462,7 @@ function PickerContent({
         </div>
       )}
       {!reposQuery.isLoading && (
-        <div className="max-h-64 overflow-y-auto flex flex-col gap-1">
+        <div className="max-h-72 overflow-y-auto flex flex-col gap-1">
           {filteredRepos.length === 0 && search.trim().length >= 2 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
               No repositories found
@@ -480,7 +480,10 @@ function PickerContent({
                 disabled={saveMutation.isPending}
                 className="flex items-center justify-between p-2 rounded-md hover:bg-accent transition-colors text-left"
               >
-                <span className="text-sm">{repo.fullName}</span>
+                <span className="text-sm">
+                  <span className="text-muted-foreground">{repo.owner}/</span>
+                  {repo.name}
+                </span>
                 {repo.private && (
                   <span className="text-xs text-muted-foreground">private</span>
                 )}
