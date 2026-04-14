@@ -24,6 +24,8 @@ import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import { KEYS } from "@/web/lib/query-keys";
 import { toast } from "sonner";
 import { Loading01 } from "@untitledui/icons";
+import { RUNTIME_DEFAULTS } from "@/shared/runtime-defaults";
+import type { RuntimeType } from "@/shared/runtime-defaults";
 import { AddConnectionDialog } from "@/web/views/virtual-mcp/add-connection-dialog";
 
 interface GitHubInstallation {
@@ -230,11 +232,11 @@ function PickerContent({
           ];
 
           const installCommands: Record<string, string> = {
-            deno: "deno install",
-            bun: "bun install",
+            deno: RUNTIME_DEFAULTS.deno.install,
+            bun: RUNTIME_DEFAULTS.bun.install,
             pnpm: "pnpm install",
             yarn: "yarn install",
-            npm: "npm install",
+            npm: RUNTIME_DEFAULTS.node.install,
           };
 
           let detected: string | null = null;
@@ -300,13 +302,22 @@ function PickerContent({
             }
           }
 
+          const runtimeTypeMap: Record<string, RuntimeType> = {
+            deno: "deno",
+            bun: "bun",
+            pnpm: "node",
+            yarn: "node",
+            npm: "node",
+          };
+          const selected: RuntimeType = runtimeTypeMap[detected] ?? "node";
+
           await actions.update.mutateAsync({
             id: entityId,
             data: {
               metadata: {
                 runtime: {
                   detected,
-                  selected: detected,
+                  selected,
                   installScript,
                   devScript,
                   port: devPort || "8000",
@@ -316,8 +327,22 @@ function PickerContent({
           });
         };
 
-        fetchInstructions().catch(() => {});
-        detectRuntime().catch(() => {});
+        // Signal detection start
+        queryClient.setQueryData(KEYS.runtimeDetecting(entityId), true);
+
+        Promise.allSettled([fetchInstructions(), detectRuntime()]).then(() => {
+          queryClient.setQueryData(KEYS.runtimeDetecting(entityId), false);
+          queryClient.invalidateQueries({
+            predicate: (query) => {
+              const key = query.queryKey;
+              return (
+                key[1] === org.id &&
+                key[3] === "collection" &&
+                key[4] === "VIRTUAL_MCP"
+              );
+            },
+          });
+        });
       }
     },
     onError: (error) => {

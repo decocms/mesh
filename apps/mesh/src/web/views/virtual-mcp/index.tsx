@@ -1072,7 +1072,7 @@ function VirtualMcpDetailViewWithData({
 
   // Tab state
   const validTabIds = preferences.experimental_vibecode
-    ? ["instructions", "connections", "repository", "layout"]
+    ? ["instructions", "connections", "layout", "repository"]
     : ["instructions", "connections", "layout"];
   const [activeTab, setActiveTab] = useState(() => {
     const stored = localStorage.getItem("agent-detail-tab") || "instructions";
@@ -1390,10 +1390,10 @@ Define step-by-step how the agent should handle requests.
       label: "Connections",
       count: connections.length || undefined,
     },
+    { id: "layout", label: "Layout" },
     ...(preferences.experimental_vibecode
       ? [{ id: "repository", label: "Repository" }]
       : []),
-    { id: "layout", label: "Layout" },
   ];
 
   return (

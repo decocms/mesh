@@ -367,7 +367,7 @@ export const VM_START = defineTool({
     }
 
     const { owner, name } = metadata.githubRepo;
-    const { detected, port, installScript, devScript, runtimeBinPath } =
+    const { selected, port, installScript, devScript, runtimeBinPath } =
       resolveRuntimeConfig(metadata);
     const pathPrefix = runtimeBinPath
       ? `export PATH=${runtimeBinPath}:$PATH && `
@@ -424,9 +424,9 @@ export const VM_START = defineTool({
       });
 
     const spec =
-      detected === "deno"
+      selected === "deno"
         ? baseSpec.with("deno", new VmDeno())
-        : detected === "bun"
+        : selected === "bun"
           ? baseSpec.with("js", new VmBun())
           : baseSpec;
 
@@ -459,7 +459,7 @@ export const VM_START = defineTool({
       }
     }
 
-    console.log(`[VM_START] repo: ${owner}/${name} runtime: ${detected}`);
+    console.log(`[VM_START] repo: ${owner}/${name} runtime: ${selected}`);
 
     // Create VM from spec.
     // Domain routes to the iframe proxy which strips X-Frame-Options/CSP

@@ -3,16 +3,26 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
 import { GitHubRepoPicker } from "@/web/components/github-repo-picker";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@deco/ui/components/select.tsx";
+import { RUNTIME_DEFAULTS, RUNTIME_LABELS } from "@/shared/runtime-defaults";
+import type { RuntimeType } from "@/shared/runtime-defaults";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import {
   useProjectContext,
   useMCPClient,
   SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { KEYS } from "@/web/lib/query-keys";
 import { useState } from "react";
 import { toast } from "sonner";
-import { LinkExternal01 } from "@untitledui/icons";
+import { Loading01, LinkExternal01 } from "@untitledui/icons";
 
 function GitHubIcon({ size = 48 }: { size?: number }) {
   return (
@@ -56,6 +66,15 @@ export function RepositoryTabContent() {
   const githubRepo = metadata?.githubRepo;
   const runtime = metadata?.runtime;
 
+  const selectedRuntime: RuntimeType =
+    (runtime?.selected as RuntimeType) ?? "node";
+
+  const isDetecting = useQuery({
+    queryKey: KEYS.runtimeDetecting(inset?.entity?.id),
+    initialData: false,
+    enabled: false,
+  }).data;
+
   const invalidateVirtualMcp = () =>
     queryClient.invalidateQueries({
       predicate: (query) => {
@@ -94,6 +113,40 @@ export function RepositoryTabContent() {
     }
   };
 
+  const handleRuntimeChange = async (value: string) => {
+    if (!inset?.entity) return;
+    try {
+      await client.callTool({
+        name: "COLLECTION_VIRTUAL_MCP_UPDATE",
+        arguments: {
+          id: inset.entity.id,
+          data: {
+            metadata: {
+              runtime: {
+                ...runtime,
+                selected: value,
+              },
+            },
+          },
+        },
+      });
+      invalidateVirtualMcp();
+    } catch {
+      toast.error("Failed to update runtime");
+    }
+  };
+
+  if (githubRepo && isDetecting) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <Loading01 size={20} className="animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground mt-3">
+          Detecting project configuration...
+        </p>
+      </div>
+    );
+  }
+
   if (githubRepo) {
     const repoUrl = `https://github.com/${githubRepo.owner}/${githubRepo.name}`;
     return (
@@ -120,12 +173,30 @@ export function RepositoryTabContent() {
         </a>
 
         <div className="flex flex-col gap-2">
+          <Label htmlFor="runtime" className="text-sm font-medium">
+            Runtime
+          </Label>
+          <Select value={selectedRuntime} onValueChange={handleRuntimeChange}>
+            <SelectTrigger id="runtime">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(RUNTIME_DEFAULTS) as RuntimeType[]).map((rt) => (
+                <SelectItem key={rt} value={rt}>
+                  {RUNTIME_LABELS[rt]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col gap-2">
           <Label htmlFor="install-script" className="text-sm font-medium">
             Install Script
           </Label>
           <Input
             id="install-script"
-            placeholder="e.g. npm install"
+            placeholder={RUNTIME_DEFAULTS[selectedRuntime].install}
             defaultValue={runtime?.installScript ?? ""}
             onBlur={(e) => handleScriptUpdate("installScript", e.target.value)}
           />
@@ -137,7 +208,7 @@ export function RepositoryTabContent() {
           </Label>
           <Input
             id="dev-script"
-            placeholder="e.g. npm run dev"
+            placeholder={RUNTIME_DEFAULTS[selectedRuntime].dev}
             defaultValue={runtime?.devScript ?? ""}
             onBlur={(e) => handleScriptUpdate("devScript", e.target.value)}
           />

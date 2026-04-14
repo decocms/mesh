@@ -14,7 +14,7 @@ describe("resolveRuntimeConfig", () => {
 
     expect(result.installScript).toBe("npm install");
     expect(result.devScript).toBe("npm run dev");
-    expect(result.detected).toBe("npm");
+    expect(result.selected).toBe("node");
     expect(result.port).toBe("3000");
   });
 
@@ -25,7 +25,7 @@ describe("resolveRuntimeConfig", () => {
 
     expect(result.installScript).toBe("npm install");
     expect(result.devScript).toBe("npm run dev");
-    expect(result.detected).toBe("npm");
+    expect(result.selected).toBe("node");
     expect(result.port).toBe("3000");
   });
 
@@ -42,7 +42,7 @@ describe("resolveRuntimeConfig", () => {
 
     const result = resolveRuntimeConfig(metadata);
 
-    expect(result.detected).toBe("deno");
+    expect(result.selected).toBe("deno");
   });
 
   it("detects bun runtime", () => {
@@ -58,14 +58,14 @@ describe("resolveRuntimeConfig", () => {
 
     const result = resolveRuntimeConfig(metadata);
 
-    expect(result.detected).toBe("bun");
+    expect(result.selected).toBe("bun");
   });
 
-  it("detects npm runtime", () => {
+  it("selects node runtime for npm-based projects", () => {
     const metadata: VmMetadata = {
       runtime: {
         detected: "npm",
-        selected: "npm",
+        selected: "node",
         installScript: "npm install",
         devScript: "npm run dev",
         port: "3000",
@@ -74,7 +74,7 @@ describe("resolveRuntimeConfig", () => {
 
     const result = resolveRuntimeConfig(metadata);
 
-    expect(result.detected).toBe("npm");
+    expect(result.selected).toBe("node");
   });
 
   it("uses custom scripts from metadata", () => {
@@ -110,7 +110,24 @@ describe("resolveRuntimeConfig", () => {
 
     expect(result.installScript).toBe("npm install");
     expect(result.devScript).toBe("npm run dev");
-    expect(result.detected).toBe("npm");
+    expect(result.selected).toBe("node");
     expect(result.port).toBe("3000");
+  });
+
+  it("uses selected (not detected) for runtimeBinPath", () => {
+    const metadata: VmMetadata = {
+      runtime: {
+        detected: "npm",
+        selected: "deno",
+        installScript: "deno install",
+        devScript: "deno task start",
+        port: "8000",
+      },
+    };
+
+    const result = resolveRuntimeConfig(metadata);
+
+    expect(result.selected).toBe("deno");
+    expect(result.runtimeBinPath).toBe("/opt/deno/bin");
   });
 });

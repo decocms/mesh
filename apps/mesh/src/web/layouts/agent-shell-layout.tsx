@@ -632,7 +632,7 @@ function AgentInsetProvider() {
                     <Terminal size={16} />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">Environment</TooltipContent>
+                <TooltipContent side="bottom">Server</TooltipContent>
               </Tooltip>
             )}
         </div>

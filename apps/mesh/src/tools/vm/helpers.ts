@@ -12,6 +12,8 @@ import {
   getUserId,
   type MeshContext,
 } from "../../core/mesh-context";
+import { RUNTIME_DEFAULTS } from "../../shared/runtime-defaults";
+import type { RuntimeType } from "../../shared/runtime-defaults";
 import type { VmMetadata } from "./types";
 
 /**
@@ -44,18 +46,21 @@ export async function requireVmEntry(
  * (@freestyle-sh/with-nodejs, @freestyle-sh/with-deno, @freestyle-sh/with-bun).
  */
 export function resolveRuntimeConfig(metadata: VmMetadata) {
-  const installScript = metadata.runtime?.installScript ?? "npm install";
-  const devScript = metadata.runtime?.devScript ?? "npm run dev";
-  const detected = metadata.runtime?.detected ?? "npm";
+  const selected = (metadata.runtime?.selected ?? "node") as RuntimeType;
+  const defaults = RUNTIME_DEFAULTS[selected] ?? RUNTIME_DEFAULTS.node;
+  const installScript = metadata.runtime?.installScript || defaults.install;
+  const devScript = metadata.runtime?.devScript || defaults.dev;
   const port = metadata.runtime?.port ?? "3000";
   // Freestyle integrations install runtimes outside the default PATH:
   //   VmDeno → /opt/deno/bin, VmBun → /opt/bun/bin
-  // npm uses the system node/npm already at /usr/local/bin (no prefix needed).
+  // Node uses the system node/npm already at /usr/local/bin (no prefix needed).
+  // Use `selected` (user's choice) not `detected` (auto-detected package manager)
+  // so that manually changing the runtime in the UI takes effect.
   const runtimeBinPath =
-    detected === "deno"
+    selected === "deno"
       ? "/opt/deno/bin"
-      : detected === "bun"
+      : selected === "bun"
         ? "/opt/bun/bin"
         : null;
-  return { installScript, devScript, detected, port, runtimeBinPath };
+  return { installScript, devScript, selected, port, runtimeBinPath };
 }

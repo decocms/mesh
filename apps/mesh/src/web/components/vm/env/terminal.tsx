@@ -91,7 +91,7 @@ export function VmTerminal({
   return (
     <div
       ref={containerRef}
-      className={cn("overflow-hidden bg-background", className)}
+      className={cn("overflow-hidden bg-background p-3", className)}
     />
   );
 }
