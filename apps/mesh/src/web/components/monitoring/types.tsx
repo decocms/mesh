@@ -304,6 +304,15 @@ function truncateJsonForDisplay(
     return { content: "null", isTruncated: false, originalSize: 4 };
   }
 
+  // Server-side truncated output: render the raw truncated string directly
+  if (typeof data._decocms_truncated === "string") {
+    return {
+      content: data._decocms_truncated,
+      isTruncated: true,
+      originalSize: data._decocms_truncated.length,
+    };
+  }
+
   const fullJson = JSON.stringify(data, null, 2);
   const originalSize = fullJson.length;
 
