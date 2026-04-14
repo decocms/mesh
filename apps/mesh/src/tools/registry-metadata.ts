@@ -180,13 +180,6 @@ const ALL_TOOL_NAMES = [
   "REGISTRY_MONITOR_SCHEDULE_SET",
   "REGISTRY_MONITOR_SCHEDULE_CANCEL",
 
-  // GitHub tools (app-only)
-  "GITHUB_LIST_INSTALLATIONS",
-  "GITHUB_LIST_REPOS",
-  "GITHUB_DEVICE_FLOW_START",
-  "GITHUB_DEVICE_FLOW_POLL",
-  "GITHUB_GET_FILE_CONTENT",
-
   // VM tools (app-only)
   "VM_START",
   "VM_DELETE",
@@ -869,32 +862,6 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "Cancel monitor schedule",
     category: "Registry",
   },
-  // GitHub tools
-  {
-    name: "GITHUB_LIST_INSTALLATIONS",
-    description: "List GitHub App installations",
-    category: "GitHub",
-  },
-  {
-    name: "GITHUB_LIST_REPOS",
-    description: "List repositories for a GitHub App installation",
-    category: "GitHub",
-  },
-  {
-    name: "GITHUB_DEVICE_FLOW_START",
-    description: "Start GitHub Device Flow authentication",
-    category: "GitHub",
-  },
-  {
-    name: "GITHUB_DEVICE_FLOW_POLL",
-    description: "Poll GitHub Device Flow for access token",
-    category: "GitHub",
-  },
-  {
-    name: "GITHUB_GET_FILE_CONTENT",
-    description: "Fetch file content from a GitHub repository",
-    category: "GitHub",
-  },
   {
     name: "VM_START",
     description: "Start a Freestyle VM with dev server preview",
@@ -1041,11 +1008,6 @@ const TOOL_LABELS: Record<ToolName, string> = {
   REGISTRY_MONITOR_SCHEDULE_CANCEL: "Cancel monitor schedule",
 
   // GitHub
-  GITHUB_LIST_INSTALLATIONS: "List GitHub App installations",
-  GITHUB_LIST_REPOS: "List GitHub repositories",
-  GITHUB_DEVICE_FLOW_START: "Start GitHub Device Flow",
-  GITHUB_DEVICE_FLOW_POLL: "Poll GitHub Device Flow",
-  GITHUB_GET_FILE_CONTENT: "Get GitHub file content",
 
   // VM
   VM_START: "Start VM preview",

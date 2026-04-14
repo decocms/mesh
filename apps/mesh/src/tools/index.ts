@@ -33,7 +33,6 @@ import * as AiProvidersTools from "./ai-providers";
 import { getPrompts, getResources } from "./guides";
 import * as ObjectStorageTools from "./object-storage";
 import * as RegistryTools from "./registry/index";
-import * as GitHubTools from "./github";
 import * as VmTools from "./vm";
 import { ToolName } from "./registry-metadata";
 // Core tools - always available
@@ -157,13 +156,6 @@ const CORE_TOOLS = [
 
   // Registry tools
   ...RegistryTools.tools,
-
-  // GitHub tools (app-only)
-  GitHubTools.GITHUB_LIST_INSTALLATIONS,
-  GitHubTools.GITHUB_LIST_REPOS,
-  GitHubTools.GITHUB_DEVICE_FLOW_START,
-  GitHubTools.GITHUB_DEVICE_FLOW_POLL,
-  GitHubTools.GITHUB_GET_FILE_CONTENT,
 
   // VM tools (app-only)
   VmTools.VM_START,
