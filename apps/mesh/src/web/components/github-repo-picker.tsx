@@ -11,7 +11,7 @@ import {
   useProjectContext,
   useMCPClient,
   useConnections,
-  SELF_MCP_ALIAS_ID,
+  useVirtualMCPActions,
 } from "@decocms/mesh-sdk";
 import type { ConnectionEntity } from "@decocms/mesh-sdk";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
@@ -71,10 +71,7 @@ function PickerContent({
   const [search, setSearch] = useState("");
   const [addConnectionOpen, setAddConnectionOpen] = useState(false);
 
-  const selfClient = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
+  const actions = useVirtualMCPActions();
 
   // Find all mcp-github connections in the organization
   const githubConnections = useConnections({ slug: "mcp-github" });
@@ -114,7 +111,23 @@ function PickerContent({
   // Eagerly attach the connection to the virtual MCP as soon as it's resolved
   const attachMutation = useMutation({
     mutationFn: async (connectionId: string) => {
-      await addConnectionToVirtualMcp(connectionId);
+      if (!inset?.entity) return;
+      const existing = inset.entity.connections ?? [];
+      if (existing.some((c) => c.connection_id === connectionId)) return;
+      await actions.update.mutateAsync({
+        id: inset.entity.id,
+        data: {
+          connections: [
+            ...existing,
+            {
+              connection_id: connectionId,
+              selected_tools: null,
+              selected_resources: null,
+              selected_prompts: null,
+            },
+          ],
+        } as any,
+      });
     },
   });
 
@@ -174,68 +187,27 @@ function PickerContent({
     enabled: !!effectiveConnection && search.trim().length >= 2,
   });
 
-  const invalidateVirtualMcp = () =>
-    queryClient.invalidateQueries({
-      predicate: (query) => {
-        const key = query.queryKey;
-        return (
-          key[1] === org.id &&
-          key[3] === "collection" &&
-          key[4] === "VIRTUAL_MCP"
-        );
-      },
-    });
-
-  // Add a connection to the virtual MCP's connections list
-  const addConnectionToVirtualMcp = async (connectionId: string) => {
-    if (!inset?.entity) return;
-    const existing = inset.entity.connections ?? [];
-    if (existing.some((c) => c.connection_id === connectionId)) return;
-    await selfClient.callTool({
-      name: "COLLECTION_VIRTUAL_MCP_UPDATE",
-      arguments: {
-        id: inset.entity.id,
-        data: {
-          connections: [
-            ...existing,
-            {
-              connection_id: connectionId,
-              selected_tools: null,
-              selected_resources: null,
-              selected_prompts: null,
-            },
-          ],
-        },
-      },
-    });
-    invalidateVirtualMcp();
-  };
-
   // Save selected repo with connectionId
   const saveMutation = useMutation({
     mutationFn: async (repo: Repo) => {
       if (!inset?.entity || !effectiveConnection) {
         throw new Error("No virtual MCP context or GitHub connection");
       }
-      await selfClient.callTool({
-        name: "COLLECTION_VIRTUAL_MCP_UPDATE",
-        arguments: {
-          id: inset.entity.id,
-          data: {
-            metadata: {
-              githubRepo: {
-                owner: repo.owner,
-                name: repo.name,
-                connectionId: effectiveConnection.id,
-              },
-              activeVms: {},
+      await actions.update.mutateAsync({
+        id: inset.entity.id,
+        data: {
+          metadata: {
+            githubRepo: {
+              owner: repo.owner,
+              name: repo.name,
+              connectionId: effectiveConnection.id,
             },
+            activeVms: {},
           },
-        },
+        } as any,
       });
     },
     onSuccess: (_data, repo) => {
-      invalidateVirtualMcp();
       toast.success("GitHub repo connected");
       onOpenChange(false);
 
@@ -263,14 +235,10 @@ function PickerContent({
           for (const path of ["AGENTS.md", "CLAUDE.md"]) {
             const content = await getFileContent(path);
             if (content) {
-              await selfClient.callTool({
-                name: "COLLECTION_VIRTUAL_MCP_UPDATE",
-                arguments: {
-                  id: entityId,
-                  data: { metadata: { instructions: content } },
-                },
+              await actions.update.mutateAsync({
+                id: entityId,
+                data: { metadata: { instructions: content } } as any,
               });
-              invalidateVirtualMcp();
               return;
             }
           }
@@ -359,24 +327,20 @@ function PickerContent({
             }
           }
 
-          await selfClient.callTool({
-            name: "COLLECTION_VIRTUAL_MCP_UPDATE",
-            arguments: {
-              id: entityId,
-              data: {
-                metadata: {
-                  runtime: {
-                    detected,
-                    selected: detected,
-                    installScript,
-                    devScript,
-                    port: devPort || "8000",
-                  },
+          await actions.update.mutateAsync({
+            id: entityId,
+            data: {
+              metadata: {
+                runtime: {
+                  detected,
+                  selected: detected,
+                  installScript,
+                  devScript,
+                  port: devPort || "8000",
                 },
               },
-            },
+            } as any,
           });
-          invalidateVirtualMcp();
         };
 
         fetchInstructions().catch(() => {});
