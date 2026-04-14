@@ -169,6 +169,12 @@ otel:
   protocol: "http/protobuf"  # http/protobuf | grpc
   service: ""                # OTEL_SERVICE_NAME
   endpoint: ""               # Remote OTLP endpoint (direct export, bypasses collector)
+  # When otel.endpoint is set, the app sends directly to this endpoint
+  # and headers are passed as OTEL_EXPORTER_OTLP_HEADERS.
+  # When otel.endpoint is empty and otel.collector.enabled is true,
+  # the app sends to the in-cluster collector which handles forwarding.
+  # In that case, configure the remote endpoint in the collector config
+  # (opentelemetry-collector.config.exporters) instead.
   headers: {}                # OTEL_EXPORTER_OTLP_HEADERS (key=value format)
   # headers:
   #   authorization: "Bearer your-token"
