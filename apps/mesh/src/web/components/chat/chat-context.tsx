@@ -123,6 +123,12 @@ export interface ChatPrefsContextValue {
   allModelsConnections: ReturnType<typeof useAiProviderKeys>;
   isModelsLoading: boolean;
   selectedVirtualMcp: VirtualMCPInfo | null;
+  /** Selected image generation model (null = no image models available) */
+  imageModel: AiProviderModel | null;
+  setImageModel: (model: AiProviderModel | null) => void;
+  /** When true, forces generate_image tool on the next request (one-shot) */
+  forceImageGeneration: boolean;
+  setForceImageGeneration: (force: boolean) => void;
   appContexts: Record<string, string>;
   setAppContext: (sourceId: string, params: SetAppContextParams) => void;
   clearAppContext: (sourceId: string) => void;
@@ -218,26 +224,43 @@ export function ChatContextProvider({
     string | null
   >(LOCALSTORAGE_KEYS.chatSelectedKeyId(locator), null);
 
+  // Image model selection (localStorage-backed).
+  // null = auto-detect from available models, model = user-chosen model.
+  const [storedImageModel, setStoredImageModel] =
+    useLocalStorage<AiProviderModel | null>(
+      LOCALSTORAGE_KEYS.chatSelectedImageModel(locator),
+      null,
+    );
+
+  // Force image generation — one-shot flag, resets after send
+  const [forceImageGeneration, setForceImageGeneration] = useState(false);
+
   // AI provider keys and models
   const keys = useAiProviderKeys();
   const effectiveKeyId = keys.some((k) => k.id === storedCredentialId)
     ? storedCredentialId
     : (keys[0]?.id ?? null);
-  // Only fetch models when no stored model — once the user picks one, skip the fetch
-  const needsDefault = !storedModel;
-  const { models: defaultKeyModels, isLoading: isModelsQueryLoading } =
-    useAiProviderModels(
-      needsDefault ? (effectiveKeyId ?? undefined) : undefined,
-    );
+  // Always fetch models — React Query (staleTime 60s) caches across consumers.
+  // Needed for both default model selection and image model auto-detection.
+  const { models: allKeyModels, isLoading: isModelsQueryLoading } =
+    useAiProviderModels(effectiveKeyId ?? undefined);
   const effectiveProviderId =
     keys.find((k) => k.id === effectiveKeyId)?.providerId ?? "anthropic";
   const defaultModel = selectDefaultModel(
-    defaultKeyModels,
+    allKeyModels,
     effectiveProviderId,
     effectiveKeyId ?? undefined,
   );
   const selectedModel = storedModel ?? defaultModel;
-  const isModelsLoading = needsDefault && isModelsQueryLoading;
+  const isModelsLoading = !storedModel && isModelsQueryLoading;
+
+  // Image model auto-detection: always resolve to an available model.
+  // The image tool is enabled whenever an image model exists.
+  const imageModels = allKeyModels.filter((m) =>
+    m.capabilities?.includes("image"),
+  );
+  const resolvedImageModel: AiProviderModel | null =
+    storedImageModel ?? imageModels[0] ?? null;
 
   // Task management (scoped by URL virtualMcpId — task list doesn't change on override)
   const taskManager = useTaskManager(virtualMcpId);
@@ -438,6 +461,12 @@ export function ChatContextProvider({
     allModelsConnections: keys,
     isModelsLoading,
     selectedVirtualMcp,
+    imageModel: resolvedImageModel,
+    setImageModel: (model: AiProviderModel | null) => {
+      setStoredImageModel(model);
+    },
+    forceImageGeneration,
+    setForceImageGeneration,
     appContexts,
     setAppContext,
     clearAppContext,
@@ -485,7 +514,15 @@ export function ActiveTaskProvider({
 }: PropsWithChildren<{ taskId: string }>) {
   const { virtualMcpId, tasks, pendingMessage, clearPendingMessage } =
     useChatTask();
-  const { selectedModel, appContexts, setTiptapDoc, setModel } = useChatPrefs();
+  const {
+    selectedModel,
+    imageModel,
+    forceImageGeneration,
+    setForceImageGeneration,
+    appContexts,
+    setTiptapDoc,
+    setModel,
+  } = useChatPrefs();
   const internals = useContext(TaskInternalsCtx);
   if (!internals) {
     throw new Error(
@@ -631,6 +668,10 @@ export function ActiveTaskProvider({
       .filter(Boolean)
       .join("\n\n");
 
+    // Capture and reset one-shot forceImageGeneration before the async send
+    const shouldForceImage = forceImageGeneration && !!imageModel;
+    if (forceImageGeneration) setForceImageGeneration(false);
+
     const metadata: Metadata = {
       ...messageMetadata,
       system,
@@ -638,7 +679,11 @@ export function ActiveTaskProvider({
         credentialId: model.keyId ?? effectiveKeyId ?? "",
         thinking: toMetadataModelInfo(model),
         fast: toMetadataModelInfo(model),
+        ...(imageModel && {
+          image: toMetadataModelInfo(imageModel),
+        }),
       },
+      ...(shouldForceImage && { forceImageGeneration: true }),
     };
 
     const userMessage: ChatMessage = {

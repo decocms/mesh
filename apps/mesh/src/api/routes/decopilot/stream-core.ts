@@ -96,6 +96,8 @@ export interface StreamCoreInput {
   windowSize?: number;
   abortSignal?: AbortSignal;
   isResume?: boolean;
+  /** When true, forces generate_image as the required tool for this request */
+  forceImageGeneration?: boolean;
 }
 
 export interface StreamCoreDeps {
@@ -369,6 +371,7 @@ async function streamCoreInner(
 
     const toolOutputMap = new Map<string, string>();
     const organization = ctx.organization!;
+    let titleHandle: ReturnType<typeof genTitle> | null = null;
 
     const uiStream = createUIMessageStream({
       originalMessages: allMessages,
@@ -487,9 +490,24 @@ async function streamCoreInner(
               "</plan-mode>"
             : null;
 
+        // Image generation system prompt injection
+        const imageGenPrompt = input.models.image
+          ? "<image-generation>\n" +
+            "You have image generation enabled. When the user asks you to create, generate, draw, " +
+            "design, or illustrate an image, use the `generate_image` tool.\n\n" +
+            "Write detailed, descriptive prompts for the image model. Include style, composition, " +
+            "colors, lighting, and subject matter details to get the best results.\n\n" +
+            "IMPORTANT: After calling `generate_image`, the image is automatically displayed to the user " +
+            "by the UI. Do NOT include the image URL, data URI, or any markdown image syntax in your " +
+            "text response. Just describe what was generated in plain text.\n\n" +
+            `Image model: ${input.models.image.title ?? input.models.image.id}\n` +
+            "</image-generation>"
+          : null;
+
         const systemPrompts = [
           basePrompt,
           planModePrompt,
+          imageGenPrompt,
           toolCatalog,
           promptCatalog,
           agentPrompt,
@@ -515,14 +533,15 @@ async function streamCoreInner(
           mem.thread.title === DEFAULT_THREAD_TITLE && !isCliAgent;
         if (shouldGenerateTitle) {
           const titleInput = JSON.stringify(processedMessages[0]?.content);
-          const titleOp = genTitle({
+          titleHandle = genTitle({
             abortSignal: registrySignal,
             model: createLanguageModel(
               provider!,
               input.models.fast ?? input.models.thinking,
             ),
             userMessage: titleInput,
-          })
+          });
+          const titleOp = titleHandle.promise
             .then(async (title) => {
               if (!title) return;
 
@@ -669,34 +688,52 @@ async function streamCoreInner(
             ...(isCliAgent
               ? {}
               : {
-                  prepareStep: () => {
-                    let activeToolNames = [
-                      ...builtInToolNames,
-                      "enable_tools",
-                      ...enabledTools,
-                    ];
+                  prepareStep: (() => {
+                    // Force generate_image only on the first step, then let the
+                    // model choose freely on subsequent steps.
+                    const shouldForceImage =
+                      input.forceImageGeneration && "generate_image" in tools;
+                    let stepIndex = 0;
 
-                    // Layer 2: In plan mode, filter out any non-read-only tools that
-                    // somehow got enabled (safety net for Layer 1 in enable_tools)
-                    if (input.toolApprovalLevel === "plan") {
-                      activeToolNames = activeToolNames.filter((name) => {
-                        // Built-in tools and enable_tools are always allowed
-                        if (
-                          builtInToolNames.includes(name) ||
-                          name === "enable_tools"
-                        ) {
-                          return true;
-                        }
-                        // Only allow passthrough tools with readOnlyHint
-                        const annotations = toolAnnotations.get(name);
-                        return annotations?.readOnlyHint === true;
-                      });
-                    }
+                    return () => {
+                      const isFirstStep = stepIndex === 0;
+                      stepIndex++;
 
-                    return {
-                      activeTools: activeToolNames as (keyof typeof tools)[],
+                      let activeToolNames = [
+                        ...builtInToolNames,
+                        "enable_tools",
+                        ...enabledTools,
+                      ];
+
+                      // Layer 2: In plan mode, filter out any non-read-only tools that
+                      // somehow got enabled (safety net for Layer 1 in enable_tools)
+                      if (input.toolApprovalLevel === "plan") {
+                        activeToolNames = activeToolNames.filter((name) => {
+                          // Built-in tools and enable_tools are always allowed
+                          if (
+                            builtInToolNames.includes(name) ||
+                            name === "enable_tools"
+                          ) {
+                            return true;
+                          }
+                          // Only allow passthrough tools with readOnlyHint
+                          const annotations = toolAnnotations.get(name);
+                          return annotations?.readOnlyHint === true;
+                        });
+                      }
+
+                      return {
+                        activeTools: activeToolNames as (keyof typeof tools)[],
+                        ...(shouldForceImage &&
+                          isFirstStep && {
+                            toolChoice: {
+                              type: "tool" as const,
+                              toolName: "generate_image" as never,
+                            },
+                          }),
+                      };
                     };
-                  },
+                  })(),
                   temperature: input.temperature,
                   maxOutputTokens,
                   stopWhen: stepCountIs(PARENT_STEP_LIMIT),
@@ -928,6 +965,9 @@ async function streamCoreInner(
         streamFinished = true;
         closeClients?.();
 
+        // Stream done — start grace period for title generation
+        titleHandle?.finish();
+
         await Promise.allSettled(pendingOps);
         await saveMessagesToThread(responseMessage);
 
@@ -974,6 +1014,7 @@ async function streamCoreInner(
       onError: (error) => {
         streamFinished = true;
         closeClients?.();
+        titleHandle?.finish();
         if (registrySignal.aborted) {
           return sanitizeStreamError(error);
         }

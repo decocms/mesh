@@ -14,6 +14,7 @@ import { MessageStatsBar } from "../usage-stats.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
 import {
   GenericToolCallPart,
+  GenerateImagePart,
   OpenInAgentPart,
   ProposePlanPart,
   SubtaskPart,
@@ -484,6 +485,13 @@ function MessagePart({
       );
     case "tool-propose_plan":
       return <ProposePlanPart part={part} />;
+    case "tool-generate_image":
+      return (
+        <GenerateImagePart
+          part={part}
+          latency={getMeta(part.toolCallId)?.latencySeconds}
+        />
+      );
     case "tool-subtask":
       return (
         <SubtaskPart
@@ -520,6 +528,7 @@ function MessagePart({
       return null;
     case "data-tool-metadata":
     case "data-tool-subtask-metadata":
+    case "data-generate-image":
       return null;
     default: {
       const fallback = part as ToolUIPart;
