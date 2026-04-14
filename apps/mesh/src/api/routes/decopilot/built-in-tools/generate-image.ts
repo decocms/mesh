@@ -110,6 +110,7 @@ const PRIVATE_HOST_PATTERNS = [
   /^\[::1\]$/, // IPv6 loopback
   /^\[fd/, // IPv6 unique local
   /^\[fe80:/, // IPv6 link-local
+  /^\[::ffff:/i, // IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
   /^localhost$/i,
 ];
 
