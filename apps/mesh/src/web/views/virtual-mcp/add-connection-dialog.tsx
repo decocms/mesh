@@ -1,4 +1,7 @@
-import { groupConnections } from "@/shared/utils/group-connections";
+import {
+  groupConnections,
+  getConnectionDisplayTitle,
+} from "@/shared/utils/group-connections";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import { CreateConnectionDialog } from "@/web/components/connections/create-connection-dialog.tsx";
@@ -14,6 +17,7 @@ import {
 import { KEYS } from "@/web/lib/query-keys";
 import { authClient } from "@/web/lib/auth-client";
 import {
+  buildRegistryTitleMap,
   extractConnectionData,
   getRegistryItemAppName,
 } from "@/web/utils/extract-connection-data";
@@ -176,7 +180,6 @@ function AddConnectionDialogContent({
     connectionsData?.pages.flatMap(
       (p: CollectionListOutput<ConnectionEntity>) => p?.items ?? [],
     ) ?? [];
-  const grouped = groupConnections(allConnections);
 
   // Build set of connected app names to deduplicate catalog items
   const connectedAppNames = new Set(
@@ -189,6 +192,9 @@ function AddConnectionDialogContent({
     enabledRegistries,
     deferredSearch,
   );
+
+  const registryTitles = buildRegistryTitleMap(mergedDiscovery.items);
+  const grouped = groupConnections(allConnections, registryTitles);
 
   const catalogSentinelRef = useInfiniteScroll(
     mergedDiscovery.loadMore,
@@ -296,6 +302,9 @@ function AddConnectionDialogContent({
     const icon =
       item.server?.icons?.[0]?.src ||
       getGitHubAvatarUrl(item.server?.repository) ||
+      item.icon ||
+      item.image ||
+      item.logo ||
       null;
 
     return (
@@ -373,7 +382,8 @@ function AddConnectionDialogContent({
             const c = item.connection;
             return renderConnectedApp(
               c.id,
-              c.title,
+              (c.app_name && registryTitles.get(c.app_name)) ||
+                getConnectionDisplayTitle(c),
               c.icon,
               c.description ?? null,
               [c],
@@ -471,7 +481,7 @@ export function AddConnectionDialog({
   const handleCloneAndAdd = async (base: ConnectionEntity) => {
     setConnectingItemId(base.app_name ?? base.id);
     try {
-      const baseName = base.title.replace(/\s*\(\d+\)\s*$/, "");
+      const baseName = getConnectionDisplayTitle(base);
       const newTitle = `${baseName} (${Date.now().toString(36).slice(-4)})`;
 
       const created = await connectionActions.create.mutateAsync({
@@ -484,6 +494,7 @@ export function AddConnectionDialog({
         app_name: base.app_name ?? null,
         app_id: base.app_id ?? null,
         connection_headers: base.connection_headers ?? null,
+        metadata: base.metadata ?? null,
       });
       const id = created.id;
 

@@ -11,8 +11,10 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import {
   getWellKnownDecopilotVirtualMCP,
   isDecopilot,
+  useConnections,
   useProjectContext,
 } from "@decocms/mesh-sdk";
+
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import {
   ArrowUp,
@@ -59,6 +61,26 @@ import { AddConnectionDialog } from "@/web/views/virtual-mcp/add-connection-dial
 import { ConnectionsBanner } from "./connections-banner";
 import { useVoiceInput } from "@/web/hooks/use-voice-input.ts";
 import { VoiceWaveform } from "./voice-input";
+
+function HomeConnectionsDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const existingConnections = useConnections();
+  const existingConnectionIds = new Set(existingConnections.map((c) => c.id));
+  return (
+    <AddConnectionDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      addedConnectionIds={existingConnectionIds}
+      onAdd={() => onOpenChange(false)}
+      defaultTab="all"
+    />
+  );
+}
 
 // ============================================================================
 // VirtualMCPBadge - Internal component for displaying selected virtual MCP
@@ -740,13 +762,12 @@ export function ChatInput({
         </div>
       </div>
 
-      <AddConnectionDialog
-        open={connectionsOpen}
-        onOpenChange={setConnectionsOpen}
-        addedConnectionIds={new Set()}
-        onAdd={() => {}}
-        defaultTab="all"
-      />
+      {showConnectionsBanner && (
+        <HomeConnectionsDialog
+          open={connectionsOpen}
+          onOpenChange={setConnectionsOpen}
+        />
+      )}
     </>
   );
 }

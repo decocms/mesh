@@ -113,6 +113,7 @@ import type {
 } from "@/tools/connection/schema";
 import { EnvVarsEditor } from "@/web/components/env-vars-editor";
 import {
+  buildRegistryTitleMap,
   extractConnectionData,
   getRegistryItemAppName,
 } from "@/web/utils/extract-connection-data";
@@ -136,6 +137,7 @@ import {
 
 import {
   groupConnections,
+  getConnectionDisplayTitle,
   type ConnectionGroup,
 } from "@/shared/utils/group-connections";
 
@@ -552,6 +554,9 @@ function CatalogItemCard({
   const icon =
     item.server?.icons?.[0]?.src ||
     getGitHubAvatarUrl(item.server?.repository) ||
+    item.icon ||
+    item.image ||
+    item.logo ||
     null;
   const appInstances = allConnections.filter(
     (c) => c.connection_type !== "VIRTUAL" && c.app_name === appName,
@@ -695,8 +700,6 @@ function ConnectionResults({
     return true;
   });
 
-  const grouped = groupConnections(filteredConnections);
-
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -716,6 +719,8 @@ function ConnectionResults({
     listState.searchTerm,
   );
   const registryItems = mergedDiscovery.items;
+  const registryTitles = buildRegistryTitleMap(registryItems);
+  const grouped = groupConnections(filteredConnections, registryTitles);
 
   const catalogSentinelRef = useInfiniteScroll(
     mergedDiscovery.loadMore,
@@ -1054,7 +1059,13 @@ function ConnectionResults({
                 return (
                   <ConnectionCard
                     key={connection.id}
-                    connection={connection}
+                    connection={{
+                      ...connection,
+                      title:
+                        (connection.app_name &&
+                          registryTitles.get(connection.app_name)) ||
+                        getConnectionDisplayTitle(connection),
+                    }}
                     fallbackIcon={<Container />}
                     onClick={() =>
                       selectionMode
