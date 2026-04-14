@@ -171,6 +171,8 @@ function PickerContent({
             githubRepo: {
               owner: repo.owner,
               name: repo.name,
+              url: repo.url,
+              installationId: selectedInstallation!.installationId,
               connectionId: effectiveConnection.id,
             },
             activeVms: {},
