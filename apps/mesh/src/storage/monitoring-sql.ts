@@ -174,7 +174,7 @@ function safeJsonParse(val: unknown): Record<string, unknown> {
   } catch {
     // Truncated JSON strings (from truncateString) are not valid JSON.
     // Wrap the raw string so the UI can still display it.
-    return { _raw: str };
+    return { _decocms_truncated: str };
   }
 }
 

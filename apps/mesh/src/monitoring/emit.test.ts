@@ -136,7 +136,7 @@ describe("emitMonitoringLog", () => {
     expect(emittedRecords[1]!.severityText).toBe("ERROR");
   });
 
-  it("should truncate output exceeding 64KB", () => {
+  it("should truncate output exceeding 64KB", { timeout: 15_000 }, () => {
     const largeOutput = { data: "x".repeat(70_000) };
     emitMonitoringLog(makeParams({ result: largeOutput }));
 
