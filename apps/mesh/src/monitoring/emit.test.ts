@@ -136,7 +136,7 @@ describe("emitMonitoringLog", () => {
     expect(emittedRecords[1]!.severityText).toBe("ERROR");
   });
 
-  it("should truncate output exceeding 64KB", { timeout: 15_000 }, () => {
+  it("should truncate output exceeding 64KB", () => {
     const largeOutput = { data: "x".repeat(70_000) };
     emitMonitoringLog(makeParams({ result: largeOutput }));
 
@@ -145,7 +145,7 @@ describe("emitMonitoringLog", () => {
     const output = attrs[MONITORING_LOG_ATTR.OUTPUT] as string;
     expect(Buffer.byteLength(output, "utf8")).toBeLessThanOrEqual(65_536);
     expect(output).toContain("... [TRUNCATED]");
-  });
+  }, 15_000);
 
   it("should truncate input exceeding 64KB", () => {
     const largeInput = { query: "y".repeat(70_000) };
@@ -156,7 +156,7 @@ describe("emitMonitoringLog", () => {
     const input = attrs[MONITORING_LOG_ATTR.INPUT] as string;
     expect(Buffer.byteLength(input, "utf8")).toBeLessThanOrEqual(65_536);
     expect(input).toContain("... [TRUNCATED]");
-  });
+  }, 15_000);
 
   it("should not truncate output under 64KB", () => {
     const smallOutput = { data: "hello" };
