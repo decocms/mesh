@@ -27,7 +27,7 @@ import {
   Building02,
   ChevronLeft,
   ChevronRight,
-  Container,
+  ZapSquare,
   CpuChip01,
   Loading01,
   Lock01,
@@ -76,7 +76,7 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
         {
           key: "connections",
           label: "Connections",
-          icon: <Container size={14} />,
+          icon: <ZapSquare size={14} />,
           to: "/$org/settings/connections",
         },
         {

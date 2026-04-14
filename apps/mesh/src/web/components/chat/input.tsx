@@ -738,10 +738,9 @@ export function ChatInput({
       </div>
 
       <AddConnectionDialog
+        mode="browse"
         open={connectionsOpen}
         onOpenChange={setConnectionsOpen}
-        addedConnectionIds={new Set()}
-        onAdd={() => {}}
         defaultTab="all"
       />
     </>
