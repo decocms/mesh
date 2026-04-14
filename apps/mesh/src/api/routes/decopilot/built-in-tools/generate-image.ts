@@ -144,24 +144,13 @@ export function createGenerateImageTool(
 
         let refImageBytes: Uint8Array[] = [];
         if (hasRefs) {
-          console.log(
-            "[generate-image] referenceImages input:",
-            JSON.stringify(input.referenceImages),
-          );
           refImageBytes = await Promise.all(
             input.referenceImages!.map((ref) => {
               // Accept both `uri` (current schema) and `url` (legacy threads)
               const raw = ref.uri ?? (ref as unknown as { url?: string }).url;
-              console.log("[generate-image] resolving ref:", { raw, ref });
               if (!raw) throw new Error("Reference image missing uri");
               return fetchImageBytes(raw, ctx);
             }),
-          );
-          console.log(
-            "[generate-image] fetched",
-            refImageBytes.length,
-            "reference images, sizes:",
-            refImageBytes.map((b) => b.byteLength),
           );
         }
 
@@ -175,14 +164,6 @@ export function createGenerateImageTool(
           n: input.n ?? 1,
           ...(input.aspectRatio && { aspectRatio: input.aspectRatio }),
         });
-
-        console.log("[generate-image] result:", JSON.stringify(result));
-
-        console.log("[generate-image] usage:", result.usage);
-        console.log(
-          "[generate-image] providerMetadata:",
-          JSON.stringify(result.providerMetadata),
-        );
 
         // Upload images to object storage, return stable mesh-storage: URIs.
         // The model sees only URIs (lightweight, opaque); the frontend resolves
