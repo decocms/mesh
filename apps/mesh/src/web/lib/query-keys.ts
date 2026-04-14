@@ -329,7 +329,16 @@ export const KEYS = {
   githubOrgRepos: (
     orgId: string,
     connectionId: string,
-    org: string,
+    installationLogin: string,
+    query: string,
     page: number,
-  ) => ["github-org-repos", orgId, connectionId, org, page] as const,
+  ) =>
+    [
+      "github-org-repos",
+      orgId,
+      connectionId,
+      installationLogin,
+      query,
+      page,
+    ] as const,
 } as const;
