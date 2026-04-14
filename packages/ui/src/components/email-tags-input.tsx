@@ -362,7 +362,7 @@ export const EmailTagsInput = forwardRef<
       <div
         className={cn(
           "min-h-[96px] w-full rounded-xl border border-input bg-background px-3 py-2 text-sm transition-[color,box-shadow]",
-          "focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[3px]",
+          "focus-within:border-ring focus-within:ring-ring/20 focus-within:ring-[2px]",
           disabled && "opacity-50 cursor-not-allowed",
         )}
         onClick={() => textareaRef.current?.focus()}

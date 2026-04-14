@@ -40,7 +40,7 @@ export function DecoChatSkeleton({ className }: { className?: string }) {
       <div className="px-4 py-4">
         <div className="mx-auto w-full max-w-2xl">
           {/* Input box skeleton */}
-          <div className="relative flex min-h-[130px] flex-col rounded-xl border border-border bg-background shadow-sm">
+          <div className="relative flex min-h-[130px] flex-col rounded-xl bg-background card-shadow">
             <div className="relative flex flex-1 flex-col gap-2 p-2.5">
               <div className="relative flex-1">
                 {/* Text area lines */}

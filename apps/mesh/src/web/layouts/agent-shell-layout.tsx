@@ -252,8 +252,8 @@ function UnifiedPanelGroup({
       style={{ overflow: "visible" }}
     >
       <TasksResizablePanel defaultSize={sizes.tasks}>
-        <div className="h-full p-0.5 overflow-hidden">
-          <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
+        <div className="h-full p-0.5">
+          <div className="h-full bg-background rounded-[0.75rem] overflow-hidden card-shadow">
             <TasksSidePanel
               virtualMcpId={tasksVirtualMcpId}
               hideProjectHeader={isDecopilot}
@@ -273,11 +273,11 @@ function UnifiedPanelGroup({
         collapsedSize={0}
         minSize={20}
       >
-        <div className="h-full p-0.5 overflow-hidden">
+        <div className="h-full p-0.5">
           <div
             className={cn(
-              "flex flex-col h-full min-h-0 bg-card overflow-hidden",
-              "border border-sidebar-border shadow-sm",
+              "flex flex-col h-full min-h-0 bg-background overflow-hidden",
+              "card-shadow",
               "transition-[border-radius] duration-200 ease-[var(--ease-out-quart)]",
               "rounded-[0.75rem]",
             )}
@@ -303,7 +303,7 @@ function UnifiedPanelGroup({
       <ResizableHandle className="bg-sidebar" />
       <PersistentResizablePanel defaultSize={sizes.chat}>
         <div className="h-full p-0.5">
-          <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
+          <div className="h-full bg-background rounded-[0.75rem] overflow-hidden card-shadow">
             <ActiveTaskBoundary variant={isDecopilot ? "home" : undefined} />
           </div>
         </div>
@@ -459,7 +459,7 @@ function AgentInsetProvider() {
   if (!entity) {
     return (
       <div className="flex-1 min-h-0 pr-1.5 pb-1.5 overflow-hidden">
-        <div className="flex flex-col h-full bg-card overflow-hidden border border-sidebar-border shadow-sm rounded-[0.75rem]">
+        <div className="flex flex-col h-full bg-background overflow-hidden card-shadow rounded-[0.75rem]">
           <EmptyState
             image={<AlertCircle size={48} className="text-muted-foreground" />}
             title="Agent not found"

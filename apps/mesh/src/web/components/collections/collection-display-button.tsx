@@ -57,11 +57,7 @@ export function CollectionDisplayButton({
         <Tooltip>
           <TooltipTrigger asChild>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                className="border border-input relative"
-              >
+              <Button variant="outline" size="icon" className="relative">
                 <Sliders01 size={16} />
                 {activeFilterCount > 0 && (
                   <Badge

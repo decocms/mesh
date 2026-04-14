@@ -54,7 +54,7 @@ function MonitoringMetricCard({
   className?: string;
 }) {
   return (
-    <Card className={cn("p-4 gap-8", className)}>
+    <Card className={cn("pt-4 px-4 pb-6 gap-8", className)}>
       <div className="flex items-start justify-between">
         <div className="flex flex-col gap-1 min-w-0 flex-1">
           <span className="text-sm text-foreground/70">{title}</span>
@@ -452,7 +452,7 @@ export function OverviewTabContent({
 
 function SkeletonCard({ className }: { className?: string }) {
   return (
-    <Card className={cn("p-4 gap-8", className)}>
+    <Card className={cn("pt-4 px-4 pb-6 gap-8", className)}>
       <div className="flex items-start justify-between">
         <div className="flex flex-col gap-1">
           <div className="h-5 w-20 rounded bg-muted animate-pulse" />
