@@ -15,7 +15,10 @@ export interface VmStatus {
   htmlSupport: boolean;
 }
 
-export type ChunkHandler = (source: "install" | "dev", data: string) => void;
+export type ChunkHandler = (
+  source: "install" | "dev" | "daemon",
+  data: string,
+) => void;
 
 const BUFFER_BYTES = 16384;
 
@@ -62,6 +65,7 @@ export function useVmEvents(
   onChunkRef.current = onChunk;
   const installBuffer = useRef(new ChunkBuffer());
   const devBuffer = useRef(new ChunkBuffer());
+  const daemonBuffer = useRef(new ChunkBuffer());
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — SSE subscription lifecycle requires cleanup on unmount; createSSESubscription returns an unsubscribe function that must be called in an effect cleanup
   useEffect(() => {
@@ -74,6 +78,7 @@ export function useVmEvents(
     setHasDevData(false);
     installBuffer.current.clear();
     devBuffer.current.clear();
+    daemonBuffer.current.clear();
 
     const unsubscribe = daemonSSE.subscribe(previewUrl, (e: MessageEvent) => {
       // Any event received means we're connected — clear suspension timer
@@ -92,7 +97,7 @@ export function useVmEvents(
         const data = JSON.parse(e.data);
 
         if (e.type === "log" && typeof data.data === "string") {
-          const source = data.source as "install" | "dev";
+          const source = data.source as "install" | "dev" | "daemon";
           if (source === "install") {
             setHasInstallData(true);
             installBuffer.current.append(data.data);
@@ -100,6 +105,9 @@ export function useVmEvents(
           if (source === "dev") {
             setHasDevData(true);
             devBuffer.current.append(data.data);
+          }
+          if (source === "daemon") {
+            daemonBuffer.current.append(data.data);
           }
           onChunkRef.current?.(source, data.data);
         } else if (e.type === "status") {
@@ -135,5 +143,6 @@ export function useVmEvents(
     hasDevData,
     getInstallBuffer: () => installBuffer.current.get(),
     getDevBuffer: () => devBuffer.current.get(),
+    getDaemonBuffer: () => daemonBuffer.current.get(),
   };
 }

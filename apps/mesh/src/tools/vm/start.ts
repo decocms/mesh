@@ -58,13 +58,21 @@ const DEV_CMD = ${JSON.stringify(`${pathPrefix}cd /app && HOST=0.0.0.0 HOSTNAME=
 const INSTALL_LABEL = ${JSON.stringify(`$ ${installScript}`)};
 const DEV_LABEL = ${JSON.stringify(`$ ${devScript}`)};
 
+// --- Logging ---
+function log(...args) {
+  const ts = new Date().toISOString();
+  const msg = "[daemon] " + ts + " " + args.join(" ");
+  console.log(msg);
+  broadcastChunk("daemon", msg + "\\r\\n");
+}
+
 // --- SSE state ---
 const sseClients = new Set();
 let lastStatus = { ready: false, htmlSupport: false };
 
 // --- Process state ---
 const children = { install: null, dev: null };
-const replayBuffers = { install: "", dev: "" };
+const replayBuffers = { install: "", dev: "", daemon: "" };
 const REPLAY_BYTES = 4096;
 
 function broadcastChunk(source, data) {
@@ -79,6 +87,7 @@ function broadcastChunk(source, data) {
 
 function runProcess(source, cmd, label) {
   if (children[source]) {
+    log("killing", source, "pid=" + children[source].pid);
     try { children[source].kill("SIGKILL"); } catch (e) {}
     children[source] = null;
   }
@@ -88,6 +97,7 @@ function runProcess(source, cmd, label) {
     env: Object.assign({}, process.env, { TERM: "xterm-256color" }),
   });
   children[source] = child;
+  log("spawned", source, "pid=" + child.pid);
   child.stdout.on("data", (chunk) => {
     broadcastChunk(source, chunk.toString("utf-8"));
   });
@@ -95,6 +105,7 @@ function runProcess(source, cmd, label) {
     broadcastChunk(source, chunk.toString("utf-8"));
   });
   child.on("close", (code) => {
+    log(source, "exited", "pid=" + child.pid, "code=" + code);
     if (children[source] === child) children[source] = null;
   });
 }
@@ -107,6 +118,7 @@ const SLOW_PROBE_MS = 30000;
 const FAST_PROBE_LIMIT = 20; // 20 * 3s = 60s
 
 function probeUpstream() {
+  const prevReady = lastStatus.ready;
   const req = http.request(
     { hostname: "127.0.0.1", port: UPSTREAM, path: "/", method: "HEAD", timeout: 5000 },
     (res) => {
@@ -115,9 +127,13 @@ function probeUpstream() {
         ready: res.statusCode >= 200 && res.statusCode < 400,
         htmlSupport: ct.includes("text/html"),
       };
+      if (lastStatus.ready !== prevReady) {
+        log("upstream", lastStatus.ready ? "UP" : "DOWN", "status=" + res.statusCode);
+      }
     }
   );
   req.on("error", () => {
+    if (prevReady) log("upstream DOWN (error)");
     lastStatus = { ready: false, htmlSupport: false };
   });
   req.on("timeout", () => { req.destroy(); });
@@ -140,9 +156,14 @@ setTimeout(probeUpstream, 1000);
 
 // --- HTTP server ---
 http.createServer((req, res) => {
+  if (!req.url.startsWith("/_daemon/")) {
+    log("proxy", req.method, req.url);
+  }
+
   // SSE endpoint
   if (req.url === "/_daemon/events" && req.method === "GET") {
     if (sseClients.size >= MAX_SSE_CLIENTS) {
+      log("SSE rejected (max clients)");
       res.writeHead(429);
       res.end("Too many connections");
       return;
@@ -156,7 +177,7 @@ http.createServer((req, res) => {
     // Send current status immediately
     res.write("event: status\\ndata: " + JSON.stringify({ type: "status", ...lastStatus }) + "\\n\\n");
     // Replay last lines from memory
-    for (const source of ["install", "dev"]) {
+    for (const source of ["install", "dev", "daemon"]) {
       const buf = replayBuffers[source];
       if (buf.length > 0) {
         const payload = JSON.stringify({ source: source, data: buf });
@@ -164,7 +185,8 @@ http.createServer((req, res) => {
       }
     }
     sseClients.add(res);
-    req.on("close", () => { sseClients.delete(res); });
+    log("SSE connect, clients=" + sseClients.size);
+    req.on("close", () => { sseClients.delete(res); log("SSE disconnect, clients=" + sseClients.size); });
     // Broadcast status every 15s (doubles as keepalive)
     const ka = setInterval(() => {
       if (!res.writable) { clearInterval(ka); sseClients.delete(res); return; }
@@ -176,6 +198,7 @@ http.createServer((req, res) => {
 
   // Exec endpoints
   if (req.method === "POST" && req.url === "/_daemon/exec/install") {
+    log("exec install");
     const waitCmd = "systemctl is-active --wait freestyle-git-sync.service > /dev/null 2>&1 || [ $? -eq 3 ]";
     runProcess("install", waitCmd + " && " + INSTALL_CMD, INSTALL_LABEL);
     res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
@@ -184,6 +207,7 @@ http.createServer((req, res) => {
   }
 
   if (req.method === "POST" && req.url === "/_daemon/exec/dev") {
+    log("exec dev");
     runProcess("dev", DEV_CMD, DEV_LABEL);
     res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
     res.end(JSON.stringify({ ok: true }));
@@ -195,8 +219,11 @@ http.createServer((req, res) => {
     const source = req.url.split("/").pop();
     if (source === "install" || source === "dev") {
       if (children[source]) {
+        log("kill", source, "pid=" + children[source].pid);
         try { children[source].kill("SIGKILL"); } catch (e) {}
         children[source] = null;
+      } else {
+        log("kill", source, "(no process running)");
       }
       res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
       res.end(JSON.stringify({ ok: true }));
@@ -247,7 +274,7 @@ http.createServer((req, res) => {
       upstream.pipe(res);
     }
   });
-  p.on("error", (e) => { res.writeHead(502); res.end("proxy error: " + e.message); });
+  p.on("error", (e) => { log("proxy error", req.method, req.url, e.message); res.writeHead(502); res.end("proxy error: " + e.message); });
   req.pipe(p);
 }).listen(PROXY_PORT, "0.0.0.0");
 `;

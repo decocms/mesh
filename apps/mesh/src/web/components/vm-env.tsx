@@ -60,12 +60,14 @@ export function VmEnvContent() {
     orgId: org.id,
   });
 
-  const handleChunk = (source: "install" | "dev", data: string) => {
+  const handleChunk = (source: "install" | "dev" | "daemon", data: string) => {
     if (source === "install") {
       installTermRef.current?.write(data);
       setupTermRef.current?.write(data);
-    } else {
+    } else if (source === "dev") {
       devTermRef.current?.write(data);
+      setupTermRef.current?.write(data);
+    } else if (source === "daemon") {
       setupTermRef.current?.write(data);
     }
   };
@@ -346,7 +348,9 @@ export function VmEnvContent() {
                 setupTermRef.current = t;
               }}
               initialData={
-                vmEvents.getInstallBuffer() + vmEvents.getDevBuffer()
+                vmEvents.getDaemonBuffer() +
+                vmEvents.getInstallBuffer() +
+                vmEvents.getDevBuffer()
               }
               className="h-full"
             />
