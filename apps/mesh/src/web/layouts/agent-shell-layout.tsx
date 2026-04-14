@@ -71,7 +71,7 @@ import {
 } from "@/web/hooks/use-layout-state";
 import { GitHubRepoButton } from "@/web/components/github-repo-button";
 import { usePreferences } from "@/web/hooks/use-preferences";
-import { VmEnvContent } from "@/web/components/vm-env";
+import { EnvContent } from "@/web/components/vm/env/env";
 
 // ---------------------------------------------------------------------------
 // Types & Context
@@ -321,7 +321,7 @@ function UnifiedPanelGroup({
                 <>
                   <ResizableHandle />
                   <ResizablePanel defaultSize={40} minSize={15} order={2}>
-                    <VmEnvContent daemonOpen={daemonOpen} />
+                    <EnvContent daemonOpen={daemonOpen} />
                   </ResizablePanel>
                 </>
               )}

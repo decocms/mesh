@@ -1,6 +1,6 @@
 import { VirtualMcpDetailView } from "@/web/views/virtual-mcp";
 import { AutomationInlineDetail } from "@/web/views/automations/automations-tab";
-import { VmPreviewContent } from "@/web/components/vm-preview";
+import { PreviewContent } from "@/web/components/vm/preview/preview";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { EmptyState } from "@/web/components/empty-state";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -119,7 +119,7 @@ function AgentHomeContent() {
   }
 
   if (resolved.type === "preview") {
-    return <VmPreviewContent />;
+    return <PreviewContent />;
   }
 
   // settings
