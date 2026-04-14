@@ -135,4 +135,37 @@ describe("emitMonitoringLog", () => {
     expect(emittedRecords[0]!.severityText).toBe("INFO");
     expect(emittedRecords[1]!.severityText).toBe("ERROR");
   });
+
+  it("should truncate output exceeding 64KB", () => {
+    const largeOutput = { data: "x".repeat(70_000) };
+    emitMonitoringLog(makeParams({ result: largeOutput }));
+
+    expect(emittedRecords.length).toBe(1);
+    const attrs = emittedRecords[0]!.attributes!;
+    const output = attrs[MONITORING_LOG_ATTR.OUTPUT] as string;
+    expect(Buffer.byteLength(output, "utf8")).toBeLessThanOrEqual(65_536);
+    expect(output).toContain("... [TRUNCATED]");
+  });
+
+  it("should truncate input exceeding 64KB", () => {
+    const largeInput = { query: "y".repeat(70_000) };
+    emitMonitoringLog(makeParams({ toolArguments: largeInput }));
+
+    expect(emittedRecords.length).toBe(1);
+    const attrs = emittedRecords[0]!.attributes!;
+    const input = attrs[MONITORING_LOG_ATTR.INPUT] as string;
+    expect(Buffer.byteLength(input, "utf8")).toBeLessThanOrEqual(65_536);
+    expect(input).toContain("... [TRUNCATED]");
+  });
+
+  it("should not truncate output under 64KB", () => {
+    const smallOutput = { data: "hello" };
+    emitMonitoringLog(makeParams({ result: smallOutput }));
+
+    expect(emittedRecords.length).toBe(1);
+    const attrs = emittedRecords[0]!.attributes!;
+    const output = attrs[MONITORING_LOG_ATTR.OUTPUT] as string;
+    expect(output).not.toContain("[TRUNCATED]");
+    expect(JSON.parse(output)).toEqual({ data: "hello" });
+  });
 });
