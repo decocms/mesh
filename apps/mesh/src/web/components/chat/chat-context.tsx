@@ -256,11 +256,18 @@ export function ChatContextProvider({
 
   // Image model auto-detection: always resolve to an available model.
   // The image tool is enabled whenever an image model exists.
+  // Validate stored selection against current credential's models to avoid
+  // sending a stale model when the user switches keys.
   const imageModels = allKeyModels.filter((m) =>
     m.capabilities?.includes("image"),
   );
+  const storedModelIsAvailable =
+    storedImageModel &&
+    imageModels.some((m) => m.modelId === storedImageModel.modelId);
   const resolvedImageModel: AiProviderModel | null =
-    storedImageModel ?? imageModels[0] ?? null;
+    (storedModelIsAvailable ? storedImageModel : null) ??
+    imageModels[0] ??
+    null;
 
   // Task management (scoped by URL virtualMcpId — task list doesn't change on override)
   const taskManager = useTaskManager(virtualMcpId);

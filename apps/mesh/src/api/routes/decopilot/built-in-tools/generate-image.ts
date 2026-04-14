@@ -18,6 +18,7 @@ import { tool, zodSchema, generateImage, type UIMessageStreamWriter } from "ai";
 import { z } from "zod";
 import type { MeshProvider } from "@/ai-providers/types";
 import type { MeshContext } from "@/core/mesh-context";
+import { getSettings } from "@/settings";
 import type { ModelInfo } from "../types";
 
 const GenerateImageInputSchema = z.object({
@@ -59,7 +60,7 @@ const GenerateImageInputSchema = z.object({
 export type GenerateImageInput = z.infer<typeof GenerateImageInputSchema>;
 
 /** Pattern to extract the storage key from our own files endpoint URL. */
-const FILES_URL_PATTERN = /\/api\/[^/]+\/files\/(.+)$/;
+const FILES_URL_PATTERN = /\/api\/[^/]+\/files\/([^?#]+)/;
 
 /**
  * Resolve an image URL to raw bytes.
@@ -90,12 +91,50 @@ async function fetchImageBytes(
     return Buffer.from(match[1]!, "base64");
   }
 
-  // External HTTP(S) URL — fetch
+  // External HTTP(S) URL — validate before fetching to prevent SSRF
+  validateExternalUrl(url);
   const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`Failed to fetch image from ${url}: ${res.status}`);
   }
   return new Uint8Array(await res.arrayBuffer());
+}
+
+const PRIVATE_HOST_PATTERNS = [
+  /^127\./, // loopback
+  /^10\./, // 10.0.0.0/8
+  /^172\.(1[6-9]|2\d|3[01])\./, // 172.16.0.0/12
+  /^192\.168\./, // 192.168.0.0/16
+  /^169\.254\./, // link-local (cloud metadata)
+  /^0\./, // 0.0.0.0/8
+  /^\[::1\]$/, // IPv6 loopback
+  /^\[fd/, // IPv6 unique local
+  /^\[fe80:/, // IPv6 link-local
+  /^localhost$/i,
+];
+
+function validateExternalUrl(url: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error("Invalid image URL");
+  }
+
+  const allowHttp = getSettings().nodeEnv !== "production";
+  if (
+    parsed.protocol !== "https:" &&
+    !(allowHttp && parsed.protocol === "http:")
+  ) {
+    throw new Error("Image URL must use HTTPS");
+  }
+
+  const host = parsed.hostname;
+  for (const pattern of PRIVATE_HOST_PATTERNS) {
+    if (pattern.test(host)) {
+      throw new Error("Image URL must not point to a private network address");
+    }
+  }
 }
 
 async function readFromObjectStorage(
