@@ -1042,10 +1042,7 @@ function sanitizeStreamError(error: unknown): string {
     const msg = error.message.toLowerCase();
     if (
       statusCode === 402 ||
-      msg.includes("credit") ||
-      msg.includes("insufficient funds") ||
-      msg.includes("insufficient balance") ||
-      msg.includes("quota exceeded")
+      msg.includes("credit")
     ) {
       // Prefix with [CREDITS] so the frontend can detect credit errors
       // without fragile string matching on provider-specific messages.
