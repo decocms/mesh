@@ -258,8 +258,6 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     );
   }
 
-  const isRunning = status === "running";
-
   return (
     <div className="flex flex-col w-full h-full">
       <div className="flex flex-col h-full">
