@@ -1666,5 +1666,16 @@ export function VirtualMcpDetailView({
     );
   }
 
-  return <VirtualMcpDetailViewWithData virtualMcp={virtualMcp} />;
+  return (
+    <VirtualMcpDetailViewWithData
+      key={
+        (
+          virtualMcp.metadata as {
+            githubRepo?: { connectionId?: string };
+          }
+        )?.githubRepo?.connectionId ?? ""
+      }
+      virtualMcp={virtualMcp}
+    />
+  );
 }

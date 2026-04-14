@@ -34,6 +34,7 @@ import { getPrompts, getResources } from "./guides";
 import * as ObjectStorageTools from "./object-storage";
 import * as RegistryTools from "./registry/index";
 import * as VmTools from "./vm";
+import * as GitHubTools from "./github";
 import { ToolName } from "./registry-metadata";
 // Core tools - always available
 const CORE_TOOLS = [
@@ -160,6 +161,10 @@ const CORE_TOOLS = [
   // VM tools (app-only)
   VmTools.VM_START,
   VmTools.VM_DELETE,
+
+  // GitHub tools (app-only)
+  GitHubTools.GITHUB_LIST_USER_ORGS,
+  GitHubTools.GITHUB_LIST_ORG_REPOS,
 ] as const satisfies { name: ToolName }[];
 
 // Plugin tools - collected at startup, gated by org settings at runtime

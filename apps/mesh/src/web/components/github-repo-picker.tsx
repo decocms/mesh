@@ -12,6 +12,7 @@ import {
   useMCPClient,
   useConnections,
   useVirtualMCPActions,
+  SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 import type { ConnectionEntity } from "@decocms/mesh-sdk";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
@@ -20,12 +21,19 @@ import { toast } from "sonner";
 import { Loading01 } from "@untitledui/icons";
 import { AddConnectionDialog } from "@/web/views/virtual-mcp/add-connection-dialog";
 
+interface GitHubAccount {
+  login: string;
+  avatarUrl: string;
+}
+
 interface Repo {
   owner: string;
   name: string;
   fullName: string;
   url: string;
   private: boolean;
+  description: string | null;
+  updatedAt: string;
 }
 
 export function GitHubRepoPicker({
@@ -68,7 +76,7 @@ function PickerContent({
   const queryClient = useQueryClient();
   const [selectedConnection, setSelectedConnection] =
     useState<ConnectionEntity | null>(null);
-  const [search, setSearch] = useState("");
+  const [selectedOrg, setSelectedOrg] = useState<string | null>(null);
   const [addConnectionOpen, setAddConnectionOpen] = useState(false);
 
   const actions = useVirtualMCPActions();
@@ -85,7 +93,7 @@ function PickerContent({
   );
 
   // Resolve the effective connection:
-  // 1. If virtual MCP already has a GitHub connection, use it (auto-select if one, pick if multiple)
+  // 1. If virtual MCP already has a GitHub connection, use it
   // 2. If not, fall back to org-wide connections
   const resolvedConnections =
     attachedGithubConnections.length > 0
@@ -97,12 +105,12 @@ function PickerContent({
       ? (resolvedConnections[0] ?? null)
       : selectedConnection;
 
-  // Whether we need to add the connection to the virtual MCP before searching
+  // Whether we need to add the connection to the virtual MCP before proceeding
   const needsAttach =
     effectiveConnection !== null &&
     !virtualMcpConnectionIds.has(effectiveConnection.id);
 
-  // Create MCP client for the selected GitHub connection
+  // Create MCP client for the selected GitHub connection (used for post-selection get_file_contents)
   const githubClient = useMCPClient({
     connectionId: effectiveConnection?.id ?? "",
     orgId: org.id,
@@ -139,53 +147,6 @@ function PickerContent({
   ) {
     attachMutation.mutate(effectiveConnection.id);
   }
-
-  // Search repos via the GitHub MCP connection
-  const reposQuery = useQuery({
-    queryKey: KEYS.githubRepoSearch(
-      org.id,
-      effectiveConnection?.id ?? "",
-      search,
-    ),
-    queryFn: async () => {
-      if (!effectiveConnection || !search.trim()) return { repos: [] };
-      const result = await githubClient.callTool({
-        name: "search_repositories",
-        arguments: { query: search },
-      });
-      const content = (result as { content?: Array<{ text?: string }> })
-        .content?.[0]?.text;
-      if (!content) return { repos: [] };
-      try {
-        const parsed = JSON.parse(content);
-        // search_repositories returns { total_count, items: [...] }
-        const items = (
-          Array.isArray(parsed) ? parsed : (parsed.items ?? [])
-        ) as Array<{
-          full_name: string;
-          owner?: { login: string };
-          name: string;
-          html_url: string;
-          private: boolean;
-        }>;
-        return {
-          repos: items.map((r) => {
-            const [owner, name] = r.full_name.split("/");
-            return {
-              owner: r.owner?.login ?? owner ?? "",
-              name: r.name ?? name ?? "",
-              fullName: r.full_name,
-              url: r.html_url,
-              private: r.private,
-            };
-          }),
-        };
-      } catch {
-        return { repos: [] };
-      }
-    },
-    enabled: !!effectiveConnection && search.trim().length >= 2,
-  });
 
   // Save selected repo with connectionId
   const saveMutation = useMutation({
@@ -355,9 +316,7 @@ function PickerContent({
     },
   });
 
-  const filteredRepos = (reposQuery.data?.repos ?? []).slice(0, 5);
-
-  // No GitHub connections anywhere — open Add Connection dialog filtered by "github"
+  // No GitHub connections — prompt to add one
   if (githubConnections.length === 0) {
     return (
       <>
@@ -393,7 +352,7 @@ function PickerContent({
     );
   }
 
-  // Multiple connections available, none selected — show picker
+  // Multiple connections, none selected — show connection picker
   if (resolvedConnections.length > 1 && !effectiveConnection) {
     return (
       <div className="flex flex-col gap-2">
@@ -421,57 +380,254 @@ function PickerContent({
     );
   }
 
-  // Repo search
+  // Connection resolved — show org picker or repo browser
+  if (!effectiveConnection) return null;
+
+  if (!selectedOrg) {
+    return (
+      <OrgPicker
+        connectionId={effectiveConnection.id}
+        orgId={org.id}
+        onSelectOrg={setSelectedOrg}
+        showBackButton={resolvedConnections.length > 1}
+        onBack={() => setSelectedConnection(null)}
+      />
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-3">
-      {resolvedConnections.length > 1 && (
+    <RepoBrowser
+      connectionId={effectiveConnection.id}
+      orgId={org.id}
+      githubOrg={selectedOrg}
+      onBack={() => setSelectedOrg(null)}
+      onSelectRepo={(repo) => saveMutation.mutate(repo)}
+      isSaving={saveMutation.isPending}
+    />
+  );
+}
+
+function OrgPicker({
+  connectionId,
+  orgId,
+  onSelectOrg,
+  showBackButton,
+  onBack,
+}: {
+  connectionId: string;
+  orgId: string;
+  onSelectOrg: (org: string) => void;
+  showBackButton: boolean;
+  onBack: () => void;
+}) {
+  const selfClient = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId,
+  });
+
+  const orgsQuery = useQuery({
+    queryKey: KEYS.githubUserOrgs(orgId, connectionId),
+    queryFn: async () => {
+      const result = await selfClient.callTool({
+        name: "GITHUB_LIST_USER_ORGS",
+        arguments: { connectionId },
+      });
+      const content = (result as { content?: Array<{ text?: string }> })
+        .content?.[0]?.text;
+      if (!content) throw new Error("No response from GITHUB_LIST_USER_ORGS");
+      return JSON.parse(content) as {
+        user: GitHubAccount;
+        orgs: GitHubAccount[];
+      };
+    },
+  });
+
+  if (orgsQuery.isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loading01 size={20} className="animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (orgsQuery.isError) {
+    return (
+      <p className="text-sm text-destructive text-center py-4">
+        Failed to load GitHub accounts
+      </p>
+    );
+  }
+
+  const data = orgsQuery.data;
+  if (!data) return null;
+
+  return (
+    <div className="flex flex-col gap-2">
+      {showBackButton && (
         <button
           type="button"
-          onClick={() => setSelectedConnection(null)}
+          onClick={onBack}
           className="text-xs text-muted-foreground hover:text-foreground self-start"
         >
           &larr; Change connection
         </button>
       )}
+      <p className="text-sm text-muted-foreground">Select an account:</p>
+
+      {/* Personal account */}
+      <button
+        type="button"
+        onClick={() => onSelectOrg(data.user.login)}
+        className="flex items-center gap-3 p-3 rounded-md border hover:bg-accent transition-colors text-left"
+      >
+        <img
+          src={data.user.avatarUrl}
+          alt={data.user.login}
+          className="size-8 rounded-full"
+        />
+        <div className="flex flex-col">
+          <span className="text-sm font-medium">{data.user.login}</span>
+          <span className="text-xs text-muted-foreground">
+            Personal account
+          </span>
+        </div>
+      </button>
+
+      {/* Organizations */}
+      {data.orgs.map((o) => (
+        <button
+          key={o.login}
+          type="button"
+          onClick={() => onSelectOrg(o.login)}
+          className="flex items-center gap-3 p-3 rounded-md border hover:bg-accent transition-colors text-left"
+        >
+          <img
+            src={o.avatarUrl}
+            alt={o.login}
+            className="size-8 rounded-full"
+          />
+          <span className="text-sm font-medium">{o.login}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function RepoBrowser({
+  connectionId,
+  orgId,
+  githubOrg,
+  onBack,
+  onSelectRepo,
+  isSaving,
+}: {
+  connectionId: string;
+  orgId: string;
+  githubOrg: string;
+  onBack: () => void;
+  onSelectRepo: (repo: Repo) => void;
+  isSaving: boolean;
+}) {
+  const [filter, setFilter] = useState("");
+  const [page, setPage] = useState(1);
+
+  const selfClient = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId,
+  });
+
+  const reposQuery = useQuery({
+    queryKey: KEYS.githubOrgRepos(orgId, connectionId, githubOrg, page),
+    queryFn: async () => {
+      const result = await selfClient.callTool({
+        name: "GITHUB_LIST_ORG_REPOS",
+        arguments: { connectionId, org: githubOrg, page, perPage: 30 },
+      });
+      const content = (result as { content?: Array<{ text?: string }> })
+        .content?.[0]?.text;
+      if (!content) throw new Error("No response from GITHUB_LIST_ORG_REPOS");
+      return JSON.parse(content) as { repos: Repo[]; hasMore: boolean };
+    },
+  });
+
+  const allRepos = reposQuery.data?.repos ?? [];
+  const filtered = filter
+    ? allRepos.filter((r) =>
+        r.name.toLowerCase().includes(filter.toLowerCase()),
+      )
+    : allRepos;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <button
+        type="button"
+        onClick={onBack}
+        className="text-xs text-muted-foreground hover:text-foreground self-start"
+      >
+        &larr; {githubOrg}
+      </button>
+
       <Input
-        placeholder="Search repositories..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Filter repositories..."
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
         autoFocus
       />
+
       {reposQuery.isLoading && (
         <div className="flex items-center justify-center py-8">
           <Loading01 size={20} className="animate-spin text-muted-foreground" />
         </div>
       )}
-      {!reposQuery.isLoading && (
+
+      {reposQuery.isError && (
+        <p className="text-sm text-destructive text-center py-4">
+          Failed to load repositories
+        </p>
+      )}
+
+      {!reposQuery.isLoading && !reposQuery.isError && (
         <div className="max-h-72 overflow-y-auto flex flex-col gap-1">
-          {filteredRepos.length === 0 && search.trim().length >= 2 ? (
+          {filtered.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
               No repositories found
             </p>
-          ) : search.trim().length < 2 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              Type at least 2 characters to search
-            </p>
           ) : (
-            filteredRepos.map((repo) => (
+            filtered.map((repo) => (
               <button
                 key={repo.fullName}
                 type="button"
-                onClick={() => saveMutation.mutate(repo)}
-                disabled={saveMutation.isPending}
+                onClick={() => onSelectRepo(repo)}
+                disabled={isSaving}
                 className="flex items-center justify-between p-2 rounded-md hover:bg-accent transition-colors text-left"
               >
-                <span className="text-sm">
-                  <span className="text-muted-foreground">{repo.owner}/</span>
-                  {repo.name}
-                </span>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-medium truncate">
+                    {repo.name}
+                  </span>
+                  {repo.description && (
+                    <span className="text-xs text-muted-foreground truncate">
+                      {repo.description}
+                    </span>
+                  )}
+                </div>
                 {repo.private && (
-                  <span className="text-xs text-muted-foreground">private</span>
+                  <span className="text-xs text-muted-foreground shrink-0 ml-2">
+                    private
+                  </span>
                 )}
               </button>
             ))
+          )}
+
+          {reposQuery.data?.hasMore && (
+            <button
+              type="button"
+              onClick={() => setPage((p) => p + 1)}
+              className="text-xs text-primary hover:underline py-2 text-center"
+            >
+              Load more
+            </button>
           )}
         </div>
       )}
