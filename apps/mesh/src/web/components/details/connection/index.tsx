@@ -16,14 +16,6 @@ import {
   isConnectionAuthenticated,
 } from "@/web/lib/mcp-oauth";
 import { KEYS } from "@/web/lib/query-keys";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@deco/ui/components/breadcrumb.tsx";
 import { ConnectionInstancesPanel } from "./connection-instances-panel.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -58,7 +50,7 @@ import {
 } from "@decocms/mesh-sdk";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "@tanstack/react-router";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import { Loading01, Trash01 } from "@untitledui/icons";
 import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -411,31 +403,6 @@ function ConnectionInspectorViewWithConnection({
     }
   };
 
-  const breadcrumb = (
-    <Breadcrumb>
-      <BreadcrumbList>
-        <BreadcrumbItem>
-          <BreadcrumbLink asChild>
-            <Link to="/$org/settings/connections" params={{ org }}>
-              Connections
-            </Link>
-          </BreadcrumbLink>
-        </BreadcrumbItem>
-        <BreadcrumbSeparator />
-        <BreadcrumbItem>
-          <BreadcrumbPage>
-            {(() => {
-              const first = siblings[0] ?? connection;
-              return first.app_name
-                ? first.title.replace(/\s*\(\d+\)\s*$/, "")
-                : first.title;
-            })()}
-          </BreadcrumbPage>
-        </BreadcrumbItem>
-      </BreadcrumbList>
-    </Breadcrumb>
-  );
-
   return (
     <>
       <DeleteConnectionDialogs {...deleteConnection} />
@@ -558,7 +525,7 @@ function ConnectionInspectorViewWithConnection({
       </Sheet>
 
       {/* Main page */}
-      <ViewLayout breadcrumb={breadcrumb}>
+      <ViewLayout>
         <div className="flex flex-col h-full overflow-hidden">
           <ConnectionDetailHeader
             connection={connection}

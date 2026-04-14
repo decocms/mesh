@@ -12,7 +12,14 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@deco/ui/components/sidebar.tsx";
-import { Check, Coins01, Inbox01, Settings02, XClose } from "@untitledui/icons";
+import {
+  Check,
+  Coins01,
+  ZapSquare,
+  Inbox01,
+  Settings02,
+  XClose,
+} from "@untitledui/icons";
 import { AuthUIContext } from "@daveyplate/better-auth-ui";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Component, Suspense, useContext, useState } from "react";
@@ -27,6 +34,7 @@ import {
 } from "@decocms/mesh-sdk";
 import { useAiProviderKeys } from "@/web/hooks/collections/use-ai-providers";
 import { useNavigate } from "@tanstack/react-router";
+import { ConnectionDialog } from "@/web/views/virtual-mcp/add-connection-dialog";
 
 interface Invitation {
   id: string;
@@ -217,6 +225,31 @@ function CreditChipConditional() {
   return <CreditChip />;
 }
 
+function ConnectionsButton() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            tooltip="Connections"
+            onClick={() => setOpen(true)}
+          >
+            <ZapSquare size={24} />
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+      <ConnectionDialog
+        mode="browse"
+        open={open}
+        onOpenChange={setOpen}
+        defaultTab="all"
+      />
+    </>
+  );
+}
+
 function InboxButton() {
   const pendingInvitations = usePendingInvitations();
 
@@ -297,6 +330,7 @@ export function SidebarInboxFooter() {
           <CreditChipConditional />
         </Suspense>
       </SilentErrorBoundary>
+      <ConnectionsButton />
       <InboxButton />
       <SettingsButton />
       <SidebarMenu>
