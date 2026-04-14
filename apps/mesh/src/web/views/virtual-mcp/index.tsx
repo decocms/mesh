@@ -1669,11 +1669,8 @@ export function VirtualMcpDetailView({
   return (
     <VirtualMcpDetailViewWithData
       key={
-        (
-          virtualMcp.metadata as {
-            githubRepo?: { connectionId?: string };
-          }
-        )?.githubRepo?.connectionId ?? ""
+        (virtualMcp.metadata as { githubRepo?: { connectionId?: string } })
+          ?.githubRepo?.connectionId ?? ""
       }
       virtualMcp={virtualMcp}
     />
