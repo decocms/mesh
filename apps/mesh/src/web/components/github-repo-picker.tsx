@@ -614,7 +614,7 @@ function RepoBrowser({
                 type="button"
                 onClick={() => onSelectRepo(repo)}
                 disabled={isSaving}
-                className="flex items-center gap-2 p-2 rounded-md hover:bg-accent transition-colors text-left w-full max-w-full overflow-hidden"
+                className="flex items-center gap-2 p-2 rounded-md hover:bg-accent transition-colors text-left"
               >
                 <div className="flex flex-col min-w-0 flex-1">
                   <span className="text-sm font-medium truncate">
