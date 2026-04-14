@@ -20,7 +20,7 @@ import { VmBun } from "@freestyle-sh/with-bun";
 import { VmNodeJs } from "@freestyle-sh/with-nodejs";
 import { type VmEntry, type VmMetadata, patchActiveVms } from "./types";
 import { requireVmEntry, resolveRuntimeConfig } from "./helpers";
-import type { VirtualMCPStoragePort } from "../../storage/ports";
+import { DownstreamTokenStorage } from "../../storage/downstream-token";
 
 const PROXY_PORT = 9000;
 
@@ -42,17 +42,32 @@ const buildDaemonScript = (opts: {
   devScript: string;
   pathPrefix: string;
   port: string;
+  cloneUrl: string;
+  repoName: string;
 }) => {
-  const { upstreamPort, installScript, devScript, pathPrefix, port } = opts;
+  const {
+    upstreamPort,
+    installScript,
+    devScript,
+    pathPrefix,
+    port,
+    cloneUrl,
+    repoName,
+  } = opts;
   if (!/^\d+$/.test(upstreamPort)) {
     throw new Error(`Invalid upstream port: ${upstreamPort}`);
   }
   return `const http = require("http");
 const { spawn } = require("child_process");
 const UPSTREAM = "${upstreamPort}";
+const UPSTREAM_HOST = "localhost";
 const PROXY_PORT = ${PROXY_PORT};
 const BOOTSTRAP = ${JSON.stringify(BOOTSTRAP_SCRIPT)};
 const MAX_SSE_CLIENTS = 10;
+const CLONE_URL = ${JSON.stringify(cloneUrl)};
+const REPO_NAME = ${JSON.stringify(repoName)};
+const SETUP_CMD = "git clone " + CLONE_URL + " /app";
+const SETUP_LABEL = "$ git clone " + REPO_NAME + " /app";
 const INSTALL_CMD = ${JSON.stringify(`${pathPrefix}cd /app && ${installScript}`)};
 const DEV_CMD = ${JSON.stringify(`${pathPrefix}cd /app && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=${port} ${devScript}`)};
 const INSTALL_LABEL = ${JSON.stringify(`$ ${installScript}`)};
@@ -72,7 +87,7 @@ let lastStatus = { ready: false, htmlSupport: false };
 
 // --- Process state ---
 const children = { install: null, dev: null };
-const replayBuffers = { install: "", dev: "", daemon: "" };
+const replayBuffers = { setup: "", install: "", dev: "", daemon: "" };
 const REPLAY_BYTES = 4096;
 
 function broadcastChunk(source, data) {
@@ -120,7 +135,7 @@ const FAST_PROBE_LIMIT = 20; // 20 * 3s = 60s
 function probeUpstream() {
   const prevReady = lastStatus.ready;
   const req = http.request(
-    { hostname: "127.0.0.1", port: UPSTREAM, path: "/", method: "HEAD", timeout: 5000 },
+    { hostname: UPSTREAM_HOST, port: UPSTREAM, path: "/", method: "HEAD", timeout: 5000 },
     (res) => {
       const ct = (res.headers["content-type"] || "").toLowerCase();
       lastStatus = {
@@ -177,7 +192,7 @@ http.createServer((req, res) => {
     // Send current status immediately
     res.write("event: status\\ndata: " + JSON.stringify({ type: "status", ...lastStatus }) + "\\n\\n");
     // Replay last lines from memory
-    for (const source of ["install", "dev", "daemon"]) {
+    for (const source of ["setup", "install", "dev", "daemon"]) {
       const buf = replayBuffers[source];
       if (buf.length > 0) {
         const payload = JSON.stringify({ source: source, data: buf });
@@ -197,9 +212,17 @@ http.createServer((req, res) => {
   }
 
   // Exec endpoints
+  if (req.method === "POST" && req.url === "/_daemon/exec/setup") {
+    log("exec setup");
+    runProcess("setup", SETUP_CMD, SETUP_LABEL);
+    res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+    res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+
   if (req.method === "POST" && req.url === "/_daemon/exec/install") {
     log("exec install");
-    const waitCmd = "systemctl is-active --wait freestyle-git-sync.service > /dev/null 2>&1 || [ $? -eq 3 ]";
+    const waitCmd = "while [ ! -d /app/.git ]; do sleep 1; done";
     runProcess("install", waitCmd + " && " + INSTALL_CMD, INSTALL_LABEL);
     res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
     res.end(JSON.stringify({ ok: true }));
@@ -248,7 +271,7 @@ http.createServer((req, res) => {
   // Reverse proxy to upstream
   const hdrs = Object.assign({}, req.headers);
   delete hdrs["accept-encoding"];
-  const opts = { hostname: "127.0.0.1", port: UPSTREAM, path: req.url, method: req.method, headers: hdrs };
+  const opts = { hostname: UPSTREAM_HOST, port: UPSTREAM, path: req.url, method: req.method, headers: hdrs };
   const p = http.request(opts, (upstream) => {
     delete upstream.headers["x-frame-options"];
     delete upstream.headers["content-security-policy"];
@@ -277,43 +300,32 @@ http.createServer((req, res) => {
   p.on("error", (e) => { log("proxy error", req.method, req.url, e.message); res.writeHead(502); res.end("proxy error: " + e.message); });
   req.pipe(p);
 }).listen(PROXY_PORT, "0.0.0.0");
+
+// Auto-start setup (clone) on daemon boot
+log("starting setup: cloning " + REPO_NAME);
+runProcess("setup", SETUP_CMD, SETUP_LABEL);
 `;
 };
 
 /**
- * Ensures a Freestyle Git repo exists for the given GitHub repo.
- * Creates the repo and enables GitHub Sync on first call, then
- * persists the repoId in metadata for reuse.
- * Freestyle docs: /v2/git/repos, /v2/git/github-sync
+ * Fetches the GitHub OAuth token from downstream_tokens for the given connection.
+ * Returns the authenticated git clone URL.
  */
-async function ensureFreestyleRepo(
-  metadata: VmMetadata,
+async function buildCloneUrl(
+  connectionId: string,
   owner: string,
   name: string,
-  virtualMcpId: string,
-  userId: string,
-  storage: VirtualMCPStoragePort,
+  db: import("kysely").Kysely<import("../../storage/types").Database>,
+  vault: import("../../encryption/credential-vault").CredentialVault,
 ): Promise<string> {
-  if (metadata.freestyleRepoId) {
-    return metadata.freestyleRepoId;
+  const tokenStorage = new DownstreamTokenStorage(db, vault);
+  const token = await tokenStorage.get(connectionId);
+  if (!token) {
+    throw new Error(
+      "No GitHub token found. Ensure the mcp-github connection is authenticated.",
+    );
   }
-
-  const { repo, repoId } = await freestyle.git.repos.create({});
-  await repo.githubSync.enable({ githubRepoName: `${owner}/${name}` });
-  console.log(
-    `[VM_START] Created Freestyle repo ${repoId} with GitHub Sync for ${owner}/${name}`,
-  );
-
-  // Persist the repoId so subsequent calls reuse it.
-  const virtualMcp = await storage.findById(virtualMcpId);
-  if (virtualMcp) {
-    const meta = virtualMcp.metadata as VmMetadata;
-    await storage.update(virtualMcpId, userId, {
-      metadata: { ...meta, freestyleRepoId: repoId } as Record<string, unknown>,
-    });
-  }
-
-  return repoId;
+  return `https://x-access-token:${token.accessToken}@github.com/${owner}/${name}.git`;
 }
 
 export const VM_START = defineTool({
@@ -352,16 +364,13 @@ export const VM_START = defineTool({
       ? `export PATH=${runtimeBinPath}:$PATH && `
       : "";
 
-    // Ensure a Freestyle Git repo exists with GitHub Sync enabled.
-    // This allows cloning private repos via the GitHub App integration.
-    // Freestyle docs: /v2/git/repos, /v2/git/github-sync
-    const repoId = await ensureFreestyleRepo(
-      metadata,
+    // Build authenticated clone URL from downstream token
+    const cloneUrl = await buildCloneUrl(
+      metadata.githubRepo.connectionId,
       owner,
       name,
-      input.virtualMcpId,
-      userId,
-      ctx.storage.virtualMcps,
+      ctx.db,
+      ctx.vault,
     );
 
     // Generate a unique subdomain per (virtualMcpId, userId) pair.
@@ -379,7 +388,6 @@ export const VM_START = defineTool({
     // Freestyle docs: /v2/vms/integrations/deno, /v2/vms/integrations/bun, /v2/vms/integrations/web-terminal
     const baseSpec = new VmSpec()
       .with("node", new VmNodeJs())
-      .repo(repoId, "/app")
       .additionalFiles({
         "/opt/daemon.js": {
           content: buildDaemonScript({
@@ -388,6 +396,8 @@ export const VM_START = defineTool({
             devScript,
             pathPrefix,
             port,
+            cloneUrl,
+            repoName: `${owner}/${name}`,
           }),
         },
         "/opt/run-daemon.sh": {
