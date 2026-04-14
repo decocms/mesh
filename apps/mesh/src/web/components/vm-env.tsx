@@ -5,8 +5,20 @@ import {
   SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
-import { Loading01, Play, StopCircle, Monitor04 } from "@untitledui/icons";
+import {
+  Loading01,
+  Play,
+  StopCircle,
+  Monitor04,
+  ChevronDown,
+} from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@deco/ui/components/dropdown-menu.tsx";
 import {
   Tooltip,
   TooltipContent,
@@ -34,7 +46,7 @@ type ViewStatus =
   | "stopping"
   | "error";
 
-export function VmEnvContent() {
+export function VmEnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const { org } = useProjectContext();
   const inset = useInsetContext();
   const [status, setStatus] = useState<ViewStatus>("idle");
@@ -48,12 +60,13 @@ export function VmEnvContent() {
   const startingRef = useRef(false);
   const startedAtRef = useRef<number>(Date.now());
 
-  const [activeTab, setActiveTab] = useState<"setup" | "install" | "dev">(
-    "dev",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "setup" | "install" | "dev" | "daemon"
+  >("dev");
   const installTermRef = useRef<XTerminal | null>(null);
   const devTermRef = useRef<XTerminal | null>(null);
   const setupTermRef = useRef<XTerminal | null>(null);
+  const daemonTermRef = useRef<XTerminal | null>(null);
 
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -68,7 +81,7 @@ export function VmEnvContent() {
       devTermRef.current?.write(data);
       setupTermRef.current?.write(data);
     } else if (source === "daemon") {
-      setupTermRef.current?.write(data);
+      daemonTermRef.current?.write(data);
     }
   };
 
@@ -252,7 +265,14 @@ export function VmEnvContent() {
       <div className="flex flex-col h-full">
         {/* Terminal tabs + action bar */}
         <div className="flex items-center border-b border-border px-2 shrink-0">
-          {(["setup", "install", "dev"] as const).map((tab) => (
+          {(
+            [
+              "setup",
+              "install",
+              "dev",
+              ...(daemonOpen ? (["daemon"] as const) : []),
+            ] as const
+          ).map((tab) => (
             <button
               key={tab}
               type="button"
@@ -269,74 +289,100 @@ export function VmEnvContent() {
           ))}
           <div className="flex-1 flex justify-center">
             {vmDataRef.current?.vmId && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground cursor-pointer hover:bg-accent hover:text-foreground transition-colors"
-                    onClick={() =>
-                      navigator.clipboard.writeText(
-                        vmDataRef.current?.vmId ?? "",
-                      )
-                    }
-                  >
-                    {vmDataRef.current.vmId}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Copy VM ID</TooltipContent>
-              </Tooltip>
+              <div className="flex items-center">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-l bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground cursor-pointer hover:bg-accent hover:text-foreground transition-colors border-r border-border/50"
+                      onClick={() =>
+                        navigator.clipboard.writeText(
+                          vmDataRef.current?.vmId ?? "",
+                        )
+                      }
+                    >
+                      {vmDataRef.current.vmId}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Copy VM ID</TooltipContent>
+                </Tooltip>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-r bg-muted px-0.5 py-0.5 text-[10px] text-muted-foreground cursor-pointer hover:bg-accent hover:text-foreground transition-colors"
+                    >
+                      <ChevronDown size={10} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="center">
+                    <DropdownMenuItem onClick={handleStop}>
+                      <StopCircle size={12} />
+                      Stop Server
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             )}
           </div>
           <div className="flex items-center gap-1">
-            {(activeTab === "install" || activeTab === "dev") && (
-              <>
-                {((activeTab === "dev" && vmEvents.hasDevData) ||
-                  (activeTab === "install" && vmEvents.hasInstallData)) &&
-                  !killedProcesses.has(activeTab) && (
+            {(activeTab === "install" || activeTab === "dev") &&
+              (() => {
+                const hasProcess =
+                  ((activeTab === "dev" && vmEvents.hasDevData) ||
+                    (activeTab === "install" && vmEvents.hasInstallData)) &&
+                  !killedProcesses.has(activeTab);
+                return (
+                  <div className="flex items-center">
                     <button
                       type="button"
                       disabled={execInFlight}
-                      onClick={() => handleKill(activeTab)}
-                      className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                      onClick={() => handleExec(activeTab)}
+                      className={cn(
+                        "flex items-center gap-1 border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50",
+                        hasProcess ? "rounded-l-md border-r-0" : "rounded-md",
+                      )}
                     >
-                      <StopCircle size={12} />
-                      Stop
+                      {execInFlight ? (
+                        <Loading01 size={12} className="animate-spin" />
+                      ) : (
+                        <Play size={12} />
+                      )}
+                      {execInFlight
+                        ? "Running..."
+                        : activeTab === "install"
+                          ? killedProcesses.has("install") ||
+                            !vmEvents.hasInstallData
+                            ? "Install"
+                            : "Re-install"
+                          : killedProcesses.has("dev") || !vmEvents.hasDevData
+                            ? "Run Process"
+                            : "Restart Process"}
                     </button>
-                  )}
-                <button
-                  type="button"
-                  disabled={execInFlight}
-                  onClick={() => handleExec(activeTab)}
-                  className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-                >
-                  {execInFlight ? (
-                    <Loading01 size={12} className="animate-spin" />
-                  ) : (
-                    <Play size={12} />
-                  )}
-                  {execInFlight
-                    ? "Running..."
-                    : activeTab === "install"
-                      ? killedProcesses.has("install") ||
-                        !vmEvents.hasInstallData
-                        ? "Install"
-                        : "Re-install"
-                      : killedProcesses.has("dev") || !vmEvents.hasDevData
-                        ? "Run Dev"
-                        : "Restart Dev"}
-                </button>
-              </>
-            )}
-            {isRunning && (
-              <button
-                type="button"
-                onClick={handleStop}
-                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <StopCircle size={12} />
-                Stop VM
-              </button>
-            )}
+                    {hasProcess && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            disabled={execInFlight}
+                            className="flex items-center self-stretch rounded-r-md border border-border px-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                          >
+                            <ChevronDown size={12} />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => handleKill(activeTab)}
+                          >
+                            <StopCircle size={12} />
+                            Stop Process
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
+                );
+              })()}
           </div>
         </div>
 
@@ -348,9 +394,7 @@ export function VmEnvContent() {
                 setupTermRef.current = t;
               }}
               initialData={
-                vmEvents.getDaemonBuffer() +
-                vmEvents.getInstallBuffer() +
-                vmEvents.getDevBuffer()
+                vmEvents.getInstallBuffer() + vmEvents.getDevBuffer()
               }
               className="h-full"
             />
@@ -419,6 +463,15 @@ export function VmEnvContent() {
                 }
               />
             ))}
+          {activeTab === "daemon" && (
+            <VmTerminal
+              onReady={(t) => {
+                daemonTermRef.current = t;
+              }}
+              initialData={vmEvents.getDaemonBuffer()}
+              className="h-full"
+            />
+          )}
         </div>
       </div>
     </div>

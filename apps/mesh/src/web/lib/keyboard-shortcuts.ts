@@ -32,6 +32,10 @@ const KEYBOARD_SHORTCUTS = {
     keys: ["Shift", MOD, "S"],
     description: "New task",
   },
+  toggleDaemon: {
+    keys: [MOD, "D"],
+    description: "Toggle daemon logs",
+  },
 } as const satisfies Record<string, Shortcut>;
 
 export const SHORTCUT_GROUPS: ShortcutGroup[] = [
@@ -40,6 +44,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     shortcuts: [
       KEYBOARD_SHORTCUTS.keyboardShortcuts,
       KEYBOARD_SHORTCUTS.newTask,
+      KEYBOARD_SHORTCUTS.toggleDaemon,
     ],
   },
   {

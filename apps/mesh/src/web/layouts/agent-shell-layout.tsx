@@ -234,6 +234,7 @@ function UnifiedPanelGroup({
   mainOpen,
   chatOpen,
   envOpen,
+  daemonOpen,
 }: {
   virtualMcpId: string;
   taskId: string;
@@ -243,6 +244,7 @@ function UnifiedPanelGroup({
   mainOpen: boolean;
   chatOpen: boolean;
   envOpen: boolean;
+  daemonOpen: boolean;
 }) {
   const sizes = computeDefaultSizes({ tasksOpen, mainOpen, chatOpen });
   const panelGroupRef = useRef<ImperativePanelGroupHandle>(null);
@@ -319,7 +321,7 @@ function UnifiedPanelGroup({
                 <>
                   <ResizableHandle />
                   <ResizablePanel defaultSize={40} minSize={15} order={2}>
-                    <VmEnvContent />
+                    <VmEnvContent daemonOpen={daemonOpen} />
                   </ResizablePanel>
                 </>
               )}
@@ -482,6 +484,18 @@ function AgentInsetProvider() {
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, []);
+
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — subscribes to document keydown for ⌘D toggle-daemon shortcut; DOM event listener has no React 19 alternative
+  useEffect(() => {
+    const handler = (e: globalThis.KeyboardEvent) => {
+      if (isModKey(e) && !e.shiftKey && e.code === "KeyD" && !e.repeat) {
+        e.preventDefault();
+        layout.toggleDaemon();
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [layout.toggleDaemon]);
 
   // Chat.Provider virtualMcpId
   const chatVirtualMcpId = virtualMcpId;
@@ -713,6 +727,7 @@ function AgentInsetProvider() {
           mainOpen={layout.mainOpen}
           chatOpen={layout.chatOpen}
           envOpen={layout.envOpen}
+          daemonOpen={layout.daemonOpen}
         />
       </Chat.Provider>
     </InsetContext>

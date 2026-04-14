@@ -28,6 +28,7 @@ export interface LayoutState {
   mainOpen: boolean;
   chatOpen: boolean;
   envOpen: boolean;
+  daemonOpen: boolean;
   mainView: string | undefined;
   mainViewId: string | undefined;
   toolName: string | undefined;
@@ -46,6 +47,7 @@ export interface LayoutActions {
   ) => void;
   closeMainView: () => void;
   toggleEnv: () => void;
+  toggleDaemon: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -160,6 +162,7 @@ type PanelSearchParams = {
   id?: string;
   toolName?: string;
   env?: number;
+  daemon?: number;
 };
 
 function parsePanelParam(
@@ -212,6 +215,7 @@ export function usePanelState(
   const mainOpen = parsePanelParam(search.mainOpen, defaults.mainOpen);
   const chatOpen = parsePanelParam(search.chat, defaults.chatOpen);
   const envOpen = parsePanelParam(search.env, false);
+  const daemonOpen = parsePanelParam(search.daemon, false);
 
   // taskId fallback for non-validated routes
   const fallbackRef = useRef(crypto.randomUUID());
@@ -349,12 +353,17 @@ export function usePanelState(
     navigateSearch({ env: envOpen ? 0 : 1 }, { replace: true });
   };
 
+  const toggleDaemon = () => {
+    navigateSearch({ daemon: daemonOpen ? 0 : 1 }, { replace: true });
+  };
+
   return {
     taskId,
     tasksOpen,
     mainOpen,
     chatOpen,
     envOpen,
+    daemonOpen,
     mainView: search.main,
     mainViewId: search.id,
     toolName: search.toolName,
@@ -367,5 +376,6 @@ export function usePanelState(
     openMainView,
     closeMainView,
     toggleEnv,
+    toggleDaemon,
   };
 }
