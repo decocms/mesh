@@ -440,6 +440,7 @@ function InstallationPicker({
       if (!content) throw new Error("No response from GITHUB_LIST_USER_ORGS");
       return JSON.parse(content) as {
         installations: GitHubInstallation[];
+        appSlug: string | null;
       };
     },
   });
@@ -498,6 +499,17 @@ function InstallationPicker({
           </div>
         </button>
       ))}
+
+      {data.appSlug && (
+        <a
+          href={`https://github.com/apps/${data.appSlug}/installations/new`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-primary hover:underline text-center pt-2"
+        >
+          Account not listed? Install the GitHub App
+        </a>
+      )}
     </div>
   );
 }
