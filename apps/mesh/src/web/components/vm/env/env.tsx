@@ -25,11 +25,11 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { useVmEvents } from "@/web/hooks/use-vm-events";
-import { VmTerminal } from "./vm-terminal";
+import { useVmEvents } from "../hooks/use-vm-events";
+import { VmTerminal } from "./terminal";
 import type { Terminal as XTerminal } from "@xterm/xterm";
-import { EmptyState } from "./empty-state";
-import { LiveTimer } from "./live-timer";
+import { EmptyState } from "../../empty-state";
+import { LiveTimer } from "../../live-timer";
 
 interface VmData {
   terminalUrl: string | null;
@@ -46,7 +46,7 @@ type ViewStatus =
   | "stopping"
   | "error";
 
-export function VmEnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
+export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const { org } = useProjectContext();
   const inset = useInsetContext();
   const [status, setStatus] = useState<ViewStatus>("idle");
