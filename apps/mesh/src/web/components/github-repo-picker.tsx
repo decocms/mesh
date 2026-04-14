@@ -111,6 +111,22 @@ function PickerContent({
     orgId: org.id,
   });
 
+  // Eagerly attach the connection to the virtual MCP as soon as it's resolved
+  const attachMutation = useMutation({
+    mutationFn: async (connectionId: string) => {
+      await addConnectionToVirtualMcp(connectionId);
+    },
+  });
+
+  if (
+    needsAttach &&
+    effectiveConnection &&
+    !attachMutation.isPending &&
+    !attachMutation.isSuccess
+  ) {
+    attachMutation.mutate(effectiveConnection.id);
+  }
+
   // Search repos via the GitHub MCP connection
   const reposQuery = useQuery({
     queryKey: KEYS.githubRepoSearch(
@@ -200,10 +216,6 @@ function PickerContent({
     mutationFn: async (repo: Repo) => {
       if (!inset?.entity || !effectiveConnection) {
         throw new Error("No virtual MCP context or GitHub connection");
-      }
-      // If the connection isn't on the virtual MCP yet, add it first
-      if (needsAttach) {
-        await addConnectionToVirtualMcp(effectiveConnection.id);
       }
       await selfClient.callTool({
         name: "COLLECTION_VIRTUAL_MCP_UPDATE",
