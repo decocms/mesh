@@ -104,7 +104,8 @@ function HomeEmptyState({
   const userName = session?.user?.name?.split(" ")[0] || "there";
 
   // Only show the eyebrow for the initial free $2 credit (onboarding)
-  const showEyebrow = hasDecoKey && isInitialFreeCredit && balanceDollars != null;
+  const showEyebrow =
+    hasDecoKey && isInitialFreeCredit && balanceDollars != null;
   const showNoCreditsEyebrow = hasDecoKey && isZeroBalance;
 
   if (isMobile) {
