@@ -440,7 +440,6 @@ function InstallationPicker({
       if (!content) throw new Error("No response from GITHUB_LIST_USER_ORGS");
       return JSON.parse(content) as {
         installations: GitHubInstallation[];
-        appSlug: string | null;
       };
     },
   });
@@ -500,16 +499,14 @@ function InstallationPicker({
         </button>
       ))}
 
-      {data.appSlug && (
-        <a
-          href={`https://github.com/apps/${data.appSlug}/installations/new`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-primary hover:underline text-center pt-2"
-        >
-          Account not listed? Install the GitHub App
-        </a>
-      )}
+      <a
+        href="https://github.com/settings/installations"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-xs text-primary hover:underline text-center pt-2"
+      >
+        Account not listed? Install the GitHub App
+      </a>
     </div>
   );
 }
@@ -569,7 +566,7 @@ function RepoBrowser({
     : allRepos;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 overflow-hidden">
       <button
         type="button"
         onClick={onBack}
@@ -598,7 +595,7 @@ function RepoBrowser({
       )}
 
       {!reposQuery.isLoading && !reposQuery.isError && (
-        <div className="max-h-72 overflow-y-auto flex flex-col gap-1">
+        <div className="max-h-72 overflow-y-auto overflow-x-hidden flex flex-col gap-1">
           {filtered.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
               No repositories found
@@ -610,20 +607,20 @@ function RepoBrowser({
                 type="button"
                 onClick={() => onSelectRepo(repo)}
                 disabled={isSaving}
-                className="flex items-center justify-between p-2 rounded-md hover:bg-accent transition-colors text-left"
+                className="flex items-center gap-2 p-2 rounded-md hover:bg-accent transition-colors text-left w-full"
               >
-                <div className="flex flex-col min-w-0">
+                <div className="flex flex-col min-w-0 flex-1">
                   <span className="text-sm font-medium truncate">
                     {repo.name}
                   </span>
                   {repo.description && (
-                    <span className="text-xs text-muted-foreground truncate">
+                    <p className="text-xs text-muted-foreground truncate m-0">
                       {repo.description}
-                    </span>
+                    </p>
                   )}
                 </div>
                 {repo.private && (
-                  <span className="text-xs text-muted-foreground shrink-0 ml-2">
+                  <span className="text-xs text-muted-foreground shrink-0">
                     private
                   </span>
                 )}
