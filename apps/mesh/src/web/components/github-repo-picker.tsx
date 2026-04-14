@@ -21,9 +21,11 @@ import { toast } from "sonner";
 import { Loading01 } from "@untitledui/icons";
 import { AddConnectionDialog } from "@/web/views/virtual-mcp/add-connection-dialog";
 
-interface GitHubAccount {
+interface GitHubInstallation {
+  installationId: number;
   login: string;
   avatarUrl: string;
+  type: string;
 }
 
 interface Repo {
@@ -76,7 +78,8 @@ function PickerContent({
   const queryClient = useQueryClient();
   const [selectedConnection, setSelectedConnection] =
     useState<ConnectionEntity | null>(null);
-  const [selectedOrg, setSelectedOrg] = useState<string | null>(null);
+  const [selectedInstallation, setSelectedInstallation] =
+    useState<GitHubInstallation | null>(null);
   const [addConnectionOpen, setAddConnectionOpen] = useState(false);
 
   const actions = useVirtualMCPActions();
@@ -383,12 +386,12 @@ function PickerContent({
   // Connection resolved — show org picker or repo browser
   if (!effectiveConnection) return null;
 
-  if (!selectedOrg) {
+  if (!selectedInstallation) {
     return (
-      <OrgPicker
+      <InstallationPicker
         connectionId={effectiveConnection.id}
         orgId={org.id}
-        onSelectOrg={setSelectedOrg}
+        onSelect={setSelectedInstallation}
         showBackButton={resolvedConnections.length > 1}
         onBack={() => setSelectedConnection(null)}
       />
@@ -399,24 +402,24 @@ function PickerContent({
     <RepoBrowser
       connectionId={effectiveConnection.id}
       orgId={org.id}
-      githubOrg={selectedOrg}
-      onBack={() => setSelectedOrg(null)}
+      installation={selectedInstallation}
+      onBack={() => setSelectedInstallation(null)}
       onSelectRepo={(repo) => saveMutation.mutate(repo)}
       isSaving={saveMutation.isPending}
     />
   );
 }
 
-function OrgPicker({
+function InstallationPicker({
   connectionId,
   orgId,
-  onSelectOrg,
+  onSelect,
   showBackButton,
   onBack,
 }: {
   connectionId: string;
   orgId: string;
-  onSelectOrg: (org: string) => void;
+  onSelect: (installation: GitHubInstallation) => void;
   showBackButton: boolean;
   onBack: () => void;
 }) {
@@ -425,7 +428,7 @@ function OrgPicker({
     orgId,
   });
 
-  const orgsQuery = useQuery({
+  const installationsQuery = useQuery({
     queryKey: KEYS.githubUserOrgs(orgId, connectionId),
     queryFn: async () => {
       const result = await selfClient.callTool({
@@ -436,13 +439,12 @@ function OrgPicker({
         .content?.[0]?.text;
       if (!content) throw new Error("No response from GITHUB_LIST_USER_ORGS");
       return JSON.parse(content) as {
-        user: GitHubAccount;
-        orgs: GitHubAccount[];
+        installations: GitHubInstallation[];
       };
     },
   });
 
-  if (orgsQuery.isLoading) {
+  if (installationsQuery.isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
         <Loading01 size={20} className="animate-spin text-muted-foreground" />
@@ -450,7 +452,7 @@ function OrgPicker({
     );
   }
 
-  if (orgsQuery.isError) {
+  if (installationsQuery.isError) {
     return (
       <p className="text-sm text-destructive text-center py-4">
         Failed to load GitHub accounts
@@ -458,7 +460,7 @@ function OrgPicker({
     );
   }
 
-  const data = orgsQuery.data;
+  const data = installationsQuery.data;
   if (!data) return null;
 
   return (
@@ -474,39 +476,26 @@ function OrgPicker({
       )}
       <p className="text-sm text-muted-foreground">Select an account:</p>
 
-      {/* Personal account */}
-      <button
-        type="button"
-        onClick={() => onSelectOrg(data.user.login)}
-        className="flex items-center gap-3 p-3 rounded-md border hover:bg-accent transition-colors text-left"
-      >
-        <img
-          src={data.user.avatarUrl}
-          alt={data.user.login}
-          className="size-8 rounded-full"
-        />
-        <div className="flex flex-col">
-          <span className="text-sm font-medium">{data.user.login}</span>
-          <span className="text-xs text-muted-foreground">
-            Personal account
-          </span>
-        </div>
-      </button>
-
-      {/* Organizations */}
-      {data.orgs.map((o) => (
+      {data.installations.map((inst) => (
         <button
-          key={o.login}
+          key={inst.installationId}
           type="button"
-          onClick={() => onSelectOrg(o.login)}
+          onClick={() => onSelect(inst)}
           className="flex items-center gap-3 p-3 rounded-md border hover:bg-accent transition-colors text-left"
         >
           <img
-            src={o.avatarUrl}
-            alt={o.login}
+            src={inst.avatarUrl}
+            alt={inst.login}
             className="size-8 rounded-full"
           />
-          <span className="text-sm font-medium">{o.login}</span>
+          <div className="flex flex-col">
+            <span className="text-sm font-medium">{inst.login}</span>
+            {inst.type === "User" && (
+              <span className="text-xs text-muted-foreground">
+                Personal account
+              </span>
+            )}
+          </div>
         </button>
       ))}
     </div>
@@ -516,14 +505,14 @@ function OrgPicker({
 function RepoBrowser({
   connectionId,
   orgId,
-  githubOrg,
+  installation,
   onBack,
   onSelectRepo,
   isSaving,
 }: {
   connectionId: string;
   orgId: string;
-  githubOrg: string;
+  installation: GitHubInstallation;
   onBack: () => void;
   onSelectRepo: (repo: Repo) => void;
   isSaving: boolean;
@@ -537,11 +526,21 @@ function RepoBrowser({
   });
 
   const reposQuery = useQuery({
-    queryKey: KEYS.githubOrgRepos(orgId, connectionId, githubOrg, page),
+    queryKey: KEYS.githubOrgRepos(
+      orgId,
+      connectionId,
+      String(installation.installationId),
+      page,
+    ),
     queryFn: async () => {
       const result = await selfClient.callTool({
         name: "GITHUB_LIST_ORG_REPOS",
-        arguments: { connectionId, org: githubOrg, page, perPage: 30 },
+        arguments: {
+          connectionId,
+          installationId: installation.installationId,
+          page,
+          perPage: 30,
+        },
       });
       const content = (result as { content?: Array<{ text?: string }> })
         .content?.[0]?.text;
@@ -564,7 +563,7 @@ function RepoBrowser({
         onClick={onBack}
         className="text-xs text-muted-foreground hover:text-foreground self-start"
       >
-        &larr; {githubOrg}
+        &larr; {installation.login}
       </button>
 
       <Input

@@ -7,7 +7,7 @@ const GITHUB_API = "https://api.github.com";
 export const GITHUB_LIST_ORG_REPOS = defineTool({
   name: "GITHUB_LIST_ORG_REPOS",
   description:
-    "List repositories for a GitHub organization or user account, sorted by last updated.",
+    "List repositories for a GitHub App installation, sorted by last updated.",
   annotations: {
     title: "List GitHub Org Repos",
     readOnlyHint: true,
@@ -18,7 +18,9 @@ export const GITHUB_LIST_ORG_REPOS = defineTool({
   _meta: { ui: { visibility: "app" } },
   inputSchema: z.object({
     connectionId: z.string().describe("ID of the mcp-github connection to use"),
-    org: z.string().describe("GitHub org login or username"),
+    installationId: z
+      .number()
+      .describe("GitHub App installation ID to list repos for"),
     page: z.number().optional().default(1).describe("Page number (default 1)"),
     perPage: z
       .number()
@@ -57,39 +59,36 @@ export const GITHUB_LIST_ORG_REPOS = defineTool({
       "X-GitHub-Api-Version": "2022-11-28",
     };
 
-    const params = new URLSearchParams({
-      sort: "updated",
-      per_page: String(input.perPage),
-      page: String(input.page),
-    });
-
-    // Try org endpoint first, fall back to user endpoint on 404
-    let res = await fetch(`${GITHUB_API}/orgs/${input.org}/repos?${params}`, {
-      headers,
-    });
-
-    if (res.status === 404) {
-      res = await fetch(`${GITHUB_API}/users/${input.org}/repos?${params}`, {
-        headers,
-      });
-    }
+    const res = await fetch(
+      `${GITHUB_API}/user/installations/${input.installationId}/repositories?per_page=${input.perPage}&page=${input.page}`,
+      { headers },
+    );
 
     if (!res.ok) {
-      throw new Error(`GitHub repos fetch failed: ${res.status}`);
+      throw new Error(`GitHub installation repos fetch failed: ${res.status}`);
     }
 
-    const data = (await res.json()) as Array<{
-      name: string;
-      full_name: string;
-      owner: { login: string };
-      html_url: string;
-      private: boolean;
-      description: string | null;
-      updated_at: string;
-    }>;
+    const data = (await res.json()) as {
+      repositories: Array<{
+        name: string;
+        full_name: string;
+        owner: { login: string };
+        html_url: string;
+        private: boolean;
+        description: string | null;
+        updated_at: string;
+      }>;
+      total_count: number;
+    };
+
+    // Sort by updated_at descending (most recent first)
+    const sorted = data.repositories.sort(
+      (a, b) =>
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+    );
 
     return {
-      repos: data.map((r) => ({
+      repos: sorted.map((r) => ({
         name: r.name,
         fullName: r.full_name,
         owner: r.owner.login,
@@ -98,7 +97,7 @@ export const GITHUB_LIST_ORG_REPOS = defineTool({
         description: r.description,
         updatedAt: r.updated_at,
       })),
-      hasMore: data.length === input.perPage,
+      hasMore: data.repositories.length === input.perPage,
     };
   },
 });

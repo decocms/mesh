@@ -7,7 +7,7 @@ const GITHUB_API = "https://api.github.com";
 export const GITHUB_LIST_USER_ORGS = defineTool({
   name: "GITHUB_LIST_USER_ORGS",
   description:
-    "List the authenticated GitHub user's personal account and organizations.",
+    "List GitHub App installations (orgs/accounts) accessible to the authenticated user.",
   annotations: {
     title: "List GitHub User Orgs",
     readOnlyHint: true,
@@ -20,14 +20,12 @@ export const GITHUB_LIST_USER_ORGS = defineTool({
     connectionId: z.string().describe("ID of the mcp-github connection to use"),
   }),
   outputSchema: z.object({
-    user: z.object({
-      login: z.string(),
-      avatarUrl: z.string(),
-    }),
-    orgs: z.array(
+    installations: z.array(
       z.object({
+        installationId: z.number(),
         login: z.string(),
         avatarUrl: z.string(),
+        type: z.string(),
       }),
     ),
   }),
@@ -48,36 +46,48 @@ export const GITHUB_LIST_USER_ORGS = defineTool({
       "X-GitHub-Api-Version": "2022-11-28",
     };
 
-    const [userRes, orgsRes] = await Promise.all([
-      fetch(`${GITHUB_API}/user`, { headers }),
-      fetch(`${GITHUB_API}/user/orgs?per_page=100`, { headers }),
-    ]);
-
-    if (!userRes.ok) {
-      throw new Error(`GitHub /user failed: ${userRes.status}`);
-    }
-    if (!orgsRes.ok) {
-      throw new Error(`GitHub /user/orgs failed: ${orgsRes.status}`);
-    }
-
-    const userData = (await userRes.json()) as {
+    // GitHub App tokens use /user/installations instead of /user/orgs
+    const installations: Array<{
+      installationId: number;
       login: string;
-      avatar_url: string;
-    };
-    const orgsData = (await orgsRes.json()) as Array<{
-      login: string;
-      avatar_url: string;
-    }>;
+      avatarUrl: string;
+      type: string;
+    }> = [];
 
-    return {
-      user: {
-        login: userData.login,
-        avatarUrl: userData.avatar_url,
-      },
-      orgs: orgsData.map((o) => ({
-        login: o.login,
-        avatarUrl: o.avatar_url,
-      })),
-    };
+    let page = 1;
+    const perPage = 100;
+
+    while (true) {
+      const res = await fetch(
+        `${GITHUB_API}/user/installations?per_page=${perPage}&page=${page}`,
+        { headers },
+      );
+
+      if (!res.ok) {
+        throw new Error(`GitHub /user/installations failed: ${res.status}`);
+      }
+
+      const data = (await res.json()) as {
+        installations: Array<{
+          id: number;
+          account: { login: string; avatar_url: string; type: string };
+        }>;
+        total_count: number;
+      };
+
+      for (const inst of data.installations) {
+        installations.push({
+          installationId: inst.id,
+          login: inst.account.login,
+          avatarUrl: inst.account.avatar_url,
+          type: inst.account.type,
+        });
+      }
+
+      if (data.installations.length < perPage) break;
+      page++;
+    }
+
+    return { installations };
   },
 });
