@@ -51,18 +51,20 @@ export function GitHubRepoPicker({
         <DialogHeader>
           <DialogTitle>Connect GitHub Repository</DialogTitle>
         </DialogHeader>
-        <Suspense
-          fallback={
-            <div className="flex items-center justify-center py-8">
-              <Loading01
-                size={20}
-                className="animate-spin text-muted-foreground"
-              />
-            </div>
-          }
-        >
-          <PickerContent onOpenChange={onOpenChange} />
-        </Suspense>
+        <div className="min-w-0">
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center py-8">
+                <Loading01
+                  size={20}
+                  className="animate-spin text-muted-foreground"
+                />
+              </div>
+            }
+          >
+            <PickerContent onOpenChange={onOpenChange} />
+          </Suspense>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -612,7 +614,7 @@ function RepoBrowser({
                 type="button"
                 onClick={() => onSelectRepo(repo)}
                 disabled={isSaving}
-                className="flex items-center gap-2 p-2 rounded-md hover:bg-accent transition-colors text-left w-full"
+                className="flex items-center gap-2 p-2 rounded-md hover:bg-accent transition-colors text-left w-full max-w-full overflow-hidden"
               >
                 <div className="flex flex-col min-w-0 flex-1">
                   <span className="text-sm font-medium truncate">
