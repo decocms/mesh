@@ -92,6 +92,10 @@ const GithubRepoSchema = z.object({
   owner: z.string().describe("Repository owner"),
   name: z.string().describe("Repository name"),
   installationId: z.number().describe("GitHub App installation ID"),
+  connectionId: z
+    .string()
+    .optional()
+    .describe("ID of the mcp-github connection used for authentication"),
 });
 
 export type GithubRepo = z.infer<typeof GithubRepoSchema>;
