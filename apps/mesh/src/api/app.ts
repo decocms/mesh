@@ -668,17 +668,13 @@ export async function createApp(options: CreateAppOptions = {}) {
     // 2. Cookies are set on the correct domain
     // 3. The user can interact with the consent screen
     if (endpoint === "authorize") {
-      // Validate redirect_uri to prevent OAuth hijacking — only allow our own origins
+      // Validate redirect_uri to prevent OAuth hijacking — only allow our own origin
       const redirectUri = targetUrl.searchParams.get("redirect_uri");
       if (redirectUri) {
+        const allowedOrigin = getSettings().baseUrl ?? reqUrl.origin;
         try {
-          const redirectHost = new URL(redirectUri).hostname;
-          const allowed =
-            redirectHost === "localhost" ||
-            redirectHost === "127.0.0.1" ||
-            redirectHost === "studio.decocms.com" ||
-            redirectHost.endsWith(".studio.decocms.com");
-          if (!allowed) {
+          const redirectOrigin = new URL(redirectUri).origin;
+          if (redirectOrigin !== new URL(allowedOrigin).origin) {
             return c.json(
               {
                 error: "invalid_request",
