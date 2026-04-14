@@ -668,7 +668,9 @@ export async function createApp(options: CreateAppOptions = {}) {
     // 2. Cookies are set on the correct domain
     // 3. The user can interact with the consent screen
     if (endpoint === "authorize") {
-      // Validate redirect_uri to prevent OAuth hijacking — only allow our own origin
+      // Validate redirect_uri to prevent OAuth hijacking — only allow our own origin.
+      // Use .get() to grab the first value, then .set() to canonicalize to exactly
+      // one redirect_uri param, preventing parser-differential bypasses via duplicates.
       const redirectUri = targetUrl.searchParams.get("redirect_uri");
       if (redirectUri) {
         const allowedOrigin = getSettings().baseUrl ?? reqUrl.origin;
@@ -692,6 +694,8 @@ export async function createApp(options: CreateAppOptions = {}) {
             400,
           );
         }
+        // Collapse any duplicate redirect_uri params to the single validated value
+        targetUrl.searchParams.set("redirect_uri", redirectUri);
       }
 
       // IMPORTANT: Rewrite the 'resource' parameter to point to the origin MCP endpoint
