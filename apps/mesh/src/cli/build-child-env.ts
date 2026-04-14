@@ -39,6 +39,7 @@ export function buildChildEnv(
     DECOCMS_LOCAL_MODE: String(settings.localMode),
     DECOCMS_ALLOW_LOCAL_PROD: String(settings.allowLocalProd),
     DISABLE_RATE_LIMIT: String(settings.disableRateLimit),
+    STUDIO_PROVISION_SECRET_KEY: settings.studioProvisionSecretKey,
 
     // Config files
     CONFIG_PATH: settings.configPath,

@@ -5,6 +5,7 @@ const SECRET_KEYS = new Set([
   "BETTER_AUTH_SECRET",
   "ENCRYPTION_KEY",
   "MESH_JWT_SECRET",
+  "STUDIO_PROVISION_SECRET_KEY",
 ]);
 
 const URL_KEYS = new Set(["DATABASE_URL", "CLICKHOUSE_URL", "NATS_URL"]);
@@ -88,6 +89,10 @@ function getConfigSections(e: Settings): ConfigSection[] {
         { key: "BETTER_AUTH_SECRET", value: e.betterAuthSecret },
         { key: "ENCRYPTION_KEY", value: e.encryptionKey },
         { key: "MESH_JWT_SECRET", value: e.meshJwtSecret },
+        {
+          key: "STUDIO_PROVISION_SECRET_KEY",
+          value: e.studioProvisionSecretKey,
+        },
         { key: "DISABLE_RATE_LIMIT", value: e.disableRateLimit },
       ],
     },

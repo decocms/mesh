@@ -70,6 +70,7 @@ export function resolveConfig(
     localMode,
     allowLocalProd: localMode || toBool(envVars.DECOCMS_ALLOW_LOCAL_PROD),
     disableRateLimit: toBool(envVars.DISABLE_RATE_LIMIT),
+    studioProvisionSecretKey: envVars.STUDIO_PROVISION_SECRET_KEY,
 
     // Observability
     clickhouseUrl: envVars.CLICKHOUSE_URL,
@@ -110,9 +111,6 @@ export function resolveConfig(
     decoSupabaseUrl: envVars.DECO_SUPABASE_URL,
     decoSupabaseServiceKey: envVars.DECO_SUPABASE_SERVICE_KEY,
     firecrawlApiKey: envVars.FIRECRAWL_API_KEY,
-
-    // Studio Provision Secret Key
-    studioProvisionSecretKey: envVars.STUDIO_PROVISION_SECRET_KEY,
   };
 
   return {
