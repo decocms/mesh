@@ -66,6 +66,7 @@ const ModelsSchema = z
     ),
     coding: ModelInfoSchema.optional().describe("Good coding model"),
     fast: ModelInfoSchema.optional().describe("Cheap model for simple tasks"),
+    image: ModelInfoSchema.optional().describe("Image generation model"),
   })
   .loose();
 
@@ -87,6 +88,7 @@ export const StreamRequestSchema = z.object({
   temperature: z.number().default(0.5),
   thread_id: z.string().optional(),
   toolApprovalLevel: z.enum(["auto", "readonly", "plan"]).default("auto"),
+  forceImageGeneration: z.boolean().optional(),
 });
 
 export type StreamRequest = z.infer<typeof StreamRequestSchema>;

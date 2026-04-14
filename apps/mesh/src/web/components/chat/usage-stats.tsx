@@ -3,7 +3,6 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@deco/ui/components/tooltip.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
 import { Activity } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
 import type { UsageStats as UsageStatsType } from "@/web/lib/usage-utils.ts";
@@ -26,16 +25,12 @@ export function MessageUsageStats({ usage }: UsageStatsProps) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground hover:text-foreground pl-1! h-6 gap-1 whitespace-nowrap shrink-0"
-        >
+        <span className="inline-flex items-center text-muted-foreground [@media(hover:hover)]:hover:text-foreground pl-1 h-6 gap-1 whitespace-nowrap shrink-0 cursor-default">
           <Activity size={12} />
           <span className="text-sm font-mono tabular-nums">
             {totalTokens.toLocaleString()}
           </span>
-        </Button>
+        </span>
       </TooltipTrigger>
       <TooltipContent side="top" className="font-mono text-[11px]">
         <p className="text-muted text-[10px] mb-1">tokens</p>
