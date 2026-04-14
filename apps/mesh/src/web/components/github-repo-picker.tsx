@@ -653,7 +653,6 @@ function RepoSearchResults({
         items?: Array<{
           name: string;
           full_name: string;
-          owner: { login: string };
           html_url: string;
           private: boolean;
           description: string | null;
@@ -665,7 +664,7 @@ function RepoSearchResults({
       const repos: Repo[] = items.map((r) => ({
         name: r.name,
         fullName: r.full_name,
-        owner: r.owner.login,
+        owner: r.full_name.split("/")[0] ?? "",
         url: r.html_url,
         private: r.private,
         description: r.description,
