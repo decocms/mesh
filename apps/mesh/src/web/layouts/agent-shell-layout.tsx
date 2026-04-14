@@ -612,26 +612,29 @@ function AgentInsetProvider() {
           {preferences.experimental_vibecode && isAgentRoute && (
             <GitHubRepoButton />
           )}
-          {showThreePanels && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={layout.toggleEnv}
-                  aria-pressed={layout.envOpen}
-                  className={cn(
-                    "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
-                    layout.envOpen
-                      ? "bg-sidebar-accent text-sidebar-foreground"
-                      : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                  )}
-                >
-                  <Terminal size={16} />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Environment</TooltipContent>
-            </Tooltip>
-          )}
+          {showThreePanels &&
+            preferences.experimental_vibecode &&
+            isAgentRoute &&
+            entity?.metadata?.githubRepo && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={layout.toggleEnv}
+                    aria-pressed={layout.envOpen}
+                    className={cn(
+                      "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                      layout.envOpen
+                        ? "bg-sidebar-accent text-sidebar-foreground"
+                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                    )}
+                  >
+                    <Terminal size={16} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Environment</TooltipContent>
+              </Tooltip>
+            )}
         </div>
         <div className="flex items-center gap-0.5">
           {showThreePanels && (
