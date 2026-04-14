@@ -21,7 +21,7 @@ function ScrollArea({
     >
       <ScrollAreaPrimitive.Viewport
         data-slot="scroll-area-viewport"
-        className="h-full w-full overflow-auto rounded-[inherit] outline-none transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="h-full w-full overflow-auto rounded-[inherit] outline-none transition-[color,box-shadow] focus-visible:ring-[2px] focus-visible:ring-ring/20"
       >
         <div className="flex min-w-0 flex-col">{children}</div>
       </ScrollAreaPrimitive.Viewport>

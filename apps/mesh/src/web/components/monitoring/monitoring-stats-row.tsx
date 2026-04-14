@@ -272,7 +272,7 @@ export function KPIChart({
       >
         <AreaChart
           data={data}
-          margin={{ left: 0, right: -12, top: 8, bottom: 0 }}
+          margin={{ left: 0, right: -12, top: 8, bottom: 8 }}
         >
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -348,7 +348,7 @@ export function KPIChart({
       className={cn(chartHeight, "w-full")}
       config={{ [dataKey]: { label: dataKey, color: colorVar } }}
     >
-      <BarChart data={data} margin={{ left: 0, right: -12, top: 8, bottom: 0 }}>
+      <BarChart data={data} margin={{ left: 0, right: -12, top: 8, bottom: 8 }}>
         <CartesianGrid
           strokeDasharray="4 4"
           stroke="var(--border)"

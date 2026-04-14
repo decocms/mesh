@@ -562,10 +562,7 @@ export function ChatInput({
               <form
                 onSubmit={handleSubmit}
                 className={cn(
-                  "w-full relative rounded-2xl min-h-[110px] md:min-h-[130px] flex flex-col bg-background dark:bg-muted border border-[1px]",
-                  isPlanMode
-                    ? "border-dashed border-violet-500 shadow-[0px_2px_6px_0px_#00000008,_0px_6px_30px_0px_#0000000a]"
-                    : "border-border shadow-[0px_4px_12px_0px_rgba(0,0,0,0.03)]",
+                  "w-full relative rounded-2xl min-h-[110px] md:min-h-[130px] flex flex-col bg-background dark:bg-muted card-shadow",
                 )}
               >
                 <FileDropZone selectedModel={selectedModel} />
