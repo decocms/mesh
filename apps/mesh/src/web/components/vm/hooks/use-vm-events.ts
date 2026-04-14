@@ -16,7 +16,7 @@ export interface VmStatus {
 }
 
 export type ChunkHandler = (
-  source: "install" | "dev" | "daemon",
+  source: "setup" | "install" | "dev" | "daemon",
   data: string,
 ) => void;
 
@@ -60,12 +60,14 @@ export function useVmEvents(
   const [suspended, setSuspended] = useState(false);
   const [hasInstallData, setHasInstallData] = useState(false);
   const [hasDevData, setHasDevData] = useState(false);
+  const [hasSetupData, setHasSetupData] = useState(false);
   const disconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onChunkRef = useRef(onChunk);
   onChunkRef.current = onChunk;
   const installBuffer = useRef(new ChunkBuffer());
   const devBuffer = useRef(new ChunkBuffer());
   const daemonBuffer = useRef(new ChunkBuffer());
+  const setupBuffer = useRef(new ChunkBuffer());
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — SSE subscription lifecycle requires cleanup on unmount; createSSESubscription returns an unsubscribe function that must be called in an effect cleanup
   useEffect(() => {
@@ -76,9 +78,11 @@ export function useVmEvents(
     setSuspended(false);
     setHasInstallData(false);
     setHasDevData(false);
+    setHasSetupData(false);
     installBuffer.current.clear();
     devBuffer.current.clear();
     daemonBuffer.current.clear();
+    setupBuffer.current.clear();
 
     const unsubscribe = daemonSSE.subscribe(previewUrl, (e: MessageEvent) => {
       // Any event received means we're connected — clear suspension timer
@@ -97,7 +101,11 @@ export function useVmEvents(
         const data = JSON.parse(e.data);
 
         if (e.type === "log" && typeof data.data === "string") {
-          const source = data.source as "install" | "dev" | "daemon";
+          const source = data.source as "setup" | "install" | "dev" | "daemon";
+          if (source === "setup") {
+            setHasSetupData(true);
+            setupBuffer.current.append(data.data);
+          }
           if (source === "install") {
             setHasInstallData(true);
             installBuffer.current.append(data.data);
@@ -141,8 +149,10 @@ export function useVmEvents(
     suspended,
     hasInstallData,
     hasDevData,
+    hasSetupData,
     getInstallBuffer: () => installBuffer.current.get(),
     getDevBuffer: () => devBuffer.current.get(),
     getDaemonBuffer: () => daemonBuffer.current.get(),
+    getSetupBuffer: () => setupBuffer.current.get(),
   };
 }

@@ -73,13 +73,16 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     orgId: org.id,
   });
 
-  const handleChunk = (source: "install" | "dev" | "daemon", data: string) => {
-    if (source === "install") {
-      installTermRef.current?.write(data);
+  const handleChunk = (
+    source: "setup" | "install" | "dev" | "daemon",
+    data: string,
+  ) => {
+    if (source === "setup") {
       setupTermRef.current?.write(data);
+    } else if (source === "install") {
+      installTermRef.current?.write(data);
     } else if (source === "dev") {
       devTermRef.current?.write(data);
-      setupTermRef.current?.write(data);
     } else if (source === "daemon") {
       daemonTermRef.current?.write(data);
     }
@@ -394,9 +397,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
               onReady={(t) => {
                 setupTermRef.current = t;
               }}
-              initialData={
-                vmEvents.getInstallBuffer() + vmEvents.getDevBuffer()
-              }
+              initialData={vmEvents.getSetupBuffer()}
               className="h-full"
             />
           )}

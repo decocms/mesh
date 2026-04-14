@@ -89,6 +89,7 @@ let lastStatus = { ready: false, htmlSupport: false };
 const children = { install: null, dev: null };
 const replayBuffers = { setup: "", install: "", dev: "", daemon: "" };
 const REPLAY_BYTES = 4096;
+let setupDone = false;
 
 function broadcastChunk(source, data) {
   if (!data) return;
@@ -122,6 +123,11 @@ function runProcess(source, cmd, label) {
   child.on("close", (code) => {
     log(source, "exited", "pid=" + child.pid, "code=" + code);
     if (children[source] === child) children[source] = null;
+    if (source === "setup" && code === 0) {
+      setupDone = true;
+      log("setup complete, starting install");
+      runProcess("install", INSTALL_CMD, INSTALL_LABEL);
+    }
   });
 }
 
@@ -222,8 +228,11 @@ http.createServer((req, res) => {
 
   if (req.method === "POST" && req.url === "/_daemon/exec/install") {
     log("exec install");
-    const waitCmd = "while [ ! -d /app/.git ]; do sleep 1; done";
-    runProcess("install", waitCmd + " && " + INSTALL_CMD, INSTALL_LABEL);
+    if (setupDone) {
+      runProcess("install", INSTALL_CMD, INSTALL_LABEL);
+    } else {
+      log("setup not done yet, install will auto-start after clone");
+    }
     res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
     res.end(JSON.stringify({ ok: true }));
     return;
