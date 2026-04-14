@@ -324,8 +324,6 @@ export const KEYS = {
   webSearchBlob: (url: string) => ["web-search-blob", url] as const,
 
   // GitHub integration
-  githubInstallations: (orgId: string) =>
-    ["github-installations", orgId] as const,
-  githubRepos: (orgId: string, installationId: string) =>
-    ["github-repos", orgId, installationId] as const,
+  githubRepoSearch: (orgId: string, connectionId: string, query: string) =>
+    ["github-repo-search", orgId, connectionId, query] as const,
 } as const;
