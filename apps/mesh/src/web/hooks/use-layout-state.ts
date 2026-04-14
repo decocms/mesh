@@ -27,6 +27,7 @@ export interface LayoutState {
   tasksOpen: boolean;
   mainOpen: boolean;
   chatOpen: boolean;
+  envOpen: boolean;
   mainView: string | undefined;
   mainViewId: string | undefined;
   toolName: string | undefined;
@@ -158,6 +159,7 @@ type PanelSearchParams = {
   main?: string;
   id?: string;
   toolName?: string;
+  env?: number;
 };
 
 function parsePanelParam(
@@ -209,6 +211,7 @@ export function usePanelState(
   const tasksOpen = parsePanelParam(search.tasks, defaults.tasksOpen);
   const mainOpen = parsePanelParam(search.mainOpen, defaults.mainOpen);
   const chatOpen = parsePanelParam(search.chat, defaults.chatOpen);
+  const envOpen = parsePanelParam(search.env, false);
 
   // taskId fallback for non-validated routes
   const fallbackRef = useRef(crypto.randomUUID());
@@ -343,13 +346,7 @@ export function usePanelState(
   };
 
   const toggleEnv = () => {
-    if (search.main === "env") {
-      // Navigate back to remove the env view from history
-      window.history.back();
-    } else {
-      // Push a new history entry so back-button returns to previous state
-      navigateSearch({ main: "env", mainOpen: 1 });
-    }
+    navigateSearch({ env: envOpen ? 0 : 1 }, { replace: true });
   };
 
   return {
@@ -357,6 +354,7 @@ export function usePanelState(
     tasksOpen,
     mainOpen,
     chatOpen,
+    envOpen,
     mainView: search.main,
     mainViewId: search.id,
     toolName: search.toolName,

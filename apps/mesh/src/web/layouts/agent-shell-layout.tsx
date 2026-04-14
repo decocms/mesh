@@ -71,6 +71,7 @@ import {
 } from "@/web/hooks/use-layout-state";
 import { GitHubRepoButton } from "@/web/components/github-repo-button";
 import { usePreferences } from "@/web/hooks/use-preferences";
+import { VmEnvContent } from "@/web/components/vm-env";
 
 // ---------------------------------------------------------------------------
 // Types & Context
@@ -81,8 +82,7 @@ export type MainViewType =
   | "settings"
   | "automation"
   | "ext-apps"
-  | "preview"
-  | "env";
+  | "preview";
 
 export type MainView =
   | { type: "chat" }
@@ -90,7 +90,6 @@ export type MainView =
   | { type: "automation"; id: string }
   | { type: "ext-apps"; id: string; toolName?: string; [key: string]: unknown }
   | { type: "preview" }
-  | { type: "env" }
   | null;
 
 export interface InsetContextValue {
@@ -234,6 +233,7 @@ function UnifiedPanelGroup({
   tasksOpen,
   mainOpen,
   chatOpen,
+  envOpen,
 }: {
   virtualMcpId: string;
   taskId: string;
@@ -242,6 +242,7 @@ function UnifiedPanelGroup({
   tasksOpen: boolean;
   mainOpen: boolean;
   chatOpen: boolean;
+  envOpen: boolean;
 }) {
   const sizes = computeDefaultSizes({ tasksOpen, mainOpen, chatOpen });
   const panelGroupRef = useRef<ImperativePanelGroupHandle>(null);
@@ -293,20 +294,36 @@ function UnifiedPanelGroup({
               "rounded-[0.75rem]",
             )}
           >
-            <Suspense
-              fallback={
-                <div className="flex-1 flex items-center justify-center">
-                  <Loading01
-                    size={20}
-                    className="animate-spin text-muted-foreground"
-                  />
-                </div>
-              }
-            >
-              <div className="flex flex-1 items-center overflow-hidden rounded-[inherit]">
-                <Outlet />
-              </div>
-            </Suspense>
+            <ResizablePanelGroup direction="vertical">
+              <ResizablePanel
+                defaultSize={envOpen ? 60 : 100}
+                minSize={20}
+                order={1}
+              >
+                <Suspense
+                  fallback={
+                    <div className="flex-1 flex items-center justify-center">
+                      <Loading01
+                        size={20}
+                        className="animate-spin text-muted-foreground"
+                      />
+                    </div>
+                  }
+                >
+                  <div className="flex flex-1 items-center overflow-hidden h-full">
+                    <Outlet />
+                  </div>
+                </Suspense>
+              </ResizablePanel>
+              {envOpen && (
+                <>
+                  <ResizableHandle />
+                  <ResizablePanel defaultSize={40} minSize={15} order={2}>
+                    <VmEnvContent />
+                  </ResizablePanel>
+                </>
+              )}
+            </ResizablePanelGroup>
           </div>
         </div>
       </ResizablePanel>
@@ -422,8 +439,6 @@ function AgentInsetProvider() {
       : { type: "settings" };
   } else if (search.main === "preview") {
     mainView = { type: "preview" };
-  } else if (search.main === "env") {
-    mainView = { type: "env" };
   } else {
     mainView = null;
   }
@@ -586,10 +601,10 @@ function AgentInsetProvider() {
                 <button
                   type="button"
                   onClick={layout.toggleEnv}
-                  aria-pressed={search.main === "env"}
+                  aria-pressed={layout.envOpen}
                   className={cn(
                     "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
-                    search.main === "env"
+                    layout.envOpen
                       ? "bg-sidebar-accent text-sidebar-foreground"
                       : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                   )}
@@ -697,6 +712,7 @@ function AgentInsetProvider() {
           tasksOpen={layout.tasksOpen}
           mainOpen={layout.mainOpen}
           chatOpen={layout.chatOpen}
+          envOpen={layout.envOpen}
         />
       </Chat.Provider>
     </InsetContext>

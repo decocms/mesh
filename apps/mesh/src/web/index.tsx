@@ -206,6 +206,7 @@ const orgHomeRoute = createRoute({
     tasks: z.number().optional(),
     mainOpen: z.number().optional(),
     chat: z.number().optional(),
+    env: z.number().optional(),
   }),
   component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
 });
@@ -433,6 +434,7 @@ const agentHomeRoute = createRoute({
     tasks: z.number().optional(),
     mainOpen: z.number().optional(),
     chat: z.number().optional(),
+    env: z.number().optional(),
   }),
   component: lazyRouteComponent(() => import("./routes/agent-home.tsx")),
 });
