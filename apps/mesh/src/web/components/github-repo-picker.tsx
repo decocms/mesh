@@ -134,19 +134,22 @@ function PickerContent({
           Array.isArray(parsed) ? parsed : (parsed.items ?? [])
         ) as Array<{
           full_name: string;
-          owner: { login: string };
+          owner?: { login: string };
           name: string;
           html_url: string;
           private: boolean;
         }>;
         return {
-          repos: items.map((r) => ({
-            owner: r.owner.login,
-            name: r.name,
-            fullName: r.full_name,
-            url: r.html_url,
-            private: r.private,
-          })),
+          repos: items.map((r) => {
+            const [owner, name] = r.full_name.split("/");
+            return {
+              owner: r.owner?.login ?? owner ?? "",
+              name: r.name ?? name ?? "",
+              fullName: r.full_name,
+              url: r.html_url,
+              private: r.private,
+            };
+          }),
         };
       } catch {
         return { repos: [] };
