@@ -7,23 +7,6 @@ import type { VmEntry, VmMetadata } from "./types";
 // Mock freestyle-sandboxes BEFORE importing VM_START (Bun requires this order)
 // ---------------------------------------------------------------------------
 
-const mockGithubSyncEnable = mock(
-  (_input: unknown): Promise<void> => Promise.resolve(),
-);
-
-const mockReposCreate = mock(
-  (
-    _input: unknown,
-  ): Promise<{
-    repoId: string;
-    repo: { githubSync: { enable: typeof mockGithubSyncEnable } };
-  }> =>
-    Promise.resolve({
-      repoId: "repo_abc",
-      repo: { githubSync: { enable: mockGithubSyncEnable } },
-    }),
-);
-
 const mockRoute = mock((): Promise<void> => Promise.resolve());
 
 const mockVmsCreate = mock(
@@ -44,18 +27,12 @@ const mockVmExec = mock((_input: unknown): Promise<void> => Promise.resolve());
 
 class MockVmSpec {
   builders: Record<string, unknown> = {};
-  _repo: unknown = undefined;
   _files: unknown = undefined;
   _services: Record<string, unknown>[] = [];
 
   with(key: string, builder: unknown): MockVmSpec {
     const next = Object.assign(new MockVmSpec(), this);
     next.builders = { ...this.builders, [key]: builder };
-    return next;
-  }
-  repo(url: string, dir: string): MockVmSpec {
-    const next = Object.assign(new MockVmSpec(), this);
-    next._repo = { url, dir };
     return next;
   }
   additionalFiles(files: unknown): MockVmSpec {
@@ -73,11 +50,6 @@ class MockVmSpec {
 mock.module("freestyle-sandboxes", () => ({
   VmSpec: MockVmSpec,
   freestyle: {
-    git: {
-      repos: {
-        create: (a: unknown) => mockReposCreate(a),
-      },
-    },
     vms: {
       create: (a: unknown) => mockVmsCreate(a),
       ref: (_input: unknown) => ({
@@ -104,6 +76,46 @@ mock.module("@freestyle-sh/with-web-terminal", () => ({
   },
 }));
 
+// Mock downstream token storage to return a test token
+const mockTokenGet = mock(
+  async (
+    _connectionId: string,
+  ): Promise<{
+    id: string;
+    connectionId: string;
+    accessToken: string;
+    refreshToken: null;
+    scope: null;
+    expiresAt: null;
+    createdAt: string;
+    updatedAt: string;
+    clientId: null;
+    clientSecret: null;
+    tokenEndpoint: null;
+  } | null> => ({
+    id: "dtok_1",
+    connectionId: "conn_github_1",
+    accessToken: "ghu_test_token_123",
+    refreshToken: null,
+    scope: null,
+    expiresAt: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    clientId: null,
+    clientSecret: null,
+    tokenEndpoint: null,
+  }),
+);
+
+mock.module("../../storage/downstream-token", () => ({
+  DownstreamTokenStorage: class MockDownstreamTokenStorage {
+    constructor(_db: unknown, _vault: unknown) {}
+    get(connectionId: string) {
+      return mockTokenGet(connectionId);
+    }
+  },
+}));
+
 // Now import after mocking
 const { VM_START } = await import("./start");
 
@@ -119,9 +131,9 @@ const DOMAIN_KEY = createHash("md5")
 
 const BASE_METADATA: VmMetadata = {
   githubRepo: {
-    url: "https://github.com/acme/app",
     owner: "acme",
     name: "app",
+    connectionId: "conn_github_1",
   },
   runtime: {
     detected: "npm",
@@ -191,9 +203,9 @@ function makeCtx(overrides: {
       measure: async <T>(_name: string, cb: () => Promise<T>) => await cb(),
     },
     vault: null as never,
+    db: null as never,
     authInstance: null as never,
     boundAuth: null as never,
-    db: null as never,
     tracer: {
       startActiveSpan: (
         _name: string,
@@ -228,17 +240,11 @@ function makeCtx(overrides: {
 
 describe("VM_START", () => {
   beforeEach(() => {
-    mockGithubSyncEnable.mockReset();
-    mockReposCreate.mockReset();
     mockVmsCreate.mockReset();
     mockVmStart.mockReset();
     mockVmExec.mockReset();
     mockRoute.mockReset();
-    mockGithubSyncEnable.mockImplementation(async () => {});
-    mockReposCreate.mockImplementation(async () => ({
-      repoId: "repo_abc",
-      repo: { githubSync: { enable: mockGithubSyncEnable } },
-    }));
+    mockTokenGet.mockReset();
     mockVmsCreate.mockImplementation(async () => ({
       vmId: "vm_xyz",
       vm: { terminal: { logs: { route: mockRoute } } },
@@ -246,12 +252,24 @@ describe("VM_START", () => {
     mockVmStart.mockImplementation(async () => {});
     mockVmExec.mockImplementation(async () => {});
     mockRoute.mockImplementation(async () => {});
+    mockTokenGet.mockImplementation(async () => ({
+      id: "dtok_1",
+      connectionId: "conn_github_1",
+      accessToken: "ghu_test_token_123",
+      refreshToken: null,
+      scope: null,
+      expiresAt: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      clientId: null,
+      clientSecret: null,
+      tokenEndpoint: null,
+    }));
   });
 
-  it("returns cached entry with isNewVm: false when activeVms[userId] is already set (no freestyle call)", async () => {
+  it("returns cached entry with isNewVm: false when activeVms[userId] is already set", async () => {
     const metadata: VmMetadata = {
       ...BASE_METADATA,
-      freestyleRepoId: "repo_cached",
       activeVms: { user_1: CACHED_ENTRY },
     };
     const virtualMcp = makeVirtualMcp("org_1", metadata);
@@ -261,18 +279,15 @@ describe("VM_START", () => {
 
     expect(result).toEqual({ ...CACHED_ENTRY, isNewVm: false });
     expect(result.isNewVm).toBe(false);
-    expect(mockReposCreate).not.toHaveBeenCalled();
     expect(mockVmsCreate).not.toHaveBeenCalled();
-    // ensureLogViewer is gone — exec must not be called
     expect(mockVmExec).not.toHaveBeenCalled();
-    // route() must not be called on resume — domain mapping is persistent
     expect(mockRoute).not.toHaveBeenCalled();
   });
 
   it("creates a new VM with isNewVm: true and persists entry when no existing activeVms entry", async () => {
     const metadata: VmMetadata = {
       ...BASE_METADATA,
-      activeVms: { other_user: CACHED_ENTRY }, // existing entry for a different user
+      activeVms: { other_user: CACHED_ENTRY },
     };
     const virtualMcp = makeVirtualMcp("org_1", metadata);
     const updateSpy = mock(async () => {});
@@ -280,24 +295,20 @@ describe("VM_START", () => {
 
     const result = await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
 
-    // Freestyle Git repo created and GitHub Sync enabled
-    expect(mockReposCreate).toHaveBeenCalledTimes(1);
-    expect(mockGithubSyncEnable).toHaveBeenCalledWith({
-      githubRepoName: "acme/app",
-    });
+    // Token fetched from downstream_tokens
+    expect(mockTokenGet).toHaveBeenCalledWith("conn_github_1");
     expect(mockVmsCreate).toHaveBeenCalledTimes(1);
 
-    // Result contains the newly created VM data with isNewVm flag
     expect(result.vmId).toBe("vm_xyz");
     expect(result.previewUrl).toBe(`https://${DOMAIN_KEY}.deco.studio`);
     expect(result.terminalUrl).toBeNull();
     expect(result.isNewVm).toBe(true);
 
-    // storage.update called twice: persist repoId + persist new VM entry
-    expect(updateSpy).toHaveBeenCalledTimes(2);
+    // storage.update called once: persist new VM entry (patchActiveVms)
+    expect(updateSpy).toHaveBeenCalledTimes(1);
 
-    // Second update (patchActiveVms) preserves existing entries
-    const updateCall = (updateSpy.mock.calls as unknown[][])[1]!;
+    // Update preserves existing entries
+    const updateCall = (updateSpy.mock.calls as unknown[][])[0]!;
     const updatedMetadata = (updateCall[2] as { metadata: VmMetadata })
       .metadata;
     expect(updatedMetadata.activeVms?.["other_user"]).toEqual(CACHED_ENTRY);
@@ -348,7 +359,7 @@ describe("VM_START", () => {
     expect(createCall.idleTimeoutSeconds).toBe(1800);
   });
 
-  it("daemon script includes /_daemon/events SSE endpoint", async () => {
+  it("daemon script includes /_daemon/events SSE endpoint and setup source", async () => {
     const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
     const ctx = makeCtx({ virtualMcp });
 
@@ -363,6 +374,8 @@ describe("VM_START", () => {
     expect(daemonJs).toBeDefined();
     expect(daemonJs!.content).toContain("/_daemon/events");
     expect(daemonJs!.content).toContain("text/event-stream");
+    expect(daemonJs!.content).toContain("/_daemon/exec/setup");
+    expect(daemonJs!.content).toContain("git clone");
     expect(files["/opt/run-daemon.sh"]).toBeDefined();
   });
 
@@ -378,14 +391,12 @@ describe("VM_START", () => {
 
     const result = await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
 
-    // Fell through to creating a new VM — Freestyle repo created
-    expect(mockReposCreate).toHaveBeenCalledTimes(1);
     expect(mockVmsCreate).toHaveBeenCalledTimes(1);
     expect(result.isNewVm).toBe(true);
     expect(result.vmId).toBe("vm_xyz");
 
-    // updateSpy called three times: clear stale, persist repoId, persist new entry
-    expect(updateSpy).toHaveBeenCalledTimes(3);
+    // updateSpy called twice: clear stale + persist new entry
+    expect(updateSpy).toHaveBeenCalledTimes(2);
   });
 
   it("passes VmSpec integrations for bun runtime — includes node and bun runtime", async () => {
@@ -419,11 +430,21 @@ describe("VM_START", () => {
   });
 
   it("throws 'Virtual MCP not found' when Virtual MCP belongs to a different org", async () => {
-    const virtualMcp = makeVirtualMcp("org_other", BASE_METADATA); // different org
+    const virtualMcp = makeVirtualMcp("org_other", BASE_METADATA);
     const ctx = makeCtx({ orgId: "org_1", virtualMcp });
 
     await expect(
       VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx),
     ).rejects.toThrow("Virtual MCP not found");
+  });
+
+  it("throws when no GitHub token is found", async () => {
+    mockTokenGet.mockImplementation(async () => null);
+    const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
+    const ctx = makeCtx({ virtualMcp });
+
+    await expect(
+      VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx),
+    ).rejects.toThrow("No GitHub token found");
   });
 });

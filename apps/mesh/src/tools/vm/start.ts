@@ -18,7 +18,7 @@ import { VmSpec, freestyle } from "freestyle-sandboxes";
 import { VmDeno } from "@freestyle-sh/with-deno";
 import { VmBun } from "@freestyle-sh/with-bun";
 import { VmNodeJs } from "@freestyle-sh/with-nodejs";
-import { type VmEntry, type VmMetadata, patchActiveVms } from "./types";
+import { type VmEntry, patchActiveVms } from "./types";
 import { requireVmEntry, resolveRuntimeConfig } from "./helpers";
 import { DownstreamTokenStorage } from "../../storage/downstream-token";
 
