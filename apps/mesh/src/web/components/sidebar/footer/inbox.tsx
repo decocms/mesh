@@ -34,7 +34,7 @@ import {
 } from "@decocms/mesh-sdk";
 import { useAiProviderKeys } from "@/web/hooks/collections/use-ai-providers";
 import { useNavigate } from "@tanstack/react-router";
-import { ConnectionDialog } from "@/web/views/virtual-mcp/add-connection-dialog";
+import { AddConnectionDialog } from "@/web/views/virtual-mcp/add-connection-dialog";
 
 interface Invitation {
   id: string;
@@ -240,7 +240,7 @@ function ConnectionsButton() {
           </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>
-      <ConnectionDialog
+      <AddConnectionDialog
         mode="browse"
         open={open}
         onOpenChange={setOpen}

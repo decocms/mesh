@@ -1,4 +1,5 @@
 import { Page } from "@/web/components/page";
+import { cn } from "@deco/ui/lib/utils.ts";
 import {
   createContext,
   type ReactNode,
@@ -97,7 +98,7 @@ export function ViewLayout({
     <ViewLayoutContext value={slots}>
       <Page>
         {/* Header */}
-        <Page.Header className={hideHeader ? "hidden" : undefined}>
+        <Page.Header className={cn(hideHeader && "hidden")}>
           <Page.Header.Left>
             {breadcrumb}
             <div ref={leftRef} className="flex items-center gap-2 min-w-0" />

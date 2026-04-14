@@ -496,7 +496,7 @@ function ConnectionDialogContent({
 // Main Dialog
 // ---------------------------------------------------------------------------
 
-export function ConnectionDialog({
+export function AddConnectionDialog({
   open,
   onOpenChange,
   defaultTab,
@@ -836,6 +836,3 @@ export function ConnectionDialog({
     </Dialog>
   );
 }
-
-/** @deprecated Use `ConnectionDialog` instead */
-export const AddConnectionDialog = ConnectionDialog;
