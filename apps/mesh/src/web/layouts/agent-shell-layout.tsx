@@ -608,7 +608,9 @@ function AgentInsetProvider() {
           >
             <ChevronRight size={16} />
           </button>
-          {preferences.experimental_vibecode && <GitHubRepoButton />}
+          {preferences.experimental_vibecode && isAgentRoute && (
+            <GitHubRepoButton />
+          )}
           {showThreePanels && (
             <Tooltip>
               <TooltipTrigger asChild>

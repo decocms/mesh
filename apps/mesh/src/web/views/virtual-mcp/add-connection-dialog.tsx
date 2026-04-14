@@ -63,6 +63,7 @@ type ConnectionDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   defaultTab?: "all" | "connected";
+  initialSearch?: string;
 } & (
   | {
       mode?: "add";
@@ -500,6 +501,7 @@ export function AddConnectionDialog({
   open,
   onOpenChange,
   defaultTab,
+  initialSearch = "",
   ...rest
 }: ConnectionDialogProps) {
   const mode: ConnectionDialogMode = rest.mode ?? "add";
@@ -511,7 +513,7 @@ export function AddConnectionDialog({
     "onAdd" in rest && rest.onAdd ? rest.onAdd : (_id: string) => {};
 
   const [connectingItemId, setConnectingItemId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
   const [createOpen, setCreateOpen] = useState(false);
   const { org } = useProjectContext();
   const { data: session } = authClient.useSession();

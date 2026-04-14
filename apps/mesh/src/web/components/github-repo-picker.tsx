@@ -18,6 +18,7 @@ import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import { KEYS } from "@/web/lib/query-keys";
 import { toast } from "sonner";
 import { Loading01 } from "@untitledui/icons";
+import { AddConnectionDialog } from "@/web/views/virtual-mcp/add-connection-dialog";
 
 interface Repo {
   owner: string;
@@ -68,6 +69,7 @@ function PickerContent({
   const [selectedConnection, setSelectedConnection] =
     useState<ConnectionEntity | null>(null);
   const [search, setSearch] = useState("");
+  const [addConnectionOpen, setAddConnectionOpen] = useState(false);
 
   const selfClient = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -77,11 +79,31 @@ function PickerContent({
   // Find all mcp-github connections in the organization
   const githubConnections = useConnections({ slug: "mcp-github" });
 
-  // Auto-select if exactly one
+  // Check which org-wide GitHub connections are already on this virtual MCP
+  const virtualMcpConnectionIds = new Set(
+    (inset?.entity?.connections ?? []).map((c) => c.connection_id),
+  );
+  const attachedGithubConnections = githubConnections.filter((c) =>
+    virtualMcpConnectionIds.has(c.id),
+  );
+
+  // Resolve the effective connection:
+  // 1. If virtual MCP already has a GitHub connection, use it (auto-select if one, pick if multiple)
+  // 2. If not, fall back to org-wide connections
+  const resolvedConnections =
+    attachedGithubConnections.length > 0
+      ? attachedGithubConnections
+      : githubConnections;
+
   const effectiveConnection =
-    githubConnections.length === 1
-      ? (githubConnections[0] ?? null)
+    resolvedConnections.length === 1
+      ? (resolvedConnections[0] ?? null)
       : selectedConnection;
+
+  // Whether we need to add the connection to the virtual MCP before searching
+  const needsAttach =
+    effectiveConnection !== null &&
+    !virtualMcpConnectionIds.has(effectiveConnection.id);
 
   // Create MCP client for the selected GitHub connection
   const githubClient = useMCPClient({
@@ -141,11 +163,40 @@ function PickerContent({
       },
     });
 
+  // Add a connection to the virtual MCP's connections list
+  const addConnectionToVirtualMcp = async (connectionId: string) => {
+    if (!inset?.entity) return;
+    const existing = inset.entity.connections ?? [];
+    if (existing.some((c) => c.connection_id === connectionId)) return;
+    await selfClient.callTool({
+      name: "COLLECTION_VIRTUAL_MCP_UPDATE",
+      arguments: {
+        id: inset.entity.id,
+        data: {
+          connections: [
+            ...existing,
+            {
+              connection_id: connectionId,
+              selected_tools: null,
+              selected_resources: null,
+              selected_prompts: null,
+            },
+          ],
+        },
+      },
+    });
+    invalidateVirtualMcp();
+  };
+
   // Save selected repo with connectionId
   const saveMutation = useMutation({
     mutationFn: async (repo: Repo) => {
       if (!inset?.entity || !effectiveConnection) {
         throw new Error("No virtual MCP context or GitHub connection");
+      }
+      // If the connection isn't on the virtual MCP yet, add it first
+      if (needsAttach) {
+        await addConnectionToVirtualMcp(effectiveConnection.id);
       }
       await selfClient.callTool({
         name: "COLLECTION_VIRTUAL_MCP_UPDATE",
@@ -323,26 +374,50 @@ function PickerContent({
 
   const filteredRepos = reposQuery.data?.repos ?? [];
 
-  // No GitHub connections — show hint
+  // No GitHub connections anywhere — open Add Connection dialog filtered by "github"
   if (githubConnections.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-4 py-6">
-        <p className="text-sm text-muted-foreground text-center">
-          Add a GitHub MCP connection to this organization to connect a
-          repository.
-        </p>
-      </div>
+      <>
+        <div className="flex flex-col items-center gap-4 py-6">
+          <p className="text-sm text-muted-foreground text-center">
+            No GitHub connection found. Add one to connect a repository.
+          </p>
+          <button
+            type="button"
+            onClick={() => setAddConnectionOpen(true)}
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            Add GitHub connection
+          </button>
+        </div>
+        <AddConnectionDialog
+          open={addConnectionOpen}
+          onOpenChange={setAddConnectionOpen}
+          addedConnectionIds={new Set()}
+          onAdd={() => {
+            setAddConnectionOpen(false);
+            queryClient.invalidateQueries({
+              predicate: (query) => {
+                const key = query.queryKey;
+                return key[1] === org.id && key[3] === "collection";
+              },
+            });
+          }}
+          initialSearch="github"
+          defaultTab="all"
+        />
+      </>
     );
   }
 
-  // Multiple connections, none selected — show picker
-  if (githubConnections.length > 1 && !effectiveConnection) {
+  // Multiple connections available, none selected — show picker
+  if (resolvedConnections.length > 1 && !effectiveConnection) {
     return (
       <div className="flex flex-col gap-2">
         <p className="text-sm text-muted-foreground">
           Select a GitHub connection:
         </p>
-        {githubConnections.map((conn) => (
+        {resolvedConnections.map((conn) => (
           <button
             key={conn.id}
             type="button"
@@ -366,7 +441,7 @@ function PickerContent({
   // Repo search
   return (
     <div className="flex flex-col gap-3">
-      {githubConnections.length > 1 && (
+      {resolvedConnections.length > 1 && (
         <button
           type="button"
           onClick={() => setSelectedConnection(null)}
