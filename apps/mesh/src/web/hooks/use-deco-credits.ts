@@ -46,6 +46,7 @@ export function useDecoCredits() {
   const hasDecoKey = !!decoKey;
   const hasCredits = balanceCents != null && balanceCents > 0;
   const isZeroBalance = balanceCents != null && balanceCents === 0;
+  const isInitialFreeCredit = balanceCents != null && balanceCents === 200;
   const hasOnlyDecoProvider =
     keys.length > 0 && keys.every((k) => k.providerId === "deco");
 
@@ -56,6 +57,7 @@ export function useDecoCredits() {
     balanceDollars,
     hasCredits,
     isZeroBalance,
+    isInitialFreeCredit,
     hasOnlyDecoProvider,
     isLoading,
     isFetching,
