@@ -39,6 +39,8 @@ export interface ToolCallShellProps {
   trailing?: ReactNode;
   /** When true, renders the icon in destructive color regardless of state */
   iconDestructive?: boolean;
+  /** When true, always shows the chevron in the icon slot (skips the icon/hover morph) */
+  alwaysChevron?: boolean;
   /** Custom expandable content — when provided, replaces detail string rendering */
   children?: ReactNode;
 }
@@ -56,6 +58,7 @@ export function ToolCallShell({
   variant = "default",
   trailing,
   iconDestructive,
+  alwaysChevron,
   children,
 }: ToolCallShellProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -88,40 +91,53 @@ export function ToolCallShell({
         )}
         aria-disabled={!isExpandable}
       >
-        {/* Icon slot: tool icon by default, morphs into chevron on hover/expand */}
+        {/* Icon slot: chevron only (alwaysChevron), or tool icon that morphs into chevron on hover/expand */}
         <div className="relative shrink-0 size-4 flex items-center justify-center">
-          {/* Tool icon — hidden on hover (expandable) or when expanded */}
-          <div
-            className={cn(
-              "absolute inset-0 flex items-center justify-center [&>svg]:size-4 transition-opacity duration-150",
-              iconDestructive || isError
-                ? "[&>svg]:text-destructive/70"
-                : "[&>svg]:text-muted-foreground/75",
-              isExpandable &&
-                (effectiveOpen
-                  ? "opacity-0"
-                  : "[@media(hover:hover)]:group-hover/tool:opacity-0"),
-            )}
-          >
-            {icon}
-          </div>
-          {/* Chevron — appears on hover or when expanded */}
-          {isExpandable && (
-            <div
+          {alwaysChevron ? (
+            <ChevronRight
               className={cn(
-                "absolute inset-0 flex items-center justify-center transition-opacity duration-150",
-                effectiveOpen
-                  ? "opacity-100"
-                  : "opacity-0 [@media(hover:hover)]:group-hover/tool:opacity-100",
+                "size-4 text-foreground/60 transition-transform duration-200 ease-in-out",
+                effectiveOpen && "rotate-90",
               )}
-            >
-              <ChevronRight
+            />
+          ) : (
+            <>
+              {/* Tool icon — hidden on hover (expandable) or when expanded */}
+              <div
                 className={cn(
-                  "size-4 text-foreground/60 transition-transform duration-200 ease-in-out",
-                  effectiveOpen && "rotate-90",
+                  "absolute inset-0 flex items-center justify-center [&>svg]:size-4 transition-opacity duration-150",
+                  iconDestructive
+                    ? "[&>svg]:text-destructive/70"
+                    : isError
+                      ? "[&>svg]:text-warning/70"
+                      : "[&>svg]:text-muted-foreground/75",
+                  isExpandable &&
+                    (effectiveOpen
+                      ? "opacity-0"
+                      : "[@media(hover:hover)]:group-hover/tool:opacity-0"),
                 )}
-              />
-            </div>
+              >
+                {icon}
+              </div>
+              {/* Chevron — appears on hover or when expanded */}
+              {isExpandable && (
+                <div
+                  className={cn(
+                    "absolute inset-0 flex items-center justify-center transition-opacity duration-150",
+                    effectiveOpen
+                      ? "opacity-100"
+                      : "opacity-0 [@media(hover:hover)]:group-hover/tool:opacity-100",
+                  )}
+                >
+                  <ChevronRight
+                    className={cn(
+                      "size-4 text-foreground/60 transition-transform duration-200 ease-in-out",
+                      effectiveOpen && "rotate-90",
+                    )}
+                  />
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -129,7 +145,7 @@ export function ToolCallShell({
         <span
           className={cn(
             "shrink-0 text-[14px] font-normal",
-            isError ? "text-destructive/70" : "text-foreground",
+            isError ? "text-warning/80" : "text-foreground",
           )}
         >
           {title}

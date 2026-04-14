@@ -336,7 +336,8 @@ function CollapsedSection({
 
   return (
     <ToolCallShell
-      icon={<Tool02 className="size-4" />}
+      icon={null}
+      alwaysChevron
       title={
         <CollapsedSectionTitle toolCalls={toolCalls} messages={messages} />
       }
