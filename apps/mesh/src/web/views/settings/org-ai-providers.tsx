@@ -780,7 +780,7 @@ function QuickTopUp({ keyId }: { keyId: string }) {
           providerId: "deco",
           keyId,
           amountCents,
-          currency: "usd",
+          currency,
         },
       })) as {
         structuredContent?: { url: string };

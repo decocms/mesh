@@ -1043,8 +1043,9 @@ function sanitizeStreamError(error: unknown): string {
     if (
       statusCode === 402 ||
       msg.includes("credit") ||
-      msg.includes("limit exceeded") ||
-      msg.includes("insufficient")
+      msg.includes("insufficient funds") ||
+      msg.includes("insufficient balance") ||
+      msg.includes("quota exceeded")
     ) {
       // Prefix with [CREDITS] so the frontend can detect credit errors
       // without fragile string matching on provider-specific messages.
