@@ -186,7 +186,6 @@ const ALL_TOOL_NAMES = [
 
   // GitHub tools (app-only)
   "GITHUB_LIST_USER_ORGS",
-  "GITHUB_LIST_ORG_REPOS",
 ] as const;
 
 /**
@@ -881,11 +880,6 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "List GitHub user's personal account and organizations",
     category: "GitHub",
   },
-  {
-    name: "GITHUB_LIST_ORG_REPOS",
-    description: "List repositories for a GitHub organization or user",
-    category: "GitHub",
-  },
 ];
 
 /**
@@ -1027,7 +1021,6 @@ const TOOL_LABELS: Record<ToolName, string> = {
   VM_START: "Start VM preview",
   VM_DELETE: "Delete VM preview",
   GITHUB_LIST_USER_ORGS: "List GitHub user orgs",
-  GITHUB_LIST_ORG_REPOS: "List GitHub org repos",
 };
 
 // ============================================================================

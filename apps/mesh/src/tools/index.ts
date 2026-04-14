@@ -164,7 +164,6 @@ const CORE_TOOLS = [
 
   // GitHub tools (app-only)
   GitHubTools.GITHUB_LIST_USER_ORGS,
-  GitHubTools.GITHUB_LIST_ORG_REPOS,
 ] as const satisfies { name: ToolName }[];
 
 // Plugin tools - collected at startup, gated by org settings at runtime

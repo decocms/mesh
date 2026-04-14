@@ -6,4 +6,3 @@
  */
 
 export { GITHUB_LIST_USER_ORGS } from "./list-user-orgs";
-export { GITHUB_LIST_ORG_REPOS } from "./list-org-repos";
