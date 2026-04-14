@@ -71,6 +71,7 @@ export interface Metadata {
     thinking: MetadataModelInfo;
     coding?: MetadataModelInfo;
     fast?: MetadataModelInfo;
+    image?: MetadataModelInfo;
   };
   agent?: ChatAgentConfig;
   user?: ChatUserConfig;
@@ -85,6 +86,8 @@ export interface Metadata {
   agentMentions?: Array<{ agentId: string; title: string; taskId?: string }>;
   /** Tool approval level at send time — used for visual treatment (e.g., purple border for plan mode) */
   toolApprovalLevel?: ToolApprovalLevel;
+  /** When true, forces the generate_image tool for the next request */
+  forceImageGeneration?: boolean;
   usage?: {
     inputTokens?: number;
     outputTokens?: number;

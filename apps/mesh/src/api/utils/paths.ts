@@ -87,6 +87,8 @@ export function shouldSkipMeshContext(path: string): boolean {
     path.startsWith(PATH_PREFIXES.API_AUTH) ||
     path === "/api/trigger-callback" ||
     isSystemPath(path) ||
-    isStaticFilePath(path)
+    // Static file extension check only applies to non-API paths (e.g. Vite assets).
+    // API paths like /api/:org/files/image.jpeg still need MeshContext for auth.
+    (!isApiPath(path) && isStaticFilePath(path))
   );
 }

@@ -41,6 +41,8 @@ export interface ToolCallShellProps {
   iconDestructive?: boolean;
   /** When true, always shows the chevron in the icon slot (skips the icon/hover morph) */
   alwaysChevron?: boolean;
+  /** When true, the collapsible starts expanded (user can still close it) */
+  defaultOpen?: boolean;
   /** Custom expandable content — when provided, replaces detail string rendering */
   children?: ReactNode;
 }
@@ -59,9 +61,10 @@ export function ToolCallShell({
   trailing,
   iconDestructive,
   alwaysChevron,
+  defaultOpen,
   children,
 }: ToolCallShellProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(defaultOpen ?? false);
   const { handleCopy, copied } = useCopy();
   const isLoading = state === "loading";
   const isError = state === "error";
