@@ -525,7 +525,7 @@ function ConnectionInspectorViewWithConnection({
       </Sheet>
 
       {/* Main page */}
-      <ViewLayout>
+      <ViewLayout hideHeader>
         <div className="flex flex-col h-full overflow-hidden">
           <ConnectionDetailHeader
             connection={connection}

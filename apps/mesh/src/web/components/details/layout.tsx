@@ -40,9 +40,14 @@ export const ViewActions = HeaderRight;
 interface ViewLayoutProps {
   children: ReactNode;
   breadcrumb?: ReactNode;
+  hideHeader?: boolean;
 }
 
-export function ViewLayout({ children, breadcrumb }: ViewLayoutProps) {
+export function ViewLayout({
+  children,
+  breadcrumb,
+  hideHeader,
+}: ViewLayoutProps) {
   const [slots, setSlots] = useState<{
     leftEl: HTMLDivElement | null;
     tabsEl: HTMLDivElement | null;
@@ -91,30 +96,28 @@ export function ViewLayout({ children, breadcrumb }: ViewLayoutProps) {
   return (
     <ViewLayoutContext value={slots}>
       <Page>
-        {/* Header — only rendered when breadcrumb is provided */}
-        {breadcrumb && (
-          <Page.Header>
-            <Page.Header.Left>
-              {breadcrumb}
-              <div ref={leftRef} className="flex items-center gap-2 min-w-0" />
-            </Page.Header.Left>
+        {/* Header */}
+        <Page.Header className={hideHeader ? "hidden" : undefined}>
+          <Page.Header.Left>
+            {breadcrumb}
+            <div ref={leftRef} className="flex items-center gap-2 min-w-0" />
+          </Page.Header.Left>
 
-            {/* Tabs and Actions */}
-            <Page.Header.Right>
-              {/* Tabs Slot */}
-              <div
-                ref={tabsRef}
-                className="flex items-center gap-2 overflow-x-auto min-w-0"
-              />
+          {/* Tabs and Actions */}
+          <Page.Header.Right>
+            {/* Tabs Slot */}
+            <div
+              ref={tabsRef}
+              className="flex items-center gap-2 overflow-x-auto min-w-0"
+            />
 
-              {/* Actions Slot */}
-              <div
-                ref={actionsRef}
-                className="flex items-center gap-2 shrink-0"
-              />
-            </Page.Header.Right>
-          </Page.Header>
-        )}
+            {/* Actions Slot */}
+            <div
+              ref={actionsRef}
+              className="flex items-center gap-2 shrink-0"
+            />
+          </Page.Header.Right>
+        </Page.Header>
 
         {/* Main Content */}
         <Page.Content>{children}</Page.Content>
