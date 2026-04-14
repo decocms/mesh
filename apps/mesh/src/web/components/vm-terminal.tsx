@@ -1,60 +1,96 @@
 import { useRef, useEffect } from "react";
 import { cn } from "@deco/ui/lib/utils.ts";
-import Convert from "ansi-to-html";
-
-const MAX_LINES = 100;
-
-const ansiConverter = new Convert({ escapeXML: true });
+import { Terminal } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import "@xterm/xterm/css/xterm.css";
 
 interface VmTerminalProps {
-  lines: string[];
+  onReady?: (terminal: Terminal) => void;
+  initialData?: string;
   className?: string;
 }
 
-export function VmTerminal({ lines, className }: VmTerminalProps) {
+export function VmTerminal({
+  onReady,
+  initialData,
+  className,
+}: VmTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const shouldAutoScroll = useRef(true);
+  const terminalRef = useRef<Terminal | null>(null);
 
-  const visibleLines =
-    lines.length > MAX_LINES ? lines.slice(-MAX_LINES) : lines;
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — scroll-to-bottom requires DOM measurement after render; no React 19 alternative
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — xterm.js lifecycle: create on mount, dispose on unmount
   useEffect(() => {
     const el = containerRef.current;
-    if (!el || !shouldAutoScroll.current) return;
-    el.scrollTop = el.scrollHeight;
-  }, [lines.length]);
-
-  const handleScroll = () => {
-    const el = containerRef.current;
     if (!el) return;
-    // Auto-scroll if user is near the bottom (within 50px)
-    shouldAutoScroll.current =
-      el.scrollHeight - el.scrollTop - el.clientHeight < 50;
-  };
+
+    const style = getComputedStyle(document.documentElement);
+    const cssVar = (name: string) =>
+      style.getPropertyValue(name).trim() || undefined;
+
+    const terminal = new Terminal({
+      allowTransparency: false,
+      fontFamily:
+        cssVar("--font-mono") ||
+        "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+      fontSize: 13,
+      lineHeight: 1.4,
+      scrollback: 5000,
+      cursorBlink: false,
+      disableStdin: true,
+      theme: {
+        background: cssVar("--background") || "#1e1e1e",
+        cursor: "transparent",
+        foreground: cssVar("--foreground") || "#d4d4d4",
+        selectionBackground: cssVar("--accent"),
+        selectionForeground: cssVar("--accent-foreground"),
+
+        black: cssVar("--muted"),
+        red: cssVar("--destructive"),
+        green: cssVar("--success"),
+        yellow: cssVar("--warning"),
+        blue: cssVar("--chart-1"),
+        magenta: cssVar("--chart-3"),
+        cyan: cssVar("--chart-5"),
+        white: cssVar("--foreground"),
+
+        brightBlack: cssVar("--muted-foreground"),
+        brightRed: cssVar("--destructive"),
+        brightGreen: cssVar("--success"),
+        brightYellow: cssVar("--warning"),
+        brightBlue: cssVar("--chart-1"),
+        brightMagenta: cssVar("--chart-3"),
+        brightCyan: cssVar("--chart-5"),
+        brightWhite: cssVar("--foreground"),
+      },
+    });
+
+    const fitAddon = new FitAddon();
+    terminal.loadAddon(fitAddon);
+
+    terminal.open(el);
+    fitAddon.fit();
+    if (initialData) {
+      terminal.write(initialData);
+    }
+    terminalRef.current = terminal;
+    onReady?.(terminal);
+
+    const observer = new ResizeObserver(() => {
+      fitAddon.fit();
+    });
+    observer.observe(el);
+
+    return () => {
+      observer.disconnect();
+      terminalRef.current = null;
+      terminal.dispose();
+    };
+  }, []);
 
   return (
     <div
       ref={containerRef}
-      onScroll={handleScroll}
-      className={cn(
-        "overflow-y-auto bg-background font-mono text-xs leading-5 p-3",
-        className,
-      )}
-    >
-      {visibleLines.length === 0 ? (
-        <span className="text-muted-foreground">Waiting for output...</span>
-      ) : (
-        visibleLines.map((line, i) => (
-          <div
-            key={i}
-            className="whitespace-pre-wrap break-all text-foreground"
-            dangerouslySetInnerHTML={{
-              __html: ansiConverter.toHtml(line),
-            }}
-          />
-        ))
-      )}
-    </div>
+      className={cn("overflow-hidden bg-background", className)}
+    />
   );
 }

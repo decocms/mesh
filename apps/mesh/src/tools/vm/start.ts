@@ -64,18 +64,14 @@ let lastStatus = { ready: false, htmlSupport: false };
 
 // --- Process state ---
 const children = { install: null, dev: null };
-const replayBuffers = { install: [], dev: [] };
-const REPLAY_SIZE = 5;
+const replayBuffers = { install: "", dev: "" };
+const REPLAY_BYTES = 4096;
 
-function broadcastLog(source, lines) {
-  const filtered = lines.filter(Boolean);
-  if (filtered.length === 0) return;
-  const buf = replayBuffers[source];
-  buf.push(...filtered);
-  if (buf.length > REPLAY_SIZE) {
-    replayBuffers[source] = buf.slice(buf.length - REPLAY_SIZE);
-  }
-  const payload = JSON.stringify({ type: "log", source: source, lines: filtered });
+function broadcastChunk(source, data) {
+  if (!data) return;
+  const buf = replayBuffers[source] + data;
+  replayBuffers[source] = buf.length > REPLAY_BYTES ? buf.slice(buf.length - REPLAY_BYTES) : buf;
+  const payload = JSON.stringify({ source: source, data: data });
   for (const res of sseClients) {
     if (res.writable) res.write("event: log\\ndata: " + payload + "\\n\\n");
   }
@@ -86,25 +82,19 @@ function runProcess(source, cmd, label) {
     try { children[source].kill("SIGKILL"); } catch (e) {}
     children[source] = null;
   }
-  broadcastLog(source, [label]);
+  broadcastChunk(source, label + "\\r\\n");
   const child = spawn("script", ["-q", "-c", cmd, "/dev/null"], {
     stdio: ["ignore", "pipe", "pipe"],
     env: Object.assign({}, process.env, { TERM: "xterm-256color" }),
   });
   children[source] = child;
-  let partial = "";
   child.stdout.on("data", (chunk) => {
-    partial += chunk.toString("utf-8");
-    const parts = partial.split("\\n");
-    partial = parts.pop() || "";
-    if (parts.length > 0) broadcastLog(source, parts);
+    broadcastChunk(source, chunk.toString("utf-8"));
   });
   child.stderr.on("data", (chunk) => {
-    const lines = chunk.toString("utf-8").split("\\n");
-    broadcastLog(source, lines);
+    broadcastChunk(source, chunk.toString("utf-8"));
   });
   child.on("close", (code) => {
-    if (partial) { broadcastLog(source, [partial]); partial = ""; }
     if (children[source] === child) children[source] = null;
   });
 }
@@ -169,7 +159,7 @@ http.createServer((req, res) => {
     for (const source of ["install", "dev"]) {
       const buf = replayBuffers[source];
       if (buf.length > 0) {
-        const payload = JSON.stringify({ type: "log", source: source, lines: buf });
+        const payload = JSON.stringify({ source: source, data: buf });
         res.write("event: log\\ndata: " + payload + "\\n\\n");
       }
     }
@@ -200,8 +190,25 @@ http.createServer((req, res) => {
     return;
   }
 
+  // Kill endpoints
+  if (req.method === "POST" && req.url.startsWith("/_daemon/kill/")) {
+    const source = req.url.split("/").pop();
+    if (source === "install" || source === "dev") {
+      if (children[source]) {
+        try { children[source].kill("SIGKILL"); } catch (e) {}
+        children[source] = null;
+      }
+      res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+      res.end(JSON.stringify({ ok: true }));
+    } else {
+      res.writeHead(400, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+      res.end(JSON.stringify({ error: "invalid source" }));
+    }
+    return;
+  }
+
   // CORS preflight for SSE and exec endpoints
-  if (req.method === "OPTIONS" && (req.url === "/_daemon/events" || req.url.startsWith("/_daemon/exec/"))) {
+  if (req.method === "OPTIONS" && (req.url === "/_daemon/events" || req.url.startsWith("/_daemon/exec/") || req.url.startsWith("/_daemon/kill/"))) {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST",

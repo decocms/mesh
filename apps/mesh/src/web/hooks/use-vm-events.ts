@@ -2,7 +2,7 @@
  * useVmEvents — SSE hook for the VM daemon.
  *
  * Connects to the daemon's /_daemon/events endpoint running inside the VM
- * and streams log lines and upstream status back to React state.
+ * and streams raw PTY chunks and upstream status back to React.
  *
  * Built on createSSESubscription for ref-counted connections and auto-reconnect.
  */
@@ -15,11 +15,29 @@ export interface VmStatus {
   htmlSupport: boolean;
 }
 
-const MAX_LOG_LINES = 5000;
+export type ChunkHandler = (source: "install" | "dev", data: string) => void;
+
+const BUFFER_BYTES = 16384;
+
+class ChunkBuffer {
+  private data = "";
+  append(chunk: string) {
+    this.data += chunk;
+    if (this.data.length > BUFFER_BYTES) {
+      this.data = this.data.slice(this.data.length - BUFFER_BYTES);
+    }
+  }
+  get() {
+    return this.data;
+  }
+  clear() {
+    this.data = "";
+  }
+}
 
 const daemonSSE = createSSESubscription({
   buildUrl: (previewUrl) => `${previewUrl}/_daemon/events`,
-  eventTypes: ["log", "status", "heartbeat"],
+  eventTypes: ["log", "status"],
 });
 
 /**
@@ -28,25 +46,34 @@ const daemonSSE = createSSESubscription({
  */
 const MAX_DISCONNECT_MS = 45_000;
 
-export function useVmEvents(previewUrl: string | null) {
-  const [installLogs, setInstallLogs] = useState<string[]>([]);
-  const [devLogs, setDevLogs] = useState<string[]>([]);
+export function useVmEvents(
+  previewUrl: string | null,
+  onChunk: ChunkHandler | null,
+) {
   const [status, setStatus] = useState<VmStatus>({
     ready: false,
     htmlSupport: false,
   });
   const [suspended, setSuspended] = useState(false);
+  const [hasInstallData, setHasInstallData] = useState(false);
+  const [hasDevData, setHasDevData] = useState(false);
   const disconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onChunkRef = useRef(onChunk);
+  onChunkRef.current = onChunk;
+  const installBuffer = useRef(new ChunkBuffer());
+  const devBuffer = useRef(new ChunkBuffer());
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — SSE subscription lifecycle requires cleanup on unmount; createSSESubscription returns an unsubscribe function that must be called in an effect cleanup
   useEffect(() => {
     if (!previewUrl) return;
 
     // Reset state for new connection
-    setInstallLogs([]);
-    setDevLogs([]);
     setStatus({ ready: false, htmlSupport: false });
     setSuspended(false);
+    setHasInstallData(false);
+    setHasDevData(false);
+    installBuffer.current.clear();
+    devBuffer.current.clear();
 
     const unsubscribe = daemonSSE.subscribe(previewUrl, (e: MessageEvent) => {
       // Any event received means we're connected — clear suspension timer
@@ -64,14 +91,17 @@ export function useVmEvents(previewUrl: string | null) {
       try {
         const data = JSON.parse(e.data);
 
-        if (e.type === "log" && Array.isArray(data.lines)) {
-          const setter = data.source === "dev" ? setDevLogs : setInstallLogs;
-          setter((prev) => {
-            const next = [...prev, ...data.lines];
-            return next.length > MAX_LOG_LINES
-              ? next.slice(next.length - MAX_LOG_LINES)
-              : next;
-          });
+        if (e.type === "log" && typeof data.data === "string") {
+          const source = data.source as "install" | "dev";
+          if (source === "install") {
+            setHasInstallData(true);
+            installBuffer.current.append(data.data);
+          }
+          if (source === "dev") {
+            setHasDevData(true);
+            devBuffer.current.append(data.data);
+          }
+          onChunkRef.current?.(source, data.data);
         } else if (e.type === "status") {
           setStatus({
             ready: Boolean(data.ready),
@@ -98,5 +128,12 @@ export function useVmEvents(previewUrl: string | null) {
     };
   }, [previewUrl]);
 
-  return { installLogs, devLogs, status, suspended };
+  return {
+    status,
+    suspended,
+    hasInstallData,
+    hasDevData,
+    getInstallBuffer: () => installBuffer.current.get(),
+    getDevBuffer: () => devBuffer.current.get(),
+  };
 }

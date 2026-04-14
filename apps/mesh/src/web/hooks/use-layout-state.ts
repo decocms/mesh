@@ -44,6 +44,7 @@ export interface LayoutActions {
     opts?: { id?: string; toolName?: string },
   ) => void;
   closeMainView: () => void;
+  toggleEnv: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -341,6 +342,16 @@ export function usePanelState(
     });
   };
 
+  const toggleEnv = () => {
+    if (search.main === "env") {
+      // Navigate back to remove the env view from history
+      window.history.back();
+    } else {
+      // Push a new history entry so back-button returns to previous state
+      navigateSearch({ main: "env", mainOpen: 1 });
+    }
+  };
+
   return {
     taskId,
     tasksOpen,
@@ -357,5 +368,6 @@ export function usePanelState(
     createNewTask,
     openMainView,
     closeMainView,
+    toggleEnv,
   };
 }

@@ -45,6 +45,7 @@ import {
   Loading01,
   Menu01,
   LayoutRight,
+  Terminal,
 } from "@untitledui/icons";
 import {
   getDecopilotId,
@@ -80,7 +81,8 @@ export type MainViewType =
   | "settings"
   | "automation"
   | "ext-apps"
-  | "preview";
+  | "preview"
+  | "env";
 
 export type MainView =
   | { type: "chat" }
@@ -88,6 +90,7 @@ export type MainView =
   | { type: "automation"; id: string }
   | { type: "ext-apps"; id: string; toolName?: string; [key: string]: unknown }
   | { type: "preview" }
+  | { type: "env" }
   | null;
 
 export interface InsetContextValue {
@@ -419,6 +422,8 @@ function AgentInsetProvider() {
       : { type: "settings" };
   } else if (search.main === "preview") {
     mainView = { type: "preview" };
+  } else if (search.main === "env") {
+    mainView = { type: "env" };
   } else {
     mainView = null;
   }
@@ -574,9 +579,29 @@ function AgentInsetProvider() {
           >
             <ChevronRight size={16} />
           </button>
+          {preferences.experimental_vibecode && <GitHubRepoButton />}
+          {showThreePanels && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={layout.toggleEnv}
+                  aria-pressed={search.main === "env"}
+                  className={cn(
+                    "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                    search.main === "env"
+                      ? "bg-sidebar-accent text-sidebar-foreground"
+                      : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                  )}
+                >
+                  <Terminal size={16} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Environment</TooltipContent>
+            </Tooltip>
+          )}
         </div>
         <div className="flex items-center gap-0.5">
-          {preferences.experimental_vibecode && <GitHubRepoButton />}
           {showThreePanels && (
             <>
               <Tooltip>

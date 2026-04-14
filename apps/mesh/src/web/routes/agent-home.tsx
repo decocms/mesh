@@ -1,6 +1,7 @@
 import { VirtualMcpDetailView } from "@/web/views/virtual-mcp";
 import { AutomationInlineDetail } from "@/web/views/automations/automations-tab";
 import { VmPreviewContent } from "@/web/components/vm-preview";
+import { VmEnvContent } from "@/web/components/vm-env";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { EmptyState } from "@/web/components/empty-state";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -54,6 +55,8 @@ function useResolvedMainView(): MainView & {} {
       return { type: "settings" };
     case "preview":
       return { type: "preview" };
+    case "env":
+      return { type: "env" };
     default:
       return { type: "chat" };
   }
@@ -122,6 +125,10 @@ function AgentHomeContent() {
     return <VmPreviewContent />;
   }
 
+  if (resolved.type === "env") {
+    return <VmEnvContent />;
+  }
+
   // settings
   return (
     <VirtualMcpDetailView key={virtualMcpId} virtualMcpId={virtualMcpId} />
@@ -141,6 +148,8 @@ function mainViewKey(view: MainView): string {
       return `ext-apps:${view.id}:${view.toolName ?? ""}`;
     case "preview":
       return "preview";
+    case "env":
+      return "env";
   }
 }
 
