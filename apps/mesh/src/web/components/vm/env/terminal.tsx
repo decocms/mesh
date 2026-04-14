@@ -85,6 +85,7 @@ export function VmTerminal({
       terminalRef.current = null;
       terminal.dispose();
     };
+    // oxlint-disable-next-line react-hooks/exhaustive-deps — mount-only: initialData and onReady are consumed once during terminal setup
   }, []);
 
   return (

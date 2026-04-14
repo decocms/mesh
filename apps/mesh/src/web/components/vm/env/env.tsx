@@ -191,10 +191,13 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     setStatus("idle");
   };
 
+  const handleStartRef = useRef(handleStart);
+  handleStartRef.current = handleStart;
+
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — auto-start on mount requires DOM lifecycle; no React 19 alternative
   useEffect(() => {
     if (inset?.entity?.id) {
-      handleStart();
+      handleStartRef.current();
     }
   }, [inset?.entity?.id]);
 

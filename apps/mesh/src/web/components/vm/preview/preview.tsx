@@ -268,6 +268,7 @@ export function PreviewContent() {
                 className="shrink-0 h-5 w-5 p-0"
                 onClick={() => {
                   if (previewIframeRef.current) {
+                    // oxlint-disable-next-line no-self-assign — intentional: reloads the iframe by re-assigning its src
                     previewIframeRef.current.src = previewIframeRef.current.src;
                   }
                 }}

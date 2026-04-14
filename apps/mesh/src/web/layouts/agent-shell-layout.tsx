@@ -485,17 +485,18 @@ function AgentInsetProvider() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
+  const { toggleDaemon } = layout;
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — subscribes to document keydown for ⌘D toggle-daemon shortcut; DOM event listener has no React 19 alternative
   useEffect(() => {
     const handler = (e: globalThis.KeyboardEvent) => {
       if (isModKey(e) && !e.shiftKey && e.code === "KeyD" && !e.repeat) {
         e.preventDefault();
-        layout.toggleDaemon();
+        toggleDaemon();
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [layout.toggleDaemon]);
+  }, [toggleDaemon]);
 
   // Chat.Provider virtualMcpId
   const chatVirtualMcpId = virtualMcpId;
