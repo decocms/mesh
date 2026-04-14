@@ -214,13 +214,13 @@ export function VmEnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     return (
       <div className="flex flex-col items-center justify-center w-full h-full gap-4">
         <Monitor04 size={48} className="text-muted-foreground/40" />
-        <h3 className="text-lg font-medium">Environment</h3>
+        <h3 className="text-lg font-medium">Server</h3>
         <p className="text-sm text-muted-foreground text-center max-w-sm">
-          Start the development environment
+          Start the development server
         </p>
         <Button onClick={handleStart} disabled={isStopping}>
           {isStopping && <Loading01 size={14} className="animate-spin" />}
-          {isStopping ? "Stopping..." : "Start Environment"}
+          {isStopping ? "Stopping..." : "Start Server"}
         </Button>
       </div>
     );
@@ -310,7 +310,7 @@ export function VmEnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
                   <DropdownMenuTrigger asChild>
                     <button
                       type="button"
-                      className="shrink-0 rounded-r bg-muted px-0.5 py-0.5 text-[10px] text-muted-foreground cursor-pointer hover:bg-accent hover:text-foreground transition-colors"
+                      className="shrink-0 self-stretch rounded-r bg-muted px-0.5 text-[10px] text-muted-foreground cursor-pointer hover:bg-accent hover:text-foreground transition-colors"
                     >
                       <ChevronDown size={10} />
                     </button>
@@ -413,7 +413,7 @@ export function VmEnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
                 className="h-full"
                 image={null}
                 title="Dependencies not installed"
-                description="Install project dependencies to set up your environment."
+                description="Install dependencies to set up your server."
                 actions={
                   <Button
                     variant="outline"

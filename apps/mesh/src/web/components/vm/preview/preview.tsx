@@ -26,10 +26,10 @@ import {
   VISUAL_EDITOR_SCRIPT,
   VisualEditorPayloadSchema,
   type VisualEditorPayload,
-} from "./preview/visual-editor-script";
-import { VisualEditorPrompt } from "./preview/visual-editor-prompt";
-import { useVmEvents } from "@/web/hooks/use-vm-events";
-import { LiveTimer } from "./live-timer";
+} from "./visual-editor-script";
+import { VisualEditorPrompt } from "./visual-editor-prompt";
+import { useVmEvents } from "../hooks/use-vm-events";
+import { LiveTimer } from "../../live-timer";
 
 interface VmData {
   terminalUrl: string | null;
@@ -59,7 +59,7 @@ const VIEW_MODE_OPTIONS: [
   },
 ];
 
-export function VmPreviewContent() {
+export function PreviewContent() {
   const { org } = useProjectContext();
   const inset = useInsetContext();
   const [status, setStatus] = useState<ViewStatus>("idle");
@@ -211,7 +211,7 @@ export function VmPreviewContent() {
         <Monitor04 size={48} className="text-muted-foreground/40" />
         <h3 className="text-lg font-medium">Preview</h3>
         <p className="text-sm text-muted-foreground text-center max-w-sm">
-          Start preview environment
+          Start preview server
         </p>
         <Button onClick={handleStart} disabled={isStopping}>
           {isStopping && <Loading01 size={14} className="animate-spin" />}
