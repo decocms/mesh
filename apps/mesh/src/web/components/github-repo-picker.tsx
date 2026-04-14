@@ -5,8 +5,13 @@ import {
   DialogTitle,
 } from "@deco/ui/components/dialog.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
-import { Suspense, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Suspense, useDeferredValue, useState } from "react";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import {
   useProjectContext,
   useMCPClient,
@@ -533,44 +538,14 @@ function RepoBrowser({
   onSelectRepo: (repo: Repo) => void;
   isSaving: boolean;
 }) {
-  const [filter, setFilter] = useState("");
-  const [page, setPage] = useState(1);
+  const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
+  const isStale = query !== deferredQuery;
 
-  const selfClient = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
+  const githubClient = useMCPClient({
+    connectionId,
     orgId,
   });
-
-  const reposQuery = useQuery({
-    queryKey: KEYS.githubOrgRepos(
-      orgId,
-      connectionId,
-      String(installation.installationId),
-      page,
-    ),
-    queryFn: async () => {
-      const result = await selfClient.callTool({
-        name: "GITHUB_LIST_ORG_REPOS",
-        arguments: {
-          connectionId,
-          installationId: installation.installationId,
-          page,
-          perPage: 30,
-        },
-      });
-      const content = (result as { content?: Array<{ text?: string }> })
-        .content?.[0]?.text;
-      if (!content) throw new Error("No response from GITHUB_LIST_ORG_REPOS");
-      return JSON.parse(content) as { repos: Repo[]; hasMore: boolean };
-    },
-  });
-
-  const allRepos = reposQuery.data?.repos ?? [];
-  const filtered = filter
-    ? allRepos.filter((r) =>
-        r.name.toLowerCase().includes(filter.toLowerCase()),
-      )
-    : allRepos;
 
   return (
     <div className="flex flex-col gap-3">
@@ -583,68 +558,173 @@ function RepoBrowser({
       </button>
 
       <Input
-        placeholder="Filter repositories..."
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
+        placeholder="Search repositories..."
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
         autoFocus
       />
 
-      {reposQuery.isLoading && (
-        <div className="flex items-center justify-center py-8">
-          <Loading01 size={20} className="animate-spin text-muted-foreground" />
-        </div>
-      )}
+      <div
+        style={{
+          opacity: isStale ? 0.5 : 1,
+          transition: isStale
+            ? "opacity 0.2s 0.2s linear"
+            : "opacity 0s 0s linear",
+        }}
+      >
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center py-8">
+              <Loading01
+                size={20}
+                className="animate-spin text-muted-foreground"
+              />
+            </div>
+          }
+        >
+          <RepoSearchResults
+            connectionId={connectionId}
+            orgId={orgId}
+            installation={installation}
+            query={deferredQuery}
+            githubClient={githubClient}
+            onSelectRepo={onSelectRepo}
+            isSaving={isSaving}
+          />
+        </Suspense>
+      </div>
+    </div>
+  );
+}
 
-      {reposQuery.isError && (
-        <p className="text-sm text-destructive text-center py-4">
-          Failed to load repositories
+function RepoSearchResults({
+  connectionId,
+  orgId,
+  installation,
+  query,
+  githubClient,
+  onSelectRepo,
+  isSaving,
+}: {
+  connectionId: string;
+  orgId: string;
+  installation: GitHubInstallation;
+  query: string;
+  githubClient: ReturnType<typeof useMCPClient>;
+  onSelectRepo: (repo: Repo) => void;
+  isSaving: boolean;
+}) {
+  const [page, setPage] = useState(1);
+  const [accumulated, setAccumulated] = useState<Repo[]>([]);
+  const [lastQuery, setLastQuery] = useState(query);
+
+  // Reset accumulated results when query changes
+  if (query !== lastQuery) {
+    setPage(1);
+    setAccumulated([]);
+    setLastQuery(query);
+  }
+
+  const searchQuery = query
+    ? `org:${installation.login} ${query} in:name`
+    : `org:${installation.login}`;
+
+  const { data } = useSuspenseQuery({
+    queryKey: KEYS.githubOrgRepos(
+      orgId,
+      connectionId,
+      installation.login,
+      query,
+      page,
+    ),
+    queryFn: async () => {
+      const result = await githubClient.callTool({
+        name: "search_repositories",
+        arguments: {
+          query: searchQuery,
+          page,
+          perPage: 30,
+        },
+      });
+      const content = (result as { content?: Array<{ text?: string }> })
+        .content?.[0]?.text;
+      if (!content) throw new Error("No response from search_repositories");
+      const parsed = JSON.parse(content) as {
+        items?: Array<{
+          name: string;
+          full_name: string;
+          owner: { login: string };
+          html_url: string;
+          private: boolean;
+          description: string | null;
+          updated_at: string;
+        }>;
+        total_count?: number;
+      };
+      const items = parsed.items ?? [];
+      const repos: Repo[] = items.map((r) => ({
+        name: r.name,
+        fullName: r.full_name,
+        owner: r.owner.login,
+        url: r.html_url,
+        private: r.private,
+        description: r.description,
+        updatedAt: r.updated_at,
+      }));
+      const totalCount = parsed.total_count ?? 0;
+      const hasMore = page * 30 < totalCount;
+      return { repos, hasMore };
+    },
+  });
+
+  const allRepos =
+    accumulated.length > 0 && page > 1
+      ? [...accumulated, ...data.repos]
+      : data.repos;
+
+  return (
+    <div className="max-h-72 overflow-y-auto overflow-x-hidden flex flex-col gap-1">
+      {allRepos.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-4">
+          No repositories found
         </p>
+      ) : (
+        allRepos.map((repo) => (
+          <button
+            key={repo.fullName}
+            type="button"
+            onClick={() => onSelectRepo(repo)}
+            disabled={isSaving}
+            className="flex items-center gap-2 p-2 rounded-md hover:bg-accent transition-colors text-left"
+          >
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-sm font-medium truncate">{repo.name}</span>
+              {repo.description && (
+                <p className="text-xs text-muted-foreground truncate m-0">
+                  {repo.description}
+                </p>
+              )}
+            </div>
+            {repo.private && (
+              <span className="text-xs text-muted-foreground shrink-0">
+                private
+              </span>
+            )}
+          </button>
+        ))
       )}
 
-      {!reposQuery.isLoading && !reposQuery.isError && (
-        <div className="max-h-72 overflow-y-auto overflow-x-hidden flex flex-col gap-1">
-          {filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              No repositories found
-            </p>
-          ) : (
-            filtered.map((repo) => (
-              <button
-                key={repo.fullName}
-                type="button"
-                onClick={() => onSelectRepo(repo)}
-                disabled={isSaving}
-                className="flex items-center gap-2 p-2 rounded-md hover:bg-accent transition-colors text-left"
-              >
-                <div className="flex flex-col min-w-0 flex-1">
-                  <span className="text-sm font-medium truncate">
-                    {repo.name}
-                  </span>
-                  {repo.description && (
-                    <p className="text-xs text-muted-foreground truncate m-0">
-                      {repo.description}
-                    </p>
-                  )}
-                </div>
-                {repo.private && (
-                  <span className="text-xs text-muted-foreground shrink-0">
-                    private
-                  </span>
-                )}
-              </button>
-            ))
-          )}
-
-          {reposQuery.data?.hasMore && (
-            <button
-              type="button"
-              onClick={() => setPage((p) => p + 1)}
-              className="text-xs text-primary hover:underline py-2 text-center"
-            >
-              Load more
-            </button>
-          )}
-        </div>
+      {data.hasMore && (
+        <button
+          type="button"
+          onClick={() => {
+            setAccumulated(allRepos);
+            setPage((p) => p + 1);
+          }}
+          className="text-xs text-primary hover:underline py-2 text-center"
+        >
+          Load more
+        </button>
       )}
     </div>
   );
