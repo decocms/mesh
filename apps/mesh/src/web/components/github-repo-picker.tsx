@@ -440,6 +440,7 @@ function InstallationPicker({
       if (!content) throw new Error("No response from GITHUB_LIST_USER_ORGS");
       return JSON.parse(content) as {
         installations: GitHubInstallation[];
+        appSlug?: string;
       };
     },
   });
@@ -500,7 +501,11 @@ function InstallationPicker({
       ))}
 
       <a
-        href="https://github.com/settings/installations"
+        href={
+          data.appSlug
+            ? `https://github.com/apps/${data.appSlug}/installations/new`
+            : "https://github.com/settings/installations"
+        }
         target="_blank"
         rel="noopener noreferrer"
         className="text-xs text-primary hover:underline text-center pt-2"
@@ -566,7 +571,7 @@ function RepoBrowser({
     : allRepos;
 
   return (
-    <div className="flex flex-col gap-3 overflow-hidden">
+    <div className="flex flex-col gap-3">
       <button
         type="button"
         onClick={onBack}

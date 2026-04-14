@@ -28,6 +28,7 @@ export const GITHUB_LIST_USER_ORGS = defineTool({
         type: z.string(),
       }),
     ),
+    appSlug: z.string().optional(),
   }),
   handler: async (input, ctx) => {
     await ctx.access.check();
@@ -54,6 +55,7 @@ export const GITHUB_LIST_USER_ORGS = defineTool({
       type: string;
     }> = [];
 
+    let appSlug: string | undefined;
     let page = 1;
     const perPage = 100;
 
@@ -71,11 +73,16 @@ export const GITHUB_LIST_USER_ORGS = defineTool({
         installations: Array<{
           id: number;
           account: { login: string; avatar_url: string; type: string };
+          app_slug?: string;
+          app?: { slug?: string };
         }>;
         total_count: number;
       };
 
       for (const inst of data.installations) {
+        if (!appSlug) {
+          appSlug = inst.app_slug ?? inst.app?.slug;
+        }
         installations.push({
           installationId: inst.id,
           login: inst.account.login,
@@ -88,6 +95,6 @@ export const GITHUB_LIST_USER_ORGS = defineTool({
       page++;
     }
 
-    return { installations };
+    return { installations, ...(appSlug ? { appSlug } : {}) };
   },
 });
