@@ -328,6 +328,13 @@ export const WELL_KNOWN_AGENT_TEMPLATES = [
     type: "registry-agent" as const,
   },
   {
+    id: "web-perf",
+    appId: "deco/web-perf",
+    title: "Web Performance",
+    icon: "icon://SpeedoMeter?color=orange",
+    type: "registry-agent" as const,
+  },
+  {
     id: "studio-pack",
     title: "Studio Pack",
     icon: "icon://Package?color=blue",

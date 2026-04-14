@@ -16,6 +16,7 @@ import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onb
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
 import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
+import { WebPerfRecruitModal } from "@/web/components/home/web-perf-recruit-modal.tsx";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,6 +50,7 @@ export default function AgentsListPage() {
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
   const [studioPackModalOpen, setStudioPackModalOpen] = useState(false);
   const [leanCanvasModalOpen, setLeanCanvasModalOpen] = useState(false);
+  const [webPerfModalOpen, setWebPerfModalOpen] = useState(false);
 
   const lowerSearch = search.toLowerCase();
 
@@ -84,6 +86,12 @@ export default function AgentsListPage() {
       (a as { metadata?: { type?: string } }).metadata?.type === "lean-canvas",
   );
 
+  // Find existing recruited Web Performance agent
+  const existingWebPerf = agents.find(
+    (a) =>
+      (a as { metadata?: { type?: string } }).metadata?.type === "web-perf",
+  );
+
   const handleTemplateClick = (templateId: string) => {
     if (templateId === "site-editor") {
       setSiteEditorModalOpen(true);
@@ -101,6 +109,12 @@ export default function AgentsListPage() {
       }
     } else if (templateId === "studio-pack") {
       setStudioPackModalOpen(true);
+    } else if (templateId === "web-perf") {
+      if (existingWebPerf) {
+        navigateToAgent(existingWebPerf.id);
+      } else {
+        setWebPerfModalOpen(true);
+      }
     }
   };
 
@@ -253,6 +267,11 @@ export default function AgentsListPage() {
       <StudioPackRecruitModal
         open={studioPackModalOpen}
         onOpenChange={setStudioPackModalOpen}
+      />
+      <WebPerfRecruitModal
+        open={webPerfModalOpen}
+        onOpenChange={setWebPerfModalOpen}
+        existingAgent={existingWebPerf}
       />
 
       <AlertDialog
