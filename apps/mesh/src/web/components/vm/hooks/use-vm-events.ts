@@ -8,7 +8,7 @@
  */
 
 import { useState, useRef, useEffect } from "react";
-import { createSSESubscription } from "./create-sse-subscription";
+import { createSSESubscription } from "../../../hooks/create-sse-subscription";
 
 export interface VmStatus {
   ready: boolean;
