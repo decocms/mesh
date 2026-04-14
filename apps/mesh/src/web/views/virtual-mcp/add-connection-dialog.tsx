@@ -1,3 +1,4 @@
+import { getConnectionSlug } from "@/shared/utils/connection-slug";
 import { groupConnections } from "@/shared/utils/group-connections";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
@@ -41,6 +42,7 @@ import {
   useQueryClient,
   useSuspenseInfiniteQuery,
 } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Check,
   CheckVerified02,
@@ -55,13 +57,24 @@ import { toast } from "sonner";
 // Types
 // ---------------------------------------------------------------------------
 
-interface AddConnectionDialogProps {
+type ConnectionDialogMode = "add" | "browse";
+
+type ConnectionDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  addedConnectionIds: Set<string>;
-  onAdd: (connectionId: string) => void;
   defaultTab?: "all" | "connected";
-}
+} & (
+  | {
+      mode?: "add";
+      addedConnectionIds: Set<string>;
+      onAdd: (connectionId: string) => void;
+    }
+  | {
+      mode: "browse";
+      addedConnectionIds?: undefined;
+      onAdd?: undefined;
+    }
+);
 
 // ---------------------------------------------------------------------------
 // Dialog content (needs Suspense boundary above it)
@@ -69,7 +82,8 @@ interface AddConnectionDialogProps {
 
 type ConnectionTab = "all" | "connected";
 
-function AddConnectionDialogContent({
+function ConnectionDialogContent({
+  mode = "add",
   addedConnectionIds,
   onAdd,
   onCloneAndAdd,
@@ -77,8 +91,10 @@ function AddConnectionDialogContent({
   connectingItemId,
   search,
   onCreateConnection,
+  onBrowseNavigate,
   defaultTab = "connected",
 }: {
+  mode?: ConnectionDialogMode;
   addedConnectionIds: Set<string>;
   onAdd: (connectionId: string) => void;
   onCloneAndAdd: (base: ConnectionEntity) => void;
@@ -86,6 +102,7 @@ function AddConnectionDialogContent({
   connectingItemId: string | null;
   search: string;
   onCreateConnection: () => void;
+  onBrowseNavigate?: (slug: string) => void;
   defaultTab?: "all" | "connected";
 }) {
   const { org } = useProjectContext();
@@ -229,7 +246,7 @@ function AddConnectionDialogContent({
   const hasAddedInstance = (connections: ConnectionEntity[]) =>
     connections.some((c) => addedConnectionIds.has(c.id));
 
-  // Render a connected app card — has instances, "Add" adds first instance
+  // Render a connected app card
   const renderConnectedApp = (
     key: string,
     title: string,
@@ -242,6 +259,31 @@ function AddConnectionDialogContent({
       (c) => !addedConnectionIds.has(c.id),
     );
     const firstInstance = connections[0]!;
+
+    if (mode === "browse") {
+      const slug = getConnectionSlug(firstInstance);
+      return (
+        <ConnectionCard
+          key={key}
+          connection={{
+            title,
+            icon,
+            description:
+              connections.length > 1
+                ? `${connections.length} instances`
+                : (description ?? undefined),
+          }}
+          fallbackIcon={<Container />}
+          headerActionsAlwaysVisible
+          headerActions={
+            <Badge variant="secondary" className="text-xs gap-1 font-normal">
+              <Check size={11} /> Connected
+            </Badge>
+          }
+          onClick={() => onBrowseNavigate?.(slug)}
+        />
+      );
+    }
 
     return (
       <ConnectionCard
@@ -278,7 +320,7 @@ function AddConnectionDialogContent({
     );
   };
 
-  // Render a catalog item card — no instances yet, "Add" creates + adds
+  // Render a catalog item card — no instances yet
   const renderCatalogItem = (item: RegistryItem) => {
     const meshMeta = item._meta?.["mcp.mesh"] as
       | Record<string, string>
@@ -317,6 +359,8 @@ function AddConnectionDialogContent({
           >
             {connectingItemId === item.id ? (
               <Loading01 size={14} className="animate-spin" />
+            ) : mode === "browse" ? (
+              "Connect"
             ) : (
               "Add"
             )}
@@ -455,10 +499,17 @@ function AddConnectionDialogContent({
 export function AddConnectionDialog({
   open,
   onOpenChange,
-  addedConnectionIds,
-  onAdd,
   defaultTab,
-}: AddConnectionDialogProps) {
+  ...rest
+}: ConnectionDialogProps) {
+  const mode: ConnectionDialogMode = rest.mode ?? "add";
+  const addedConnectionIds =
+    "addedConnectionIds" in rest
+      ? (rest.addedConnectionIds ?? new Set<string>())
+      : new Set<string>();
+  const onAdd =
+    "onAdd" in rest && rest.onAdd ? rest.onAdd : (_id: string) => {};
+
   const [connectingItemId, setConnectingItemId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -466,6 +517,15 @@ export function AddConnectionDialog({
   const { data: session } = authClient.useSession();
   const connectionActions = useConnectionActions();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  const handleBrowseNavigate = (slug: string) => {
+    onOpenChange(false);
+    navigate({
+      to: "/$org/settings/connections/$appSlug",
+      params: { org: org.slug, appSlug: slug },
+    });
+  };
 
   // For connected apps: clone existing connection + add to agent
   const handleCloneAndAdd = async (base: ConnectionEntity) => {
@@ -661,7 +721,7 @@ export function AddConnectionDialog({
       <DialogContent className="sm:max-w-5xl h-[85vh] max-h-[85vh] flex flex-col p-0 gap-0 overflow-hidden w-[95vw]">
         <DialogHeader className="px-6 pt-5 pb-0 shrink-0">
           <DialogTitle className="text-base font-semibold">
-            Add Connection
+            {mode === "browse" ? "Connections" : "Add Connection"}
           </DialogTitle>
         </DialogHeader>
 
@@ -683,7 +743,8 @@ export function AddConnectionDialog({
             </div>
           }
         >
-          <AddConnectionDialogContent
+          <ConnectionDialogContent
+            mode={mode}
             addedConnectionIds={addedConnectionIds}
             onAdd={onAdd}
             onCloneAndAdd={handleCloneAndAdd}
@@ -691,6 +752,7 @@ export function AddConnectionDialog({
             connectingItemId={connectingItemId}
             search={search}
             onCreateConnection={() => setCreateOpen(true)}
+            onBrowseNavigate={handleBrowseNavigate}
             defaultTab={defaultTab}
           />
         </Suspense>

@@ -41,6 +41,10 @@
   box-shadow: var(--shadow-border);
 }
 
+@utility card-shadow {
+  box-shadow: var(--card-shadow);
+}
+
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0.01 60);
@@ -100,12 +104,15 @@
     oklch(0 0 0 / 0.06) 0px 4px 12px, oklch(0 0 0 / 0.04) 0px 2px 4px;
   --shadow-lg:
     oklch(0 0 0 / 0.08) 0px 8px 32px, oklch(0 0 0 / 0.06) 0px 4px 12px;
+  --card-shadow:
+    0px 0px 0px 1px #1d1b1814, 0px 1px 2px -1px #1d1b1812, 0px 2px 4px 0px
+    #1d1b180d;
 }
 
 .dark {
   --background: oklch(0.175 0.005 60);
   --foreground: oklch(0.96 0.005 60);
-  --card: oklch(0.185 0.005 60);
+  --card: oklch(0.21 0.005 60);
   --card-foreground: oklch(0.96 0.005 60);
   --popover: oklch(0.22 0.005 60);
   --popover-foreground: oklch(0.96 0.005 60);
@@ -144,6 +151,9 @@
   --chart-3: oklch(0.61 0.2 6.81);
   --chart-4: oklch(0.84 0.17 84.5);
   --chart-5: oklch(0.74 0.17 159);
+  --card-shadow:
+    inset 0 1px 0 0 #ffffff08, inset 0 0 0 1px #ffffff08, 0 0 0 1px #0000001a,
+    0 2px 2px 0 #0000001a, 0 4px 4px 0 #0000001a, 0 8px 8px 0 #0000001a;
 }
 
 @theme inline {
@@ -217,7 +227,7 @@
   --radius-4xl: calc(var(--radius) * 5.333);
   --radius-full: 9999px;
 
-  --default-border-width: 0.5px;
+  --default-border-width: 1px;
 
   /* Spacing Scale - dynamic scaling based on --spacing */
   --spacing-0: 0;
@@ -294,7 +304,7 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring/20;
   }
 
   button:not(:disabled),

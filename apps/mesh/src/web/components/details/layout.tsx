@@ -1,4 +1,5 @@
 import { Page } from "@/web/components/page";
+import { cn } from "@deco/ui/lib/utils.ts";
 import {
   createContext,
   type ReactNode,
@@ -40,9 +41,14 @@ export const ViewActions = HeaderRight;
 interface ViewLayoutProps {
   children: ReactNode;
   breadcrumb?: ReactNode;
+  hideHeader?: boolean;
 }
 
-export function ViewLayout({ children, breadcrumb }: ViewLayoutProps) {
+export function ViewLayout({
+  children,
+  breadcrumb,
+  hideHeader,
+}: ViewLayoutProps) {
   const [slots, setSlots] = useState<{
     leftEl: HTMLDivElement | null;
     tabsEl: HTMLDivElement | null;
@@ -92,7 +98,7 @@ export function ViewLayout({ children, breadcrumb }: ViewLayoutProps) {
     <ViewLayoutContext value={slots}>
       <Page>
         {/* Header */}
-        <Page.Header>
+        <Page.Header className={cn(hideHeader && "hidden")}>
           <Page.Header.Left>
             {breadcrumb}
             <div ref={leftRef} className="flex items-center gap-2 min-w-0" />

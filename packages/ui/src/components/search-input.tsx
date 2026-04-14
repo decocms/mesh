@@ -30,8 +30,8 @@ function SearchInput({
   return (
     <label
       className={cn(
-        "flex items-center gap-4 rounded-lg border border-input bg-background px-3 h-8",
-        "focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[3px]",
+        "flex items-center gap-4 rounded-lg bg-background dark:bg-input/30 px-3 h-8 card-shadow",
+        "focus-within:border-ring focus-within:ring-ring/20 focus-within:ring-[2px]",
         "transition-[color,box-shadow]",
         disabled && "pointer-events-none opacity-50",
         className,

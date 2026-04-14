@@ -43,7 +43,7 @@ export function CollectionTableWrapper<T>({
   }
 
   return (
-    <div className="flex-1 overflow-auto">
+    <div className="flex-1">
       <CollectionTable
         columns={columns}
         data={data}

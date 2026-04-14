@@ -27,7 +27,7 @@ import {
   Building02,
   ChevronLeft,
   ChevronRight,
-  Container,
+  ZapSquare,
   CpuChip01,
   Loading01,
   Lock01,
@@ -76,7 +76,7 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
         {
           key: "connections",
           label: "Connections",
-          icon: <Container size={14} />,
+          icon: <ZapSquare size={14} />,
           to: "/$org/settings/connections",
         },
         {
@@ -378,11 +378,11 @@ function SettingsInset() {
   return (
     <>
       <SettingsToolbar />
-      <div className="flex-1 min-h-0 p-0.5 pb-1 pr-1">
+      <div className="flex-1 min-h-0 p-1">
         <div
           className={cn(
-            "flex flex-col h-full min-h-0 bg-card overflow-hidden",
-            "border border-sidebar-border shadow-sm",
+            "flex flex-col h-full min-h-0 bg-background overflow-hidden",
+            "card-shadow",
             "rounded-[0.75rem]",
           )}
         >
