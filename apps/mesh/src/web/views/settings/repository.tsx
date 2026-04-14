@@ -2,7 +2,7 @@ import { EmptyState } from "@/web/components/empty-state";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
-import { GitHubRepoDialog } from "@/web/components/github-repo-dialog";
+import { GitHubRepoPicker } from "@/web/components/github-repo-picker";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import {
   useProjectContext,
@@ -28,21 +28,10 @@ function GitHubIcon({ size = 48 }: { size?: number }) {
   );
 }
 
-const GITHUB_TOKEN_KEY = "deco:github-token";
-
-function getStoredToken(): string | null {
-  try {
-    return localStorage.getItem(GITHUB_TOKEN_KEY);
-  } catch {
-    return null;
-  }
-}
-
 export function RepositoryTabContent() {
   const inset = useInsetContext();
   const { org } = useProjectContext();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [starting, setStarting] = useState(false);
 
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -53,7 +42,7 @@ export function RepositoryTabContent() {
 
   const metadata = inset?.entity?.metadata as
     | {
-        githubRepo?: { url: string; owner: string; name: string } | null;
+        githubRepo?: { owner: string; name: string } | null;
         runtime?: {
           detected: string | null;
           selected: string | null;
@@ -66,41 +55,6 @@ export function RepositoryTabContent() {
 
   const githubRepo = metadata?.githubRepo;
   const runtime = metadata?.runtime;
-
-  const handleConnect = async () => {
-    if (getStoredToken()) {
-      setDialogOpen(true);
-      return;
-    }
-
-    setStarting(true);
-    try {
-      const result = await client.callTool({
-        name: "GITHUB_DEVICE_FLOW_START",
-        arguments: {},
-      });
-      const payload =
-        (result as { structuredContent?: unknown }).structuredContent ?? result;
-      const data = payload as {
-        userCode: string;
-        verificationUri: string;
-        deviceCode: string;
-        expiresIn: number;
-        interval: number;
-      };
-
-      window.open(data.verificationUri, "_blank", "noopener");
-      setDialogOpen(true);
-      window.__decoGithubDeviceFlow = data;
-    } catch (error) {
-      toast.error(
-        "Failed to start GitHub auth: " +
-          (error instanceof Error ? error.message : "Unknown error"),
-      );
-    } finally {
-      setStarting(false);
-    }
-  };
 
   const invalidateVirtualMcp = () =>
     queryClient.invalidateQueries({
@@ -141,10 +95,11 @@ export function RepositoryTabContent() {
   };
 
   if (githubRepo) {
+    const repoUrl = `https://github.com/${githubRepo.owner}/${githubRepo.name}`;
     return (
       <div className="flex flex-col gap-4">
         <a
-          href={githubRepo.url}
+          href={repoUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors"
@@ -155,7 +110,7 @@ export function RepositoryTabContent() {
               {githubRepo.owner}/{githubRepo.name}
             </span>
             <span className="text-xs text-muted-foreground truncate">
-              {githubRepo.url}
+              {repoUrl}
             </span>
           </div>
           <LinkExternal01
@@ -214,13 +169,13 @@ export function RepositoryTabContent() {
         title="No repository connected"
         description="Connect a GitHub repository to enable code sync and deployments."
         actions={
-          <Button variant="outline" onClick={handleConnect} disabled={starting}>
+          <Button variant="outline" onClick={() => setDialogOpen(true)}>
             <GitHubIcon size={16} />
             Connect GitHub
           </Button>
         }
       />
-      <GitHubRepoDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <GitHubRepoPicker open={dialogOpen} onOpenChange={setDialogOpen} />
     </>
   );
 }
