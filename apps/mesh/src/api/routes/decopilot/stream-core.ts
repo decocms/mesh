@@ -1039,8 +1039,16 @@ function stripProviderSpecificDetails(message: string): string {
 function sanitizeStreamError(error: unknown): string {
   if (error instanceof Error) {
     const statusCode = (error as { statusCode?: number }).statusCode;
-    if (statusCode === 402 || error.message.toLowerCase().includes("credit")) {
-      return stripProviderSpecificDetails(error.message);
+    const msg = error.message.toLowerCase();
+    if (
+      statusCode === 402 ||
+      msg.includes("credit") ||
+      msg.includes("limit exceeded") ||
+      msg.includes("insufficient")
+    ) {
+      // Prefix with [CREDITS] so the frontend can detect credit errors
+      // without fragile string matching on provider-specific messages.
+      return `[CREDITS] ${stripProviderSpecificDetails(error.message)}`;
     }
     return error.message;
   }

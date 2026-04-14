@@ -6,6 +6,10 @@ import { useChatStream, useChatTask } from "../context";
 import { ApprovalHighlight, extractPendingApprovals } from "./approval";
 import { ProposePlanHighlight, extractPendingPlans } from "./propose-plan";
 import { UserAskQuestionHighlight } from "./user-ask-question";
+import {
+  CreditsExhaustedBanner,
+  isCreditError,
+} from "../credits-exhausted-banner";
 import type { UserAskToolPart } from "../types";
 
 // ============================================================================
@@ -268,6 +272,10 @@ export function ChatHighlight() {
   }
 
   if (!isStreaming && error) {
+    // Credit/quota errors get a dedicated modal with inline top-up
+    if (isCreditError(error)) {
+      return <CreditsExhaustedBanner onDismiss={clearError} />;
+    }
     return (
       <div className="absolute bottom-full left-0 right-0 bg-background">
         <StatusHighlight

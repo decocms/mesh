@@ -17,8 +17,10 @@ import { ErrorBoundary } from "../error-boundary";
 import { Chat } from "./index";
 import { useChatStream, useChatPrefs } from "./context";
 import { ChatContextPanel } from "./context-panel";
+import { wasCreditsEmptyDismissed } from "./credits-empty-state";
 
 import { useAiProviderKeys } from "@/web/hooks/collections/use-ai-providers";
+import { useDecoCredits } from "@/web/hooks/use-deco-credits";
 
 // ---------- Import deco.cx Banner ----------
 
@@ -96,8 +98,14 @@ function HomeEmptyState({
   const [importOpen, setImportOpen] = useState(false);
   const isDecoUser = useIsDecoUser();
   const isMobile = useIsMobile();
+  const { hasDecoKey, hasCredits, isZeroBalance, balanceDollars } =
+    useDecoCredits();
 
   const userName = session?.user?.name?.split(" ")[0] || "there";
+
+  // Show eyebrow when user has Deco credits, or no-credits warning when zero
+  const showEyebrow = hasDecoKey && hasCredits && balanceDollars != null;
+  const showNoCreditsEyebrow = hasDecoKey && isZeroBalance;
 
   if (isMobile) {
     return (
@@ -105,6 +113,16 @@ function HomeEmptyState({
         <div className="flex-1 relative flex flex-col items-center px-4">
           {/* Centered greeting */}
           <div className="flex-1 flex flex-col items-center justify-center w-full">
+            {showEyebrow && (
+              <div className="mb-4">
+                <Chat.CreditsEyebrow balanceDollars={balanceDollars} />
+              </div>
+            )}
+            {showNoCreditsEyebrow && (
+              <div className="mb-4">
+                <Chat.NoCreditsEyebrow />
+              </div>
+            )}
             <p className="text-3xl font-medium text-foreground text-center max-w-[280px]">
               What's on your mind, {userName}?
             </p>
@@ -134,6 +152,16 @@ function HomeEmptyState({
         <div className="flex-1 flex flex-col items-center justify-center w-full">
           <div className="flex flex-col items-center w-full max-w-[672px]">
             <div className="text-center mb-10">
+              {showEyebrow && (
+                <div className="mb-4">
+                  <Chat.CreditsEyebrow balanceDollars={balanceDollars} />
+                </div>
+              )}
+              {showNoCreditsEyebrow && (
+                <div className="mb-4">
+                  <Chat.NoCreditsEyebrow />
+                </div>
+              )}
               <p className="text-3xl font-medium text-foreground">
                 What's on your mind, {userName}?
               </p>
@@ -199,9 +227,11 @@ function SidebarEmptyState() {
 // ---------- Panel content ----------
 
 function ChatPanelContent({ variant }: { variant?: "home" | "default" }) {
+  const { org } = useProjectContext();
   const allKeys = useAiProviderKeys();
   const { isChatEmpty } = useChatStream();
   const [activePanel, setActivePanel] = useState<"chat" | "context">("chat");
+  const deco = useDecoCredits();
 
   if (allKeys.length === 0) {
     return (
@@ -215,8 +245,20 @@ function ChatPanelContent({ variant }: { variant?: "home" | "default" }) {
     );
   }
 
+  // Org has a Deco key with $0 balance and no other providers — show modal once
+  const showCreditsModal =
+    deco.hasDecoKey &&
+    deco.isZeroBalance &&
+    deco.hasOnlyDecoProvider &&
+    !deco.isLoading &&
+    isChatEmpty &&
+    !wasCreditsEmptyDismissed(org.id);
+
   return (
     <Chat className="relative overflow-hidden animate-in fade-in-0 duration-200">
+      {/* One-time modal for new orgs with $0 credits */}
+      {showCreditsModal && <Chat.CreditsEmptyState />}
+
       {/* Chat view */}
       <div
         className={cn(
