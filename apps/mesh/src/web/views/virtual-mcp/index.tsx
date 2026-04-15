@@ -8,6 +8,7 @@ import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
+import { usePreferences } from "@/web/hooks/use-preferences";
 import {
   authenticateMcp,
   isConnectionAuthenticated,
@@ -1452,7 +1453,7 @@ Define step-by-step how the agent should handle requests.
                 </div>
               }
             >
-              {virtualMcp.title}&apos;s Settings
+              Settings
             </Page.Title>
 
             {/* Tabs */}
