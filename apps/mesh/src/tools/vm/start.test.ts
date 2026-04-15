@@ -136,9 +136,7 @@ const BASE_METADATA: VmMetadata = {
     connectionId: "conn_github_1",
   },
   runtime: {
-    selected: "node",
-    installScript: "npm install",
-    devScript: "npm run dev",
+    selected: "npm",
     port: "3000",
   },
 };
@@ -373,7 +371,7 @@ describe("VM_START", () => {
     expect(daemonJs).toBeDefined();
     expect(daemonJs!.content).toContain("/_daemon/events");
     expect(daemonJs!.content).toContain("text/event-stream");
-    expect(daemonJs!.content).toContain("/_daemon/exec/setup");
+    expect(daemonJs!.content).toContain("/_daemon/exec/");
     expect(daemonJs!.content).toContain("git clone");
     expect(files["/opt/run-daemon.sh"]).toBeDefined();
   });

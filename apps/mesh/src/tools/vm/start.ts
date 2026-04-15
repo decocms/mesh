@@ -44,14 +44,8 @@ const buildDaemonScript = (opts: {
   cloneUrl: string;
   repoName: string;
 }) => {
-  const {
-    upstreamPort,
-    packageManager,
-    pathPrefix,
-    port,
-    cloneUrl,
-    repoName,
-  } = opts;
+  const { upstreamPort, packageManager, pathPrefix, port, cloneUrl, repoName } =
+    opts;
   if (!/^\d+$/.test(upstreamPort)) {
     throw new Error(`Invalid upstream port: ${upstreamPort}`);
   }
@@ -573,7 +567,9 @@ export const VM_START = defineTool({
       }
     }
 
-    console.log(`[VM_START] repo: ${owner}/${name} pm: ${packageManager ?? "none"} runtime: ${runtime ?? "none"}`);
+    console.log(
+      `[VM_START] repo: ${owner}/${name} pm: ${packageManager ?? "none"} runtime: ${runtime ?? "none"}`,
+    );
 
     // Create VM from spec.
     // Domain routes to the iframe proxy which strips X-Frame-Options/CSP
