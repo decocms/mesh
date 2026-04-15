@@ -1489,6 +1489,7 @@ Define step-by-step how the agent should handle requests.
                     onBlur={field.onBlur}
                     placeholder="Define how this agent should behave, what tone to use, any constraints or guidelines..."
                     className="min-h-[300px] flex-1 resize-none text-[15px] placeholder:text-muted-foreground/40 leading-relaxed border-0 rounded-none shadow-none px-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-0 bg-transparent"
+                    style={{ boxShadow: "none" }}
                   />
                 )}
               />
