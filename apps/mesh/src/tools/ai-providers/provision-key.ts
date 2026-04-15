@@ -8,25 +8,16 @@ import {
 import { PROVIDER_IDS } from "../../ai-providers/provider-ids";
 import { getProviders } from "../../ai-providers/registry";
 import { mintGatewayJwt } from "../../auth/jwt";
+import { providerKeyOutputSchema } from "./key-create";
 
-export const AI_PROVIDER_TOPUP_URL = defineTool({
-  name: "AI_PROVIDER_TOPUP_URL",
+export const AI_PROVIDER_PROVISION_KEY = defineTool({
+  name: "AI_PROVIDER_PROVISION_KEY",
   description:
-    "Get a checkout URL to top up credits for a provider that supports it (e.g. Deco AI Gateway)",
+    "Auto-provision an API key for a provider that supports server-to-server key creation (e.g. Deco AI Gateway).",
   inputSchema: z.object({
     providerId: z.enum(PROVIDER_IDS),
-    amountCents: z
-      .number()
-      .int()
-      .positive()
-      .describe("Amount in cents (e.g. 1000 = $10.00)"),
-    currency: z.enum(["usd", "brl"]).default("usd"),
   }),
-  outputSchema: z.object({
-    url: z
-      .string()
-      .describe("Checkout URL — open in browser to complete payment"),
-  }),
+  outputSchema: providerKeyOutputSchema,
   handler: async (input, ctx) => {
     requireAuth(ctx);
     const org = requireOrganization(ctx);
@@ -39,21 +30,28 @@ export const AI_PROVIDER_TOPUP_URL = defineTool({
     if (!adapter) {
       throw new Error(`Unknown provider: ${input.providerId}`);
     }
-    if (!adapter.getTopUpUrl) {
+    if (!adapter.provisionKey) {
       throw new Error(
-        `Provider ${input.providerId} does not support credit top-ups`,
+        `Provider ${input.providerId} does not support key provisioning`,
       );
     }
 
     const meshJwt = await mintGatewayJwt(userId);
+    const apiKey = await adapter.provisionKey(meshJwt, org.id);
 
-    const url = await adapter.getTopUpUrl(
-      meshJwt,
-      org.id,
-      input.amountCents,
-      input.currency,
-    );
+    const key = await ctx.storage.aiProviderKeys.upsert({
+      providerId: input.providerId,
+      label: "Auto-provisioned",
+      apiKey,
+      organizationId: org.id,
+      createdBy: userId,
+    });
 
-    return { url };
+    return {
+      id: key.id,
+      providerId: key.providerId,
+      label: key.label,
+      createdAt: key.createdAt,
+    };
   },
 });

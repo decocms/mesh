@@ -24,6 +24,7 @@ export const AI_PROVIDERS_LIST = defineTool({
         ),
         supportsTopUp: z.boolean().optional(),
         supportsCredits: z.boolean().optional(),
+        supportsProvision: z.boolean().optional(),
       }),
     ),
   }),
@@ -40,6 +41,7 @@ export const AI_PROVIDERS_LIST = defineTool({
         supportedMethods: adapter.supportedMethods,
         supportsTopUp: !!adapter.getTopUpUrl,
         supportsCredits: !!adapter.getCreditsBalance,
+        supportsProvision: !!adapter.provisionKey,
       }));
     return { providers };
   },

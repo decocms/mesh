@@ -1,4 +1,4 @@
-import type { OAuthPkceResult, ProviderAdapter } from "../types";
+import type { ProviderAdapter } from "../types";
 import { openrouterAdapter } from "./openrouter";
 import { getSettings } from "../../settings";
 
@@ -14,58 +14,21 @@ export const decoAiGatewayAdapter: ProviderAdapter = {
     logo: "/logos/deco logo.svg",
   },
 
-  supportedMethods: ["oauth-pkce", "api-key"],
-
-  getOAuthUrl({
-    callbackUrl,
-    codeChallenge,
-    codeChallengeMethod,
-    organizationId,
-  }: {
-    callbackUrl: string;
-    codeChallenge: string;
-    codeChallengeMethod: "S256";
-    organizationId: string;
-  }) {
-    const params = new URLSearchParams({
-      redirect_uri: callbackUrl,
-      code_challenge: codeChallenge,
-      code_challenge_method: codeChallengeMethod,
-      organization_id: organizationId,
-    });
-    return `${getBase()}/oauth/authorize?${params}`;
-  },
-
-  async exchangeOAuthCode({ code, codeVerifier }): Promise<OAuthPkceResult> {
-    const res = await fetch(`${getBase()}/oauth/token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        code,
-        code_verifier: codeVerifier,
-        grant_type: "authorization_code",
-      }),
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!res.ok) {
-      throw new Error(`Deco AI Gateway OAuth exchange failed: ${res.status}`);
-    }
-    const data = await res.json();
-    return { apiKey: data.key };
-  },
+  supportedMethods: ["api-key"],
 
   async getTopUpUrl(
-    apiKey: string,
+    meshJwt: string,
+    orgId: string,
     amountCents: number,
     currency: "usd" | "brl" = "usd",
   ) {
-    const res = await fetch(`${getBase()}/api/credits/topup`, {
+    const res = await fetch(`${getBase()}/api/credits/checkout`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${meshJwt}`,
       },
-      body: JSON.stringify({ amountCents, currency }),
+      body: JSON.stringify({ teamId: orgId, amountCents, currency }),
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) {

@@ -13,14 +13,15 @@ Read docs://ai-providers.md for provider types, authentication options, and cred
 Recommended tool order:
 1. Use AI_PROVIDERS_LIST to inspect available providers.
 2. If the user has not chosen a provider or auth method, use user_ask.
-3. For API-key providers, use AI_PROVIDER_KEY_CREATE.
-4. For OAuth providers, use AI_PROVIDER_OAUTH_URL and complete the exchange flow with AI_PROVIDER_OAUTH_EXCHANGE.
-5. Use AI_PROVIDER_KEY_LIST or AI_PROVIDERS_ACTIVE to confirm configuration.
-6. If relevant, use AI_PROVIDERS_LIST_MODELS and AI_PROVIDER_CREDITS for model availability and balance checks.
+3. For providers that support auto-provisioning (supportsProvision=true), use AI_PROVIDER_PROVISION_KEY.
+4. For API-key providers, use AI_PROVIDER_KEY_CREATE.
+5. For OAuth providers, use AI_PROVIDER_OAUTH_URL and complete the exchange flow with AI_PROVIDER_OAUTH_EXCHANGE.
+6. Use AI_PROVIDER_KEY_LIST or AI_PROVIDERS_ACTIVE to confirm configuration.
+7. If relevant, use AI_PROVIDERS_LIST_MODELS and AI_PROVIDER_CREDITS for model availability and balance checks.
 
 Checks:
 - Match the provider to the user's model or routing needs.
-- Use the correct auth flow: API key or OAuth.
+- Use the correct auth flow: auto-provision, API key, or OAuth.
 - Confirm the provider becomes active or otherwise available after setup.
 - Surface low-credit or no-credit states when they may block usage.
 `,
@@ -55,6 +56,10 @@ AI providers supply the models and credentials Decopilot and agents use for gene
 - The most common setup.
 - Use a provider-issued secret key.
 - Confirm whether the workspace should store one shared credential or replace an existing one.
+
+### Auto-provisioning
+- Some providers (e.g. Deco AI Gateway) support server-to-server key provisioning.
+- Use AI_PROVIDER_PROVISION_KEY — no user interaction required beyond a single click.
 
 ### OAuth
 - Some providers use a browser authorization flow.

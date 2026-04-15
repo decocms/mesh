@@ -80,12 +80,10 @@ export function CreditsExhaustedBanner({
 
   const { mutate: topUp, isPending } = useMutation({
     mutationFn: async (amountCents: number) => {
-      if (!decoKeyId) throw new Error("No Deco key found");
       const result = (await client.callTool({
         name: "AI_PROVIDER_TOPUP_URL",
         arguments: {
           providerId: "deco",
-          keyId: decoKeyId,
           amountCents,
           currency,
         },

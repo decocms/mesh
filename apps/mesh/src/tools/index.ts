@@ -140,6 +140,7 @@ const CORE_TOOLS = [
   AiProvidersTools.AI_PROVIDER_KEY_LIST,
   AiProvidersTools.AI_PROVIDER_OAUTH_URL,
   AiProvidersTools.AI_PROVIDER_OAUTH_EXCHANGE,
+  AiProvidersTools.AI_PROVIDER_PROVISION_KEY,
   AiProvidersTools.AI_PROVIDER_TOPUP_URL,
   AiProvidersTools.AI_PROVIDER_CREDITS,
   AiProvidersTools.AI_PROVIDER_CLI_ACTIVATE,
