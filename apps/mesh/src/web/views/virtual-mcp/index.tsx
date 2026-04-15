@@ -81,6 +81,7 @@ import { DependencySelectionDialog } from "./dependency-selection-dialog";
 import { ALL_ITEMS_SELECTED } from "./selection-utils";
 import { VirtualMcpFormSchema, type VirtualMcpFormData } from "./types";
 import { VirtualMCPShareModal } from "./virtual-mcp-share-modal";
+import { getActiveGithubRepo } from "@/web/lib/github-repo";
 
 type DialogState = {
   shareDialogOpen: boolean;
@@ -818,10 +819,8 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   const noInteractiveTools =
     connectionsWithTools && connectionsData.length === 0;
 
-  // Check if virtual MCP has a GitHub repo (enables preview)
-  const hasGithubRepo = !!(
-    virtualMcp?.metadata as { githubRepo?: unknown } | undefined
-  )?.githubRepo;
+  // Check if virtual MCP has an active GitHub repo (enables preview)
+  const hasGithubRepo = !!getActiveGithubRepo(virtualMcp);
 
   // Build options for default main view selector
   const defaultMainOptions: { value: string; label: string }[] = [
@@ -1056,9 +1055,7 @@ function VirtualMcpDetailViewWithData({
   const connections = form.watch("connections");
 
   // GitHub repo connected — instructions become read-only
-  const hasGithubRepo = !!(
-    virtualMcp.metadata as { githubRepo?: unknown } | undefined
-  )?.githubRepo;
+  const hasGithubRepo = !!getActiveGithubRepo(virtualMcp);
 
   // Dialog states
   const [dialogState, dispatch] = useReducer(dialogReducer, {
@@ -1669,10 +1666,7 @@ export function VirtualMcpDetailView({
 
   return (
     <VirtualMcpDetailViewWithData
-      key={
-        (virtualMcp.metadata as { githubRepo?: { connectionId?: string } })
-          ?.githubRepo?.connectionId ?? ""
-      }
+      key={getActiveGithubRepo(virtualMcp)?.connectionId ?? ""}
       virtualMcp={virtualMcp}
     />
   );

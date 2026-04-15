@@ -3,7 +3,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
-import { useInsetContext } from "@/web/layouts/agent-shell-layout";
+import { useActiveGithubRepo } from "@/web/hooks/use-active-github-repo";
 import { useState } from "react";
 import { GitHubRepoPicker } from "./github-repo-picker";
 
@@ -22,16 +22,8 @@ function GitHubIcon({ size = 16 }: { size?: number }) {
 }
 
 export function GitHubRepoButton() {
-  const inset = useInsetContext();
+  const githubRepo = useActiveGithubRepo();
   const [dialogOpen, setDialogOpen] = useState(false);
-
-  if (!inset?.entity) return null;
-
-  const githubRepo = (
-    inset.entity.metadata as {
-      githubRepo?: { owner: string; name: string } | null;
-    }
-  )?.githubRepo;
 
   // Connected state: show owner/repo with external link
   if (githubRepo) {

@@ -23,6 +23,7 @@ export {
   type VirtualMCPCreateData,
   type VirtualMCPUpdateData,
   type VirtualMCPConnection,
+  type GithubRepo,
 } from "./virtual-mcp";
 
 export {

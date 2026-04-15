@@ -16,6 +16,7 @@ import {
 } from "@/shared/runtime-defaults";
 import type { PackageManager } from "@/shared/runtime-defaults";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
+import { useActiveGithubRepo } from "@/web/hooks/use-active-github-repo";
 import {
   useProjectContext,
   useMCPClient,
@@ -56,18 +57,14 @@ export function RepositoryTabContent() {
 
   const queryClient = useQueryClient();
 
-  const metadata = inset?.entity?.metadata as
-    | {
-        githubRepo?: { owner: string; name: string } | null;
-        runtime?: {
-          selected: string | null;
-          port?: string | null;
-        } | null;
-      }
-    | undefined;
-
-  const githubRepo = metadata?.githubRepo;
-  const runtime = metadata?.runtime;
+  const githubRepo = useActiveGithubRepo();
+  const runtime = (
+    inset?.entity?.metadata as
+      | {
+          runtime?: { selected: string | null; port?: string | null } | null;
+        }
+      | undefined
+  )?.runtime;
 
   const isDetecting = useQuery({
     queryKey: KEYS.runtimeDetecting(inset?.entity?.id),

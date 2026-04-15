@@ -35,6 +35,7 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { IconPicker } from "@/web/components/icon-picker.tsx";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
+import { useActiveGithubRepo } from "@/web/hooks/use-active-github-repo";
 
 // ────────────────────────────────────────
 // Shared nav item style — used by New session and view buttons
@@ -290,10 +291,8 @@ function TasksPanelContent({
   const isPreviewActive = virtualMcpCtx?.mainView?.type === "preview";
 
   const [preferences] = usePreferences();
-  const hasGithubRepo =
-    preferences.experimental_vibecode &&
-    !!(virtualMcp?.metadata as { githubRepo?: unknown } | undefined)
-      ?.githubRepo;
+  const activeGithubRepo = useActiveGithubRepo();
+  const hasGithubRepo = preferences.experimental_vibecode && !!activeGithubRepo;
 
   return (
     <div className="flex flex-col h-full">

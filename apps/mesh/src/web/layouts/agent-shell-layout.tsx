@@ -70,6 +70,7 @@ import {
   usePanelState,
 } from "@/web/hooks/use-layout-state";
 import { GitHubRepoButton } from "@/web/components/github-repo-button";
+import { getActiveGithubRepo } from "@/web/lib/github-repo";
 import { usePreferences } from "@/web/hooks/use-preferences";
 import { EnvContent } from "@/web/components/vm/env/env";
 
@@ -615,7 +616,7 @@ function AgentInsetProvider() {
           {showThreePanels &&
             preferences.experimental_vibecode &&
             isAgentRoute &&
-            entity?.metadata?.githubRepo && (
+            getActiveGithubRepo(entity) && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
