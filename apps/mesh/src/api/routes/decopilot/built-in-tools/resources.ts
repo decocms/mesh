@@ -7,8 +7,7 @@ import {
   createOutputPreview,
   estimateJsonTokens,
 } from "./read-tool-output";
-
-const MESH_STORAGE_PREFIX = "mesh-storage:";
+import { parseMeshStorageKey } from "../mesh-storage-uri";
 
 export interface ResourceToolParams {
   readonly passthroughClient: VirtualClient;
@@ -21,22 +20,20 @@ export function createReadResourceTool(params: ResourceToolParams) {
   return tool({
     description:
       "Read a resource by its URI. Returns the content of the resource. " +
-      "Resource URIs (docs://...) are provided in prompt content. " +
-      "Also supports mesh-storage: URIs from web_search results.",
+      "Resource URIs (docs://...) are provided in prompt content. ",
     inputSchema: zodSchema(
       z.object({
         uri: z
           .string()
           .min(1)
-          .describe(
-            "The URI of the resource to read (e.g. docs://store.md, mesh-storage:web-search/…).",
-          ),
+          .describe("The URI of the resource to read (e.g. docs://store.md)."),
       }),
     ),
     execute: async ({ uri }) => {
-      // Resolve mesh-storage: URIs from object storage (e.g. web_search blobs)
-      if (uri.startsWith(MESH_STORAGE_PREFIX)) {
-        const key = uri.slice(MESH_STORAGE_PREFIX.length);
+      // Resolve mesh-storage:// URIs from object storage (e.g. web_search blobs)
+      const meshKey = parseMeshStorageKey(uri);
+      if (meshKey !== null) {
+        const key = meshKey;
         if (!ctx.objectStorage) {
           return { result: "Object storage is not configured." };
         }

@@ -22,6 +22,7 @@ import type { MeshContext } from "@/core/mesh-context";
 import { sanitizeProviderMetadata } from "@decocms/mesh-sdk";
 import type { ModelInfo } from "../types";
 import { createOutputPreview } from "./read-tool-output";
+import { toMeshStorageUri } from "../mesh-storage-uri";
 
 /** Results above this threshold are offloaded to blob storage. */
 const LARGE_RESULT_TOKEN_THRESHOLD = 8_000;
@@ -138,7 +139,7 @@ export function createWebSearchTool(
         };
 
         // Large results → blob storage, compact tool result with URI.
-        // The model can re-access it later via read_resource("mesh-storage:…").
+        // The model can re-access it later via read_resource("mesh-storage://…").
         if (outputTokens > LARGE_RESULT_TOKEN_THRESHOLD && ctx.objectStorage) {
           const key = `web-search/${crypto.randomUUID()}.md`;
           const bytes = new TextEncoder().encode(fullText);
@@ -149,7 +150,7 @@ export function createWebSearchTool(
             const preview = createOutputPreview(fullText);
             return {
               success: true as const,
-              uri: `mesh-storage:${key}`,
+              uri: toMeshStorageUri(key),
               preview,
               query: input.query,
               model: deepResearchModelInfo.id,

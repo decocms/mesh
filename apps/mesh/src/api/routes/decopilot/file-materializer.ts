@@ -20,24 +20,11 @@
 
 import type { MeshContext } from "@/core/mesh-context";
 import type { ChatMessage } from "./types";
-
-// ============================================================================
-// Stable URI scheme
-// ============================================================================
-
-/** Prefix for stable storage references stored in the DB. */
-const MESH_STORAGE_SCHEME = "mesh-storage:";
-
-/** Wrap a storage key in the stable URI scheme. */
-function toMeshStorageUrl(key: string): string {
-  return `${MESH_STORAGE_SCHEME}${key}`;
-}
-
-/** Extract the storage key from a mesh-storage: URI, or return null. */
-function parseMeshStorageKey(url: string): string | null {
-  if (!url.startsWith(MESH_STORAGE_SCHEME)) return null;
-  return url.slice(MESH_STORAGE_SCHEME.length);
-}
+import {
+  toMeshStorageUri,
+  parseMeshStorageKey,
+  meshStorageRegex,
+} from "./mesh-storage-uri";
 
 /** Build the stable redirect URL the UI / tools use to access a file. */
 function toFileRedirectUrl(
@@ -201,7 +188,7 @@ export async function uploadFileParts(
 
       return {
         dataUrl: part.url,
-        meshStorageUrl: toMeshStorageUrl(uploadedKey),
+        meshStorageUrl: toMeshStorageUri(uploadedKey),
         redirectUrl: toFileRedirectUrl(ctx.baseUrl, orgId, uploadedKey),
         filename,
       };
@@ -370,7 +357,7 @@ export async function resolveArgsStorageRefs(
 
 function collectMeshStorageKeys(value: unknown, out: Set<string>): void {
   if (typeof value === "string") {
-    for (const match of value.matchAll(/mesh-storage:([^\s"'<>[\]]+)/g)) {
+    for (const match of value.matchAll(meshStorageRegex())) {
       out.add(match[1]!);
     }
   } else if (Array.isArray(value)) {
@@ -388,8 +375,8 @@ function substituteValues(
 ): unknown {
   if (typeof value === "string") {
     return value.replace(
-      /mesh-storage:([^\s"'<>[\]]+)/g,
-      (_, key: string) => keyToPresigned.get(key) ?? `mesh-storage:${key}`,
+      meshStorageRegex(),
+      (_, key: string) => keyToPresigned.get(key) ?? toMeshStorageUri(key),
     );
   }
   if (Array.isArray(value)) {
