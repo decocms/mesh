@@ -2,7 +2,10 @@ import type { ChatMessage } from "@/api/routes/decopilot/types";
 export type { ChatMessage };
 import type { UseChatHelpers } from "@ai-sdk/react";
 import type { JSONContent } from "@tiptap/core";
+import type { ChatMode } from "@/api/routes/decopilot/mode-config";
 import type { ToolApprovalLevel } from "@/web/hooks/use-preferences";
+
+export type { ChatMode };
 
 // ============================================================================
 // Chat Config Types
@@ -72,6 +75,7 @@ export interface Metadata {
     coding?: MetadataModelInfo;
     fast?: MetadataModelInfo;
     image?: MetadataModelInfo;
+    deepResearch?: MetadataModelInfo;
   };
   agent?: ChatAgentConfig;
   user?: ChatUserConfig;
@@ -84,10 +88,14 @@ export interface Metadata {
   tiptapDoc?: TiptapDoc;
   /** Agent mentions in this message — used to render delegation cards */
   agentMentions?: Array<{ agentId: string; title: string; taskId?: string }>;
-  /** Tool approval level at send time — used for visual treatment (e.g., purple border for plan mode) */
+  /** Tool approval level at send time */
   toolApprovalLevel?: ToolApprovalLevel;
-  /** When true, forces the generate_image tool for the next request */
+  /** Decopilot chat mode — plan, forced tools, or default (matches stream schema `mode`) */
+  mode?: ChatMode;
+  /** @deprecated Old one-shot flags — prefer `mode` */
   forceImageGeneration?: boolean;
+  /** @deprecated Old one-shot flags — prefer `mode` */
+  forceWebSearch?: boolean;
   usage?: {
     inputTokens?: number;
     outputTokens?: number;

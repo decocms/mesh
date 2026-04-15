@@ -13,14 +13,11 @@ import { getEffectiveState } from "./utils.tsx";
 import { ImageLightbox } from "../../../image-lightbox.tsx";
 import type { UsageStats } from "@/web/lib/usage-utils.ts";
 import { formatDuration } from "@/web/lib/format-time.ts";
-
-const MESH_STORAGE_PREFIX = "mesh-storage:";
+import { parseMeshStorageKey } from "@/api/routes/decopilot/mesh-storage-uri";
 
 function resolveImageSrc(uri: string, orgId: string): string {
-  if (uri.startsWith(MESH_STORAGE_PREFIX)) {
-    const key = uri.slice(MESH_STORAGE_PREFIX.length);
-    return `/api/${orgId}/files/${key}`;
-  }
+  const key = parseMeshStorageKey(uri);
+  if (key !== null) return `/api/${orgId}/files/${key}`;
   // data: URIs or any other URL — use as-is
   return uri;
 }
@@ -62,9 +59,10 @@ function extractUsage(
 
 function ReferenceImageChip({ uri, orgId }: { uri: string; orgId: string }) {
   const src = resolveImageSrc(uri, orgId);
-  const label = uri.startsWith(MESH_STORAGE_PREFIX)
-    ? uri.slice(uri.lastIndexOf("/") + 1)
-    : "reference";
+  const label =
+    parseMeshStorageKey(uri) !== null
+      ? uri.slice(uri.lastIndexOf("/") + 1)
+      : "reference";
 
   return (
     <Tooltip>

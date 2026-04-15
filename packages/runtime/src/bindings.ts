@@ -161,7 +161,10 @@ export const AgentOf = () =>
     thinking: AgentModelInfoSchema.optional(),
     coding: AgentModelInfoSchema.optional(),
     fast: AgentModelInfoSchema.optional(),
-    toolApprovalLevel: z.enum(["auto", "readonly", "plan"]).default("auto"),
+    toolApprovalLevel: z.enum(["auto", "readonly"]).default("auto"),
+    mode: z
+      .enum(["default", "plan", "web-search", "gen-image"])
+      .default("default"),
     temperature: z.number().default(0.5),
   });
 

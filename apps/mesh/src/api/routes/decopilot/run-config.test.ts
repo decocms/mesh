@@ -10,6 +10,7 @@ describe("PersistedRunConfigSchema", () => {
     agent: { id: "agent_456" },
     temperature: 0.7,
     toolApprovalLevel: "auto" as const,
+    mode: "default" as const,
     windowSize: 50,
   };
 
@@ -17,7 +18,22 @@ describe("PersistedRunConfigSchema", () => {
     const json = JSON.stringify(validConfig);
     const parsed = PersistedRunConfigSchema.safeParse(JSON.parse(json));
     expect(parsed.success).toBe(true);
-    if (parsed.success) expect(parsed.data).toEqual(validConfig);
+    if (parsed.success) expect(parsed.data).toMatchObject(validConfig);
+  });
+
+  it("maps legacy toolApprovalLevel plan to mode plan and readonly", () => {
+    const legacy = {
+      models: validConfig.models,
+      agent: validConfig.agent,
+      temperature: validConfig.temperature,
+      toolApprovalLevel: "plan" as const,
+    };
+    const parsed = PersistedRunConfigSchema.safeParse(legacy);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.mode).toBe("plan");
+      expect(parsed.data.toolApprovalLevel).toBe("readonly");
+    }
   });
 
   it("rejects missing required fields", () => {

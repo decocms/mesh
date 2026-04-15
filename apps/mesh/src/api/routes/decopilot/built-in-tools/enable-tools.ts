@@ -7,7 +7,6 @@
 
 import { tool } from "ai";
 import { z } from "zod";
-import type { ToolApprovalLevel } from "../helpers";
 
 const enableToolsInputSchema = z.object({
   tools: z
@@ -26,7 +25,7 @@ export function createEnableToolsTool(
   enabledTools: Set<string>,
   availableToolNames: Set<string>,
   options?: {
-    toolApprovalLevel?: ToolApprovalLevel;
+    isPlanMode?: boolean;
     toolAnnotations?: Map<string, { readOnlyHint?: boolean }>;
   },
 ) {
@@ -51,7 +50,7 @@ export function createEnableToolsTool(
         }
 
         // In plan mode, block non-read-only tools
-        if (options?.toolApprovalLevel === "plan") {
+        if (options?.isPlanMode) {
           const annotations = options.toolAnnotations?.get(name);
           if (annotations?.readOnlyHint !== true) {
             blocked.push(name);

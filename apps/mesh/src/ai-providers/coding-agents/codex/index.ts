@@ -21,6 +21,8 @@ export function createCodexModel(
       }
     >;
     toolApprovalLevel?: ToolApprovalLevel;
+    /** Chat mode plan — stricter approval policy */
+    isPlanMode?: boolean;
   },
 ) {
   const mcpServers = options?.mcpServers
@@ -37,14 +39,10 @@ export function createCodexModel(
     : undefined;
 
   let approvalPolicy: "never" | "on-failure";
-  switch (options?.toolApprovalLevel) {
-    case "plan":
-    case "readonly":
-      approvalPolicy = "on-failure";
-      break;
-    default:
-      approvalPolicy = "never";
-      break;
+  if (options?.isPlanMode || options?.toolApprovalLevel === "readonly") {
+    approvalPolicy = "on-failure";
+  } else {
+    approvalPolicy = "never";
   }
 
   const provider = createCodexAppServer({

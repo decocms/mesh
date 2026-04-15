@@ -28,7 +28,7 @@ export function MessageUsageStats({ usage }: UsageStatsProps) {
         <span className="inline-flex items-center text-muted-foreground [@media(hover:hover)]:hover:text-foreground pl-1 h-6 gap-1 whitespace-nowrap shrink-0 cursor-default">
           <Activity size={12} />
           <span className="text-sm font-mono tabular-nums">
-            {totalTokens.toLocaleString()}
+            {cost > 0 ? `$${cost.toFixed(4)}` : totalTokens.toLocaleString()}
           </span>
         </span>
       </TooltipTrigger>

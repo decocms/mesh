@@ -26,14 +26,18 @@ export interface MessagePair {
 export function useMessagePairs(messages: ChatMessage[]): MessagePair[] {
   const pairs: MessagePair[] = [];
 
-  for (let i = 0; i < messages.length; i++) {
-    const message = messages[i];
+  // Filter out system messages (e.g. infrastructure restart notices) so they
+  // don't break user/assistant pairing.
+  const filtered = messages.filter((m) => m.role !== "system");
+
+  for (let i = 0; i < filtered.length; i++) {
+    const message = filtered[i];
 
     if (!message) continue;
 
     if (message.role === "user") {
       // Look ahead for the next message
-      const nextMessage = messages[i + 1];
+      const nextMessage = filtered[i + 1];
 
       if (nextMessage && nextMessage.role === "assistant") {
         // Pair with the following assistant message

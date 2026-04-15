@@ -43,6 +43,9 @@ export type ChatMessage = UIMessage<
       images: Array<{ base64: string; mediaType: string }>;
       prompt: string;
     };
+    "web-search": {
+      delta: string;
+    };
   },
   {
     [K in keyof BuiltInToolSet]: InferUITool<BuiltInToolSet[K]>;
@@ -72,6 +75,7 @@ export interface ModelsConfig {
   coding?: ModelInfo;
   fast?: ModelInfo;
   image?: ModelInfo;
+  deepResearch?: ModelInfo;
 }
 
 // ============================================================================

@@ -1113,6 +1113,7 @@ export async function createApp(options: CreateAppOptions = {}) {
         agent: config.agent,
         temperature: config.temperature,
         toolApprovalLevel: config.toolApprovalLevel,
+        mode: config.mode,
         organizationId: thread.organization_id,
         userId: thread.created_by,
         taskId: thread.id,

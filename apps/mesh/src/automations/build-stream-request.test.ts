@@ -100,6 +100,11 @@ describe("buildStreamRequest", () => {
     expect(result.toolApprovalLevel).toBe("auto");
   });
 
+  it("always sets mode to default", () => {
+    const result = buildStreamRequest(makeAutomation(), null, "thrd_1");
+    expect(result.mode).toBe("default");
+  });
+
   it("extracts agent id from stored JSON", () => {
     const automation = makeAutomation({
       agent: JSON.stringify({

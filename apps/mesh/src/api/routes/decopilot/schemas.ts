@@ -67,6 +67,9 @@ const ModelsSchema = z
     coding: ModelInfoSchema.optional().describe("Good coding model"),
     fast: ModelInfoSchema.optional().describe("Cheap model for simple tasks"),
     image: ModelInfoSchema.optional().describe("Image generation model"),
+    deepResearch: ModelInfoSchema.optional().describe(
+      "Deep research model (e.g. Perplexity Sonar) for web_search tool",
+    ),
   })
   .loose();
 
@@ -87,8 +90,10 @@ export const StreamRequestSchema = z.object({
   stream: z.boolean().optional(),
   temperature: z.number().default(0.5),
   thread_id: z.string().optional(),
-  toolApprovalLevel: z.enum(["auto", "readonly", "plan"]).default("auto"),
-  forceImageGeneration: z.boolean().optional(),
+  toolApprovalLevel: z.enum(["auto", "readonly"]).default("auto"),
+  mode: z
+    .enum(["default", "plan", "web-search", "gen-image"])
+    .default("default"),
 });
 
 export type StreamRequest = z.infer<typeof StreamRequestSchema>;

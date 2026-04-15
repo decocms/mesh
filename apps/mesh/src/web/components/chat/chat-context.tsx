@@ -44,7 +44,6 @@ import { useContext as useContextHook } from "../../hooks/use-context";
 import {
   usePreferences,
   readToolApprovalLevel,
-  type ToolApprovalLevel,
 } from "../../hooks/use-preferences";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
 import { useTaskReadState } from "../../hooks/use-task-read-state";
@@ -57,7 +56,7 @@ import { useTaskManager, type TaskOwnerFilter } from "./task";
 import { useTaskMessages } from "./task/use-task-manager";
 import { derivePartsFromTiptapDoc } from "./derive-parts";
 import type { VirtualMCPInfo } from "./select-virtual-mcp";
-import type { ChatMessage, Metadata } from "./types";
+import type { ChatMessage, ChatMode, Metadata } from "./types";
 import type { Task } from "./task/types";
 import type {
   FinishPayload,
@@ -65,6 +64,7 @@ import type {
   SetAppContextParams,
 } from "./store/types";
 import { useLocalStorage } from "../../hooks/use-local-storage";
+import { chatModeForTransportRef } from "../../lib/chat-mode-sync";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
 
 // ============================================================================
@@ -126,9 +126,12 @@ export interface ChatPrefsContextValue {
   /** Selected image generation model (null = no image models available) */
   imageModel: AiProviderModel | null;
   setImageModel: (model: AiProviderModel | null) => void;
-  /** When true, forces generate_image tool on the next request (one-shot) */
-  forceImageGeneration: boolean;
-  setForceImageGeneration: (force: boolean) => void;
+  /** Selected deep research model (null = no deep research models available) */
+  deepResearchModel: AiProviderModel | null;
+  setDeepResearchModel: (model: AiProviderModel | null) => void;
+  /** Chat mode for the next send — plan, web-search, gen-image, or default */
+  chatMode: ChatMode;
+  setChatMode: (mode: ChatMode) => void;
   appContexts: Record<string, string>;
   setAppContext: (sourceId: string, params: SetAppContextParams) => void;
   clearAppContext: (sourceId: string) => void;
@@ -169,7 +172,7 @@ interface TaskProviderInternals {
   user: { image?: string | null; name?: string } | null;
   contextPrompt: string;
   preferences: {
-    toolApprovalLevel?: ToolApprovalLevel;
+    toolApprovalLevel?: import("../../hooks/use-preferences").ToolApprovalLevel;
   };
   taskManager: {
     updateMessagesCache: (taskId: string, messages: ChatMessage[]) => void;
@@ -232,8 +235,15 @@ export function ChatContextProvider({
       null,
     );
 
-  // Force image generation — one-shot flag, resets after send
-  const [forceImageGeneration, setForceImageGeneration] = useState(false);
+  // Deep research model selection (localStorage-backed).
+  const [storedDeepResearchModel, setStoredDeepResearchModel] =
+    useLocalStorage<AiProviderModel | null>(
+      LOCALSTORAGE_KEYS.chatSelectedDeepResearchModel(locator),
+      null,
+    );
+
+  const [chatMode, setChatMode] = useState<ChatMode>("default");
+  chatModeForTransportRef.current = chatMode;
 
   // AI provider keys and models
   const keys = useAiProviderKeys();
@@ -268,6 +278,25 @@ export function ChatContextProvider({
     (storedModelIsAvailable ? storedImageModel : null) ??
     imageModels[0] ??
     null;
+
+  // Deep research model auto-detection + user override.
+  // Validates stored selection against current credential's models.
+  const deepResearchModels = allKeyModels.filter((m) => {
+    const n = m.modelId.toLowerCase().replace(/[^a-z0-9]/g, "");
+    return n.includes("sonar") || n.includes("deepresearch");
+  });
+  const storedDeepResearchIsAvailable =
+    storedDeepResearchModel &&
+    deepResearchModels.some(
+      (m) => m.modelId === storedDeepResearchModel.modelId,
+    );
+  const defaultDeepResearchModel =
+    deepResearchModels.find((m) => m.modelId === "perplexity/sonar") ??
+    deepResearchModels[0] ??
+    null;
+  const resolvedDeepResearchModel: AiProviderModel | null =
+    (storedDeepResearchIsAvailable ? storedDeepResearchModel : null) ??
+    defaultDeepResearchModel;
 
   // Task management (scoped by URL virtualMcpId — task list doesn't change on override)
   const taskManager = useTaskManager(virtualMcpId);
@@ -372,6 +401,9 @@ export function ChatContextProvider({
             messages: allMessages,
             ...mergedMetadata,
             toolApprovalLevel: readToolApprovalLevel(),
+            // mode comes from mergedMetadata (set in sendMessageInternal before
+            // the mode state is reset). Reading from a ref here races with the
+            // React state flush that resets chatMode to "default".
           },
         };
       },
@@ -472,8 +504,12 @@ export function ChatContextProvider({
     setImageModel: (model: AiProviderModel | null) => {
       setStoredImageModel(model);
     },
-    forceImageGeneration,
-    setForceImageGeneration,
+    deepResearchModel: resolvedDeepResearchModel,
+    setDeepResearchModel: (model: AiProviderModel | null) => {
+      setStoredDeepResearchModel(model);
+    },
+    chatMode,
+    setChatMode,
     appContexts,
     setAppContext,
     clearAppContext,
@@ -524,8 +560,9 @@ export function ActiveTaskProvider({
   const {
     selectedModel,
     imageModel,
-    forceImageGeneration,
-    setForceImageGeneration,
+    deepResearchModel,
+    chatMode,
+    setChatMode,
     appContexts,
     setTiptapDoc,
     setModel,
@@ -675,9 +712,18 @@ export function ActiveTaskProvider({
       .filter(Boolean)
       .join("\n\n");
 
-    // Capture and reset one-shot forceImageGeneration before the async send
-    const shouldForceImage = forceImageGeneration && !!imageModel;
-    if (forceImageGeneration) setForceImageGeneration(false);
+    let modeToSend: ChatMode = chatMode;
+    if (modeToSend === "gen-image" && !imageModel) {
+      modeToSend = "default";
+    }
+    if (modeToSend === "web-search" && !deepResearchModel) {
+      modeToSend = "default";
+    }
+    // One-shot modes (web-search, gen-image) reset after send.
+    // Plan mode is persistent — the user must explicitly disable it.
+    if (modeToSend !== "plan") {
+      setChatMode("default");
+    }
 
     const metadata: Metadata = {
       ...messageMetadata,
@@ -689,8 +735,11 @@ export function ActiveTaskProvider({
         ...(imageModel && {
           image: toMetadataModelInfo(imageModel),
         }),
+        ...(deepResearchModel && {
+          deepResearch: toMetadataModelInfo(deepResearchModel),
+        }),
       },
-      ...(shouldForceImage && { forceImageGeneration: true }),
+      mode: modeToSend,
     };
 
     const userMessage: ChatMessage = {

@@ -20,6 +20,7 @@ import type { MeshProvider } from "@/ai-providers/types";
 import type { MeshContext } from "@/core/mesh-context";
 import { getSettings } from "@/settings";
 import type { ModelInfo } from "../types";
+import { toMeshStorageUri, parseMeshStorageKey } from "../mesh-storage-uri";
 
 const GenerateImageInputSchema = z.object({
   prompt: z
@@ -34,7 +35,7 @@ const GenerateImageInputSchema = z.object({
         uri: z
           .string()
           .describe(
-            "URI of the reference image (e.g. mesh-storage:generated-images/uuid.png).",
+            "URI of the reference image (e.g. mesh-storage://generated-images/uuid.png).",
           ),
       }),
     )
@@ -71,10 +72,10 @@ async function fetchImageBytes(
   url: string,
   ctx: MeshContext,
 ): Promise<Uint8Array> {
-  // mesh-storage:{key} — read directly from object storage
-  if (url.startsWith("mesh-storage:")) {
-    const key = url.slice("mesh-storage:".length);
-    return readFromObjectStorage(key, ctx);
+  // mesh-storage://{key} — read directly from object storage
+  const meshKey = parseMeshStorageKey(url);
+  if (meshKey !== null) {
+    return readFromObjectStorage(meshKey, ctx);
   }
 
   // Our own /api/:org/files/:key URL — extract key and read directly
@@ -222,7 +223,7 @@ export function createGenerateImageTool(
                 await ctx.objectStorage.put(key, bytes, {
                   contentType: mediaType,
                 });
-                return { uri: `mesh-storage:${key}`, mediaType };
+                return { uri: toMeshStorageUri(key), mediaType };
               } catch (err) {
                 console.error(
                   "[generate-image] Failed to upload, falling back to data: URI",

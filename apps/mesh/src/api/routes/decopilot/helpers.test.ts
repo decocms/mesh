@@ -345,19 +345,23 @@ describe("toolNeedsApproval", () => {
     });
   });
 
-  describe('approval level: "plan"', () => {
-    const level: ToolApprovalLevel = "plan";
+  describe("plan mode (isPlanMode)", () => {
+    const level: ToolApprovalLevel = "auto";
 
     test("returns false when readOnlyHint is true (read-only allowed)", () => {
-      expect(toolNeedsApproval(level, true)).toBe(false);
+      expect(toolNeedsApproval(level, true, { isPlanMode: true })).toBe(false);
     });
 
     test('returns "hard-block" when readOnlyHint is false', () => {
-      expect(toolNeedsApproval(level, false)).toBe("hard-block");
+      expect(toolNeedsApproval(level, false, { isPlanMode: true })).toBe(
+        "hard-block",
+      );
     });
 
     test('returns "hard-block" when readOnlyHint is undefined', () => {
-      expect(toolNeedsApproval(level, undefined)).toBe("hard-block");
+      expect(toolNeedsApproval(level, undefined, { isPlanMode: true })).toBe(
+        "hard-block",
+      );
     });
   });
 

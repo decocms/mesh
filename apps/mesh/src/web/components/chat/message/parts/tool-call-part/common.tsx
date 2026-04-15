@@ -83,6 +83,7 @@ export function ToolCallShell({
     <Collapsible
       open={effectiveOpen}
       onOpenChange={forceOpen ? undefined : setIsExpanded}
+      className="min-w-0"
     >
       <CollapsibleTrigger
         disabled={!isExpandable}

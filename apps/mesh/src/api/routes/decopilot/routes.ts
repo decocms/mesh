@@ -154,7 +154,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
         memory: memoryConfig,
         thread_id,
         toolApprovalLevel,
-        forceImageGeneration,
+        mode,
       } = await validateRequest(c);
 
       const userId = ctx.auth?.user?.id;
@@ -197,11 +197,11 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           agent,
           temperature,
           toolApprovalLevel,
+          mode,
           organizationId: organization.id,
           userId,
           taskId: resolvedThreadId,
           windowSize,
-          forceImageGeneration,
         },
         ctx,
         { runRegistry, streamBuffer, cancelBroadcast },
@@ -249,7 +249,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
         memory: memoryConfig,
         thread_id,
         toolApprovalLevel,
-        forceImageGeneration,
+        mode,
       } = await validateRequest(c);
 
       const userId = ctx.auth?.user?.id;
@@ -292,11 +292,11 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           agent,
           temperature,
           toolApprovalLevel,
+          mode,
           organizationId: organization.id,
           userId,
           taskId: resolvedThreadId,
           windowSize,
-          forceImageGeneration,
         },
         ctx,
         { runRegistry, streamBuffer, cancelBroadcast },
@@ -481,6 +481,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           agent: config.agent,
           temperature: config.temperature,
           toolApprovalLevel: config.toolApprovalLevel,
+          mode: config.mode,
           organizationId: organization.id,
           userId,
           taskId,

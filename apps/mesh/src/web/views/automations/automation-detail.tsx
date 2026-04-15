@@ -297,6 +297,7 @@ export function SettingsTab({
     setModel,
     credentialId: chatCredentialId,
     selectedModel: chatModel,
+    setChatMode,
   } = useChatPrefs();
   const [preferences, setPreferences] = usePreferences();
   const initialTiptapDoc =
@@ -321,7 +322,7 @@ export function SettingsTab({
       .join("\n");
     if (!instructionsText.trim()) return;
 
-    setPreferences({ ...preferences, toolApprovalLevel: "plan" });
+    setChatMode("plan");
 
     createTaskWithMessage({
       virtualMcpId: getDecopilotId(org.id),
