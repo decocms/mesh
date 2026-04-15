@@ -11,6 +11,7 @@ import {
   StopCircle,
   Monitor04,
   ChevronDown,
+  Plus,
 } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -46,6 +47,8 @@ type ViewStatus =
   | "stopping"
   | "error";
 
+const WELL_KNOWN_STARTERS = ["dev", "start"];
+
 export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const { org } = useProjectContext();
   const inset = useInsetContext();
@@ -53,38 +56,26 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const [statusLabel, setStatusLabel] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [execInFlight, setExecInFlight] = useState(false);
-  const [killedProcesses, setKilledProcesses] = useState<
-    Set<"install" | "dev">
-  >(new Set());
+  const [killedProcesses, setKilledProcesses] = useState<Set<string>>(
+    new Set(),
+  );
   const vmDataRef = useRef<VmData | null>(null);
   const startingRef = useRef(false);
   const startedAtRef = useRef<number>(Date.now());
 
-  const [activeTab, setActiveTab] = useState<
-    "setup" | "install" | "dev" | "daemon"
-  >("dev");
-  const installTermRef = useRef<XTerminal | null>(null);
-  const devTermRef = useRef<XTerminal | null>(null);
-  const setupTermRef = useRef<XTerminal | null>(null);
-  const daemonTermRef = useRef<XTerminal | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("setup");
+  const [openScriptTabs, setOpenScriptTabs] = useState<string[]>([]);
+  const terminalRefs = useRef(new Map<string, XTerminal>());
 
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
 
-  const handleChunk = (
-    source: "setup" | "install" | "dev" | "daemon",
-    data: string,
-  ) => {
-    if (source === "setup") {
-      setupTermRef.current?.write(data);
-    } else if (source === "install") {
-      installTermRef.current?.write(data);
-    } else if (source === "dev") {
-      devTermRef.current?.write(data);
-    } else if (source === "daemon") {
-      daemonTermRef.current?.write(data);
+  const handleChunk = (source: string, data: string) => {
+    const term = terminalRefs.current.get(source);
+    if (term) {
+      term.write(data);
     }
   };
 
@@ -92,6 +83,23 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     status === "running" ? (vmDataRef.current?.previewUrl ?? null) : null,
     handleChunk,
   );
+
+  // When scripts are discovered, auto-open well-known starters
+  const scriptsAppliedRef = useRef(false);
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — responds to vmEvents.scripts discovery; drives one-time tab auto-open
+  useEffect(() => {
+    if (vmEvents.scripts.length > 0 && !scriptsAppliedRef.current) {
+      scriptsAppliedRef.current = true;
+      // Only add the first well-known starter (matches daemon auto-start behavior)
+      for (const name of WELL_KNOWN_STARTERS) {
+        if (vmEvents.scripts.includes(name)) {
+          setOpenScriptTabs([name]);
+          setActiveTab(name);
+          break;
+        }
+      }
+    }
+  }, [vmEvents.scripts]);
 
   const callTool = async (name: string, args: Record<string, unknown>) => {
     const result = await client.callTool({ name, arguments: args });
@@ -104,18 +112,18 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     );
   };
 
-  const handleExec = async (action: "install" | "dev") => {
+  const handleExec = async (scriptName: string) => {
     if (execInFlight || !vmDataRef.current) return;
     setExecInFlight(true);
     try {
       const res = await fetch(
-        `${vmDataRef.current.previewUrl}/_daemon/exec/${action}`,
+        `${vmDataRef.current.previewUrl}/_daemon/exec/${scriptName}`,
         { method: "POST" },
       );
       if (!res.ok) throw new Error(`Exec failed: ${res.statusText}`);
       setKilledProcesses((prev) => {
         const next = new Set(prev);
-        next.delete(action);
+        next.delete(scriptName);
         return next;
       });
     } finally {
@@ -123,19 +131,27 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     }
   };
 
-  const handleKill = async (source: "install" | "dev") => {
+  const handleKill = async (scriptName: string) => {
     if (execInFlight || !vmDataRef.current) return;
     setExecInFlight(true);
     try {
       const res = await fetch(
-        `${vmDataRef.current.previewUrl}/_daemon/kill/${source}`,
+        `${vmDataRef.current.previewUrl}/_daemon/kill/${scriptName}`,
         { method: "POST" },
       );
       if (!res.ok) throw new Error(`Kill failed: ${res.statusText}`);
-      setKilledProcesses((prev) => new Set(prev).add(source));
+      setKilledProcesses((prev) => new Set(prev).add(scriptName));
     } finally {
       setExecInFlight(false);
     }
+  };
+
+  const handleAddScript = (scriptName: string) => {
+    if (!openScriptTabs.includes(scriptName)) {
+      setOpenScriptTabs((prev) => [...prev, scriptName]);
+    }
+    setActiveTab(scriptName);
+    handleExec(scriptName);
   };
 
   const handleStart = async () => {
@@ -145,6 +161,9 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     setStatus("creating");
     setStatusLabel("Connecting...");
     setErrorMsg("");
+    scriptsAppliedRef.current = false;
+    setOpenScriptTabs([]);
+    setActiveTab("setup");
 
     try {
       if (!inset?.entity) throw new Error("No virtual MCP context");
@@ -159,12 +178,6 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
       vmDataRef.current = data;
       setStatus("running");
       setStatusLabel("");
-
-      if (!data.isNewVm) {
-        return;
-      }
-
-      await handleExec("install");
     } catch (error) {
       setStatus("error");
       setErrorMsg(
@@ -264,19 +277,24 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     );
   }
 
+  // All tabs: setup + open script tabs + optional daemon
+  const allTabs = [
+    "setup",
+    ...openScriptTabs,
+    ...(daemonOpen ? ["daemon"] : []),
+  ];
+
+  // Scripts available to add (not already open)
+  const addableScripts = vmEvents.scripts.filter(
+    (s) => !openScriptTabs.includes(s),
+  );
+
   return (
     <div className="flex flex-col w-full h-full">
       <div className="flex flex-col h-full">
         {/* Terminal tabs + action bar */}
         <div className="flex items-center border-b border-border px-2 shrink-0">
-          {(
-            [
-              "setup",
-              "install",
-              "dev",
-              ...(daemonOpen ? (["daemon"] as const) : []),
-            ] as const
-          ).map((tab) => (
+          {allTabs.map((tab) => (
             <button
               key={tab}
               type="button"
@@ -291,6 +309,31 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
               {tab}
             </button>
           ))}
+
+          {/* Add script button */}
+          {addableScripts.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Plus size={14} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {addableScripts.map((script) => (
+                  <DropdownMenuItem
+                    key={script}
+                    onClick={() => handleAddScript(script)}
+                  >
+                    {script}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
           <div className="flex-1 flex justify-center">
             {vmDataRef.current?.vmId && (
               <div className="flex items-center">
@@ -329,12 +372,15 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
               </div>
             )}
           </div>
+
+          {/* Script tab controls (not for setup/daemon) */}
           <div className="flex items-center gap-1">
-            {(activeTab === "install" || activeTab === "dev") &&
+            {activeTab !== "setup" &&
+              activeTab !== "daemon" &&
+              openScriptTabs.includes(activeTab) &&
               (() => {
-                const hasProcess =
-                  ((activeTab === "dev" && vmEvents.hasDevData) ||
-                    (activeTab === "install" && vmEvents.hasInstallData)) &&
+                const isRunning =
+                  vmEvents.activeProcesses.includes(activeTab) &&
                   !killedProcesses.has(activeTab);
                 return (
                   <div className="flex items-center">
@@ -344,7 +390,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
                       onClick={() => handleExec(activeTab)}
                       className={cn(
                         "flex items-center gap-1 border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50",
-                        hasProcess ? "rounded-l-md border-r-0" : "rounded-md",
+                        isRunning ? "rounded-l-md border-r-0" : "rounded-md",
                       )}
                     >
                       {execInFlight ? (
@@ -354,16 +400,11 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
                       )}
                       {execInFlight
                         ? "Running..."
-                        : activeTab === "install"
-                          ? killedProcesses.has("install") ||
-                            !vmEvents.hasInstallData
-                            ? "Install"
-                            : "Re-install"
-                          : killedProcesses.has("dev") || !vmEvents.hasDevData
-                            ? "Run Process"
-                            : "Restart Process"}
+                        : isRunning
+                          ? "Restart"
+                          : "Run"}
                     </button>
-                    {hasProcess && (
+                    {isRunning && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <button
@@ -392,88 +433,44 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
 
         {/* Terminal content */}
         <div className="flex-1 overflow-hidden">
-          {activeTab === "setup" && (
-            <VmTerminal
-              onReady={(t) => {
-                setupTermRef.current = t;
-              }}
-              initialData={vmEvents.getSetupBuffer()}
-              className="h-full"
-            />
-          )}
-          {activeTab === "install" &&
-            (vmEvents.hasInstallData ? (
-              <VmTerminal
-                onReady={(t) => {
-                  installTermRef.current = t;
-                }}
-                initialData={vmEvents.getInstallBuffer()}
-                className="h-full"
-              />
-            ) : (
-              <EmptyState
-                className="h-full"
-                image={null}
-                title="Dependencies not installed"
-                description="Install dependencies to set up your server."
-                actions={
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={execInFlight}
-                    onClick={() => handleExec("install")}
-                  >
-                    {execInFlight ? (
-                      <Loading01 size={14} className="animate-spin" />
-                    ) : (
-                      <Play size={14} />
-                    )}
-                    Install
-                  </Button>
-                }
-              />
-            ))}
-          {activeTab === "dev" &&
-            (vmEvents.hasDevData ? (
-              <VmTerminal
-                onReady={(t) => {
-                  devTermRef.current = t;
-                }}
-                initialData={vmEvents.getDevBuffer()}
-                className="h-full"
-              />
-            ) : (
-              <EmptyState
-                className="h-full"
-                image={null}
-                title="Dev server not running"
-                description="Start the dev server to preview your application."
-                actions={
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={execInFlight}
-                    onClick={() => handleExec("dev")}
-                  >
-                    {execInFlight ? (
-                      <Loading01 size={14} className="animate-spin" />
-                    ) : (
-                      <Play size={14} />
-                    )}
-                    Run Dev
-                  </Button>
-                }
-              />
-            ))}
-          {activeTab === "daemon" && (
-            <VmTerminal
-              onReady={(t) => {
-                daemonTermRef.current = t;
-              }}
-              initialData={vmEvents.getDaemonBuffer()}
-              className="h-full"
-            />
-          )}
+          {allTabs.map((tab) => (
+            <div
+              key={tab}
+              className={cn("h-full", activeTab === tab ? "block" : "hidden")}
+            >
+              {vmEvents.hasData(tab) || tab === "setup" || tab === "daemon" ? (
+                <VmTerminal
+                  onReady={(t) => {
+                    terminalRefs.current.set(tab, t);
+                  }}
+                  initialData={vmEvents.getBuffer(tab)}
+                  className="h-full"
+                />
+              ) : (
+                <EmptyState
+                  className="h-full"
+                  image={null}
+                  title={`Script "${tab}" not running`}
+                  description={`Click Run to start "${tab}".`}
+                  actions={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={execInFlight}
+                      onClick={() => handleExec(tab)}
+                    >
+                      {execInFlight ? (
+                        <Loading01 size={14} className="animate-spin" />
+                      ) : (
+                        <Play size={14} />
+                      )}
+                      Run
+                    </Button>
+                  }
+                />
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </div>
