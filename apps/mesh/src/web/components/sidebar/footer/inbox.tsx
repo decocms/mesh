@@ -14,7 +14,7 @@ import {
 } from "@deco/ui/components/sidebar.tsx";
 import {
   Check,
-  Coins01,
+  Coins04,
   ZapSquare,
   Inbox01,
   Settings02,
@@ -209,7 +209,7 @@ function CreditChip() {
             })
           }
         >
-          <Coins01 size={24} />
+          <Coins04 size={24} />
         </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>

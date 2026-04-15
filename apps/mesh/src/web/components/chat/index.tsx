@@ -9,6 +9,9 @@ import { IceBreakers } from "./ice-breakers";
 import { ChatInput } from "./input";
 import { MessagePair, useMessagePairs } from "./message/pair.tsx";
 import { NoAiProviderEmptyState } from "./no-ai-provider-empty-state";
+import { CreditsEmptyState } from "./credits-empty-state";
+import { CreditsExhaustedBanner } from "./credits-exhausted-banner";
+import { CreditsEyebrow, NoCreditsEyebrow } from "./credits-eyebrow";
 import { DecoChatSkeleton } from "./skeleton";
 export { useChatTask } from "./context";
 export type { VirtualMCPInfo } from "./select-virtual-mcp";
@@ -128,4 +131,8 @@ export const Chat = Object.assign(ChatRoot, {
   Skeleton: DecoChatSkeleton,
   IceBreakers: IceBreakers,
   NoAiProviderEmptyState: NoAiProviderEmptyState,
+  CreditsEmptyState: CreditsEmptyState,
+  CreditsEyebrow: CreditsEyebrow,
+  NoCreditsEyebrow: NoCreditsEyebrow,
+  CreditsExhaustedBanner: CreditsExhaustedBanner,
 });

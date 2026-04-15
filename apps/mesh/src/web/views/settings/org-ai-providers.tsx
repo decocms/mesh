@@ -11,7 +11,7 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
-  CreditCard01,
+  RefreshCw01,
 } from "@untitledui/icons";
 import { Page } from "@/web/components/page";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -403,164 +403,6 @@ export type AiProvider = {
   supportsCredits?: boolean;
 };
 
-function TopUpForm({
-  keyId,
-  providerId,
-  onCancel,
-}: {
-  keyId: string;
-  providerId: string;
-  onCancel: () => void;
-}) {
-  const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-
-  const [amount, setAmount] = useState("10");
-  const [currency, setCurrency] = useState<"usd" | "brl">("usd");
-
-  const { mutate: topUp, isPending } = useMutation({
-    mutationFn: async () => {
-      const amountCents = Math.round(parseFloat(amount) * 100);
-      const result = (await client.callTool({
-        name: "AI_PROVIDER_TOPUP_URL",
-        arguments: { providerId, keyId, amountCents, currency },
-      })) as {
-        structuredContent?: { url: string };
-        isError?: boolean;
-        content?: { text?: string }[];
-      };
-
-      if (result?.isError) {
-        throw new Error(
-          result.content?.[0]?.text ?? "Failed to get top-up URL",
-        );
-      }
-      return result.structuredContent?.url;
-    },
-    onSuccess: (url) => {
-      if (url) window.open(url, "_blank", "noopener,noreferrer");
-      onCancel();
-    },
-    onError: (err) => {
-      toast.error(`Top-up failed: ${err.message}`);
-    },
-  });
-
-  const amountNum = parseFloat(amount);
-  const isValid = !isNaN(amountNum) && amountNum >= 1;
-  const currencySymbol = currency === "brl" ? "R$" : "$";
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">
-            {currencySymbol}
-          </span>
-          <Input
-            type="number"
-            min="1"
-            step="1"
-            placeholder="10"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            className="h-8 text-sm pl-8"
-          />
-        </div>
-        <ToggleGroup
-          type="single"
-          size="sm"
-          value={currency}
-          onValueChange={(v) => {
-            if (v) setCurrency(v as "usd" | "brl");
-          }}
-        >
-          <ToggleGroupItem value="usd" className="h-8 px-2 text-xs">
-            USD
-          </ToggleGroupItem>
-          <ToggleGroupItem value="brl" className="h-8 px-2 text-xs">
-            BRL
-          </ToggleGroupItem>
-        </ToggleGroup>
-      </div>
-      <div className="flex justify-end gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onCancel}
-          disabled={isPending}
-        >
-          Cancel
-        </Button>
-        <Button
-          size="sm"
-          onClick={() => topUp()}
-          disabled={!isValid || isPending}
-        >
-          {isPending ? "Opening..." : "Checkout"}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function CreditsBalance({ providerId }: { providerId: string }) {
-  const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-
-  const { data, isLoading, refetch, isFetching } = useQuery({
-    queryKey: KEYS.aiProviderCredits(org.id, providerId),
-    staleTime: 60_000,
-    queryFn: async () => {
-      const result = (await client.callTool({
-        name: "AI_PROVIDER_CREDITS",
-        arguments: { providerId },
-      })) as {
-        structuredContent?: { balanceCents: number };
-        isError?: boolean;
-        content?: { text?: string }[];
-      };
-      if (result?.isError) {
-        throw new Error(result.content?.[0]?.text ?? "Failed to fetch credits");
-      }
-      return result.structuredContent ?? null;
-    },
-  });
-
-  const dollars = data != null ? (data.balanceCents / 100).toFixed(2) : null;
-
-  return (
-    <div
-      className="flex items-center gap-1.5 text-xs"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <span className="text-muted-foreground">Balance:</span>
-      {isLoading || isFetching ? (
-        <Skeleton className="h-3 w-12 inline-block" />
-      ) : dollars != null ? (
-        <span className="font-medium tabular-nums">${dollars}</span>
-      ) : (
-        <span className="text-muted-foreground">—</span>
-      )}
-      <button
-        type="button"
-        onClick={() => refetch()}
-        disabled={isFetching}
-        className="text-muted-foreground hover:text-foreground disabled:opacity-50 ml-0.5"
-        title="Refresh balance"
-      >
-        ↻
-      </button>
-    </div>
-  );
-}
-
 function ProviderCard({
   provider,
   keys,
@@ -577,8 +419,6 @@ function ProviderCard({
   const [isConnectFormOpen, setIsConnectFormOpen] = useState(false);
   const [isOAuthPending, setIsOAuthPending] = useState(false);
   const [oauthStateToken, setOauthStateToken] = useState<string | null>(null);
-  const [topUpKeyId, setTopUpKeyId] = useState<string | null>(null);
-
   const isCliActivate = provider.supportedMethods.includes("cli-activate");
   const isActive = keys.length > 0;
 
@@ -588,10 +428,9 @@ function ProviderCard({
         name: "AI_PROVIDER_KEY_DELETE",
         arguments: { keyId },
       });
-      return keyId; // Return keyId for invalidation logic if needed
+      return keyId;
     },
     onSuccess: (deletedKeyId) => {
-      if (topUpKeyId === deletedKeyId) setTopUpKeyId(null);
       queryClient.invalidateQueries({ queryKey: KEYS.aiProviderKeys(org.id) });
       queryClient.invalidateQueries({ queryKey: KEYS.aiProviders(org.id) });
       queryClient.invalidateQueries({
@@ -811,44 +650,19 @@ function ProviderCard({
               </>
             ) : (
               <>
-                {provider.supportsCredits && (
-                  <div className="mb-2">
-                    <CreditsBalance providerId={provider.id} />
+                {/* Hide balance + top-up for deco — the hero section shows it */}
+                {!provider.supportsCredits && (
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      {keys.length} key{keys.length !== 1 ? "s" : ""} configured
+                    </p>
                   </div>
                 )}
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-muted-foreground">
+                {provider.supportsCredits && (
+                  <p className="text-xs text-muted-foreground">
                     {keys.length} key{keys.length !== 1 ? "s" : ""} configured
+                    &middot; Managed above
                   </p>
-                  {provider.supportsTopUp && (
-                    <div onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        className="h-6 gap-1 text-xs text-muted-foreground hover:text-foreground"
-                        onClick={() =>
-                          setTopUpKeyId(
-                            topUpKeyId ? null : (keys[0]?.id ?? null),
-                          )
-                        }
-                      >
-                        <CreditCard01 size={12} />
-                        Add credits
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                {topUpKeyId && keys.some((k) => k.id === topUpKeyId) && (
-                  <div
-                    className="mt-2 p-3 rounded-md border bg-muted/30"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <TopUpForm
-                      keyId={topUpKeyId}
-                      providerId={provider.id}
-                      onCancel={() => setTopUpKeyId(null)}
-                    />
-                  </div>
                 )}
                 <KeyList
                   keys={keys}
@@ -894,10 +708,16 @@ function ProviderCard({
   );
 }
 
-export function ProviderCardGrid() {
+export function ProviderCardGrid({
+  hideProviderId,
+}: {
+  hideProviderId?: string;
+} = {}) {
   const aiProviders = useAiProviders();
   const allKeys = useAiProviderKeys();
-  const providers: AiProvider[] = aiProviders?.providers ?? [];
+  const providers: AiProvider[] = (aiProviders?.providers ?? []).filter(
+    (p) => p.id !== hideProviderId,
+  );
   const localProviders = providers.filter((p) =>
     p.supportedMethods.includes("cli-activate"),
   );
@@ -937,10 +757,323 @@ export function ProviderCardGrid() {
   );
 }
 
+// ── Quick Top-Up presets ──────────────────────────────────────────────
+
+const TOP_UP_PRESETS = {
+  usd: [10, 20, 100],
+  brl: [50, 100, 500],
+} as const;
+
+function QuickTopUp({ keyId }: { keyId: string }) {
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+  const [customOpen, setCustomOpen] = useState(false);
+
+  const { mutate: topUp, isPending } = useMutation({
+    mutationFn: async (amountCents: number) => {
+      const result = (await client.callTool({
+        name: "AI_PROVIDER_TOPUP_URL",
+        arguments: {
+          providerId: "deco",
+          keyId,
+          amountCents,
+          currency,
+        },
+      })) as {
+        structuredContent?: { url: string };
+        isError?: boolean;
+        content?: { text?: string }[];
+      };
+      if (result?.isError) {
+        throw new Error(
+          result.content?.[0]?.text ?? "Failed to get top-up URL",
+        );
+      }
+      return result.structuredContent?.url;
+    },
+    onSuccess: (url) => {
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+    },
+    onError: (err) => {
+      toast.error(`Top-up failed: ${err.message}`);
+    },
+  });
+
+  const [customAmount, setCustomAmount] = useState("");
+  const [currency, setCurrency] = useState<"usd" | "brl">("usd");
+  const customNum = parseFloat(customAmount);
+  const isCustomValid = !isNaN(customNum) && customNum >= 1;
+  const currencySymbol = currency === "brl" ? "R$" : "$";
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          size="default"
+          value={currency}
+          onValueChange={(v) => {
+            if (v) setCurrency(v as "usd" | "brl");
+          }}
+        >
+          <ToggleGroupItem value="usd" className="px-3.5 text-sm">
+            USD
+          </ToggleGroupItem>
+          <ToggleGroupItem value="brl" className="px-3.5 text-sm">
+            BRL
+          </ToggleGroupItem>
+        </ToggleGroup>
+        {!customOpen && (
+          <>
+            {TOP_UP_PRESETS[currency].map((dollars) => (
+              <Button
+                key={dollars}
+                variant="outline"
+                className="h-10 px-4 text-sm font-medium tabular-nums"
+                disabled={isPending}
+                onClick={() => topUp(dollars * 100)}
+              >
+                {currencySymbol}
+                {dollars}
+              </Button>
+            ))}
+            <Button
+              variant="ghost"
+              className="h-10 px-4 text-sm text-muted-foreground"
+              onClick={() => setCustomOpen(true)}
+              disabled={isPending}
+            >
+              Custom
+            </Button>
+          </>
+        )}
+        {customOpen && (
+          <>
+            <div className="relative max-w-[140px]">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground select-none">
+                {currencySymbol}
+              </span>
+              <Input
+                type="number"
+                min="1"
+                step="1"
+                placeholder="50"
+                value={customAmount}
+                onChange={(e) => setCustomAmount(e.target.value)}
+                className="h-10 text-sm pl-7"
+                autoFocus
+              />
+            </div>
+            <Button
+              className="h-10"
+              disabled={!isCustomValid || isPending}
+              onClick={() => topUp(Math.round(customNum * 100))}
+            >
+              {isPending ? "..." : "Add"}
+            </Button>
+            <Button
+              variant="ghost"
+              className="h-10 text-sm text-muted-foreground"
+              onClick={() => {
+                setCustomOpen(false);
+                setCustomAmount("");
+              }}
+            >
+              Cancel
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Deco Credits Hero ────────────────────────────────────────────────
+
+function creditColorClass(dollars: number): string {
+  if (dollars <= 0) return "text-destructive";
+  if (dollars <= 1) return "text-amber-500 dark:text-amber-400";
+  return "text-foreground";
+}
+
+function DecoCreditsHero() {
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+  const queryClient = useQueryClient();
+  const allKeys = useAiProviderKeys();
+  const decoKey = allKeys.find((k) => k.providerId === "deco");
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+
+  const { mutate: disconnect, isPending: isDisconnecting } = useMutation({
+    mutationFn: async () => {
+      if (!decoKey) return;
+      await client.callTool({
+        name: "AI_PROVIDER_KEY_DELETE",
+        arguments: { keyId: decoKey.id },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: KEYS.aiProviderKeys(org.id) });
+      queryClient.invalidateQueries({ queryKey: KEYS.aiProviders(org.id) });
+      toast.success("Deco AI Gateway disconnected");
+      setConfirmDisconnect(false);
+    },
+    onError: (err) => {
+      toast.error(`Failed to disconnect: ${err.message}`);
+    },
+  });
+
+  const { data, isLoading, refetch, isFetching } = useQuery({
+    queryKey: KEYS.aiProviderCredits(org.id, "deco"),
+    enabled: !!decoKey,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const result = (await client.callTool({
+        name: "AI_PROVIDER_CREDITS",
+        arguments: { providerId: "deco" },
+      })) as {
+        structuredContent?: { balanceCents: number };
+        isError?: boolean;
+      };
+      if (result?.isError) return null;
+      return result.structuredContent ?? null;
+    },
+  });
+
+  if (!decoKey) return null;
+
+  const balanceDollars =
+    data?.balanceCents != null ? data.balanceCents / 100 : null;
+  const displayBalance =
+    balanceDollars != null ? `$${balanceDollars.toFixed(2)}` : "—";
+
+  return (
+    <div
+      className={cn(
+        "relative rounded-xl overflow-hidden",
+        "border border-border",
+        "bg-gradient-to-br from-background via-muted/30 to-background",
+      )}
+    >
+      <div className="relative p-6">
+        {/* Provider identity */}
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <img
+              src="/logos/deco%20logo.svg"
+              alt="Deco AI Gateway"
+              className="size-9 rounded-lg object-contain dark:bg-white dark:p-0.5"
+            />
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">
+                Deco AI Gateway
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Access to 100+ models
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-muted-foreground hover:text-destructive"
+            onClick={() => setConfirmDisconnect(true)}
+            disabled={isDisconnecting}
+          >
+            Disconnect
+          </Button>
+        </div>
+
+        <AlertDialog
+          open={confirmDisconnect}
+          onOpenChange={setConfirmDisconnect}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Disconnect Deco AI Gateway</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will remove the Deco AI Gateway from this workspace. Your
+                credit balance is preserved and will be available if you
+                reconnect.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => disconnect()}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Disconnect
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Balance */}
+        <div className="flex items-baseline gap-2">
+          {isLoading || isFetching ? (
+            <Skeleton className="h-9 w-24" />
+          ) : (
+            <span
+              className={cn(
+                "text-3xl font-semibold tabular-nums tracking-tight",
+                balanceDollars != null && creditColorClass(balanceDollars),
+              )}
+            >
+              {displayBalance}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors p-1 rounded-md hover:bg-muted/50"
+            aria-label="Refresh balance"
+          >
+            <RefreshCw01
+              size={14}
+              className={cn(isFetching && "animate-spin")}
+            />
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Available credit balance
+        </p>
+
+        {/* Quick top-up */}
+        <div className="mt-5 pt-4 border-t border-border/60">
+          <p className="text-xs font-medium text-muted-foreground mb-2.5">
+            Add credits
+          </p>
+          <QuickTopUp keyId={decoKey.id} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Page assembly ────────────────────────────────────────────────────
+
 function OrgAiProvidersContent() {
+  const allKeys = useAiProviderKeys();
+  const hasDecoKey = allKeys.some((k) => k.providerId === "deco");
+
   return (
     <div className="flex flex-col gap-6">
-      <ProviderCardGrid />
+      <DecoCreditsHero />
+      <div>
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+          Providers
+        </p>
+        <ProviderCardGrid hideProviderId={hasDecoKey ? "deco" : undefined} />
+      </div>
     </div>
   );
 }
