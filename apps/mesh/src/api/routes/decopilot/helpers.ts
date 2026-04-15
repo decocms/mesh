@@ -30,25 +30,26 @@ import {
 /**
  * Tool approval levels determine which tools require user approval before executing
  */
-export type ToolApprovalLevel = "auto" | "readonly" | "plan";
+export type ToolApprovalLevel = "auto" | "readonly";
 
 /**
  * Determine if a tool needs approval based on approval level and readOnlyHint
  *
  * @param level - The approval level setting
  * @param readOnlyHint - Optional hint from MCP tool annotations
+ * @param options.isPlanMode - When true (chat `mode: "plan"`), non-read-only tools are hard-blocked
  * @returns true if the tool requires approval, false if auto-approved
  */
 export function toolNeedsApproval(
   level: ToolApprovalLevel,
   readOnlyHint?: boolean,
+  options?: { isPlanMode?: boolean },
 ): boolean | "hard-block" {
-  if (level === "auto") return false;
-  if (level === "plan") {
-    // Hard block: non-read-only tools cannot run at all in plan mode
+  if (options?.isPlanMode) {
     if (readOnlyHint === true) return false;
     return "hard-block";
   }
+  if (level === "auto") return false;
   // "readonly": auto-approve only if explicitly marked readOnly
   return readOnlyHint !== true;
 }
@@ -137,7 +138,11 @@ export async function toolsFromMCP(
   toolOutputMap: Map<string, string>,
   writer?: UIMessageStreamWriter,
   toolApprovalLevel: ToolApprovalLevel = "auto",
-  options?: { disableOutputTruncation?: boolean; ctx?: MeshContext },
+  options?: {
+    disableOutputTruncation?: boolean;
+    ctx?: MeshContext;
+    isPlanMode?: boolean;
+  },
 ): Promise<{ tools: ToolSet; nameMap: Map<string, string> }> {
   const truncate = !options?.disableOutputTruncation;
   const meshCtx = options?.ctx;
@@ -157,8 +162,9 @@ export async function toolsFromMCP(
         inputSchema: jsonSchema(inputSchema as JSONSchema7),
         outputSchema: undefined,
         needsApproval:
-          toolNeedsApproval(toolApprovalLevel, annotations?.readOnlyHint) !==
-          false,
+          toolNeedsApproval(toolApprovalLevel, annotations?.readOnlyHint, {
+            isPlanMode: options?.isPlanMode,
+          }) !== false,
         execute: async (input, callOptions) => {
           const startTime = performance.now();
           try {

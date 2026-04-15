@@ -44,7 +44,6 @@ import { useContext as useContextHook } from "../../hooks/use-context";
 import {
   usePreferences,
   readToolApprovalLevel,
-  type ToolApprovalLevel,
 } from "../../hooks/use-preferences";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
 import { useTaskReadState } from "../../hooks/use-task-read-state";
@@ -57,7 +56,7 @@ import { useTaskManager, type TaskOwnerFilter } from "./task";
 import { useTaskMessages } from "./task/use-task-manager";
 import { derivePartsFromTiptapDoc } from "./derive-parts";
 import type { VirtualMCPInfo } from "./select-virtual-mcp";
-import type { ChatMessage, Metadata } from "./types";
+import type { ChatMessage, ChatMode, Metadata } from "./types";
 import type { Task } from "./task/types";
 import type {
   FinishPayload,
@@ -65,6 +64,7 @@ import type {
   SetAppContextParams,
 } from "./store/types";
 import { useLocalStorage } from "../../hooks/use-local-storage";
+import { chatModeForTransportRef } from "../../lib/chat-mode-sync";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
 
 // ============================================================================
@@ -129,12 +129,9 @@ export interface ChatPrefsContextValue {
   /** Selected deep research model (null = no deep research models available) */
   deepResearchModel: AiProviderModel | null;
   setDeepResearchModel: (model: AiProviderModel | null) => void;
-  /** When true, forces generate_image tool on the next request (one-shot) */
-  forceImageGeneration: boolean;
-  setForceImageGeneration: (force: boolean) => void;
-  /** When true, forces web_search tool on the next request (one-shot) */
-  forceWebSearch: boolean;
-  setForceWebSearch: (force: boolean) => void;
+  /** Chat mode for the next send — plan, web-search, gen-image, or default */
+  chatMode: ChatMode;
+  setChatMode: (mode: ChatMode) => void;
   appContexts: Record<string, string>;
   setAppContext: (sourceId: string, params: SetAppContextParams) => void;
   clearAppContext: (sourceId: string) => void;
@@ -175,7 +172,7 @@ interface TaskProviderInternals {
   user: { image?: string | null; name?: string } | null;
   contextPrompt: string;
   preferences: {
-    toolApprovalLevel?: ToolApprovalLevel;
+    toolApprovalLevel?: import("../../hooks/use-preferences").ToolApprovalLevel;
   };
   taskManager: {
     updateMessagesCache: (taskId: string, messages: ChatMessage[]) => void;
@@ -245,10 +242,8 @@ export function ChatContextProvider({
       null,
     );
 
-  // Force image generation — one-shot flag, resets after send
-  const [forceImageGeneration, setForceImageGeneration] = useState(false);
-  // Force web search — one-shot flag, resets after send
-  const [forceWebSearch, setForceWebSearch] = useState(false);
+  const [chatMode, setChatMode] = useState<ChatMode>("default");
+  chatModeForTransportRef.current = chatMode;
 
   // AI provider keys and models
   const keys = useAiProviderKeys();
@@ -406,6 +401,9 @@ export function ChatContextProvider({
             messages: allMessages,
             ...mergedMetadata,
             toolApprovalLevel: readToolApprovalLevel(),
+            // mode comes from mergedMetadata (set in sendMessageInternal before
+            // the mode state is reset). Reading from a ref here races with the
+            // React state flush that resets chatMode to "default".
           },
         };
       },
@@ -510,10 +508,8 @@ export function ChatContextProvider({
     setDeepResearchModel: (model: AiProviderModel | null) => {
       setStoredDeepResearchModel(model);
     },
-    forceImageGeneration,
-    setForceImageGeneration,
-    forceWebSearch,
-    setForceWebSearch,
+    chatMode,
+    setChatMode,
     appContexts,
     setAppContext,
     clearAppContext,
@@ -565,10 +561,8 @@ export function ActiveTaskProvider({
     selectedModel,
     imageModel,
     deepResearchModel,
-    forceImageGeneration,
-    setForceImageGeneration,
-    forceWebSearch,
-    setForceWebSearch,
+    chatMode,
+    setChatMode,
     appContexts,
     setTiptapDoc,
     setModel,
@@ -718,11 +712,18 @@ export function ActiveTaskProvider({
       .filter(Boolean)
       .join("\n\n");
 
-    // Capture and reset one-shot force flags before the async send
-    const shouldForceImage = forceImageGeneration && !!imageModel;
-    if (forceImageGeneration) setForceImageGeneration(false);
-    const shouldForceWebSearch = forceWebSearch && !!deepResearchModel;
-    if (forceWebSearch) setForceWebSearch(false);
+    let modeToSend: ChatMode = chatMode;
+    if (modeToSend === "gen-image" && !imageModel) {
+      modeToSend = "default";
+    }
+    if (modeToSend === "web-search" && !deepResearchModel) {
+      modeToSend = "default";
+    }
+    // One-shot modes (web-search, gen-image) reset after send.
+    // Plan mode is persistent — the user must explicitly disable it.
+    if (modeToSend !== "plan") {
+      setChatMode("default");
+    }
 
     const metadata: Metadata = {
       ...messageMetadata,
@@ -738,8 +739,7 @@ export function ActiveTaskProvider({
           deepResearch: toMetadataModelInfo(deepResearchModel),
         }),
       },
-      ...(shouldForceImage && { forceImageGeneration: true }),
-      ...(shouldForceWebSearch && { forceWebSearch: true }),
+      mode: modeToSend,
     };
 
     const userMessage: ChatMessage = {

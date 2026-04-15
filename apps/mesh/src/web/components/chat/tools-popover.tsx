@@ -42,7 +42,6 @@ import {
 } from "./dialog-prompt-arguments.tsx";
 import { insertMention } from "./tiptap/mention";
 import { KEYS } from "@/web/lib/query-keys";
-import { usePreferences } from "@/web/hooks/use-preferences.ts";
 import { useSound } from "@/web/hooks/use-sound.ts";
 import { switch005Sound } from "@deco/ui/lib/switch-005.ts";
 import { useChatPrefs } from "./context";
@@ -87,8 +86,6 @@ export function ToolsPopover({
   isAgentContext = false,
 }: ToolsPopoverProps) {
   const [open, setOpen] = useState(false);
-  const [preferences, setPreferences] = usePreferences();
-  const isPlanMode = preferences.toolApprovalLevel === "plan";
   const playSwitchSound = useSound(switch005Sound);
   const { org } = useProjectContext();
   const { editor } = useCurrentEditor();
@@ -115,11 +112,10 @@ export function ToolsPopover({
     setImageModel,
     deepResearchModel,
     setDeepResearchModel,
-    forceImageGeneration,
-    setForceImageGeneration,
-    forceWebSearch,
-    setForceWebSearch,
+    chatMode,
+    setChatMode,
   } = useChatPrefs();
+  const isPlanMode = chatMode === "plan";
 
   // Fetch models for submenus (only when a submenu is hovered/open)
   const [imageSubOpen, setImageSubOpen] = useState(false);
@@ -137,16 +133,7 @@ export function ToolsPopover({
 
   const handleTogglePlanMode = () => {
     playSwitchSound();
-    const turningOn = !isPlanMode;
-    if (turningOn) {
-      // Mutual exclusion: disable the other forced modes
-      if (forceImageGeneration) setForceImageGeneration(false);
-      if (forceWebSearch) setForceWebSearch(false);
-    }
-    setPreferences({
-      ...preferences,
-      toolApprovalLevel: isPlanMode ? "auto" : "plan",
-    });
+    setChatMode(isPlanMode ? "default" : "plan");
     setOpen(false);
   };
 
@@ -209,34 +196,18 @@ export function ToolsPopover({
 
   const handleForceImageGeneration = () => {
     playSwitchSound();
-    const turningOn = !forceImageGeneration;
-    if (turningOn) {
-      // Mutual exclusion: disable the other forced modes
-      if (forceWebSearch) setForceWebSearch(false);
-      if (isPlanMode) {
-        setPreferences({ ...preferences, toolApprovalLevel: "auto" });
-      }
-    }
-    setForceImageGeneration(turningOn);
+    setChatMode(chatMode === "gen-image" ? "default" : "gen-image");
     setOpen(false);
   };
 
   const handleForceWebSearch = () => {
     playSwitchSound();
-    const turningOn = !forceWebSearch;
-    if (turningOn) {
-      // Mutual exclusion: disable the other forced modes
-      if (forceImageGeneration) setForceImageGeneration(false);
-      if (isPlanMode) {
-        setPreferences({ ...preferences, toolApprovalLevel: "auto" });
-      }
-    }
-    setForceWebSearch(turningOn);
+    setChatMode(chatMode === "web-search" ? "default" : "web-search");
     setOpen(false);
   };
 
-  const isImageActive = forceImageGeneration;
-  const isWebSearchActive = forceWebSearch;
+  const isImageActive = chatMode === "gen-image";
+  const isWebSearchActive = chatMode === "web-search";
 
   return (
     <>

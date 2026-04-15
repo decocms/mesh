@@ -1,13 +1,12 @@
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import type { VirtualMCPEntity } from "@/tools/virtual/schema";
 import { getUIResourceUri } from "@/mcp-apps/types.ts";
-import { useChatTask } from "@/web/components/chat/context";
+import { useChatPrefs, useChatTask } from "@/web/components/chat/context";
 import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { usePanelActions } from "@/web/layouts/shell-layout";
-import { usePreferences } from "@/web/hooks/use-preferences";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import {
   authenticateMcp,
@@ -1062,15 +1061,15 @@ function VirtualMcpDetailViewWithData({
   });
 
   // Chat hooks
-  const [preferences, setPreferences] = usePreferences();
   const { createTaskWithMessage } = useChatTask();
+  const { setChatMode } = useChatPrefs();
   const { createNewTask } = usePanelActions();
 
   const handleImprovePrompt = () => {
     const currentInstructions = form.getValues("metadata.instructions");
     if (!currentInstructions?.trim()) return;
 
-    setPreferences({ ...preferences, toolApprovalLevel: "plan" });
+    setChatMode("plan");
 
     createTaskWithMessage({
       virtualMcpId: getDecopilotId(org.id),

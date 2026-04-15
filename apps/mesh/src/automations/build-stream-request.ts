@@ -33,6 +33,7 @@ export function buildStreamRequest(
     })(),
     temperature: automation.temperature ?? 0.5,
     toolApprovalLevel: "auto",
+    mode: "default",
     organizationId: automation.organization_id,
     userId: automation.created_by,
     triggerId: triggerId ?? undefined,

@@ -29,6 +29,8 @@ export interface BuiltinToolParams {
   models: ModelsConfig;
   userId: string;
   toolApprovalLevel?: ToolApprovalLevel;
+  /** When true (chat mode `plan`), include `propose_plan` and plan-style approvals */
+  isPlanMode?: boolean;
   toolOutputMap: Map<string, string>;
   passthroughClient: VirtualClient;
 }
@@ -36,7 +38,7 @@ export interface BuiltinToolParams {
 /**
  * Full tool set type — always includes propose_plan so that ChatMessage
  * (derived via ReturnType) can render historical plan parts regardless
- * of the current toolApprovalLevel.
+ * of the current chat mode.
  */
 export type BuiltInToolSet = ReturnType<typeof buildAllTools>;
 
@@ -51,9 +53,11 @@ function buildAllTools(
     models,
     userId,
     toolApprovalLevel = "auto",
+    isPlanMode = false,
     toolOutputMap,
     passthroughClient,
   } = params;
+  const approvalOpts = { isPlanMode };
   const tools: Record<string, unknown> = {
     user_ask: userAskTool,
     propose_plan: proposePlanTool,
@@ -61,7 +65,8 @@ function buildAllTools(
       writer,
       {
         organization,
-        needsApproval: toolNeedsApproval(toolApprovalLevel, true) !== false,
+        needsApproval:
+          toolNeedsApproval(toolApprovalLevel, true, approvalOpts) !== false,
       },
       ctx,
     ),
@@ -71,7 +76,8 @@ function buildAllTools(
     sandbox: createSandboxTool({
       passthroughClient,
       toolOutputMap,
-      needsApproval: toolNeedsApproval(toolApprovalLevel, false) !== false,
+      needsApproval:
+        toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false,
     }),
     read_resource: createReadResourceTool({
       passthroughClient,
@@ -87,7 +93,8 @@ function buildAllTools(
       {
         organization,
         userId,
-        needsApproval: toolNeedsApproval(toolApprovalLevel, false) !== false,
+        needsApproval:
+          toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false,
       },
       ctx,
     ),
@@ -100,7 +107,8 @@ function buildAllTools(
         provider,
         organization,
         models,
-        needsApproval: toolNeedsApproval(toolApprovalLevel, false) !== false,
+        needsApproval:
+          toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false,
       },
       ctx,
     );
@@ -139,7 +147,7 @@ function buildAllTools(
 
 /**
  * Get built-in tools as a ToolSet.
- * propose_plan is only included when toolApprovalLevel is "plan".
+ * propose_plan is only included when chat mode is `plan`.
  */
 export function getBuiltInTools(
   writer: UIMessageStreamWriter,
@@ -147,9 +155,8 @@ export function getBuiltInTools(
   ctx: MeshContext,
 ) {
   const tools = buildAllTools(writer, params, ctx);
-  const { toolApprovalLevel = "auto" } = params;
 
-  if (toolApprovalLevel !== "plan") {
+  if (!params.isPlanMode) {
     const { propose_plan: _, ...rest } = tools;
     return rest;
   }

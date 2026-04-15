@@ -31,7 +31,9 @@ export interface AgentBindingConfig {
   thinking?: AgentModelInfo;
   coding?: AgentModelInfo;
   fast?: AgentModelInfo;
-  toolApprovalLevel?: "auto" | "readonly" | "plan";
+  toolApprovalLevel?: "auto" | "readonly";
+  /** Decopilot stream mode — default, plan, web-search, gen-image */
+  mode?: "default" | "plan" | "web-search" | "gen-image";
   temperature?: number;
 }
 
@@ -45,7 +47,9 @@ export interface AgentStreamParams {
   thinking?: AgentModelInfo;
   coding?: AgentModelInfo;
   fast?: AgentModelInfo;
-  toolApprovalLevel?: "auto" | "readonly" | "plan";
+  toolApprovalLevel?: "auto" | "readonly";
+  /** Decopilot stream mode — default, plan, web-search, gen-image */
+  mode?: "default" | "plan" | "web-search" | "gen-image";
   temperature?: number;
   memory?: { windowSize: number; thread_id: string };
   thread_id?: string;
@@ -126,6 +130,7 @@ export async function streamAgent(
     agent: { id: agentId },
     temperature: params.temperature ?? config.temperature,
     toolApprovalLevel: params.toolApprovalLevel ?? config.toolApprovalLevel,
+    mode: params.mode ?? config.mode ?? "default",
     ...(params.memory ? { memory: params.memory } : {}),
     ...(params.thread_id ? { thread_id: params.thread_id } : {}),
   };
@@ -188,6 +193,7 @@ export function createDecopilotClient(options: DecopilotClientOptions) {
         coding: request.coding,
         fast: request.fast,
         toolApprovalLevel: request.toolApprovalLevel,
+        mode: request.mode,
         temperature: request.temperature,
       };
       return streamAgent(streamUrl, token, config, request, opts);

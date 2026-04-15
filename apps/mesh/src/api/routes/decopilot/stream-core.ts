@@ -33,6 +33,9 @@ import { loadAndMergeMessages, processConversation } from "./conversation";
 import { uploadFileParts, resolveStorageRefs } from "./file-materializer";
 import { isToolVisibleToModel, toolsFromMCP } from "./helpers";
 import type { ToolApprovalLevel } from "./helpers";
+import { type ChatMode, resolveModeConfig } from "./mode-config";
+
+export type { ChatMode } from "./mode-config";
 import { createMemory } from "./memory";
 import { ensureModelCompatibility } from "./model-compat";
 import {
@@ -89,6 +92,8 @@ export interface StreamCoreInput {
   agent: AgentConfig;
   temperature: number;
   toolApprovalLevel: ToolApprovalLevel;
+  /** Chat mode — plan, forced web search / image, or default */
+  mode: ChatMode;
   organizationId: string;
   userId: string;
   taskId?: string;
@@ -96,10 +101,6 @@ export interface StreamCoreInput {
   windowSize?: number;
   abortSignal?: AbortSignal;
   isResume?: boolean;
-  /** When true, forces generate_image as the required tool for this request */
-  forceImageGeneration?: boolean;
-  /** When true, forces web_search as the required tool for this request */
-  forceWebSearch?: boolean;
 }
 
 export interface StreamCoreDeps {
@@ -264,6 +265,7 @@ async function streamCoreInner(
           agent: input.agent,
           temperature: input.temperature,
           toolApprovalLevel: input.toolApprovalLevel,
+          mode: input.mode,
           windowSize: input.windowSize,
           triggerId: input.triggerId,
         },
@@ -378,6 +380,8 @@ async function streamCoreInner(
     const uiStream = createUIMessageStream({
       originalMessages: allMessages,
       execute: async ({ writer }) => {
+        const modeConfig = resolveModeConfig(input.mode, { isCliAgent });
+
         const passthroughClient = await createVirtualClientFrom(
           virtualMcp,
           ctx,
@@ -403,7 +407,7 @@ async function streamCoreInner(
                 toolOutputMap,
                 writer,
                 input.toolApprovalLevel,
-                { ctx },
+                { ctx, isPlanMode: modeConfig.isPlanMode },
               );
 
         const builtInTools = isCliAgent
@@ -416,6 +420,7 @@ async function streamCoreInner(
                 models: input.models,
                 userId: input.userId,
                 toolApprovalLevel: input.toolApprovalLevel,
+                isPlanMode: modeConfig.isPlanMode,
                 toolOutputMap,
                 passthroughClient,
               },
@@ -434,7 +439,7 @@ async function streamCoreInner(
         // Uses the same nameMap from toolsFromMCP so collision-suffixed names
         // match the keys in passthroughTools.
         const toolAnnotations = new Map<string, { readOnlyHint?: boolean }>();
-        if (input.toolApprovalLevel === "plan" && !isCliAgent) {
+        if (modeConfig.isPlanMode && !isCliAgent) {
           const { tools: toolList } = await passthroughClient.listTools();
           for (const t of toolList) {
             const safeName = passthroughNameMap.get(t.name);
@@ -455,7 +460,7 @@ async function streamCoreInner(
                 enabledTools,
                 passthroughToolNames,
                 {
-                  toolApprovalLevel: input.toolApprovalLevel,
+                  isPlanMode: modeConfig.isPlanMode,
                   toolAnnotations,
                 },
               ),
@@ -475,35 +480,11 @@ async function streamCoreInner(
           ? buildDecopilotAgentPrompt()
           : serverInstructions;
 
-        // Plan mode system prompt injection
-        const planModePrompt =
-          input.toolApprovalLevel === "plan"
-            ? "<plan-mode>\n" +
-              "You are in plan mode. The user is planning something — your job is to " +
-              "deeply understand the problem and produce a plan so complete that a fresh " +
-              "thread, with no memory of this conversation, can execute it.\n\n" +
-              "Explore thoroughly before planning. When requirements are ambiguous, ask via " +
-              "`user_ask` — one good question beats three wrong assumptions.\n\n" +
-              "Write the plan for a reader with no prior context. Include concrete details, " +
-              "ordered steps, risks, trade-offs, and alternatives you considered.\n\n" +
-              (isCliAgent
-                ? "When your plan is complete, provide it directly in chat as a comprehensive markdown plan.\n"
-                : "When your plan is complete, you MUST call `propose_plan`. This is the only way to submit a plan — do not describe it in chat.\n") +
-              "</plan-mode>"
-            : null;
+        const planModePrompt = modeConfig.planPrompt;
 
-        // web_search behavior hint — only when the tool is registered
         const webSearchPrompt =
-          "web_search" in tools
-            ? "<web-search>\n" +
-              "The web_search tool streams its research result directly to the user in real time. " +
-              "After a search completes, do NOT repeat, summarize, or restate the research content — " +
-              "the user can already see it. Simply confirm the search succeeded and highlight key " +
-              "takeaways in one or two sentences. Only elaborate if the user explicitly asks.\n\n" +
-              "For large results, the tool result contains a `uri` (mesh-storage:…) instead of " +
-              "inline content. To re-access the full research in a later turn, call " +
-              "`read_resource` with that URI.\n" +
-              "</web-search>"
+          modeConfig.webSearchInstructionPrompt && "web_search" in tools
+            ? modeConfig.webSearchInstructionPrompt
             : null;
 
         const systemPrompts = [
@@ -621,6 +602,7 @@ async function streamCoreInner(
                 },
               },
               toolApprovalLevel: input.toolApprovalLevel,
+              isPlanMode: modeConfig.isPlanMode,
               resume: resumeSessionId,
             },
           );
@@ -652,6 +634,7 @@ async function streamCoreInner(
                 },
               },
               toolApprovalLevel: input.toolApprovalLevel,
+              isPlanMode: modeConfig.isPlanMode,
             },
           );
           languageModel = codexResult.model;
@@ -691,12 +674,11 @@ async function streamCoreInner(
               ? {}
               : {
                   prepareStep: (() => {
-                    // Force generate_image only on the first step, then let the
-                    // model choose freely on subsequent steps.
-                    const shouldForceImage =
-                      input.forceImageGeneration && "generate_image" in tools;
-                    const shouldForceWebSearch =
-                      input.forceWebSearch && "web_search" in tools;
+                    const forcedFirstStepToolName =
+                      modeConfig.forcedFirstStepTool &&
+                      modeConfig.forcedFirstStepTool in tools
+                        ? modeConfig.forcedFirstStepTool
+                        : null;
                     let stepIndex = 0;
 
                     return () => {
@@ -711,7 +693,7 @@ async function streamCoreInner(
 
                       // Layer 2: In plan mode, filter out any non-read-only tools that
                       // somehow got enabled (safety net for Layer 1 in enable_tools)
-                      if (input.toolApprovalLevel === "plan") {
+                      if (modeConfig.isPlanMode) {
                         activeToolNames = activeToolNames.filter((name) => {
                           // Built-in tools and enable_tools are always allowed
                           if (
@@ -726,13 +708,10 @@ async function streamCoreInner(
                         });
                       }
 
-                      // Determine forced tool (image takes precedence if both set)
                       const forcedToolName =
-                        shouldForceImage && isFirstStep
-                          ? "generate_image"
-                          : shouldForceWebSearch && isFirstStep
-                            ? "web_search"
-                            : null;
+                        forcedFirstStepToolName && isFirstStep
+                          ? forcedFirstStepToolName
+                          : null;
 
                       return {
                         activeTools: activeToolNames as (keyof typeof tools)[],

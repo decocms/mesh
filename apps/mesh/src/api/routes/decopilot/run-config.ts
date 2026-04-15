@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import type { ChatMode } from "./mode-config";
+
 /**
  * Persisted run configuration schema.
  *
@@ -30,7 +32,8 @@ const PersistedModelInfoSchema = z.object({
   provider: z.string().nullish(),
 });
 
-export const PersistedRunConfigSchema = z.object({
+/** Raw DB shape may include legacy `toolApprovalLevel: "plan"`. */
+const PersistedRunConfigRawSchema = z.object({
   models: z.object({
     credentialId: z.string(),
     thinking: PersistedModelInfoSchema,
@@ -41,12 +44,39 @@ export const PersistedRunConfigSchema = z.object({
   }),
   agent: z.object({ id: z.string() }),
   temperature: z.number(),
-  toolApprovalLevel: z.enum(["auto", "readonly", "plan"]),
+  toolApprovalLevel: z.enum(["auto", "readonly", "plan"]).optional(),
+  mode: z.enum(["default", "plan", "web-search", "gen-image"]).optional(),
   windowSize: z.number().optional(),
   triggerId: z.string().optional(),
 });
 
-export type PersistedRunConfig = z.infer<typeof PersistedRunConfigSchema>;
+export const PersistedRunConfigSchema = PersistedRunConfigRawSchema.transform(
+  (raw) => {
+    let mode: ChatMode = raw.mode ?? "default";
+    let toolApprovalLevel: "auto" | "readonly" = "auto";
+
+    if (raw.toolApprovalLevel === "plan") {
+      mode = "plan";
+      toolApprovalLevel = "readonly";
+    } else if (raw.toolApprovalLevel === "readonly") {
+      toolApprovalLevel = "readonly";
+    } else if (raw.toolApprovalLevel === "auto") {
+      toolApprovalLevel = "auto";
+    }
+
+    return {
+      models: raw.models,
+      agent: raw.agent,
+      temperature: raw.temperature,
+      toolApprovalLevel,
+      mode,
+      windowSize: raw.windowSize,
+      triggerId: raw.triggerId,
+    };
+  },
+);
+
+export type PersistedRunConfig = z.output<typeof PersistedRunConfigSchema>;
 
 type PersistedModelInfo = z.infer<typeof PersistedModelInfoSchema>;
 

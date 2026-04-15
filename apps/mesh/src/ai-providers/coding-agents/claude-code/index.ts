@@ -18,6 +18,8 @@ export function createClaudeCodeModel(
       }
     >;
     toolApprovalLevel?: ToolApprovalLevel;
+    /** Chat mode plan — same tool restrictions as readonly for headless CLI */
+    isPlanMode?: boolean;
     resume?: string;
   },
 ) {
@@ -37,31 +39,21 @@ export function createClaudeCodeModel(
     cwd: process.cwd(),
   };
 
-  switch (options?.toolApprovalLevel) {
-    case "plan":
-      settings.permissionMode = "bypassPermissions";
-      settings.disallowedTools = [
-        ...HEADLESS_DISALLOWED_TOOLS,
-        "Write",
-        "Edit",
-        "Bash",
-        "NotebookEdit",
-      ];
-      break;
-    case "readonly":
-      settings.permissionMode = "bypassPermissions";
-      settings.disallowedTools = [
-        ...HEADLESS_DISALLOWED_TOOLS,
-        "Write",
-        "Edit",
-        "Bash",
-        "NotebookEdit",
-      ];
-      break;
-    default:
-      settings.permissionMode = "bypassPermissions";
-      settings.disallowedTools = [...HEADLESS_DISALLOWED_TOOLS];
-      break;
+  const restrictWrites =
+    options?.isPlanMode || options?.toolApprovalLevel === "readonly";
+
+  if (restrictWrites) {
+    settings.permissionMode = "bypassPermissions";
+    settings.disallowedTools = [
+      ...HEADLESS_DISALLOWED_TOOLS,
+      "Write",
+      "Edit",
+      "Bash",
+      "NotebookEdit",
+    ];
+  } else {
+    settings.permissionMode = "bypassPermissions";
+    settings.disallowedTools = [...HEADLESS_DISALLOWED_TOOLS];
   }
 
   if (options?.resume) {

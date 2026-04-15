@@ -35,7 +35,6 @@ import type { FormEvent } from "react";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type { Metadata } from "./types.ts";
 import { useChatStream, useChatTask, useChatPrefs } from "./context";
-import { usePreferences } from "@/web/hooks/use-preferences.ts";
 import { ChatHighlight } from "./highlight";
 import { ModelSelector } from "./select-model";
 import {
@@ -322,11 +321,9 @@ export function ChatInput({
     isModelsLoading,
     tiptapDocRef,
     imageModel,
-    forceImageGeneration,
-    setForceImageGeneration,
     deepResearchModel,
-    forceWebSearch,
-    setForceWebSearch,
+    chatMode,
+    setChatMode,
   } = useChatPrefs();
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
@@ -399,8 +396,7 @@ export function ChatInput({
 
   const tiptapRef = useRef<TiptapInputHandle | null>(null);
 
-  const [preferences, setPreferences] = usePreferences();
-  const isPlanMode = preferences.toolApprovalLevel === "plan";
+  const isPlanMode = chatMode === "plan";
 
   // Focus chat input on Cmd+L, toggle plan mode on Cmd+Shift+L
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
@@ -409,23 +405,14 @@ export function ChatInput({
       if (isModKey(e) && e.code === "KeyL") {
         e.preventDefault();
         if (e.shiftKey) {
-          const isPlan = preferences.toolApprovalLevel === "plan";
-          if (!isPlan) {
-            // Mutual exclusion: disable forced modes when entering plan mode
-            if (forceImageGeneration) setForceImageGeneration(false);
-            if (forceWebSearch) setForceWebSearch(false);
-          }
-          setPreferences({
-            ...preferences,
-            toolApprovalLevel: isPlan ? "auto" : "plan",
-          });
+          setChatMode(chatMode === "plan" ? "default" : "plan");
         }
         tiptapRef.current?.focus();
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [preferences, setPreferences]);
+  }, [chatMode, setChatMode]);
 
   const usage = calculateUsageStats(messages);
 
@@ -646,10 +633,7 @@ export function ChatInput({
                             type="button"
                             onClick={() => {
                               playSwitchSound();
-                              setPreferences({
-                                ...preferences,
-                                toolApprovalLevel: "auto",
-                              });
+                              setChatMode("default");
                             }}
                             className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 group whitespace-nowrap animate-in fade-in duration-200"
                           >
@@ -661,12 +645,12 @@ export function ChatInput({
                             />
                           </button>
                         )}
-                        {forceImageGeneration && imageModel && (
+                        {chatMode === "gen-image" && imageModel && (
                           <button
                             type="button"
                             onClick={() => {
                               playSwitchSound();
-                              setForceImageGeneration(false);
+                              setChatMode("default");
                             }}
                             className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-pink-600 dark:text-pink-400 hover:bg-pink-500/10 group whitespace-nowrap animate-in fade-in duration-200"
                           >
@@ -685,12 +669,12 @@ export function ChatInput({
                             />
                           </button>
                         )}
-                        {forceWebSearch && deepResearchModel && (
+                        {chatMode === "web-search" && deepResearchModel && (
                           <button
                             type="button"
                             onClick={() => {
                               playSwitchSound();
-                              setForceWebSearch(false);
+                              setChatMode("default");
                             }}
                             className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 group whitespace-nowrap animate-in fade-in duration-200"
                           >
