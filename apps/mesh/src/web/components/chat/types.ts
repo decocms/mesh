@@ -72,6 +72,7 @@ export interface Metadata {
     coding?: MetadataModelInfo;
     fast?: MetadataModelInfo;
     image?: MetadataModelInfo;
+    deepResearch?: MetadataModelInfo;
   };
   agent?: ChatAgentConfig;
   user?: ChatUserConfig;
@@ -88,6 +89,8 @@ export interface Metadata {
   toolApprovalLevel?: ToolApprovalLevel;
   /** When true, forces the generate_image tool for the next request */
   forceImageGeneration?: boolean;
+  /** When true, forces the web_search tool for the next request */
+  forceWebSearch?: boolean;
   usage?: {
     inputTokens?: number;
     outputTokens?: number;

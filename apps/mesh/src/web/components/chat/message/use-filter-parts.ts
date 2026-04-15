@@ -25,6 +25,8 @@ export interface ToolSubtaskMetadata {
 export interface DataParts {
   toolMetadata: Map<string, ToolMetadata>;
   toolSubtaskMetadata: Map<string, ToolSubtaskMetadata>;
+  /** Accumulated streaming text from data-web-search parts, keyed by toolCallId */
+  webSearchStreaming: Map<string, string>;
 }
 
 export interface ReasoningGroup {
@@ -47,6 +49,7 @@ export function useFilterParts(message: ChatMessage | null) {
   const reasoningIndices = new Set<number>();
   const toolMetadata = new Map<string, ToolMetadata>();
   const toolSubtaskMetadata = new Map<string, ToolSubtaskMetadata>();
+  const webSearchStreaming = new Map<string, string>();
 
   if (message) {
     let currentGroup: ReasoningGroup | null = null;
@@ -101,6 +104,14 @@ export function useFilterParts(message: ChatMessage | null) {
           (p as { id: string }).id,
           (p as { data: ToolSubtaskMetadata }).data,
         );
+        continue;
+      }
+
+      if (p.type === "data-web-search" && "id" in p && "data" in p) {
+        const id = (p as { id: string }).id;
+        const data = (p as { data: { text?: string } }).data;
+        webSearchStreaming.set(id, data.text ?? "");
+        continue;
       }
     }
   }
@@ -157,6 +168,6 @@ export function useFilterParts(message: ChatMessage | null) {
   return {
     reasoningGroups,
     renderOrder,
-    dataParts: { toolMetadata, toolSubtaskMetadata },
+    dataParts: { toolMetadata, toolSubtaskMetadata, webSearchStreaming },
   };
 }

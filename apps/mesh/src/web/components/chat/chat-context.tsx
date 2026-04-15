@@ -126,9 +126,15 @@ export interface ChatPrefsContextValue {
   /** Selected image generation model (null = no image models available) */
   imageModel: AiProviderModel | null;
   setImageModel: (model: AiProviderModel | null) => void;
+  /** Selected deep research model (null = no deep research models available) */
+  deepResearchModel: AiProviderModel | null;
+  setDeepResearchModel: (model: AiProviderModel | null) => void;
   /** When true, forces generate_image tool on the next request (one-shot) */
   forceImageGeneration: boolean;
   setForceImageGeneration: (force: boolean) => void;
+  /** When true, forces web_search tool on the next request (one-shot) */
+  forceWebSearch: boolean;
+  setForceWebSearch: (force: boolean) => void;
   appContexts: Record<string, string>;
   setAppContext: (sourceId: string, params: SetAppContextParams) => void;
   clearAppContext: (sourceId: string) => void;
@@ -232,8 +238,17 @@ export function ChatContextProvider({
       null,
     );
 
+  // Deep research model selection (localStorage-backed).
+  const [storedDeepResearchModel, setStoredDeepResearchModel] =
+    useLocalStorage<AiProviderModel | null>(
+      LOCALSTORAGE_KEYS.chatSelectedDeepResearchModel(locator),
+      null,
+    );
+
   // Force image generation — one-shot flag, resets after send
   const [forceImageGeneration, setForceImageGeneration] = useState(false);
+  // Force web search — one-shot flag, resets after send
+  const [forceWebSearch, setForceWebSearch] = useState(false);
 
   // AI provider keys and models
   const keys = useAiProviderKeys();
@@ -268,6 +283,25 @@ export function ChatContextProvider({
     (storedModelIsAvailable ? storedImageModel : null) ??
     imageModels[0] ??
     null;
+
+  // Deep research model auto-detection + user override.
+  // Validates stored selection against current credential's models.
+  const deepResearchModels = allKeyModels.filter((m) => {
+    const n = m.modelId.toLowerCase().replace(/[^a-z0-9]/g, "");
+    return n.includes("sonar") || n.includes("deepresearch");
+  });
+  const storedDeepResearchIsAvailable =
+    storedDeepResearchModel &&
+    deepResearchModels.some(
+      (m) => m.modelId === storedDeepResearchModel.modelId,
+    );
+  const defaultDeepResearchModel =
+    deepResearchModels.find((m) => m.modelId === "perplexity/sonar") ??
+    deepResearchModels[0] ??
+    null;
+  const resolvedDeepResearchModel: AiProviderModel | null =
+    (storedDeepResearchIsAvailable ? storedDeepResearchModel : null) ??
+    defaultDeepResearchModel;
 
   // Task management (scoped by URL virtualMcpId — task list doesn't change on override)
   const taskManager = useTaskManager(virtualMcpId);
@@ -472,8 +506,14 @@ export function ChatContextProvider({
     setImageModel: (model: AiProviderModel | null) => {
       setStoredImageModel(model);
     },
+    deepResearchModel: resolvedDeepResearchModel,
+    setDeepResearchModel: (model: AiProviderModel | null) => {
+      setStoredDeepResearchModel(model);
+    },
     forceImageGeneration,
     setForceImageGeneration,
+    forceWebSearch,
+    setForceWebSearch,
     appContexts,
     setAppContext,
     clearAppContext,
@@ -524,8 +564,11 @@ export function ActiveTaskProvider({
   const {
     selectedModel,
     imageModel,
+    deepResearchModel,
     forceImageGeneration,
     setForceImageGeneration,
+    forceWebSearch,
+    setForceWebSearch,
     appContexts,
     setTiptapDoc,
     setModel,
@@ -675,9 +718,11 @@ export function ActiveTaskProvider({
       .filter(Boolean)
       .join("\n\n");
 
-    // Capture and reset one-shot forceImageGeneration before the async send
+    // Capture and reset one-shot force flags before the async send
     const shouldForceImage = forceImageGeneration && !!imageModel;
     if (forceImageGeneration) setForceImageGeneration(false);
+    const shouldForceWebSearch = forceWebSearch && !!deepResearchModel;
+    if (forceWebSearch) setForceWebSearch(false);
 
     const metadata: Metadata = {
       ...messageMetadata,
@@ -689,8 +734,12 @@ export function ActiveTaskProvider({
         ...(imageModel && {
           image: toMetadataModelInfo(imageModel),
         }),
+        ...(deepResearchModel && {
+          deepResearch: toMetadataModelInfo(deepResearchModel),
+        }),
       },
       ...(shouldForceImage && { forceImageGeneration: true }),
+      ...(shouldForceWebSearch && { forceWebSearch: true }),
     };
 
     const userMessage: ChatMessage = {

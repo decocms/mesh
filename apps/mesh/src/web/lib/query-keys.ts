@@ -319,4 +319,7 @@ export const KEYS = {
 
   // Deco sites (scoped by user email)
   decoSites: (email: string | undefined) => ["deco-sites", email] as const,
+
+  // Web search blob content (fetched from object storage)
+  webSearchBlob: (url: string) => ["web-search-blob", url] as const,
 } as const;

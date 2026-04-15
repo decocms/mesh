@@ -98,6 +98,8 @@ export interface StreamCoreInput {
   isResume?: boolean;
   /** When true, forces generate_image as the required tool for this request */
   forceImageGeneration?: boolean;
+  /** When true, forces web_search as the required tool for this request */
+  forceWebSearch?: boolean;
 }
 
 export interface StreamCoreDeps {
@@ -490,9 +492,24 @@ async function streamCoreInner(
               "</plan-mode>"
             : null;
 
+        // web_search behavior hint — only when the tool is registered
+        const webSearchPrompt =
+          "web_search" in tools
+            ? "<web-search>\n" +
+              "The web_search tool streams its research result directly to the user in real time. " +
+              "After a search completes, do NOT repeat, summarize, or restate the research content — " +
+              "the user can already see it. Simply confirm the search succeeded and highlight key " +
+              "takeaways in one or two sentences. Only elaborate if the user explicitly asks.\n\n" +
+              "For large results, the tool result contains a `uri` (mesh-storage:…) instead of " +
+              "inline content. To re-access the full research in a later turn, call " +
+              "`read_resource` with that URI.\n" +
+              "</web-search>"
+            : null;
+
         const systemPrompts = [
           basePrompt,
           planModePrompt,
+          webSearchPrompt,
           toolCatalog,
           promptCatalog,
           agentPrompt,
@@ -678,6 +695,8 @@ async function streamCoreInner(
                     // model choose freely on subsequent steps.
                     const shouldForceImage =
                       input.forceImageGeneration && "generate_image" in tools;
+                    const shouldForceWebSearch =
+                      input.forceWebSearch && "web_search" in tools;
                     let stepIndex = 0;
 
                     return () => {
@@ -707,15 +726,22 @@ async function streamCoreInner(
                         });
                       }
 
+                      // Determine forced tool (image takes precedence if both set)
+                      const forcedToolName =
+                        shouldForceImage && isFirstStep
+                          ? "generate_image"
+                          : shouldForceWebSearch && isFirstStep
+                            ? "web_search"
+                            : null;
+
                       return {
                         activeTools: activeToolNames as (keyof typeof tools)[],
-                        ...(shouldForceImage &&
-                          isFirstStep && {
-                            toolChoice: {
-                              type: "tool" as const,
-                              toolName: "generate_image" as never,
-                            },
-                          }),
+                        ...(forcedToolName && {
+                          toolChoice: {
+                            type: "tool" as const,
+                            toolName: forcedToolName as never,
+                          },
+                        }),
                       };
                     };
                   })(),

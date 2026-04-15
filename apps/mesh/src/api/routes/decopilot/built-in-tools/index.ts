@@ -18,6 +18,7 @@ import { createSubtaskTool } from "./subtask";
 import { userAskTool } from "./user-ask";
 import { proposePlanTool } from "./propose-plan";
 import { createGenerateImageTool } from "./generate-image";
+import { createWebSearchTool } from "./web-search";
 import type { ModelsConfig } from "../types";
 import type { MeshProvider } from "@/ai-providers/types";
 
@@ -75,6 +76,7 @@ function buildAllTools(
     read_resource: createReadResourceTool({
       passthroughClient,
       toolOutputMap,
+      ctx,
     }),
     read_prompt: createReadPromptTool({
       passthroughClient,
@@ -111,6 +113,15 @@ function buildAllTools(
       ctx,
     });
   }
+  // web_search requires a provider and a deep-research model
+  if (provider && models.deepResearch) {
+    tools.web_search = createWebSearchTool(writer, {
+      provider,
+      deepResearchModelInfo: models.deepResearch,
+      ctx,
+      toolOutputMap,
+    });
+  }
   return tools as {
     user_ask: typeof userAskTool;
     propose_plan: typeof proposePlanTool;
@@ -122,6 +133,7 @@ function buildAllTools(
     read_prompt: ReturnType<typeof createReadPromptTool>;
     open_in_agent: ReturnType<typeof createOpenInAgentTool>;
     generate_image: ReturnType<typeof createGenerateImageTool>;
+    web_search: ReturnType<typeof createWebSearchTool>;
   };
 }
 

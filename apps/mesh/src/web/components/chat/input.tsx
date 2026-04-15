@@ -20,6 +20,7 @@ import {
   Check,
   ChevronDown,
   Edit01,
+  Globe02,
   Image01,
   Lock01,
   Microphone01,
@@ -323,6 +324,9 @@ export function ChatInput({
     imageModel,
     forceImageGeneration,
     setForceImageGeneration,
+    deepResearchModel,
+    forceWebSearch,
+    setForceWebSearch,
   } = useChatPrefs();
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
@@ -406,6 +410,11 @@ export function ChatInput({
         e.preventDefault();
         if (e.shiftKey) {
           const isPlan = preferences.toolApprovalLevel === "plan";
+          if (!isPlan) {
+            // Mutual exclusion: disable forced modes when entering plan mode
+            if (forceImageGeneration) setForceImageGeneration(false);
+            if (forceWebSearch) setForceWebSearch(false);
+          }
           setPreferences({
             ...preferences,
             toolApprovalLevel: isPlan ? "auto" : "plan",
@@ -669,6 +678,30 @@ export function ChatInput({
                                     .slice(1)
                                     .join(": ")
                                 : imageModel.title}
+                            </span>
+                            <X
+                              size={14}
+                              className="shrink-0 hidden group-hover:block"
+                            />
+                          </button>
+                        )}
+                        {forceWebSearch && deepResearchModel && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              playSwitchSound();
+                              setForceWebSearch(false);
+                            }}
+                            className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 group whitespace-nowrap animate-in fade-in duration-200"
+                          >
+                            <Globe02 size={14} className="shrink-0" />
+                            <span className="max-w-[120px] truncate">
+                              {deepResearchModel.title.includes(": ")
+                                ? deepResearchModel.title
+                                    .split(": ")
+                                    .slice(1)
+                                    .join(": ")
+                                : deepResearchModel.title}
                             </span>
                             <X
                               size={14}

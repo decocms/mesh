@@ -15,6 +15,7 @@ import { MessageTextPart } from "./parts/text-part.tsx";
 import {
   GenericToolCallPart,
   GenerateImagePart,
+  WebSearchPart,
   OpenInAgentPart,
   ProposePlanPart,
   SubtaskPart,
@@ -492,6 +493,14 @@ function MessagePart({
           latency={getMeta(part.toolCallId)?.latencySeconds}
         />
       );
+    case "tool-web_search":
+      return (
+        <WebSearchPart
+          part={part}
+          latency={getMeta(part.toolCallId)?.latencySeconds}
+          streamingText={dataParts.webSearchStreaming.get(part.toolCallId)}
+        />
+      );
     case "tool-subtask":
       return (
         <SubtaskPart
@@ -529,6 +538,7 @@ function MessagePart({
     case "data-tool-metadata":
     case "data-tool-subtask-metadata":
     case "data-generate-image":
+    case "data-web-search":
       return null;
     default: {
       const fallback = part as ToolUIPart;

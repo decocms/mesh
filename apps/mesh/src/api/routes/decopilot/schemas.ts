@@ -67,28 +67,47 @@ const ModelsSchema = z
     coding: ModelInfoSchema.optional().describe("Good coding model"),
     fast: ModelInfoSchema.optional().describe("Cheap model for simple tasks"),
     image: ModelInfoSchema.optional().describe("Image generation model"),
+    deepResearch: ModelInfoSchema.optional().describe(
+      "Deep research model (e.g. Perplexity Sonar) for web_search tool",
+    ),
   })
   .loose();
 
-export const StreamRequestSchema = z.object({
-  messages: z
-    .array(UIMessageSchema)
-    .min(1)
-    .refine((msgs) => msgs.filter((m) => m.role !== "system").length === 1, {
-      message: "Expected exactly one non-system message",
-    }),
-  memory: MemoryConfigSchema.optional(),
-  models: ModelsSchema.optional(),
-  agent: z
-    .object({
-      id: z.string(),
-    })
-    .loose(),
-  stream: z.boolean().optional(),
-  temperature: z.number().default(0.5),
-  thread_id: z.string().optional(),
-  toolApprovalLevel: z.enum(["auto", "readonly", "plan"]).default("auto"),
-  forceImageGeneration: z.boolean().optional(),
-});
+export const StreamRequestSchema = z
+  .object({
+    messages: z
+      .array(UIMessageSchema)
+      .min(1)
+      .refine((msgs) => msgs.filter((m) => m.role !== "system").length === 1, {
+        message: "Expected exactly one non-system message",
+      }),
+    memory: MemoryConfigSchema.optional(),
+    models: ModelsSchema.optional(),
+    agent: z
+      .object({
+        id: z.string(),
+      })
+      .loose(),
+    stream: z.boolean().optional(),
+    temperature: z.number().default(0.5),
+    thread_id: z.string().optional(),
+    toolApprovalLevel: z.enum(["auto", "readonly", "plan"]).default("auto"),
+    forceImageGeneration: z.boolean().optional(),
+    forceWebSearch: z.boolean().optional(),
+  })
+  .refine(
+    (data) => {
+      const modes = [
+        data.toolApprovalLevel === "plan",
+        !!data.forceImageGeneration,
+        !!data.forceWebSearch,
+      ].filter(Boolean).length;
+      return modes <= 1;
+    },
+    {
+      message:
+        "Only one of plan mode, forceImageGeneration, or forceWebSearch can be active at a time",
+    },
+  );
 
 export type StreamRequest = z.infer<typeof StreamRequestSchema>;
