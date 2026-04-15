@@ -1,4 +1,5 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import type { ModelCapability } from "@decocms/mesh-sdk";
 import type { MeshProvider, ProviderAdapter, ModelInfo } from "../types";
 
 interface GoogleModel {
@@ -17,6 +18,31 @@ interface GoogleModel {
   topK: number;
   /** Lifecycle stage returned by the API (e.g. "ACTIVE", "DEPRECATED"). */
   lifecycleState?: string;
+}
+
+/**
+ * Derive capabilities from the Google model metadata.
+ *
+ * Only tags dedicated image-generation models (Imagen, Gemini *-image variants).
+ * Multimodal language models (gemini-2.5-flash etc.) return [] so the
+ * OpenRouter enrichment in factory.ts fills in their full capability set
+ * (with the correct image→vision remapping for input modalities).
+ */
+function deriveCapabilities(m: GoogleModel): ModelCapability[] {
+  const id = m.name.replace("models/", "");
+
+  // Dedicated image generation models: Imagen family or Gemini image variants
+  if (/^imagen-/.test(id) || /-image/.test(id)) {
+    const caps: ModelCapability[] = ["image"];
+    // Gemini image models also support text in/out via generateContent
+    if (m.supportedGenerationMethods.includes("generateContent")) {
+      caps.push("text");
+    }
+    return caps;
+  }
+
+  // Everything else: let OpenRouter enrichment handle capabilities
+  return [];
 }
 
 export const googleAdapter: ProviderAdapter = {
@@ -52,7 +78,7 @@ export const googleAdapter: ProviderAdapter = {
             title: m.displayName,
             description: m.description,
             logo: null,
-            capabilities: [],
+            capabilities: deriveCapabilities(m),
             limits: {
               contextWindow: m.inputTokenLimit,
               maxOutputTokens: m.outputTokenLimit,
