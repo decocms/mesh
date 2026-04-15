@@ -24,8 +24,6 @@ import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import { KEYS } from "@/web/lib/query-keys";
 import { toast } from "sonner";
 import { Loading01 } from "@untitledui/icons";
-import { RUNTIME_DEFAULTS } from "@/shared/runtime-defaults";
-import type { RuntimeType } from "@/shared/runtime-defaults";
 import { AddConnectionDialog } from "@/web/views/virtual-mcp/add-connection-dialog";
 
 interface GitHubInstallation {
@@ -220,106 +218,76 @@ function PickerContent({
         };
 
         const detectRuntime = async () => {
-          const runtimeFiles: Array<{ file: string; runtime: string }> = [
-            { file: "deno.json", runtime: "deno" },
-            { file: "deno.jsonc", runtime: "deno" },
-            { file: "bun.lock", runtime: "bun" },
-            { file: "bunfig.toml", runtime: "bun" },
-            { file: "pnpm-lock.yaml", runtime: "pnpm" },
-            { file: "yarn.lock", runtime: "yarn" },
-            { file: "package-lock.json", runtime: "npm" },
-            { file: "package.json", runtime: "npm" },
+          const runtimeFiles: Array<{ file: string; pm: string }> = [
+            { file: "deno.json", pm: "deno" },
+            { file: "deno.jsonc", pm: "deno" },
+            { file: "bun.lock", pm: "bun" },
+            { file: "bunfig.toml", pm: "bun" },
+            { file: "pnpm-lock.yaml", pm: "pnpm" },
+            { file: "yarn.lock", pm: "yarn" },
+            { file: "package-lock.json", pm: "npm" },
+            { file: "package.json", pm: "npm" },
           ];
 
-          const installCommands: Record<string, string> = {
-            deno: RUNTIME_DEFAULTS.deno.install,
-            bun: RUNTIME_DEFAULTS.bun.install,
-            pnpm: "pnpm install",
-            yarn: "yarn install",
-            npm: RUNTIME_DEFAULTS.node.install,
-          };
-
           let detected: string | null = null;
-          for (const { file, runtime } of runtimeFiles) {
+          for (const { file, pm } of runtimeFiles) {
             const content = await getFileContent(file);
             if (content !== null) {
-              detected = runtime;
+              detected = pm;
               break;
             }
           }
 
-          if (!detected) return;
-
-          const installScript = installCommands[detected] ?? "";
-          let devScript = "";
+          // Extract port from dev/start script if possible
           let devPort = "";
-
-          if (detected === "deno") {
-            for (const denoFile of ["deno.json", "deno.jsonc"]) {
-              const content = await getFileContent(denoFile);
-              if (content) {
-                try {
-                  const deno = JSON.parse(content) as {
-                    tasks?: Record<string, string>;
-                  };
-                  const tasks = deno.tasks ?? {};
-                  if (tasks.dev) {
-                    devScript = "deno task dev";
-                    const portMatch = tasks.dev.match(
+          if (detected) {
+            if (detected === "deno") {
+              for (const denoFile of ["deno.json", "deno.jsonc"]) {
+                const content = await getFileContent(denoFile);
+                if (content) {
+                  try {
+                    const deno = JSON.parse(content) as {
+                      tasks?: Record<string, string>;
+                    };
+                    const tasks = deno.tasks ?? {};
+                    const devTask = tasks.dev ?? tasks.start ?? "";
+                    const portMatch = devTask.match(
                       /(?:--port|PORT=|:)(\d{4,5})/,
                     );
                     if (portMatch?.[1]) devPort = portMatch[1];
-                  } else if (tasks.start) {
-                    devScript = "deno task start";
+                  } catch {
+                    // Invalid JSON
                   }
-                } catch {
-                  // Invalid JSON
+                  break;
                 }
-                break;
               }
-            }
-          } else {
-            const pkgContent = await getFileContent("package.json");
-            if (pkgContent) {
-              try {
-                const pkg = JSON.parse(pkgContent) as {
-                  scripts?: Record<string, string>;
-                };
-                const scripts = pkg.scripts ?? {};
-                const runPrefix = `${detected} run`;
-                if (scripts.dev) {
-                  devScript = `${runPrefix} dev`;
-                  const portMatch = scripts.dev.match(
+            } else {
+              const pkgContent = await getFileContent("package.json");
+              if (pkgContent) {
+                try {
+                  const pkg = JSON.parse(pkgContent) as {
+                    scripts?: Record<string, string>;
+                  };
+                  const scripts = pkg.scripts ?? {};
+                  const devScript = scripts.dev ?? scripts.start ?? "";
+                  const portMatch = devScript.match(
                     /(?:--port|PORT=|:)(\d{4,5})/,
                   );
                   if (portMatch?.[1]) devPort = portMatch[1];
-                } else if (scripts.start) {
-                  devScript = `${runPrefix} start`;
+                } catch {
+                  // Invalid JSON
                 }
-              } catch {
-                // Invalid JSON
               }
             }
           }
-
-          const runtimeTypeMap: Record<string, RuntimeType> = {
-            deno: "deno",
-            bun: "bun",
-            pnpm: "node",
-            yarn: "node",
-            npm: "node",
-          };
-          const selected: RuntimeType = runtimeTypeMap[detected] ?? "node";
 
           await actions.update.mutateAsync({
             id: entityId,
             data: {
               metadata: {
                 runtime: {
-                  selected,
-                  installScript,
-                  devScript,
-                  port: devPort || "8000",
+                  selected: detected,
+                  port: devPort || null,
                 },
               },
             } as any,
