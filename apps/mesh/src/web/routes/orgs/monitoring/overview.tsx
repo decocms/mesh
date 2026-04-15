@@ -298,7 +298,7 @@ export function OverviewTabContent({
   const [latencyMetric, setLatencyMetric] = useState<"avg" | "p95">("avg");
 
   return (
-    <div className="flex flex-col gap-4 px-4 md:px-10 pt-0 pb-6 max-w-[1200px] mx-auto w-full overflow-auto">
+    <div className="flex flex-col gap-4 px-4 md:px-10 pt-2 pb-6 max-w-[1200px] mx-auto w-full overflow-auto">
       {/* Row 1: Tool Calls — full width */}
       <MonitoringMetricCard
         title="Tool Calls"

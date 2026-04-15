@@ -478,6 +478,7 @@ export function SettingsTab({
               {...form.register("name")}
               placeholder="Automation name"
               className="border border-transparent shadow-none px-0 text-lg font-medium h-auto focus-visible:ring-0 focus-visible:border-border bg-transparent flex-1"
+              style={{ boxShadow: "none" }}
             />
             {onDelete && (
               <Button

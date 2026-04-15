@@ -128,7 +128,7 @@ export function ConnectionFields({
               <div className="flex items-stretch rounded-lg border border-border overflow-hidden">
                 <Select value={field.value} onValueChange={field.onChange}>
                   <FormControl>
-                    <SelectTrigger className="h-10 w-auto min-w-[90px] border-0 rounded-none bg-muted/50 focus:ring-0 focus:ring-offset-0">
+                    <SelectTrigger className="h-full! w-auto min-w-[90px] border-0 rounded-none bg-muted/50 focus:ring-0 focus:ring-offset-0">
                       <Globe02 className="w-4 h-4 text-muted-foreground shrink-0" />
                       <SelectValue />
                     </SelectTrigger>
