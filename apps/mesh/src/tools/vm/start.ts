@@ -469,169 +469,136 @@ export const VM_START = defineTool({
   }),
 
   handler: async (input, ctx) => {
-    console.log(`[VM_START] starting for virtualMcpId=${input.virtualMcpId}`);
-    const { metadata, userId } = await requireVmEntry(input, ctx);
-    console.log(
-      `[VM_START] userId=${userId} metadata keys: ${Object.keys(metadata).join(", ")}`,
-    );
+    try {
+      const { metadata, userId } = await requireVmEntry(input, ctx);
 
-    if (!metadata.githubRepo) {
-      throw new Error("No GitHub repo connected");
-    }
+      if (!metadata.githubRepo) {
+        throw new Error("No GitHub repo connected");
+      }
 
-    const { owner, name } = metadata.githubRepo;
-    console.log(
-      `[VM_START] githubRepo: ${owner}/${name} connectionId=${metadata.githubRepo.connectionId}`,
-    );
-    const { packageManager, runtime, port, runtimeBinPath } =
-      resolveRuntimeConfig(metadata);
-    console.log(
-      `[VM_START] runtime config: pm=${packageManager} runtime=${runtime} port=${port} binPath=${runtimeBinPath}`,
-    );
-    const pathPrefix = runtimeBinPath
-      ? `export PATH=${runtimeBinPath}:$PATH && `
-      : "";
+      const { owner, name } = metadata.githubRepo;
+      const { packageManager, runtime, port, runtimeBinPath } =
+        resolveRuntimeConfig(metadata);
+      const pathPrefix = runtimeBinPath
+        ? `export PATH=${runtimeBinPath}:$PATH && `
+        : "";
 
-    // Build authenticated clone URL from downstream token
-    console.log(
-      `[VM_START] fetching downstream token for connectionId=${metadata.githubRepo.connectionId}`,
-    );
-    const cloneUrl = await buildCloneUrl(
-      metadata.githubRepo.connectionId,
-      owner,
-      name,
-      ctx.db,
-      ctx.vault,
-    );
-    console.log(`[VM_START] clone URL built successfully`);
+      // Build authenticated clone URL from downstream token
+      const cloneUrl = await buildCloneUrl(
+        metadata.githubRepo.connectionId,
+        owner,
+        name,
+        ctx.db,
+        ctx.vault,
+      );
 
-    // Generate a unique subdomain per (virtualMcpId, userId) pair.
-    // MD5 of the composite key guarantees a valid, fixed-length hex subdomain
-    // and avoids collisions between different users on the same Virtual MCP.
-    // Freestyle docs: /v2/vms/configuration/domains
-    const domainKey = createHash("md5")
-      .update(`${input.virtualMcpId}:${userId}`)
-      .digest("hex")
-      .slice(0, 16);
-    const previewDomain = `${domainKey}.deco.studio`;
+      // Generate a unique subdomain per (virtualMcpId, userId) pair.
+      // MD5 of the composite key guarantees a valid, fixed-length hex subdomain
+      // and avoids collisions between different users on the same Virtual MCP.
+      // Freestyle docs: /v2/vms/configuration/domains
+      const domainKey = createHash("md5")
+        .update(`${input.virtualMcpId}:${userId}`)
+        .digest("hex")
+        .slice(0, 16);
+      const previewDomain = `${domainKey}.deco.studio`;
 
-    // Build the full VmSpec declaratively — integrations, repo, files, and services.
-    // VmNodeJs is always included: the iframe-proxy systemd service runs Node.js on every VM.
-    // Freestyle docs: /v2/vms/integrations/deno, /v2/vms/integrations/bun, /v2/vms/integrations/web-terminal
-    const baseSpec = new VmSpec()
-      .with("node", new VmNodeJs())
-      .additionalFiles({
-        "/opt/daemon.js": {
-          content: buildDaemonScript({
-            upstreamPort: port,
-            packageManager,
-            pathPrefix,
-            port,
-            cloneUrl,
-            repoName: `${owner}/${name}`,
-          }),
-        },
-        "/opt/run-daemon.sh": {
-          content:
-            "#!/bin/bash\nsource /etc/profile.d/nvm.sh\nexec node /opt/daemon.js\n",
-        },
-      })
-      .systemdService({
-        name: "daemon",
-        mode: "service",
-        exec: ["/bin/bash /opt/run-daemon.sh"],
-        after: ["install-nodejs.service"],
-        requires: ["install-nodejs.service"],
-        wantedBy: ["multi-user.target"],
+      // Build the full VmSpec declaratively — integrations, repo, files, and services.
+      // VmNodeJs is always included: the iframe-proxy systemd service runs Node.js on every VM.
+      // Freestyle docs: /v2/vms/integrations/deno, /v2/vms/integrations/bun, /v2/vms/integrations/web-terminal
+      const baseSpec = new VmSpec()
+        .with("node", new VmNodeJs())
+        .additionalFiles({
+          "/opt/daemon.js": {
+            content: buildDaemonScript({
+              upstreamPort: port,
+              packageManager,
+              pathPrefix,
+              port,
+              cloneUrl,
+              repoName: `${owner}/${name}`,
+            }),
+          },
+          "/opt/run-daemon.sh": {
+            content:
+              "#!/bin/bash\nsource /etc/profile.d/nvm.sh\nexec node /opt/daemon.js\n",
+          },
+        })
+        .systemdService({
+          name: "daemon",
+          mode: "service",
+          exec: ["/bin/bash /opt/run-daemon.sh"],
+          after: ["install-nodejs.service"],
+          requires: ["install-nodejs.service"],
+          wantedBy: ["multi-user.target"],
+        });
+
+      const spec =
+        runtime === "deno"
+          ? baseSpec.with("deno", new VmDeno())
+          : runtime === "bun"
+            ? baseSpec.with("js", new VmBun())
+            : baseSpec;
+
+      // Resume existing VM if one is tracked.
+      // Try vm.start() which resumes suspended/stopped VMs. If the VM was
+      // deleted externally, the call will throw — clear the stale entry and
+      // fall through to create a new one.
+      const existing = metadata.activeVms?.[userId];
+      if (existing) {
+        try {
+          const vm = freestyle.vms.ref({ vmId: existing.vmId, spec });
+          await vm.start();
+          return { ...existing, isNewVm: false };
+        } catch {
+          // VM no longer exists on Freestyle — clear stale entry
+          await patchActiveVms(
+            ctx.storage.virtualMcps,
+            input.virtualMcpId,
+            userId,
+            (vms) => {
+              const updated = { ...vms };
+              delete updated[userId];
+              return updated;
+            },
+          );
+        }
+      }
+
+      // Create VM from spec.
+      // Domain routes to the iframe proxy which strips X-Frame-Options/CSP
+      // so the preview can be embedded in an iframe.
+      // Terminal domain is routed post-creation via vm.terminal.logs.route() — a persistent mapping.
+      // Freestyle docs: /v2/vms/configuration/domains
+      const createResult = await freestyle.vms.create({
+        spec,
+        domains: [{ domain: previewDomain, vmPort: PROXY_PORT }],
+        // recreate: true so vm.start() rebuilds from spec if evicted.
+        // Freestyle docs: /v2/vms/lifecycle/persistence
+        recreate: true,
+        // 30-minute idle timeout before the VM is automatically stopped.
+        idleTimeoutSeconds: 1800,
       });
 
-    const spec =
-      runtime === "deno"
-        ? baseSpec.with("deno", new VmDeno())
-        : runtime === "bun"
-          ? baseSpec.with("js", new VmBun())
-          : baseSpec;
+      const { vmId } = createResult;
 
-    // Resume existing VM if one is tracked.
-    // Try vm.start() which resumes suspended/stopped VMs. If the VM was
-    // deleted externally, the call will throw — clear the stale entry and
-    // fall through to create a new one.
-    const existing = metadata.activeVms?.[userId];
-    console.log(
-      `[VM_START] existing VM entry for user: ${existing ? existing.vmId : "none"}`,
-    );
-    if (existing) {
-      try {
-        console.log(`[VM_START] attempting to resume VM: ${existing.vmId}`);
-        const vm = freestyle.vms.ref({ vmId: existing.vmId, spec });
-        await vm.start();
-        console.log(`[VM_START] resumed existing VM: ${existing.vmId}`);
-        return { ...existing, isNewVm: false };
-      } catch (err) {
-        // VM no longer exists on Freestyle — clear stale entry
-        console.log(
-          `[VM_START] VM gone, clearing stale entry: ${existing.vmId} error: ${err instanceof Error ? err.message : String(err)}`,
-        );
-        await patchActiveVms(
-          ctx.storage.virtualMcps,
-          input.virtualMcpId,
-          userId,
-          (vms) => {
-            const updated = { ...vms };
-            delete updated[userId];
-            return updated;
-          },
-        );
-        console.log(`[VM_START] stale entry cleared, will create new VM`);
-      }
+      const previewUrl = `https://${previewDomain}`;
+      const terminalUrl: string | null = null;
+
+      const entry: VmEntry = { terminalUrl, previewUrl, vmId };
+
+      // Persist the active VM entry in the Virtual MCP metadata so all pods
+      // can discover it and avoid spinning up duplicate VMs.
+      await patchActiveVms(
+        ctx.storage.virtualMcps,
+        input.virtualMcpId,
+        userId,
+        (vms) => ({ ...vms, [userId]: entry }),
+      );
+
+      return { ...entry, isNewVm: true };
+    } catch (e) {
+      console.error("[VM_START] error", e);
+      throw e;
     }
-
-    console.log(
-      `[VM_START] repo: ${owner}/${name} pm: ${packageManager ?? "none"} runtime: ${runtime ?? "none"}`,
-    );
-
-    // Create VM from spec.
-    // Domain routes to the iframe proxy which strips X-Frame-Options/CSP
-    // so the preview can be embedded in an iframe.
-    // Terminal domain is routed post-creation via vm.terminal.logs.route() — a persistent mapping.
-    // Freestyle docs: /v2/vms/configuration/domains
-    console.log(
-      `[VM_START] creating new VM with domain=${previewDomain} proxyPort=${PROXY_PORT}`,
-    );
-    const createResult = await freestyle.vms.create({
-      spec,
-      domains: [{ domain: previewDomain, vmPort: PROXY_PORT }],
-      // recreate: true so vm.start() rebuilds from spec if evicted.
-      // Freestyle docs: /v2/vms/lifecycle/persistence
-      recreate: true,
-      // 30-minute idle timeout before the VM is automatically stopped.
-      idleTimeoutSeconds: 1800,
-    });
-
-    console.log(
-      `[VM_START] VM created: ${createResult.vmId} domain: ${previewDomain}`,
-    );
-
-    const { vmId } = createResult;
-
-    const previewUrl = `https://${previewDomain}`;
-    const terminalUrl: string | null = null;
-
-    const entry: VmEntry = { terminalUrl, previewUrl, vmId };
-
-    // Persist the active VM entry in the Virtual MCP metadata so all pods
-    // can discover it and avoid spinning up duplicate VMs.
-    console.log(
-      `[VM_START] persisting VM entry: vmId=${vmId} previewUrl=${previewUrl}`,
-    );
-    await patchActiveVms(
-      ctx.storage.virtualMcps,
-      input.virtualMcpId,
-      userId,
-      (vms) => ({ ...vms, [userId]: entry }),
-    );
-
-    console.log(`[VM_START] done, returning new VM`);
-    return { ...entry, isNewVm: true };
   },
 });
