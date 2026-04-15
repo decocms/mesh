@@ -323,10 +323,6 @@ export const KEYS = {
   // Web search blob content (fetched from object storage)
   webSearchBlob: (url: string) => ["web-search-blob", url] as const,
 
-  // Runtime detection state (set via setQueryData, never fetched)
-  runtimeDetecting: (entityId: string | undefined) =>
-    ["runtime-detecting", entityId] as const,
-
   // GitHub integration
   githubUserOrgs: (orgId: string, connectionId: string) =>
     ["github-user-orgs", orgId, connectionId] as const,

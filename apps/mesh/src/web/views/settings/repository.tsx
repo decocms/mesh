@@ -22,8 +22,7 @@ import {
   useMCPClient,
   SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { KEYS } from "@/web/lib/query-keys";
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Loading01, LinkExternal01 } from "@untitledui/icons";
@@ -49,6 +48,7 @@ export function RepositoryTabContent() {
   const inset = useInsetContext();
   const { org } = useProjectContext();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [isDetecting, setIsDetecting] = useState(false);
 
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -65,12 +65,6 @@ export function RepositoryTabContent() {
         }
       | undefined
   )?.runtime;
-
-  const isDetecting = useQuery({
-    queryKey: KEYS.runtimeDetecting(inset?.entity?.id),
-    initialData: false,
-    enabled: false,
-  }).data;
 
   const invalidateVirtualMcp = () =>
     queryClient.invalidateQueries({
@@ -202,7 +196,11 @@ export function RepositoryTabContent() {
           </Button>
         }
       />
-      <GitHubRepoPicker open={dialogOpen} onOpenChange={setDialogOpen} />
+      <GitHubRepoPicker
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onDetectingChange={setIsDetecting}
+      />
     </>
   );
 }

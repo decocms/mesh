@@ -46,9 +46,11 @@ interface Repo {
 export function GitHubRepoPicker({
   open,
   onOpenChange,
+  onDetectingChange,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onDetectingChange?: (detecting: boolean) => void;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -67,7 +69,10 @@ export function GitHubRepoPicker({
               </div>
             }
           >
-            <PickerContent onOpenChange={onOpenChange} />
+            <PickerContent
+              onOpenChange={onOpenChange}
+              onDetectingChange={onDetectingChange}
+            />
           </Suspense>
         </div>
       </DialogContent>
@@ -77,8 +82,10 @@ export function GitHubRepoPicker({
 
 function PickerContent({
   onOpenChange,
+  onDetectingChange,
 }: {
   onOpenChange: (open: boolean) => void;
+  onDetectingChange?: (detecting: boolean) => void;
 }) {
   const { org } = useProjectContext();
   const inset = useInsetContext();
@@ -311,10 +318,10 @@ function PickerContent({
         };
 
         // Signal detection start
-        queryClient.setQueryData(KEYS.runtimeDetecting(entityId), true);
+        onDetectingChange?.(true);
 
         Promise.allSettled([fetchInstructions(), detectRuntime()]).then(() => {
-          queryClient.setQueryData(KEYS.runtimeDetecting(entityId), false);
+          onDetectingChange?.(false);
           queryClient.invalidateQueries({
             predicate: (query) => {
               const key = query.queryKey;
