@@ -10,10 +10,7 @@ import {
   useProjectContext,
   type ConnectionEntity,
 } from "@decocms/mesh-sdk";
-import {
-  authenticateMcp,
-  isConnectionAuthenticated,
-} from "@decocms/mesh-sdk";
+import { authenticateMcp, isConnectionAuthenticated } from "@decocms/mesh-sdk";
 import { authClient } from "@/web/lib/auth-client";
 import { useRegistryApp } from "@/web/hooks/use-registry-app";
 import { extractConnectionData } from "@/web/utils/extract-connection-data";
@@ -94,7 +91,11 @@ export function useAutoInstallGitHub(opts: {
 
       if (authStatus.supportsOAuth && !authStatus.isAuthenticated) {
         // Step 3: Run OAuth flow
-        const { token, tokenInfo, error: oauthError } = await authenticateMcp({
+        const {
+          token,
+          tokenInfo,
+          error: oauthError,
+        } = await authenticateMcp({
           connectionId: id,
         });
 
@@ -111,23 +112,20 @@ export function useAutoInstallGitHub(opts: {
         // Step 4: Persist OAuth token
         if (tokenInfo) {
           try {
-            const response = await fetch(
-              `/api/connections/${id}/oauth-token`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({
-                  accessToken: tokenInfo.accessToken,
-                  refreshToken: tokenInfo.refreshToken,
-                  expiresIn: tokenInfo.expiresIn,
-                  scope: tokenInfo.scope,
-                  clientId: tokenInfo.clientId,
-                  clientSecret: tokenInfo.clientSecret,
-                  tokenEndpoint: tokenInfo.tokenEndpoint,
-                }),
-              },
-            );
+            const response = await fetch(`/api/connections/${id}/oauth-token`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({
+                accessToken: tokenInfo.accessToken,
+                refreshToken: tokenInfo.refreshToken,
+                expiresIn: tokenInfo.expiresIn,
+                scope: tokenInfo.scope,
+                clientId: tokenInfo.clientId,
+                clientSecret: tokenInfo.clientSecret,
+                tokenEndpoint: tokenInfo.tokenEndpoint,
+              }),
+            });
             if (!response.ok) {
               await actions.update.mutateAsync({
                 id,

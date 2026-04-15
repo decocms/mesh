@@ -24,7 +24,7 @@ import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import { KEYS } from "@/web/lib/query-keys";
 import { toast } from "sonner";
 import { Loading01 } from "@untitledui/icons";
-import { AddConnectionDialog } from "@/web/views/virtual-mcp/add-connection-dialog";
+import { useAutoInstallGitHub } from "@/web/hooks/use-auto-install-github";
 
 interface GitHubInstallation {
   installationId: number;
@@ -87,7 +87,6 @@ function PickerContent({
     useState<ConnectionEntity | null>(null);
   const [selectedInstallation, setSelectedInstallation] =
     useState<GitHubInstallation | null>(null);
-  const [addConnectionOpen, setAddConnectionOpen] = useState(false);
 
   const actions = useVirtualMCPActions();
 
@@ -320,40 +319,9 @@ function PickerContent({
     },
   });
 
-  // No GitHub connections — prompt to add one
+  // No GitHub connections — auto-install from registry
   if (githubConnections.length === 0) {
-    return (
-      <>
-        <div className="flex flex-col items-center gap-4 py-6">
-          <p className="text-sm text-muted-foreground text-center">
-            No GitHub connection found. Add one to connect a repository.
-          </p>
-          <button
-            type="button"
-            onClick={() => setAddConnectionOpen(true)}
-            className="text-sm font-medium text-primary hover:underline"
-          >
-            Add GitHub connection
-          </button>
-        </div>
-        <AddConnectionDialog
-          open={addConnectionOpen}
-          onOpenChange={setAddConnectionOpen}
-          addedConnectionIds={new Set()}
-          onAdd={() => {
-            setAddConnectionOpen(false);
-            queryClient.invalidateQueries({
-              predicate: (query) => {
-                const key = query.queryKey;
-                return key[1] === org.id && key[3] === "collection";
-              },
-            });
-          }}
-          initialSearch="github"
-          defaultTab="all"
-        />
-      </>
-    );
+    return <AutoInstallGitHub />;
   }
 
   // Multiple connections, none selected — show connection picker
@@ -719,6 +687,40 @@ function RepoSearchResults({
           Load more
         </button>
       )}
+    </div>
+  );
+}
+
+function AutoInstallGitHub() {
+  const { status, error, retry } = useAutoInstallGitHub({ enabled: true });
+
+  if (status === "ready") {
+    return null;
+  }
+
+  if (status === "error") {
+    return (
+      <div className="flex flex-col items-center gap-3 py-6">
+        <p className="text-sm text-destructive text-center">{error}</p>
+        <button
+          type="button"
+          onClick={retry}
+          className="text-sm font-medium text-primary hover:underline"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-2 py-8">
+      <Loading01 size={20} className="animate-spin text-muted-foreground" />
+      <p className="text-sm text-muted-foreground">
+        {status === "authenticating"
+          ? "Authenticating with GitHub..."
+          : "Setting up GitHub..."}
+      </p>
     </div>
   );
 }
