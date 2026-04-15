@@ -469,20 +469,33 @@ export const VM_START = defineTool({
   }),
 
   handler: async (input, ctx) => {
+    console.log(`[VM_START] starting for virtualMcpId=${input.virtualMcpId}`);
     const { metadata, userId } = await requireVmEntry(input, ctx);
+    console.log(
+      `[VM_START] userId=${userId} metadata keys: ${Object.keys(metadata).join(", ")}`,
+    );
 
     if (!metadata.githubRepo) {
       throw new Error("No GitHub repo connected");
     }
 
     const { owner, name } = metadata.githubRepo;
+    console.log(
+      `[VM_START] githubRepo: ${owner}/${name} connectionId=${metadata.githubRepo.connectionId}`,
+    );
     const { packageManager, runtime, port, runtimeBinPath } =
       resolveRuntimeConfig(metadata);
+    console.log(
+      `[VM_START] runtime config: pm=${packageManager} runtime=${runtime} port=${port} binPath=${runtimeBinPath}`,
+    );
     const pathPrefix = runtimeBinPath
       ? `export PATH=${runtimeBinPath}:$PATH && `
       : "";
 
     // Build authenticated clone URL from downstream token
+    console.log(
+      `[VM_START] fetching downstream token for connectionId=${metadata.githubRepo.connectionId}`,
+    );
     const cloneUrl = await buildCloneUrl(
       metadata.githubRepo.connectionId,
       owner,
@@ -490,6 +503,7 @@ export const VM_START = defineTool({
       ctx.db,
       ctx.vault,
     );
+    console.log(`[VM_START] clone URL built successfully`);
 
     // Generate a unique subdomain per (virtualMcpId, userId) pair.
     // MD5 of the composite key guarantees a valid, fixed-length hex subdomain
@@ -543,16 +557,20 @@ export const VM_START = defineTool({
     // deleted externally, the call will throw — clear the stale entry and
     // fall through to create a new one.
     const existing = metadata.activeVms?.[userId];
+    console.log(
+      `[VM_START] existing VM entry for user: ${existing ? existing.vmId : "none"}`,
+    );
     if (existing) {
       try {
+        console.log(`[VM_START] attempting to resume VM: ${existing.vmId}`);
         const vm = freestyle.vms.ref({ vmId: existing.vmId, spec });
         await vm.start();
-        console.log(`[VM_START] Resumed existing VM: ${existing.vmId}`);
+        console.log(`[VM_START] resumed existing VM: ${existing.vmId}`);
         return { ...existing, isNewVm: false };
-      } catch {
+      } catch (err) {
         // VM no longer exists on Freestyle — clear stale entry
         console.log(
-          `[VM_START] VM gone, clearing stale entry: ${existing.vmId}`,
+          `[VM_START] VM gone, clearing stale entry: ${existing.vmId} error: ${err instanceof Error ? err.message : String(err)}`,
         );
         await patchActiveVms(
           ctx.storage.virtualMcps,
@@ -564,6 +582,7 @@ export const VM_START = defineTool({
             return updated;
           },
         );
+        console.log(`[VM_START] stale entry cleared, will create new VM`);
       }
     }
 
@@ -576,6 +595,9 @@ export const VM_START = defineTool({
     // so the preview can be embedded in an iframe.
     // Terminal domain is routed post-creation via vm.terminal.logs.route() — a persistent mapping.
     // Freestyle docs: /v2/vms/configuration/domains
+    console.log(
+      `[VM_START] creating new VM with domain=${previewDomain} proxyPort=${PROXY_PORT}`,
+    );
     const createResult = await freestyle.vms.create({
       spec,
       domains: [{ domain: previewDomain, vmPort: PROXY_PORT }],
@@ -599,6 +621,9 @@ export const VM_START = defineTool({
 
     // Persist the active VM entry in the Virtual MCP metadata so all pods
     // can discover it and avoid spinning up duplicate VMs.
+    console.log(
+      `[VM_START] persisting VM entry: vmId=${vmId} previewUrl=${previewUrl}`,
+    );
     await patchActiveVms(
       ctx.storage.virtualMcps,
       input.virtualMcpId,
@@ -606,6 +631,7 @@ export const VM_START = defineTool({
       (vms) => ({ ...vms, [userId]: entry }),
     );
 
+    console.log(`[VM_START] done, returning new VM`);
     return { ...entry, isNewVm: true };
   },
 });
