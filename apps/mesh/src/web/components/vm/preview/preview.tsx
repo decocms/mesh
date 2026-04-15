@@ -118,28 +118,11 @@ export function PreviewContent() {
     }
   };
 
-  // No active VM — show empty state with button to open env panel
-  if (!previewUrl) {
-    return (
-      <div className="flex flex-col items-center justify-center w-full h-full gap-4">
-        <Monitor04 size={48} className="text-muted-foreground/40" />
-        <h3 className="text-lg font-medium">Preview</h3>
-        <p className="text-sm text-muted-foreground text-center max-w-sm">
-          Start the development server to see a live preview
-        </p>
-        <Button onClick={openEnv}>
-          <Server01 size={14} />
-          Start Server
-        </Button>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col w-full h-full">
       {/* Unified toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
-        {hasHtmlPreview && (
+        {previewUrl && hasHtmlPreview && (
           <ViewModeToggle
             value={viewMode}
             onValueChange={handleViewModeChange}
@@ -148,45 +131,70 @@ export function PreviewContent() {
           />
         )}
         <div className="flex items-center gap-1 flex-1 min-w-0 rounded-md border border-border bg-muted/40 px-2 py-1">
+          {previewUrl ? (
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0 h-5 w-5 p-0"
+                    onClick={() => {
+                      if (previewIframeRef.current) {
+                        // oxlint-disable-next-line no-self-assign — intentional: reloads the iframe by re-assigning its src
+                        previewIframeRef.current.src =
+                          previewIframeRef.current.src;
+                      }
+                    }}
+                  >
+                    <RefreshCw01 size={12} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Refresh</TooltipContent>
+              </Tooltip>
+              <span className="text-xs text-muted-foreground font-mono truncate flex-1">
+                {previewUrl}
+              </span>
+            </>
+          ) : (
+            <span className="text-xs text-muted-foreground font-mono truncate flex-1">
+              No server running
+            </span>
+          )}
+        </div>
+        {previewUrl && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
                 size="sm"
-                className="shrink-0 h-5 w-5 p-0"
-                onClick={() => {
-                  if (previewIframeRef.current) {
-                    // oxlint-disable-next-line no-self-assign — intentional: reloads the iframe by re-assigning its src
-                    previewIframeRef.current.src = previewIframeRef.current.src;
-                  }
-                }}
+                className="shrink-0"
+                onClick={() => window.open(previewUrl, "_blank", "noopener")}
               >
-                <RefreshCw01 size={12} />
+                <LinkExternal01 size={14} />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom">Refresh</TooltipContent>
+            <TooltipContent side="bottom">Open in new tab</TooltipContent>
           </Tooltip>
-          <span className="text-xs text-muted-foreground font-mono truncate flex-1">
-            {previewUrl}
-          </span>
-        </div>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="shrink-0"
-              onClick={() => window.open(previewUrl, "_blank", "noopener")}
-            >
-              <LinkExternal01 size={14} />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Open in new tab</TooltipContent>
-        </Tooltip>
+        )}
       </div>
 
       {/* Content area */}
       <div className="flex-1 relative overflow-hidden">
+        {!previewUrl && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-background">
+            <Monitor04 size={48} className="text-muted-foreground/40" />
+            <h3 className="text-lg font-medium">Preview</h3>
+            <p className="text-sm text-muted-foreground text-center max-w-sm">
+              Start the development server to see a live preview
+            </p>
+            <Button onClick={openEnv}>
+              <Server01 size={14} />
+              Start Server
+            </Button>
+          </div>
+        )}
+
         {suspended && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-background/80 backdrop-blur-sm">
             <p className="text-sm text-muted-foreground">
@@ -211,17 +219,19 @@ export function PreviewContent() {
             onDismiss={() => setVisualElement(null)}
           />
         )}
-        <iframe
-          ref={previewIframeRef}
-          src={previewUrl}
-          className="w-full h-full border-0"
-          title="Dev Server Preview"
-          onLoad={() => {
-            if (viewMode === "visual") {
-              injectVisualEditor();
-            }
-          }}
-        />
+        {previewUrl && (
+          <iframe
+            ref={previewIframeRef}
+            src={previewUrl}
+            className="w-full h-full border-0"
+            title="Dev Server Preview"
+            onLoad={() => {
+              if (viewMode === "visual") {
+                injectVisualEditor();
+              }
+            }}
+          />
+        )}
       </div>
     </div>
   );
