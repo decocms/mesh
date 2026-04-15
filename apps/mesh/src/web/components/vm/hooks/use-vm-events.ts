@@ -2,7 +2,8 @@
  * useVmEvents — SSE hook for the VM daemon.
  *
  * Connects to the daemon's /_daemon/events endpoint running inside the VM
- * and streams raw PTY chunks and upstream status back to React.
+ * and streams raw PTY chunks, upstream status, discovered scripts, and
+ * active process state back to React.
  *
  * Built on createSSESubscription for ref-counted connections and auto-reconnect.
  */
@@ -15,10 +16,7 @@ export interface VmStatus {
   htmlSupport: boolean;
 }
 
-export type ChunkHandler = (
-  source: "setup" | "install" | "dev" | "daemon",
-  data: string,
-) => void;
+export type ChunkHandler = (source: string, data: string) => void;
 
 const BUFFER_BYTES = 16384;
 
@@ -40,13 +38,9 @@ class ChunkBuffer {
 
 const daemonSSE = createSSESubscription({
   buildUrl: (previewUrl) => `${previewUrl}/_daemon/events`,
-  eventTypes: ["log", "status"],
+  eventTypes: ["log", "status", "scripts", "processes"],
 });
 
-/**
- * After MAX_DISCONNECT_MS without receiving any event, the VM is considered
- * suspended. This replaces the old heartbeat-based suspension detection.
- */
 const MAX_DISCONNECT_MS = 45_000;
 
 export function useVmEvents(
@@ -58,16 +52,21 @@ export function useVmEvents(
     htmlSupport: false,
   });
   const [suspended, setSuspended] = useState(false);
-  const [hasInstallData, setHasInstallData] = useState(false);
-  const [hasDevData, setHasDevData] = useState(false);
-  const [hasSetupData, setHasSetupData] = useState(false);
+  const [scripts, setScripts] = useState<string[]>([]);
+  const [activeProcesses, setActiveProcesses] = useState<string[]>([]);
   const disconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onChunkRef = useRef(onChunk);
   onChunkRef.current = onChunk;
-  const installBuffer = useRef(new ChunkBuffer());
-  const devBuffer = useRef(new ChunkBuffer());
-  const daemonBuffer = useRef(new ChunkBuffer());
-  const setupBuffer = useRef(new ChunkBuffer());
+  const buffers = useRef(new Map<string, ChunkBuffer>());
+
+  const getOrCreateBuffer = (source: string) => {
+    let buf = buffers.current.get(source);
+    if (!buf) {
+      buf = new ChunkBuffer();
+      buffers.current.set(source, buf);
+    }
+    return buf;
+  };
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — SSE subscription lifecycle requires cleanup on unmount; createSSESubscription returns an unsubscribe function that must be called in an effect cleanup
   useEffect(() => {
@@ -76,13 +75,9 @@ export function useVmEvents(
     // Reset state for new connection
     setStatus({ ready: false, htmlSupport: false });
     setSuspended(false);
-    setHasInstallData(false);
-    setHasDevData(false);
-    setHasSetupData(false);
-    installBuffer.current.clear();
-    devBuffer.current.clear();
-    daemonBuffer.current.clear();
-    setupBuffer.current.clear();
+    setScripts([]);
+    setActiveProcesses([]);
+    buffers.current.clear();
 
     const unsubscribe = daemonSSE.subscribe(previewUrl, (e: MessageEvent) => {
       // Any event received means we're connected — clear suspension timer
@@ -101,36 +96,24 @@ export function useVmEvents(
         const data = JSON.parse(e.data);
 
         if (e.type === "log" && typeof data.data === "string") {
-          const source = data.source as "setup" | "install" | "dev" | "daemon";
-          if (source === "setup") {
-            setHasSetupData(true);
-            setupBuffer.current.append(data.data);
-          }
-          if (source === "install") {
-            setHasInstallData(true);
-            installBuffer.current.append(data.data);
-          }
-          if (source === "dev") {
-            setHasDevData(true);
-            devBuffer.current.append(data.data);
-          }
-          if (source === "daemon") {
-            daemonBuffer.current.append(data.data);
-          }
+          const source = data.source as string;
+          getOrCreateBuffer(source).append(data.data);
           onChunkRef.current?.(source, data.data);
         } else if (e.type === "status") {
           setStatus({
             ready: Boolean(data.ready),
             htmlSupport: Boolean(data.htmlSupport),
           });
+        } else if (e.type === "scripts") {
+          setScripts(data.scripts ?? []);
+        } else if (e.type === "processes") {
+          setActiveProcesses(data.active ?? []);
         }
       } catch {
         // ignore parse errors
       }
     });
 
-    // Start a disconnect timer — if no events arrive within MAX_DISCONNECT_MS,
-    // assume the VM is suspended. The timer resets on each received event.
     disconnectTimer.current = setTimeout(() => {
       setSuspended(true);
     }, MAX_DISCONNECT_MS);
@@ -147,12 +130,10 @@ export function useVmEvents(
   return {
     status,
     suspended,
-    hasInstallData,
-    hasDevData,
-    hasSetupData,
-    getInstallBuffer: () => installBuffer.current.get(),
-    getDevBuffer: () => devBuffer.current.get(),
-    getDaemonBuffer: () => daemonBuffer.current.get(),
-    getSetupBuffer: () => setupBuffer.current.get(),
+    scripts,
+    activeProcesses,
+    getBuffer: (source: string) => buffers.current.get(source)?.get() ?? "",
+    hasData: (source: string) =>
+      (buffers.current.get(source)?.get().length ?? 0) > 0,
   };
 }
