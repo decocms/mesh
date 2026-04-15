@@ -29,6 +29,7 @@ import { ChevronRight, Plus, Users03 } from "@untitledui/icons";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
+import { WebPerfRecruitModal } from "@/web/components/home/web-perf-recruit-modal.tsx";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { Suspense, useState } from "react";
@@ -159,6 +160,7 @@ function AgentsListContent() {
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
   const [leanCanvasModalOpen, setLeanCanvasModalOpen] = useState(false);
+  const [webPerfModalOpen, setWebPerfModalOpen] = useState(false);
   const navigateToAgent = useNavigateToAgent();
 
   const siteEditorAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
@@ -169,6 +171,9 @@ function AgentsListContent() {
   )!;
   const leanCanvasAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
     (t) => t.id === "lean-canvas",
+  )!;
+  const webPerfAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "web-perf",
   )!;
 
   const recentIds = readRecentAgentIds(locator);
@@ -209,6 +214,15 @@ function AgentsListContent() {
         a.title === leanCanvasAgent.title),
   );
 
+  // Check if Web Performance agent already exists
+  const existingWebPerf = virtualMcps.find(
+    (a): a is typeof a & { id: string } =>
+      a.id !== null &&
+      ((a as { metadata?: { type?: string } }).metadata?.type ===
+        webPerfAgent.id ||
+        a.title === webPerfAgent.title),
+  );
+
   const hasAgents = agents.length > 0;
 
   return (
@@ -238,11 +252,21 @@ function AgentsListContent() {
                 : () => setLeanCanvasModalOpen(true)
             }
           />
+          <AgentPreview
+            key={webPerfAgent.id}
+            agent={existingWebPerf ?? webPerfAgent}
+            onSpecialClick={
+              existingWebPerf
+                ? () => navigateToAgent(existingWebPerf.id)
+                : () => setWebPerfModalOpen(true)
+            }
+          />
           {agents
             .filter(
               (a) =>
                 a.id !== existingDiagnostics?.id &&
-                a.id !== existingLeanCanvas?.id,
+                a.id !== existingLeanCanvas?.id &&
+                a.id !== existingWebPerf?.id,
             )
             .map((agent) => (
               <AgentPreview
@@ -271,6 +295,12 @@ function AgentsListContent() {
         open={leanCanvasModalOpen}
         onOpenChange={setLeanCanvasModalOpen}
         existingAgent={existingLeanCanvas}
+      />
+
+      <WebPerfRecruitModal
+        open={webPerfModalOpen}
+        onOpenChange={setWebPerfModalOpen}
+        existingAgent={existingWebPerf}
       />
     </>
   );

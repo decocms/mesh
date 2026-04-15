@@ -65,6 +65,7 @@ import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onb
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
 import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
+import { WebPerfRecruitModal } from "@/web/components/home/web-perf-recruit-modal.tsx";
 import { useAgentBadges } from "@/web/hooks/use-agent-badges";
 
 function AgentListItem({
@@ -295,12 +296,14 @@ function PinAgentPopoverContent({
   onOpenDiagnosticsModal,
   onOpenLeanCanvasModal,
   onOpenStudioPackModal,
+  onOpenWebPerfModal,
 }: {
   onClose: () => void;
   onOpenSiteEditorModal: () => void;
   onOpenDiagnosticsModal: () => void;
   onOpenLeanCanvasModal: () => void;
   onOpenStudioPackModal: () => void;
+  onOpenWebPerfModal: () => void;
 }) {
   const [search, setSearch] = useState("");
   const allAgents = useVirtualMCPs();
@@ -350,6 +353,18 @@ function PinAgentPopoverContent({
       )
     : undefined;
 
+  // Find existing recruited Web Performance agent
+  const webPerfTemplate = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "web-perf",
+  );
+  const existingWebPerf = webPerfTemplate
+    ? allAgents.find(
+        (a) =>
+          (a as { metadata?: { type?: string } }).metadata?.type ===
+          webPerfTemplate.id,
+      )
+    : undefined;
+
   const handleSelect = (agent: VirtualMCPEntity) => {
     if (!isPinned(agent.id)) {
       pin(agent.id);
@@ -378,6 +393,12 @@ function PinAgentPopoverContent({
       }
     } else if (templateId === "studio-pack") {
       onOpenStudioPackModal();
+    } else if (templateId === "web-perf") {
+      if (existingWebPerf) {
+        navigateToAgent(existingWebPerf.id);
+      } else {
+        onOpenWebPerfModal();
+      }
     } else {
       navigateToNewTask(templateId);
     }
@@ -489,6 +510,7 @@ function PinAgentPopover() {
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
   const [leanCanvasModalOpen, setLeanCanvasModalOpen] = useState(false);
   const [studioPackModalOpen, setStudioPackModalOpen] = useState(false);
+  const [webPerfModalOpen, setWebPerfModalOpen] = useState(false);
   const isMobile = useIsMobile();
   const { setOpenMobile } = useSidebar();
 
@@ -511,6 +533,7 @@ function PinAgentPopover() {
         onOpenDiagnosticsModal={() => setDiagnosticsModalOpen(true)}
         onOpenLeanCanvasModal={() => setLeanCanvasModalOpen(true)}
         onOpenStudioPackModal={() => setStudioPackModalOpen(true)}
+        onOpenWebPerfModal={() => setWebPerfModalOpen(true)}
       />
     </Suspense>
   );
@@ -571,6 +594,10 @@ function PinAgentPopover() {
       <StudioPackRecruitModal
         open={studioPackModalOpen}
         onOpenChange={setStudioPackModalOpen}
+      />
+      <WebPerfRecruitModal
+        open={webPerfModalOpen}
+        onOpenChange={setWebPerfModalOpen}
       />
     </>
   );
