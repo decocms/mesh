@@ -17,13 +17,13 @@ import {
 import type { PackageManager } from "@/shared/runtime-defaults";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import { useActiveGithubRepo } from "@/web/hooks/use-active-github-repo";
+import { useGithubRepoPicker } from "@/web/hooks/use-github-repo-picker";
 import {
   useProjectContext,
   useMCPClient,
   SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 import { toast } from "sonner";
 import { Loading01, LinkExternal01 } from "@untitledui/icons";
 
@@ -47,8 +47,11 @@ const packageManagers = Object.keys(PACKAGE_MANAGER_CONFIG) as PackageManager[];
 export function RepositoryTabContent() {
   const inset = useInsetContext();
   const { org } = useProjectContext();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [isDetecting, setIsDetecting] = useState(false);
+  const {
+    open: dialogOpen,
+    setOpen: setDialogOpen,
+    openPicker,
+  } = useGithubRepoPicker();
 
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -103,6 +106,9 @@ export function RepositoryTabContent() {
       toast.error("Failed to update setting");
     }
   };
+
+  // runtime is undefined while detection is in progress (set after detectRuntime completes)
+  const isDetecting = !!githubRepo && runtime === undefined;
 
   if (githubRepo && isDetecting) {
     return (
@@ -190,17 +196,13 @@ export function RepositoryTabContent() {
         title="No repository connected"
         description="Connect a GitHub repository to enable code sync and deployments."
         actions={
-          <Button variant="outline" onClick={() => setDialogOpen(true)}>
+          <Button variant="outline" onClick={() => openPicker()}>
             <GitHubIcon size={16} />
             Connect GitHub
           </Button>
         }
       />
-      <GitHubRepoPicker
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onDetectingChange={setIsDetecting}
-      />
+      <GitHubRepoPicker open={dialogOpen} onOpenChange={setDialogOpen} />
     </>
   );
 }

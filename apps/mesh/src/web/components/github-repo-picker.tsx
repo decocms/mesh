@@ -4,7 +4,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@deco/ui/components/dialog.tsx";
-import { Input } from "@deco/ui/components/input.tsx";
+import { SearchInput } from "@deco/ui/components/search-input.tsx";
 import { Suspense, useDeferredValue, useState } from "react";
 import {
   useMutation,
@@ -25,6 +25,7 @@ import { KEYS } from "@/web/lib/query-keys";
 import { toast } from "sonner";
 import { Loading01 } from "@untitledui/icons";
 import { useAutoInstallGitHub } from "@/web/hooks/use-auto-install-github";
+import { useToggleEnvPanel } from "@/web/hooks/use-toggle-env-panel";
 
 interface GitHubInstallation {
   installationId: number;
@@ -46,11 +47,9 @@ interface Repo {
 export function GitHubRepoPicker({
   open,
   onOpenChange,
-  onDetectingChange,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onDetectingChange?: (detecting: boolean) => void;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -69,10 +68,7 @@ export function GitHubRepoPicker({
               </div>
             }
           >
-            <PickerContent
-              onOpenChange={onOpenChange}
-              onDetectingChange={onDetectingChange}
-            />
+            <PickerContent onOpenChange={onOpenChange} />
           </Suspense>
         </div>
       </DialogContent>
@@ -82,10 +78,8 @@ export function GitHubRepoPicker({
 
 function PickerContent({
   onOpenChange,
-  onDetectingChange,
 }: {
   onOpenChange: (open: boolean) => void;
-  onDetectingChange?: (detecting: boolean) => void;
 }) {
   const { org } = useProjectContext();
   const inset = useInsetContext();
@@ -96,6 +90,7 @@ function PickerContent({
     useState<GitHubInstallation | null>(null);
 
   const actions = useVirtualMCPActions();
+  const { toggleEnv } = useToggleEnvPanel();
 
   // Find all mcp-github connections in the organization
   const githubConnections = useConnections({ slug: "mcp-github" });
@@ -192,8 +187,12 @@ function PickerContent({
       });
     },
     onSuccess: (_data, repo) => {
+      console.log(
+        "[GitHubRepoPicker] saveMutation onSuccess, toggling env panel",
+      );
       toast.success("GitHub repo connected");
       onOpenChange(false);
+      toggleEnv();
 
       // Background: detect runtime from the repo via the GitHub connection
       if (inset?.entity && effectiveConnection) {
@@ -305,11 +304,7 @@ function PickerContent({
           });
         };
 
-        // Signal detection start
-        onDetectingChange?.(true);
-
         Promise.allSettled([fetchInstructions(), detectRuntime()]).then(() => {
-          onDetectingChange?.(false);
           queryClient.invalidateQueries({
             predicate: (query) => {
               const key = query.queryKey;
@@ -546,11 +541,6 @@ function RepoBrowser({
   const deferredQuery = useDeferredValue(query);
   const isStale = query !== deferredQuery;
 
-  const githubClient = useMCPClient({
-    connectionId,
-    orgId,
-  });
-
   return (
     <div className="flex flex-col gap-3">
       <button
@@ -561,11 +551,11 @@ function RepoBrowser({
         &larr; {installation.login}
       </button>
 
-      <Input
+      <SearchInput
         placeholder="Search repositories..."
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        autoFocus
+        onChange={setQuery}
+        isSearching={isStale}
       />
 
       <div
@@ -586,12 +576,11 @@ function RepoBrowser({
             </div>
           }
         >
-          <RepoSearchResults
+          <RepoList
             connectionId={connectionId}
             orgId={orgId}
             installation={installation}
             query={deferredQuery}
-            githubClient={githubClient}
             onSelectRepo={onSelectRepo}
             isSaving={isSaving}
           />
@@ -601,12 +590,11 @@ function RepoBrowser({
   );
 }
 
-function RepoSearchResults({
+function RepoList({
   connectionId,
   orgId,
   installation,
   query,
-  githubClient,
   onSelectRepo,
   isSaving,
 }: {
@@ -614,41 +602,26 @@ function RepoSearchResults({
   orgId: string;
   installation: GitHubInstallation;
   query: string;
-  githubClient: ReturnType<typeof useMCPClient>;
   onSelectRepo: (repo: Repo) => void;
   isSaving: boolean;
 }) {
-  const [page, setPage] = useState(1);
-  const [accumulated, setAccumulated] = useState<Repo[]>([]);
-  const [lastQuery, setLastQuery] = useState(query);
-
-  // Reset accumulated results when query changes
-  if (query !== lastQuery) {
-    setPage(1);
-    setAccumulated([]);
-    setLastQuery(query);
-  }
+  const githubClient = useMCPClient({ connectionId, orgId });
 
   const searchQuery = query
     ? `org:${installation.login} ${query} in:name`
     : `org:${installation.login}`;
 
-  const { data } = useSuspenseQuery({
+  const { data: repos } = useSuspenseQuery({
     queryKey: KEYS.githubOrgRepos(
       orgId,
       connectionId,
       installation.login,
       query,
-      page,
     ),
     queryFn: async () => {
       const result = await githubClient.callTool({
         name: "search_repositories",
-        arguments: {
-          query: searchQuery,
-          page,
-          perPage: 30,
-        },
+        arguments: { query: searchQuery, page: 1, perPage: 30 },
       });
       const content = (result as { content?: Array<{ text?: string }> })
         .content?.[0]?.text;
@@ -662,10 +635,8 @@ function RepoSearchResults({
           description: string | null;
           updated_at: string;
         }>;
-        total_count?: number;
       };
-      const items = parsed.items ?? [];
-      const repos: Repo[] = items.map((r) => ({
+      return (parsed.items ?? []).map((r) => ({
         name: r.name,
         fullName: r.full_name,
         owner: r.full_name.split("/")[0] ?? "",
@@ -674,61 +645,42 @@ function RepoSearchResults({
         description: r.description,
         updatedAt: r.updated_at,
       }));
-      const totalCount = parsed.total_count ?? 0;
-      const hasMore = page * 30 < totalCount;
-      return { repos, hasMore };
     },
   });
 
-  const allRepos =
-    accumulated.length > 0 && page > 1
-      ? [...accumulated, ...data.repos]
-      : data.repos;
+  if (repos.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground text-center py-4">
+        No repositories found
+      </p>
+    );
+  }
 
   return (
     <div className="max-h-72 overflow-y-auto overflow-x-hidden flex flex-col gap-1">
-      {allRepos.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-4">
-          No repositories found
-        </p>
-      ) : (
-        allRepos.map((repo) => (
-          <button
-            key={repo.fullName}
-            type="button"
-            onClick={() => onSelectRepo(repo)}
-            disabled={isSaving}
-            className="flex items-center gap-2 p-2 rounded-md hover:bg-accent transition-colors text-left"
-          >
-            <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-sm font-medium truncate">{repo.name}</span>
-              {repo.description && (
-                <p className="text-xs text-muted-foreground truncate m-0">
-                  {repo.description}
-                </p>
-              )}
-            </div>
-            {repo.private && (
-              <span className="text-xs text-muted-foreground shrink-0">
-                private
-              </span>
-            )}
-          </button>
-        ))
-      )}
-
-      {data.hasMore && (
+      {repos.map((repo) => (
         <button
+          key={repo.fullName}
           type="button"
-          onClick={() => {
-            setAccumulated(allRepos);
-            setPage((p) => p + 1);
-          }}
-          className="text-xs text-primary hover:underline py-2 text-center"
+          onClick={() => onSelectRepo(repo)}
+          disabled={isSaving}
+          className="flex items-center gap-2 p-2 rounded-md hover:bg-accent transition-colors text-left"
         >
-          Load more
+          <div className="flex flex-col min-w-0 flex-1">
+            <span className="text-sm font-medium truncate">{repo.name}</span>
+            {repo.description && (
+              <p className="text-xs text-muted-foreground truncate m-0">
+                {repo.description}
+              </p>
+            )}
+          </div>
+          {repo.private && (
+            <span className="text-xs text-muted-foreground shrink-0">
+              private
+            </span>
+          )}
         </button>
-      )}
+      ))}
     </div>
   );
 }

@@ -3,7 +3,9 @@ import {
   useProjectContext,
   useMCPClient,
   SELF_MCP_ALIAS_ID,
+  KEYS,
 } from "@decocms/mesh-sdk";
+import { useQueryClient } from "@tanstack/react-query";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import {
   Loading01,
@@ -53,6 +55,7 @@ const WELL_KNOWN_STARTERS = ["dev", "start"];
 export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const { org } = useProjectContext();
   const inset = useInsetContext();
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState<ViewStatus>("idle");
   const [statusLabel, setStatusLabel] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -179,6 +182,9 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
       vmDataRef.current = data;
       setStatus("running");
       setStatusLabel("");
+      queryClient.invalidateQueries({
+        queryKey: KEYS.collection(org.id, "", "VIRTUAL_MCP"),
+      });
     } catch (error) {
       setStatus("error");
       setErrorMsg(
@@ -206,6 +212,9 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     }
 
     setStatus("idle");
+    queryClient.invalidateQueries({
+      queryKey: KEYS.collection(org.id, "", "VIRTUAL_MCP"),
+    });
   };
 
   const handleStartRef = useRef(handleStart);

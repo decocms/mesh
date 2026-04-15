@@ -331,7 +331,6 @@ export const KEYS = {
     connectionId: string,
     installationLogin: string,
     query: string,
-    page: number,
   ) =>
     [
       "github-org-repos",
@@ -339,6 +338,5 @@ export const KEYS = {
       connectionId,
       installationLogin,
       query,
-      page,
     ] as const,
 } as const;

@@ -73,6 +73,7 @@ import { GitHubRepoButton } from "@/web/components/github-repo-button";
 import { getActiveGithubRepo } from "@/web/lib/github-repo";
 import { usePreferences } from "@/web/hooks/use-preferences";
 import { EnvContent } from "@/web/components/vm/env/env";
+import { useToggleEnvPanel } from "@/web/hooks/use-toggle-env-panel";
 
 // ---------------------------------------------------------------------------
 // Types & Context
@@ -486,6 +487,7 @@ function AgentInsetProvider() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
+  const { envOpen, toggleEnv } = useToggleEnvPanel();
   const { toggleDaemon } = layout;
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — subscribes to document keydown for ⌘D toggle-daemon shortcut; DOM event listener has no React 19 alternative
   useEffect(() => {
@@ -621,11 +623,11 @@ function AgentInsetProvider() {
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    onClick={layout.toggleEnv}
-                    aria-pressed={layout.envOpen}
+                    onClick={toggleEnv}
+                    aria-pressed={envOpen}
                     className={cn(
                       "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
-                      layout.envOpen
+                      envOpen
                         ? "bg-sidebar-accent text-sidebar-foreground"
                         : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                     )}
@@ -733,7 +735,7 @@ function AgentInsetProvider() {
           tasksOpen={layout.tasksOpen}
           mainOpen={layout.mainOpen}
           chatOpen={layout.chatOpen}
-          envOpen={layout.envOpen}
+          envOpen={envOpen}
           daemonOpen={layout.daemonOpen}
         />
       </Chat.Provider>

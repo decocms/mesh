@@ -1,16 +1,13 @@
 import { useState, useRef, useEffect } from "react";
-import {
-  useProjectContext,
-  useMCPClient,
-  SELF_MCP_ALIAS_ID,
-} from "@decocms/mesh-sdk";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
+import { authClient } from "@/web/lib/auth-client";
+import { useToggleEnvPanel } from "@/web/hooks/use-toggle-env-panel";
 import {
   CursorClick01,
   LinkExternal01,
-  Loading01,
   Monitor04,
   RefreshCw01,
+  Server01,
 } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -29,23 +26,7 @@ import {
 } from "./visual-editor-script";
 import { VisualEditorPrompt } from "./visual-editor-prompt";
 import { useVmEvents } from "../hooks/use-vm-events";
-import { LiveTimer } from "../../live-timer";
-import { VmErrorState } from "../vm-error-state";
 
-interface VmData {
-  terminalUrl: string | null;
-  previewUrl: string;
-  vmId: string;
-  isNewVm: boolean;
-}
-
-type ViewStatus =
-  | "idle"
-  | "creating"
-  | "running"
-  | "suspended"
-  | "stopping"
-  | "error";
 type PreviewViewMode = "preview" | "visual";
 
 const VIEW_MODE_OPTIONS: [
@@ -61,15 +42,9 @@ const VIEW_MODE_OPTIONS: [
 ];
 
 export function PreviewContent() {
-  const { org } = useProjectContext();
   const inset = useInsetContext();
-  const [status, setStatus] = useState<ViewStatus>("idle");
-  const [statusLabel, setStatusLabel] = useState("");
-  const [errorMsg, setErrorMsg] = useState("");
-  const [actionError, setActionError] = useState("");
-  const vmDataRef = useRef<VmData | null>(null);
-  const startingRef = useRef(false);
-  const startedAtRef = useRef<number>(Date.now());
+  const { data: session } = authClient.useSession();
+  const { toggleEnv } = useToggleEnvPanel();
 
   // Visual editor state
   const [viewMode, setViewMode] = useState<PreviewViewMode>("preview");
@@ -77,83 +52,32 @@ export function PreviewContent() {
     useState<VisualEditorPayload | null>(null);
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
 
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-
-  const vmEvents = useVmEvents(
-    status === "running" ? (vmDataRef.current?.previewUrl ?? null) : null,
-    null,
-  );
-
-  const hasHtmlPreview = vmEvents.status.htmlSupport;
-
-  const callTool = async (name: string, args: Record<string, unknown>) => {
-    const result = await client.callTool({ name, arguments: args });
-    const content = (result as { content?: Array<{ text?: string }> }).content;
-    if (content?.[0]?.text?.startsWith("Error:")) {
-      throw new Error(content[0].text);
-    }
-    return (
-      (result as { structuredContent?: unknown }).structuredContent ?? result
-    );
-  };
-
-  const handleStart = async () => {
-    if (startingRef.current) return;
-    startingRef.current = true;
-    startedAtRef.current = Date.now();
-    setStatus("creating");
-    setStatusLabel("Connecting...");
-    setErrorMsg("");
-
-    try {
-      if (!inset?.entity) throw new Error("No virtual MCP context");
-      const data = (await callTool("VM_START", {
-        virtualMcpId: inset.entity.id,
-      })) as VmData;
-
-      if (!data.previewUrl || !data.vmId) {
-        throw new Error("Invalid VM response — missing URLs");
+  // Read VM data from entity metadata
+  const userId = session?.user?.id;
+  const metadata = inset?.entity?.metadata as
+    | {
+        activeVms?: Record<
+          string,
+          { previewUrl: string; vmId: string; terminalUrl: string | null }
+        >;
       }
+    | undefined;
+  const vmEntry = userId ? metadata?.activeVms?.[userId] : undefined;
+  const previewUrl = vmEntry?.previewUrl ?? null;
 
-      vmDataRef.current = data;
-      setStatus("running");
-      setStatusLabel("");
-    } catch (error) {
-      setStatus("error");
-      setErrorMsg(
-        error instanceof Error ? error.message : "Failed to start VM",
-      );
-    } finally {
-      startingRef.current = false;
-    }
-  };
-
-  const handleResume = async () => {
-    setStatus("running");
-    setActionError("");
-  };
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — auto-start on mount requires DOM lifecycle; no React 19 alternative
-  useEffect(() => {
-    if (inset?.entity?.id) {
-      handleStart();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inset?.entity?.id]);
+  const vmEvents = useVmEvents(previewUrl, null);
+  const hasHtmlPreview = vmEvents.status.htmlSupport;
+  const suspended = vmEvents.suspended;
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — postMessage listener requires DOM event subscription; no React 19 alternative
   useEffect(() => {
-    const vmData = vmDataRef.current;
-    if (status !== "running" || !vmData?.previewUrl) return;
+    if (!previewUrl) return;
 
     let allowedOrigin: string;
     try {
-      allowedOrigin = new URL(vmData.previewUrl).origin;
+      allowedOrigin = new URL(previewUrl).origin;
     } catch {
-      return; // Malformed URL — skip listener setup
+      return;
     }
 
     const handler = (e: MessageEvent) => {
@@ -167,18 +91,7 @@ export function PreviewContent() {
 
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [status]);
-
-  // Detect suspension via SSE disconnect
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — responds to vmEvents.suspended changing; drives status transition
-  useEffect(() => {
-    if (vmEvents.suspended && status === "running") {
-      setStatus("suspended");
-    }
-    if (!vmEvents.suspended && status === "suspended") {
-      setStatus("running");
-    }
-  }, [vmEvents.suspended, status]);
+  }, [previewUrl]);
 
   const injectVisualEditor = () => {
     const win = previewIframeRef.current?.contentWindow;
@@ -205,47 +118,28 @@ export function PreviewContent() {
     }
   };
 
-  if (status === "idle" || status === "stopping") {
-    const isStopping = status === "stopping";
+  // No active VM — show empty state with button to open env panel
+  if (!previewUrl) {
     return (
       <div className="flex flex-col items-center justify-center w-full h-full gap-4">
         <Monitor04 size={48} className="text-muted-foreground/40" />
         <h3 className="text-lg font-medium">Preview</h3>
         <p className="text-sm text-muted-foreground text-center max-w-sm">
-          Start preview server
+          Start the development server to see a live preview
         </p>
-        <Button onClick={handleStart} disabled={isStopping}>
-          {isStopping && <Loading01 size={14} className="animate-spin" />}
-          {isStopping ? "Stopping..." : "Start Preview"}
+        <Button onClick={toggleEnv}>
+          <Server01 size={14} />
+          Start Server
         </Button>
       </div>
     );
   }
 
-  if (status === "creating") {
-    return (
-      <div className="flex flex-col items-center justify-center w-full h-full gap-4">
-        <Loading01 size={24} className="animate-spin text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">{statusLabel}</p>
-        <LiveTimer since={startedAtRef.current} />
-      </div>
-    );
-  }
-
-  if (status === "error") {
-    return <VmErrorState errorMsg={errorMsg} onRetry={handleStart} />;
-  }
-
-  const vmData = vmDataRef.current;
-  if (!vmData) return null;
-
-  const isRunning = status === "running" || status === "suspended";
-
   return (
     <div className="flex flex-col w-full h-full">
       {/* Unified toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
-        {isRunning && hasHtmlPreview && (
+        {hasHtmlPreview && (
           <ViewModeToggle
             value={viewMode}
             onValueChange={handleViewModeChange}
@@ -273,7 +167,7 @@ export function PreviewContent() {
             <TooltipContent side="bottom">Refresh</TooltipContent>
           </Tooltip>
           <span className="text-xs text-muted-foreground font-mono truncate flex-1">
-            {vmData.previewUrl}
+            {previewUrl}
           </span>
         </div>
         <Tooltip>
@@ -282,9 +176,7 @@ export function PreviewContent() {
               variant="ghost"
               size="sm"
               className="shrink-0"
-              onClick={() =>
-                window.open(vmData.previewUrl, "_blank", "noopener")
-              }
+              onClick={() => window.open(previewUrl, "_blank", "noopener")}
             >
               <LinkExternal01 size={14} />
             </Button>
@@ -295,25 +187,15 @@ export function PreviewContent() {
 
       {/* Content area */}
       <div className="flex-1 relative overflow-hidden">
-        {status === "suspended" && (
+        {suspended && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-background/80 backdrop-blur-sm">
             <p className="text-sm text-muted-foreground">
               VM suspended due to inactivity.
             </p>
-            <Button onClick={handleResume}>Resume</Button>
-          </div>
-        )}
-
-        {actionError && (
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs text-destructive shadow-sm">
-            <span>{actionError}</span>
-            <button
-              type="button"
-              className="ml-1 text-destructive/60 hover:text-destructive"
-              onClick={() => setActionError("")}
-            >
-              &times;
-            </button>
+            <Button onClick={toggleEnv}>
+              <Server01 size={14} />
+              Resume Server
+            </Button>
           </div>
         )}
 
@@ -331,7 +213,7 @@ export function PreviewContent() {
         )}
         <iframe
           ref={previewIframeRef}
-          src={vmData.previewUrl}
+          src={previewUrl}
           className="w-full h-full border-0"
           title="Dev Server Preview"
           onLoad={() => {

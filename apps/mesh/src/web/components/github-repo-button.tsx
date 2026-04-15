@@ -4,7 +4,7 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { useActiveGithubRepo } from "@/web/hooks/use-active-github-repo";
-import { useState } from "react";
+import { useGithubRepoPicker } from "@/web/hooks/use-github-repo-picker";
 import { GitHubRepoPicker } from "./github-repo-picker";
 
 function GitHubIcon({ size = 16 }: { size?: number }) {
@@ -23,7 +23,11 @@ function GitHubIcon({ size = 16 }: { size?: number }) {
 
 export function GitHubRepoButton() {
   const githubRepo = useActiveGithubRepo();
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const {
+    open: dialogOpen,
+    setOpen: setDialogOpen,
+    openPicker,
+  } = useGithubRepoPicker();
 
   // Connected state: show owner/repo with external link
   if (githubRepo) {
@@ -56,7 +60,7 @@ export function GitHubRepoButton() {
         <TooltipTrigger asChild>
           <button
             type="button"
-            onClick={() => setDialogOpen(true)}
+            onClick={() => openPicker()}
             className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
           >
             <GitHubIcon size={16} />
