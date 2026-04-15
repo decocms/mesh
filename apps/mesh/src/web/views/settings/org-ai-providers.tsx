@@ -796,7 +796,7 @@ const TOP_UP_PRESETS = {
   brl: [50, 100, 500],
 } as const;
 
-function QuickTopUp({ keyId }: { keyId: string }) {
+function QuickTopUp() {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -1083,7 +1083,7 @@ function DecoCreditsHero() {
           <p className="text-xs font-medium text-muted-foreground mb-2.5">
             Add credits
           </p>
-          <QuickTopUp keyId={decoKey.id} />
+          <QuickTopUp />
         </div>
       </div>
     </div>
