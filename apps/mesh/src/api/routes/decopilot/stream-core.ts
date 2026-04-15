@@ -410,6 +410,17 @@ async function streamCoreInner(
                 { ctx, isPlanMode: modeConfig.isPlanMode },
               );
 
+        // Resolve active VM for the current user — when present, VM file tools
+        // replace the QuickJS sandbox in the built-in tool set.
+        const activeVmEntry = (
+          virtualMcp.metadata as {
+            activeVms?: Record<string, { previewUrl: string }>;
+          }
+        )?.activeVms?.[input.userId];
+        const activeVm = activeVmEntry
+          ? { vmBaseUrl: activeVmEntry.previewUrl }
+          : null;
+
         const builtInTools = isCliAgent
           ? {}
           : await getBuiltInTools(
@@ -423,6 +434,7 @@ async function streamCoreInner(
                 isPlanMode: modeConfig.isPlanMode,
                 toolOutputMap,
                 passthroughClient,
+                activeVm,
               },
               ctx,
             );
