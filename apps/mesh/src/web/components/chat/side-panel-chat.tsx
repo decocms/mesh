@@ -98,15 +98,21 @@ function HomeEmptyState({
   const [importOpen, setImportOpen] = useState(false);
   const isDecoUser = useIsDecoUser();
   const isMobile = useIsMobile();
-  const { hasDecoKey, isZeroBalance, isInitialFreeCredit, balanceDollars } =
-    useDecoCredits();
+  const {
+    hasDecoKey,
+    isZeroBalance,
+    isInitialFreeCredit,
+    balanceDollars,
+    hasOnlyDecoProvider,
+  } = useDecoCredits();
 
   const userName = session?.user?.name?.split(" ")[0] || "there";
 
   // Only show the eyebrow for the initial free $2 credit (onboarding)
   const showEyebrow =
     hasDecoKey && isInitialFreeCredit && balanceDollars != null;
-  const showNoCreditsEyebrow = hasDecoKey && isZeroBalance;
+  const showNoCreditsEyebrow =
+    hasDecoKey && isZeroBalance && hasOnlyDecoProvider;
 
   if (isMobile) {
     return (
