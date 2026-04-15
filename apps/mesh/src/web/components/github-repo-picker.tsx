@@ -105,18 +105,6 @@ function PickerContent({
     enabled: githubConnections.length === 0,
   });
 
-  console.log(
-    "[PickerContent] githubConnections",
-    githubConnections.length,
-    "autoInstall.status",
-    autoInstall.status,
-    githubConnections.map((c) => ({
-      id: c.id,
-      status: c.status,
-      title: c.title,
-    })),
-  );
-
   // Check which org-wide GitHub connections are already on this virtual MCP
   const virtualMcpConnectionIds = new Set(
     (inset?.entity?.connections ?? []).map((c) => c.connection_id),
@@ -451,19 +439,13 @@ function InstallationPicker({
     orgId,
   });
 
-  console.log("[InstallationPicker] rendering", { connectionId, orgId });
-
   const installationsQuery = useQuery({
     queryKey: KEYS.githubUserOrgs(orgId, connectionId),
     queryFn: async () => {
-      console.log("[InstallationPicker] calling GITHUB_LIST_USER_ORGS", {
-        connectionId,
-      });
       const result = await selfClient.callTool({
         name: "GITHUB_LIST_USER_ORGS",
         arguments: { connectionId },
       });
-      console.log("[InstallationPicker] GITHUB_LIST_USER_ORGS result", result);
       const content = (result as { content?: Array<{ text?: string }> })
         .content?.[0]?.text;
       if (!content) throw new Error("No response from GITHUB_LIST_USER_ORGS");
@@ -473,10 +455,6 @@ function InstallationPicker({
       };
     },
   });
-
-  if (installationsQuery.isError) {
-    console.error("[InstallationPicker] query error", installationsQuery.error);
-  }
 
   if (installationsQuery.isLoading) {
     return (
