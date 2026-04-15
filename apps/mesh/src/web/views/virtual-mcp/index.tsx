@@ -1069,7 +1069,7 @@ function VirtualMcpDetailViewWithData({
   });
 
   // Chat hooks
-  const [preferences, setPreferences] = usePreferences();
+  const [preferences] = usePreferences();
 
   // Tab state
   const validTabIds = preferences.experimental_vibecode
