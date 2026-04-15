@@ -26,11 +26,18 @@ async function daemonPost(
   body: Record<string, unknown>,
 ): Promise<unknown> {
   const url = `${baseUrl}/_daemon/${endpoint}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error(
+      "The server is not running. Ask the user to start it by clicking the server button (left side of the header bar).",
+    );
+  }
   const json = await res.json();
   if (!res.ok) {
     throw new Error(

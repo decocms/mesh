@@ -45,7 +45,7 @@ import {
   Loading01,
   Menu01,
   LayoutRight,
-  Terminal,
+  Server01,
 } from "@untitledui/icons";
 import {
   getDecopilotId,
@@ -630,7 +630,7 @@ function AgentInsetProvider() {
                         : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                     )}
                   >
-                    <Terminal size={16} />
+                    <Server01 size={16} />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">Server</TooltipContent>
