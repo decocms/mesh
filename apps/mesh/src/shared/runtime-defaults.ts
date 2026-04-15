@@ -1,13 +1,46 @@
-export const RUNTIME_DEFAULTS = {
-  node: { install: "npm install", dev: "npm run dev" },
-  bun: { install: "bun install", dev: "bun run dev" },
-  deno: { install: "deno install", dev: "deno task start" },
-} as const;
+export type PackageManager = "npm" | "pnpm" | "yarn" | "bun" | "deno";
 
-export type RuntimeType = keyof typeof RUNTIME_DEFAULTS;
+export type VMRuntime = "node" | "bun" | "deno";
 
-export const RUNTIME_LABELS: Record<RuntimeType, string> = {
-  node: "Node.js",
-  bun: "Bun",
-  deno: "Deno",
+export const PACKAGE_MANAGER_CONFIG: Record<
+  PackageManager,
+  {
+    install: string;
+    run: (script: string) => string;
+    runtime: VMRuntime;
+  }
+> = {
+  npm: {
+    install: "npm install",
+    run: (s) => `npm run ${s}`,
+    runtime: "node",
+  },
+  pnpm: {
+    install: "pnpm install",
+    run: (s) => `pnpm run ${s}`,
+    runtime: "node",
+  },
+  yarn: {
+    install: "yarn install",
+    run: (s) => `yarn run ${s}`,
+    runtime: "node",
+  },
+  bun: {
+    install: "bun install",
+    run: (s) => `bun run ${s}`,
+    runtime: "bun",
+  },
+  deno: {
+    install: "deno install",
+    run: (s) => `deno task ${s}`,
+    runtime: "deno",
+  },
+};
+
+export const PACKAGE_MANAGER_LABELS: Record<PackageManager, string> = {
+  npm: "npm",
+  pnpm: "pnpm",
+  yarn: "yarn",
+  bun: "bun",
+  deno: "deno",
 };
