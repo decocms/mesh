@@ -675,8 +675,16 @@ export async function createApp(options: CreateAppOptions = {}) {
       if (redirectUri) {
         const allowedOrigin = getSettings().baseUrl ?? reqUrl.origin;
         try {
-          const redirectOrigin = new URL(redirectUri).origin;
-          if (redirectOrigin !== new URL(allowedOrigin).origin) {
+          const redirectUrl = new URL(redirectUri);
+          const allowedOriginObj = new URL(allowedOrigin);
+
+          // Check if redirect_uri origin matches the allowed origin
+          const isAllowed =
+            redirectUrl.origin === allowedOriginObj.origin ||
+            // Allow localhost for development
+            redirectUrl.hostname === "localhost";
+
+          if (!isAllowed) {
             return c.json(
               {
                 error: "invalid_request",
