@@ -10,8 +10,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@deco/ui/components/select.tsx";
-import { RUNTIME_DEFAULTS, RUNTIME_LABELS } from "@/shared/runtime-defaults";
-import type { RuntimeType } from "@/shared/runtime-defaults";
+import {
+  PACKAGE_MANAGER_CONFIG,
+  PACKAGE_MANAGER_LABELS,
+} from "@/shared/runtime-defaults";
+import type { PackageManager } from "@/shared/runtime-defaults";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import {
   useProjectContext,
@@ -38,6 +41,9 @@ function GitHubIcon({ size = 48 }: { size?: number }) {
   );
 }
 
+const NONE_VALUE = "__none__";
+const packageManagers = Object.keys(PACKAGE_MANAGER_CONFIG) as PackageManager[];
+
 export function RepositoryTabContent() {
   const inset = useInsetContext();
   const { org } = useProjectContext();
@@ -55,8 +61,6 @@ export function RepositoryTabContent() {
         githubRepo?: { owner: string; name: string } | null;
         runtime?: {
           selected: string | null;
-          installScript?: string | null;
-          devScript?: string | null;
           port?: string | null;
         } | null;
       }
@@ -64,9 +68,6 @@ export function RepositoryTabContent() {
 
   const githubRepo = metadata?.githubRepo;
   const runtime = metadata?.runtime;
-
-  const selectedRuntime: RuntimeType =
-    (runtime?.selected as RuntimeType) ?? "node";
 
   const isDetecting = useQuery({
     queryKey: KEYS.runtimeDetecting(inset?.entity?.id),
@@ -86,9 +87,9 @@ export function RepositoryTabContent() {
       },
     });
 
-  const handleScriptUpdate = async (
-    field: "installScript" | "devScript" | "port",
-    value: string,
+  const handleFieldUpdate = async (
+    field: "selected" | "port",
+    value: string | null,
   ) => {
     if (!inset?.entity) return;
     try {
@@ -108,30 +109,7 @@ export function RepositoryTabContent() {
       });
       invalidateVirtualMcp();
     } catch {
-      toast.error("Failed to update script");
-    }
-  };
-
-  const handleRuntimeChange = async (value: string) => {
-    if (!inset?.entity) return;
-    try {
-      await client.callTool({
-        name: "COLLECTION_VIRTUAL_MCP_UPDATE",
-        arguments: {
-          id: inset.entity.id,
-          data: {
-            metadata: {
-              runtime: {
-                ...runtime,
-                selected: value,
-              },
-            },
-          },
-        },
-      });
-      invalidateVirtualMcp();
-    } catch {
-      toast.error("Failed to update runtime");
+      toast.error("Failed to update setting");
     }
   };
 
@@ -175,42 +153,24 @@ export function RepositoryTabContent() {
           <Label htmlFor="runtime" className="text-sm font-medium">
             Runtime
           </Label>
-          <Select value={selectedRuntime} onValueChange={handleRuntimeChange}>
+          <Select
+            value={runtime?.selected ?? NONE_VALUE}
+            onValueChange={(v) =>
+              handleFieldUpdate("selected", v === NONE_VALUE ? null : v)
+            }
+          >
             <SelectTrigger id="runtime">
-              <SelectValue />
+              <SelectValue placeholder="None" />
             </SelectTrigger>
             <SelectContent>
-              {(Object.keys(RUNTIME_DEFAULTS) as RuntimeType[]).map((rt) => (
-                <SelectItem key={rt} value={rt}>
-                  {RUNTIME_LABELS[rt]}
+              <SelectItem value={NONE_VALUE}>None</SelectItem>
+              {packageManagers.map((pm) => (
+                <SelectItem key={pm} value={pm}>
+                  {PACKAGE_MANAGER_LABELS[pm]}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="install-script" className="text-sm font-medium">
-            Install Script
-          </Label>
-          <Input
-            id="install-script"
-            placeholder={RUNTIME_DEFAULTS[selectedRuntime].install}
-            defaultValue={runtime?.installScript ?? ""}
-            onBlur={(e) => handleScriptUpdate("installScript", e.target.value)}
-          />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="dev-script" className="text-sm font-medium">
-            Development Script
-          </Label>
-          <Input
-            id="dev-script"
-            placeholder={RUNTIME_DEFAULTS[selectedRuntime].dev}
-            defaultValue={runtime?.devScript ?? ""}
-            onBlur={(e) => handleScriptUpdate("devScript", e.target.value)}
-          />
         </div>
 
         <div className="flex flex-col gap-2">
@@ -221,7 +181,7 @@ export function RepositoryTabContent() {
             id="dev-port"
             placeholder="e.g. 3000"
             defaultValue={runtime?.port ?? ""}
-            onBlur={(e) => handleScriptUpdate("port", e.target.value)}
+            onBlur={(e) => handleFieldUpdate("port", e.target.value || null)}
           />
         </div>
       </div>
