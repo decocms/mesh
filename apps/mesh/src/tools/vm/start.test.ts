@@ -319,7 +319,7 @@ describe("VM_START", () => {
     };
 
     const serviceNames = createCall.spec._services.map((s) => s.name as string);
-    expect(serviceNames).toEqual(["daemon"]);
+    expect(serviceNames).toEqual(["install-ripgrep", "daemon"]);
   });
 
   it("daemon has no after dependency on dev-server", async () => {
