@@ -71,7 +71,7 @@ function maybeTruncate(
 export function createVmTools(params: VmToolsParams) {
   const { vmBaseUrl, toolOutputMap, needsApproval } = params;
 
-  const vm_read = tool({
+  const read = tool({
     needsApproval: false,
     description:
       "Read a file from the VM's project directory. Returns content with line numbers. " +
@@ -98,7 +98,7 @@ export function createVmTools(params: VmToolsParams) {
     },
   });
 
-  const vm_write = tool({
+  const write = tool({
     needsApproval,
     description:
       "Write content to a file in the VM's project directory. " +
@@ -115,7 +115,7 @@ export function createVmTools(params: VmToolsParams) {
     },
   });
 
-  const vm_edit = tool({
+  const edit = tool({
     needsApproval,
     description:
       "Perform exact string replacement in a file in the VM. " +
@@ -139,7 +139,7 @@ export function createVmTools(params: VmToolsParams) {
     },
   });
 
-  const vm_grep = tool({
+  const grep = tool({
     needsApproval: false,
     description:
       "Search file contents in the VM using ripgrep. " +
@@ -174,7 +174,7 @@ export function createVmTools(params: VmToolsParams) {
     },
   });
 
-  const vm_glob = tool({
+  const glob = tool({
     needsApproval: false,
     description:
       "Find files by name pattern in the VM's project directory. " +
@@ -199,25 +199,25 @@ export function createVmTools(params: VmToolsParams) {
     },
   });
 
-  const vmBashSchema = z.object({
+  const bashSchema = z.object({
     command: z.string().describe("The bash command to execute"),
     timeout: z
       .number()
       .optional()
       .describe("Timeout in milliseconds (default 30000, max 120000)"),
   });
-  const vm_bash = tool({
+  const bash = tool({
     needsApproval,
     description:
       "Execute a shell command in the VM's project directory. " +
       "Working directory is the project root. Timeout default 30s, max 2min.",
 
-    inputSchema: zodSchema(vmBashSchema),
-    execute: async (input: z.infer<typeof vmBashSchema>) => {
+    inputSchema: zodSchema(bashSchema),
+    execute: async (input: z.infer<typeof bashSchema>) => {
       const result = await daemonPost(vmBaseUrl, "bash", input);
       return maybeTruncate(result, toolOutputMap);
     },
   });
 
-  return { vm_read, vm_write, vm_edit, vm_grep, vm_glob, vm_bash };
+  return { read, write, edit, grep, glob, bash };
 }
