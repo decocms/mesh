@@ -12,16 +12,26 @@ export function useToggleEnvPanel() {
 
   const toggleEnv = () => {
     const updates = envOpen ? { env: 0 } : { env: 1, mainOpen: 1 };
-    console.log("[useToggleEnvPanel] toggleEnv called", { envOpen, updates });
     navigate({
-      search: ((prev: Record<string, unknown>) => {
-        const next = { ...prev, ...updates };
-        console.log("[useToggleEnvPanel] search reducer", { prev, next });
-        return next;
-      }) as any,
+      search: ((prev: Record<string, unknown>) => ({
+        ...prev,
+        ...updates,
+      })) as any,
       replace: true,
     });
   };
 
-  return { envOpen, toggleEnv };
+  const openEnv = () => {
+    if (envOpen) return;
+    navigate({
+      search: ((prev: Record<string, unknown>) => ({
+        ...prev,
+        env: 1,
+        mainOpen: 1,
+      })) as any,
+      replace: true,
+    });
+  };
+
+  return { envOpen, toggleEnv, openEnv };
 }

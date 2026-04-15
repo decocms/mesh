@@ -44,7 +44,7 @@ const VIEW_MODE_OPTIONS: [
 export function PreviewContent() {
   const inset = useInsetContext();
   const { data: session } = authClient.useSession();
-  const { toggleEnv } = useToggleEnvPanel();
+  const { openEnv } = useToggleEnvPanel();
 
   // Visual editor state
   const [viewMode, setViewMode] = useState<PreviewViewMode>("preview");
@@ -127,7 +127,7 @@ export function PreviewContent() {
         <p className="text-sm text-muted-foreground text-center max-w-sm">
           Start the development server to see a live preview
         </p>
-        <Button onClick={toggleEnv}>
+        <Button onClick={openEnv}>
           <Server01 size={14} />
           Start Server
         </Button>
@@ -192,7 +192,7 @@ export function PreviewContent() {
             <p className="text-sm text-muted-foreground">
               VM suspended due to inactivity.
             </p>
-            <Button onClick={toggleEnv}>
+            <Button onClick={openEnv}>
               <Server01 size={14} />
               Resume Server
             </Button>
