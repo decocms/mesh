@@ -30,8 +30,6 @@ export type VmMetadata = {
   } | null;
   runtime?: {
     selected: string | null;
-    installScript?: string | null;
-    devScript?: string | null;
     port?: string | null;
   } | null;
   activeVms?: Record<string, VmEntry>;

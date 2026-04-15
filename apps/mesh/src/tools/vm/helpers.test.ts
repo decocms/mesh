@@ -2,113 +2,87 @@ import { describe, it, expect } from "bun:test";
 import { resolveRuntimeConfig } from "./helpers";
 import type { VmMetadata } from "./types";
 
-// ---------------------------------------------------------------------------
-// Tests for resolveRuntimeConfig (pure function — no MeshContext needed)
-// ---------------------------------------------------------------------------
-
 describe("resolveRuntimeConfig", () => {
-  it("returns npm defaults when no runtime config is set", () => {
+  it("returns null packageManager when no runtime config is set", () => {
     const metadata: VmMetadata = {};
-
     const result = resolveRuntimeConfig(metadata);
 
-    expect(result.installScript).toBe("npm install");
-    expect(result.devScript).toBe("npm run dev");
-    expect(result.selected).toBe("node");
+    expect(result.packageManager).toBeNull();
+    expect(result.runtime).toBeNull();
     expect(result.port).toBe("3000");
-  });
-
-  it("returns npm defaults when runtime is null", () => {
-    const metadata: VmMetadata = { runtime: null };
-
-    const result = resolveRuntimeConfig(metadata);
-
-    expect(result.installScript).toBe("npm install");
-    expect(result.devScript).toBe("npm run dev");
-    expect(result.selected).toBe("node");
-    expect(result.port).toBe("3000");
-  });
-
-  it("resolves deno runtime", () => {
-    const metadata: VmMetadata = {
-      runtime: {
-        selected: "deno",
-        installScript: "deno install",
-        devScript: "deno task dev",
-        port: "8000",
-      },
-    };
-
-    const result = resolveRuntimeConfig(metadata);
-
-    expect(result.selected).toBe("deno");
-    expect(result.runtimeBinPath).toBe("/opt/deno/bin");
-  });
-
-  it("resolves bun runtime", () => {
-    const metadata: VmMetadata = {
-      runtime: {
-        selected: "bun",
-        installScript: "bun install",
-        devScript: "bun run dev",
-        port: "3000",
-      },
-    };
-
-    const result = resolveRuntimeConfig(metadata);
-
-    expect(result.selected).toBe("bun");
-    expect(result.runtimeBinPath).toBe("/opt/bun/bin");
-  });
-
-  it("resolves node runtime", () => {
-    const metadata: VmMetadata = {
-      runtime: {
-        selected: "node",
-        installScript: "npm install",
-        devScript: "npm run dev",
-        port: "3000",
-      },
-    };
-
-    const result = resolveRuntimeConfig(metadata);
-
-    expect(result.selected).toBe("node");
     expect(result.runtimeBinPath).toBeNull();
   });
 
-  it("uses custom scripts from metadata", () => {
-    const metadata: VmMetadata = {
-      runtime: {
-        selected: "node",
-        installScript: "pnpm install",
-        devScript: "pnpm dev",
-        port: "4200",
-      },
-    };
-
+  it("returns null packageManager when runtime is null", () => {
+    const metadata: VmMetadata = { runtime: null };
     const result = resolveRuntimeConfig(metadata);
 
-    expect(result.installScript).toBe("pnpm install");
-    expect(result.devScript).toBe("pnpm dev");
-    expect(result.port).toBe("4200");
+    expect(result.packageManager).toBeNull();
+    expect(result.runtime).toBeNull();
   });
 
-  it("falls back to defaults when individual runtime fields are null", () => {
-    const metadata: VmMetadata = {
-      runtime: {
-        selected: null,
-        installScript: null,
-        devScript: null,
-        port: null,
-      },
-    };
-
+  it("returns null packageManager when selected is null", () => {
+    const metadata: VmMetadata = { runtime: { selected: null } };
     const result = resolveRuntimeConfig(metadata);
 
-    expect(result.installScript).toBe("npm install");
-    expect(result.devScript).toBe("npm run dev");
-    expect(result.selected).toBe("node");
+    expect(result.packageManager).toBeNull();
+    expect(result.runtime).toBeNull();
+  });
+
+  it("resolves npm", () => {
+    const metadata: VmMetadata = {
+      runtime: { selected: "npm", port: "4000" },
+    };
+    const result = resolveRuntimeConfig(metadata);
+
+    expect(result.packageManager).toBe("npm");
+    expect(result.runtime).toBe("node");
+    expect(result.port).toBe("4000");
+    expect(result.runtimeBinPath).toBeNull();
+  });
+
+  it("resolves pnpm", () => {
+    const metadata: VmMetadata = { runtime: { selected: "pnpm" } };
+    const result = resolveRuntimeConfig(metadata);
+
+    expect(result.packageManager).toBe("pnpm");
+    expect(result.runtime).toBe("node");
+    expect(result.runtimeBinPath).toBeNull();
+  });
+
+  it("resolves yarn", () => {
+    const metadata: VmMetadata = { runtime: { selected: "yarn" } };
+    const result = resolveRuntimeConfig(metadata);
+
+    expect(result.packageManager).toBe("yarn");
+    expect(result.runtime).toBe("node");
+    expect(result.runtimeBinPath).toBeNull();
+  });
+
+  it("resolves bun", () => {
+    const metadata: VmMetadata = { runtime: { selected: "bun" } };
+    const result = resolveRuntimeConfig(metadata);
+
+    expect(result.packageManager).toBe("bun");
+    expect(result.runtime).toBe("bun");
+    expect(result.runtimeBinPath).toBe("/opt/bun/bin");
+  });
+
+  it("resolves deno", () => {
+    const metadata: VmMetadata = {
+      runtime: { selected: "deno", port: "8000" },
+    };
+    const result = resolveRuntimeConfig(metadata);
+
+    expect(result.packageManager).toBe("deno");
+    expect(result.runtime).toBe("deno");
+    expect(result.port).toBe("8000");
+    expect(result.runtimeBinPath).toBe("/opt/deno/bin");
+  });
+
+  it("defaults port to 3000", () => {
+    const metadata: VmMetadata = { runtime: { selected: "npm" } };
+    const result = resolveRuntimeConfig(metadata);
     expect(result.port).toBe("3000");
   });
 });

@@ -12,8 +12,8 @@ import {
   getUserId,
   type MeshContext,
 } from "../../core/mesh-context";
-import { RUNTIME_DEFAULTS } from "../../shared/runtime-defaults";
-import type { RuntimeType } from "../../shared/runtime-defaults";
+import { PACKAGE_MANAGER_CONFIG } from "../../shared/runtime-defaults";
+import type { PackageManager } from "../../shared/runtime-defaults";
 import type { VmMetadata } from "./types";
 
 /**
@@ -30,7 +30,9 @@ export async function requireVmEntry(
   await ctx.access.check();
   const userId = getUserId(ctx);
   if (!userId) throw new Error("User ID required");
-  const virtualMcp = await ctx.storage.virtualMcps.findById(input.virtualMcpId);
+  const virtualMcp = await ctx.storage.virtualMcps.findById(
+    input.virtualMcpId,
+  );
   if (!virtualMcp || virtualMcp.organization_id !== organization.id) {
     throw new Error("Virtual MCP not found");
   }
@@ -40,25 +42,35 @@ export async function requireVmEntry(
 }
 
 /**
- * Extracts runtime detection logic from Virtual MCP metadata.
- * Returns normalized runtime config with defaults.
- * Runtimes (node/deno/bun) are pre-installed via Freestyle integrations
- * (@freestyle-sh/with-nodejs, @freestyle-sh/with-deno, @freestyle-sh/with-bun).
+ * Resolves package manager and runtime config from Virtual MCP metadata.
+ * Returns null packageManager/runtime when no package manager is selected
+ * (clone-only mode for non-JS repos).
  */
 export function resolveRuntimeConfig(metadata: VmMetadata) {
-  const selected = (metadata.runtime?.selected ?? "node") as RuntimeType;
-  const defaults = RUNTIME_DEFAULTS[selected] ?? RUNTIME_DEFAULTS.node;
-  const installScript = metadata.runtime?.installScript || defaults.install;
-  const devScript = metadata.runtime?.devScript || defaults.dev;
-  const port = metadata.runtime?.port ?? "3000";
-  // Freestyle integrations install runtimes outside the default PATH:
-  //   VmDeno → /opt/deno/bin, VmBun → /opt/bun/bin
-  // Node uses the system node/npm already at /usr/local/bin (no prefix needed).
+  const selected = metadata.runtime?.selected ?? null;
+  const pm = selected as PackageManager | null;
+
+  if (!pm || !(pm in PACKAGE_MANAGER_CONFIG)) {
+    return {
+      packageManager: null,
+      runtime: null,
+      port: metadata.runtime?.port ?? "3000",
+      runtimeBinPath: null,
+    };
+  }
+
+  const runtime = PACKAGE_MANAGER_CONFIG[pm].runtime;
   const runtimeBinPath =
-    selected === "deno"
+    runtime === "deno"
       ? "/opt/deno/bin"
-      : selected === "bun"
+      : runtime === "bun"
         ? "/opt/bun/bin"
         : null;
-  return { installScript, devScript, selected, port, runtimeBinPath };
+
+  return {
+    packageManager: pm,
+    runtime,
+    port: metadata.runtime?.port ?? "3000",
+    runtimeBinPath,
+  };
 }
