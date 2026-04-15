@@ -126,13 +126,23 @@ export const VM_START = defineTool({
             content:
               "#!/bin/bash\nsource /etc/profile.d/nvm.sh\nexec node /opt/daemon.js\n",
           },
+          "/opt/install-ripgrep.sh": {
+            content:
+              "#!/bin/bash\napt-get update -qq && apt-get install -y -qq ripgrep\n",
+          },
+        })
+        .systemdService({
+          name: "install-ripgrep",
+          mode: "oneshot",
+          exec: ["/bin/bash /opt/install-ripgrep.sh"],
+          wantedBy: ["multi-user.target"],
         })
         .systemdService({
           name: "daemon",
           mode: "service",
           exec: ["/bin/bash /opt/run-daemon.sh"],
-          after: ["install-nodejs.service"],
-          requires: ["install-nodejs.service"],
+          after: ["install-nodejs.service", "install-ripgrep.service"],
+          requires: ["install-nodejs.service", "install-ripgrep.service"],
           wantedBy: ["multi-user.target"],
         });
 
