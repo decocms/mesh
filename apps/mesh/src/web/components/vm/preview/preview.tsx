@@ -30,6 +30,7 @@ import {
 import { VisualEditorPrompt } from "./visual-editor-prompt";
 import { useVmEvents } from "../hooks/use-vm-events";
 import { LiveTimer } from "../../live-timer";
+import { VmErrorState } from "../vm-error-state";
 
 interface VmData {
   terminalUrl: string | null;
@@ -232,14 +233,7 @@ export function PreviewContent() {
   }
 
   if (status === "error") {
-    return (
-      <div className="flex flex-col items-center justify-center w-full h-full gap-4">
-        <p className="text-sm text-destructive">{errorMsg}</p>
-        <Button variant="outline" onClick={handleStart}>
-          Retry
-        </Button>
-      </div>
-    );
+    return <VmErrorState errorMsg={errorMsg} onRetry={handleStart} />;
   }
 
   const vmData = vmDataRef.current;

@@ -70,12 +70,6 @@ mock.module("@freestyle-sh/with-deno", () => ({
 mock.module("@freestyle-sh/with-bun", () => ({
   VmBun: class VmBun {},
 }));
-mock.module("@freestyle-sh/with-web-terminal", () => ({
-  VmWebTerminal: class VmWebTerminal {
-    constructor(_config: unknown) {}
-  },
-}));
-
 // Mock downstream token storage to return a test token
 const mockTokenGet = mock(
   async (
