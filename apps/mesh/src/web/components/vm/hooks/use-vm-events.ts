@@ -5,11 +5,12 @@
  * and streams raw PTY chunks, upstream status, discovered scripts, and
  * active process state back to React.
  *
- * Built on createSSESubscription for ref-counted connections and auto-reconnect.
+ * Uses a direct EventSource per effect invocation so that each mount gets a
+ * fresh SSE connection and the daemon replays scripts, logs, and active
+ * processes on connect.
  */
 
 import { useState, useRef, useEffect } from "react";
-import { createSSESubscription } from "../../../hooks/create-sse-subscription";
 
 export interface VmStatus {
   ready: boolean;
@@ -36,12 +37,14 @@ class ChunkBuffer {
   }
 }
 
-const daemonSSE = createSSESubscription({
-  buildUrl: (previewUrl) => `${previewUrl}/_daemon/events`,
-  eventTypes: ["log", "status", "scripts", "processes"],
-});
-
 const MAX_DISCONNECT_MS = 45_000;
+
+/** Base reconnect delay in ms */
+const BASE_RECONNECT_DELAY_MS = 1_000;
+/** Max reconnect delay in ms */
+const MAX_RECONNECT_DELAY_MS = 30_000;
+
+const EVENT_TYPES = ["log", "status", "scripts", "processes"] as const;
 
 export function useVmEvents(
   previewUrl: string | null,
@@ -68,7 +71,7 @@ export function useVmEvents(
     return buf;
   };
 
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — SSE subscription lifecycle requires cleanup on unmount; createSSESubscription returns an unsubscribe function that must be called in an effect cleanup
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — SSE subscription lifecycle requires cleanup on unmount; direct EventSource with reconnect logic
   useEffect(() => {
     if (!previewUrl) return;
 
@@ -79,7 +82,12 @@ export function useVmEvents(
     setActiveProcesses([]);
     buffers.current.clear();
 
-    const unsubscribe = daemonSSE.subscribe(previewUrl, (e: MessageEvent) => {
+    let disposed = false;
+    let reconnectAttempt = 0;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let es: EventSource | null = null;
+
+    const handler = (e: MessageEvent) => {
       // Any event received means we're connected — clear suspension timer
       if (disconnectTimer.current) {
         clearTimeout(disconnectTimer.current);
@@ -112,14 +120,55 @@ export function useVmEvents(
       } catch {
         // ignore parse errors
       }
-    });
+    };
+
+    function connect() {
+      if (disposed) return;
+
+      es = new EventSource(`${previewUrl}/_daemon/events`);
+
+      es.onopen = () => {
+        reconnectAttempt = 0;
+      };
+
+      es.onerror = () => {
+        if (es?.readyState === EventSource.CLOSED) {
+          scheduleReconnect();
+        }
+      };
+
+      for (const type of EVENT_TYPES) {
+        es.addEventListener(type, handler);
+      }
+    }
+
+    function scheduleReconnect() {
+      if (disposed || reconnectTimer) return;
+
+      const delay = Math.min(
+        BASE_RECONNECT_DELAY_MS * 2 ** reconnectAttempt,
+        MAX_RECONNECT_DELAY_MS,
+      );
+      reconnectAttempt++;
+
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        if (disposed) return;
+        es?.close();
+        connect();
+      }, delay);
+    }
+
+    connect();
 
     disconnectTimer.current = setTimeout(() => {
       setSuspended(true);
     }, MAX_DISCONNECT_MS);
 
     return () => {
-      unsubscribe();
+      disposed = true;
+      es?.close();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       if (disconnectTimer.current) {
         clearTimeout(disconnectTimer.current);
         disconnectTimer.current = null;
