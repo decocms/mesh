@@ -350,7 +350,9 @@ export function usePanelState(
   };
 
   const toggleEnv = () => {
-    navigateSearch({ env: envOpen ? 0 : 1 }, { replace: true });
+    navigateSearch(envOpen ? { env: 0 } : { env: 1, mainOpen: 1 }, {
+      replace: true,
+    });
   };
 
   const toggleDaemon = () => {
