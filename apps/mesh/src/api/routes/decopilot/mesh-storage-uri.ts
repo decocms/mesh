@@ -6,7 +6,7 @@
  */
 
 /** URI scheme prefix for stable object-storage references. */
-export const MESH_STORAGE_SCHEME = "mesh-storage://";
+const MESH_STORAGE_SCHEME = "mesh-storage://";
 
 /** Wrap a storage key in the stable URI scheme. */
 export function toMeshStorageUri(key: string): string {
