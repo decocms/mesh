@@ -401,6 +401,7 @@ export type AiProvider = {
   supportedMethods: ("api-key" | "oauth-pkce" | "cli-activate")[];
   supportsTopUp?: boolean;
   supportsCredits?: boolean;
+  supportsProvision?: boolean;
 };
 
 function ProviderCard({
@@ -510,6 +511,30 @@ function ProviderCard({
     onError: (err) => toast.error(err.message),
   });
 
+  const { mutate: provisionKey, isPending: isProvisioning } = useMutation({
+    mutationFn: async () => {
+      const result = (await client.callTool({
+        name: "AI_PROVIDER_PROVISION_KEY",
+        arguments: { providerId: provider.id },
+      })) as {
+        isError?: boolean;
+        content?: { text?: string }[];
+      };
+      if (result?.isError) {
+        const msg = result.content?.[0]?.text ?? "Key provisioning failed";
+        throw new Error(msg);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: KEYS.aiProviderKeys(org.id) });
+      queryClient.invalidateQueries({ queryKey: KEYS.aiProviders(org.id) });
+      toast.success(`${provider.name} connected successfully`);
+    },
+    onError: (err) => {
+      toast.error(`Failed to connect ${provider.name}: ${err.message}`);
+    },
+  });
+
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
     if (!isOAuthPending || !oauthStateToken) return;
@@ -546,16 +571,20 @@ function ProviderCard({
     };
   }, [isOAuthPending, oauthStateToken, exchangeOAuth]);
 
+  const supportsProvision = !!provider.supportsProvision;
   const supportsOAuth = provider.supportedMethods.includes("oauth-pkce");
   const supportsApiKey = provider.supportedMethods.includes("api-key");
 
   const handleCardClick = () => {
-    if (isConnectFormOpen || isOAuthPending || isActivating) return;
+    if (isConnectFormOpen || isOAuthPending || isActivating || isProvisioning)
+      return;
     if (isCliActivate) {
       if (!isActive) activateCli();
       return;
     }
-    if (supportsOAuth) {
+    if (supportsProvision) {
+      provisionKey();
+    } else if (supportsOAuth) {
       handleConnectOAuth();
     } else if (supportsApiKey) {
       setIsConnectFormOpen(true);
@@ -599,8 +628,9 @@ function ProviderCard({
           isActive && "border-primary/20",
           !isOAuthPending &&
             !isActivating &&
+            !isProvisioning &&
             "cursor-pointer hover:bg-muted/30",
-          (isOAuthPending || isActivating) && "cursor-wait",
+          (isOAuthPending || isActivating || isProvisioning) && "cursor-wait",
         )}
         onClick={handleCardClick}
       >
@@ -627,9 +657,11 @@ function ProviderCard({
               <p className="text-sm text-muted-foreground line-clamp-1">
                 {isActivating
                   ? "Checking CLI..."
-                  : isOAuthPending
-                    ? "Authorizing..."
-                    : provider.description}
+                  : isProvisioning
+                    ? "Connecting..."
+                    : isOAuthPending
+                      ? "Authorizing..."
+                      : provider.description}
               </p>
             </div>
           </div>
@@ -764,7 +796,7 @@ const TOP_UP_PRESETS = {
   brl: [50, 100, 500],
 } as const;
 
-function QuickTopUp({ keyId }: { keyId: string }) {
+function QuickTopUp() {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -778,7 +810,6 @@ function QuickTopUp({ keyId }: { keyId: string }) {
         name: "AI_PROVIDER_TOPUP_URL",
         arguments: {
           providerId: "deco",
-          keyId,
           amountCents,
           currency,
         },
@@ -1052,7 +1083,7 @@ function DecoCreditsHero() {
           <p className="text-xs font-medium text-muted-foreground mb-2.5">
             Add credits
           </p>
-          <QuickTopUp keyId={decoKey.id} />
+          <QuickTopUp />
         </div>
       </div>
     </div>

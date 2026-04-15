@@ -66,7 +66,8 @@ export interface ProviderAdapter {
 
   // Only defined for providers that support credit top-ups
   getTopUpUrl?(
-    apiKey: string,
+    meshJwt: string,
+    orgId: string,
     amountCents: number,
     currency?: "usd" | "brl",
   ): Promise<string>;

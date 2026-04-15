@@ -69,4 +69,5 @@ export interface AiProviderInfo {
   supportedMethods: ("api-key" | "oauth-pkce" | "cli-activate")[];
   supportsTopUp?: boolean;
   supportsCredits?: boolean;
+  supportsProvision?: boolean;
 }
