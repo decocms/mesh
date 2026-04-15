@@ -22,7 +22,12 @@ function mapOpenRouterModel(m: OpenRouterAPIModel): ModelInfo {
     logo: null,
     capabilities: [
       ...new Set([
-        ...m.architecture.input_modalities,
+        // "image" in input_modalities means the model accepts image input (vision),
+        // not that it generates images. Remap to "vision" so we distinguish from
+        // "image" in output_modalities which means actual image generation.
+        ...m.architecture.input_modalities.map((mod) =>
+          mod === "image" ? "vision" : mod,
+        ),
         ...m.architecture.output_modalities,
         ...(canTools ? (["tools"] as const) : []),
         ...(canReasoning ? (["reasoning"] as const) : []),
