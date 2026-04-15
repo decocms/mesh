@@ -3,7 +3,6 @@ import {
   useProjectContext,
   useMCPClient,
   SELF_MCP_ALIAS_ID,
-  KEYS,
 } from "@decocms/mesh-sdk";
 import { useQueryClient } from "@tanstack/react-query";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
@@ -203,7 +202,10 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
       setStatus("running");
       setStatusLabel("");
       queryClient.invalidateQueries({
-        queryKey: KEYS.collection(org.id, "", "VIRTUAL_MCP"),
+        predicate: (query) => {
+          const key = query.queryKey;
+          return key[3] === "collection" && key[4] === "VIRTUAL_MCP";
+        },
       });
     } catch (error) {
       setStatus("error");
@@ -233,7 +235,10 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
 
     setStatus("idle");
     queryClient.invalidateQueries({
-      queryKey: KEYS.collection(org.id, "", "VIRTUAL_MCP"),
+      predicate: (query) => {
+        const key = query.queryKey;
+        return key[3] === "collection" && key[4] === "VIRTUAL_MCP";
+      },
     });
   };
 
