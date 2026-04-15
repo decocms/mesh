@@ -271,7 +271,9 @@ export function usePanelState(
 
   const toggleMain = () => {
     if (!canToggle(mainOpen, expandedCount)) return;
-    navigateSearch({ mainOpen: !mainOpen ? 1 : 0 }, { replace: true });
+    navigateSearch(mainOpen ? { mainOpen: 0, env: 0 } : { mainOpen: 1 }, {
+      replace: true,
+    });
   };
 
   const toggleChat = () => {
