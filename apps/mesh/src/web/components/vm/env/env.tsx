@@ -14,6 +14,7 @@ import {
   Monitor04,
   ChevronDown,
   Plus,
+  MessageChatCircle,
 } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -28,6 +29,9 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
+import { useChatBridge } from "@/web/components/chat/context";
+import { usePanelActions } from "@/web/layouts/shell-layout";
+import { useTerminalSelection } from "@/web/hooks/use-terminal-selection";
 import { VmErrorState } from "../vm-error-state";
 import { useVmEvents } from "../hooks/use-vm-events";
 import { VmTerminal } from "./terminal";
@@ -70,6 +74,22 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const [activeTab, setActiveTab] = useState<string>("setup");
   const [openScriptTabs, setOpenScriptTabs] = useState<string[]>([]);
   const terminalRefs = useRef(new Map<string, XTerminal>());
+
+  const { sendMessage } = useChatBridge();
+  const { setChatOpen } = usePanelActions();
+  const activeTerminal = terminalRefs.current.get(activeTab) ?? null;
+  const { hasSelection, getSelectedText } =
+    useTerminalSelection(activeTerminal);
+
+  const handleAddToChat = () => {
+    const text = getSelectedText();
+    if (!text) return;
+    setChatOpen(true);
+    sendMessage({
+      parts: [{ type: "text", text: `<server-logs>\n${text}\n</server-logs>` }],
+    });
+    activeTerminal?.clearSelection();
+  };
 
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -378,6 +398,16 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
 
           {/* Script tab controls (not for setup/daemon) */}
           <div className="flex items-center gap-1">
+            {hasSelection && (
+              <button
+                type="button"
+                onClick={handleAddToChat}
+                className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <MessageChatCircle size={12} />
+                Add to chat
+              </button>
+            )}
             {activeTab !== "setup" &&
               activeTab !== "daemon" &&
               openScriptTabs.includes(activeTab) &&
