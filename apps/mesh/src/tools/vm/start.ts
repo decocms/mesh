@@ -38,8 +38,7 @@ const BOOTSTRAP_SCRIPT = `<script>(function(){window.addEventListener("message",
 //   5. Exec endpoints: POST /_daemon/exec/install and /_daemon/exec/dev trigger process spawning.
 const buildDaemonScript = (opts: {
   upstreamPort: string;
-  installScript: string;
-  devScript: string;
+  packageManager: string | null;
   pathPrefix: string;
   port: string;
   cloneUrl: string;
@@ -47,8 +46,7 @@ const buildDaemonScript = (opts: {
 }) => {
   const {
     upstreamPort,
-    installScript,
-    devScript,
+    packageManager,
     pathPrefix,
     port,
     cloneUrl,
@@ -58,6 +56,7 @@ const buildDaemonScript = (opts: {
     throw new Error(`Invalid upstream port: ${upstreamPort}`);
   }
   return `const http = require("http");
+const fs = require("fs");
 const { spawn } = require("child_process");
 const UPSTREAM = "${upstreamPort}";
 const UPSTREAM_HOST = "localhost";
@@ -66,12 +65,20 @@ const BOOTSTRAP = ${JSON.stringify(BOOTSTRAP_SCRIPT)};
 const MAX_SSE_CLIENTS = 10;
 const CLONE_URL = ${JSON.stringify(cloneUrl)};
 const REPO_NAME = ${JSON.stringify(repoName)};
-const SETUP_CMD = "git clone " + CLONE_URL + " /app";
-const SETUP_LABEL = "$ git clone " + REPO_NAME + " /app";
-const INSTALL_CMD = ${JSON.stringify(`${pathPrefix}cd /app && ${installScript}`)};
-const DEV_CMD = ${JSON.stringify(`${pathPrefix}cd /app && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=${port} ${devScript}`)};
-const INSTALL_LABEL = ${JSON.stringify(`$ ${installScript}`)};
-const DEV_LABEL = ${JSON.stringify(`$ ${devScript}`)};
+const PM = ${JSON.stringify(packageManager)};
+const PORT = ${JSON.stringify(port)};
+const PATH_PREFIX = ${JSON.stringify(pathPrefix)};
+
+// Package manager config — mirrors PACKAGE_MANAGER_CONFIG from the server
+const PM_CONFIG = {
+  npm:  { install: "npm install",  runPrefix: "npm run" },
+  pnpm: { install: "pnpm install", runPrefix: "pnpm run" },
+  yarn: { install: "yarn install", runPrefix: "yarn run" },
+  bun:  { install: "bun install",  runPrefix: "bun run" },
+  deno: { install: "deno install", runPrefix: "deno task" },
+};
+
+const WELL_KNOWN_STARTERS = ["dev", "start"];
 
 // --- Logging ---
 function log(...args) {
@@ -86,18 +93,27 @@ const sseClients = new Set();
 let lastStatus = { ready: false, htmlSupport: false };
 
 // --- Process state ---
-const children = { install: null, dev: null };
-const replayBuffers = { setup: "", install: "", dev: "", daemon: "" };
+const children = {};
+const replayBuffers = { setup: "", daemon: "" };
 const REPLAY_BYTES = 4096;
 let setupDone = false;
+let discoveredScripts = null;
 
 function broadcastChunk(source, data) {
   if (!data) return;
+  if (!replayBuffers[source]) replayBuffers[source] = "";
   const buf = replayBuffers[source] + data;
   replayBuffers[source] = buf.length > REPLAY_BYTES ? buf.slice(buf.length - REPLAY_BYTES) : buf;
   const payload = JSON.stringify({ source: source, data: data });
   for (const res of sseClients) {
     if (res.writable) res.write("event: log\\ndata: " + payload + "\\n\\n");
+  }
+}
+
+function broadcastEvent(eventName, data) {
+  const payload = JSON.stringify(data);
+  for (const res of sseClients) {
+    if (res.writable) res.write("event: " + eventName + "\\ndata: " + payload + "\\n\\n");
   }
 }
 
@@ -107,6 +123,7 @@ function runProcess(source, cmd, label) {
     try { children[source].kill("SIGKILL"); } catch (e) {}
     children[source] = null;
   }
+  if (!replayBuffers[source]) replayBuffers[source] = "";
   broadcastChunk(source, label + "\\r\\n");
   const child = spawn("script", ["-q", "-c", cmd, "/dev/null"], {
     stdio: ["ignore", "pipe", "pipe"],
@@ -114,6 +131,7 @@ function runProcess(source, cmd, label) {
   });
   children[source] = child;
   log("spawned", source, "pid=" + child.pid);
+  broadcastEvent("processes", { type: "processes", active: Object.keys(children).filter(k => children[k] !== null) });
   child.stdout.on("data", (chunk) => {
     broadcastChunk(source, chunk.toString("utf-8"));
   });
@@ -123,20 +141,108 @@ function runProcess(source, cmd, label) {
   child.on("close", (code) => {
     log(source, "exited", "pid=" + child.pid, "code=" + code);
     if (children[source] === child) children[source] = null;
-    if (source === "setup" && code === 0) {
-      setupDone = true;
-      log("setup complete, starting install");
-      runProcess("install", INSTALL_CMD, INSTALL_LABEL);
+    broadcastEvent("processes", { type: "processes", active: Object.keys(children).filter(k => children[k] !== null) });
+  });
+  return child;
+}
+
+function discoverScripts() {
+  if (!PM) return;
+  let scripts = {};
+  try {
+    if (PM === "deno") {
+      for (const f of ["deno.json", "deno.jsonc"]) {
+        try {
+          const raw = fs.readFileSync("/app/" + f, "utf-8");
+          const parsed = JSON.parse(raw);
+          scripts = parsed.tasks || {};
+          break;
+        } catch (e) { /* file not found or parse error, try next */ }
+      }
+    } else {
+      try {
+        const raw = fs.readFileSync("/app/package.json", "utf-8");
+        const parsed = JSON.parse(raw);
+        scripts = parsed.scripts || {};
+      } catch (e) { /* no package.json */ }
     }
+  } catch (e) {
+    log("script discovery failed:", e.message);
+  }
+  const scriptNames = Object.keys(scripts);
+  discoveredScripts = scriptNames;
+  log("discovered scripts:", scriptNames.join(", ") || "(none)");
+  broadcastEvent("scripts", { type: "scripts", scripts: scriptNames });
+
+  // Auto-start first well-known starter found
+  const pmConfig = PM_CONFIG[PM];
+  if (!pmConfig) return;
+  for (const name of WELL_KNOWN_STARTERS) {
+    if (scripts[name]) {
+      const cmd = PATH_PREFIX + "cd /app && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=" + PORT + " " + pmConfig.runPrefix + " " + name;
+      const label = "$ " + pmConfig.runPrefix + " " + name;
+      log("auto-starting:", name);
+      runProcess(name, cmd, label);
+      break;
+    }
+  }
+}
+
+function runSetup() {
+  const cloneCmd = "git clone " + CLONE_URL + " /app";
+  const cloneLabel = "$ git clone " + REPO_NAME + " /app";
+  broadcastChunk("setup", cloneLabel + "\\r\\n");
+
+  const child = spawn("script", ["-q", "-c", cloneCmd, "/dev/null"], {
+    stdio: ["ignore", "pipe", "pipe"],
+    env: Object.assign({}, process.env, { TERM: "xterm-256color" }),
+  });
+  log("spawned setup (clone) pid=" + child.pid);
+  child.stdout.on("data", (chunk) => broadcastChunk("setup", chunk.toString("utf-8")));
+  child.stderr.on("data", (chunk) => broadcastChunk("setup", chunk.toString("utf-8")));
+  child.on("close", (code) => {
+    log("clone exited code=" + code);
+    if (code !== 0) {
+      broadcastChunk("setup", "\\r\\nClone failed with exit code " + code + "\\r\\n");
+      return;
+    }
+    if (!PM) {
+      setupDone = true;
+      log("setup complete (clone only, no package manager)");
+      return;
+    }
+    // Run install in the same "setup" stream
+    const pmConfig = PM_CONFIG[PM];
+    if (!pmConfig) { setupDone = true; return; }
+    const installCmd = PATH_PREFIX + "cd /app && " + pmConfig.install;
+    const installLabel = "$ " + pmConfig.install;
+    broadcastChunk("setup", "\\r\\n" + installLabel + "\\r\\n");
+
+    const installChild = spawn("script", ["-q", "-c", installCmd, "/dev/null"], {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: Object.assign({}, process.env, { TERM: "xterm-256color" }),
+    });
+    log("spawned setup (install) pid=" + installChild.pid);
+    installChild.stdout.on("data", (chunk) => broadcastChunk("setup", chunk.toString("utf-8")));
+    installChild.stderr.on("data", (chunk) => broadcastChunk("setup", chunk.toString("utf-8")));
+    installChild.on("close", (installCode) => {
+      log("install exited code=" + installCode);
+      setupDone = true;
+      if (installCode === 0) {
+        log("setup complete, discovering scripts");
+        discoverScripts();
+      } else {
+        broadcastChunk("setup", "\\r\\nInstall failed with exit code " + installCode + "\\r\\n");
+      }
+    });
   });
 }
 
 // --- Liveness probe ---
-// Probes every 3s during first 60s (startup), then every 30s (steady state)
 let probeCount = 0;
 const FAST_PROBE_MS = 3000;
 const SLOW_PROBE_MS = 30000;
-const FAST_PROBE_LIMIT = 20; // 20 * 3s = 60s
+const FAST_PROBE_LIMIT = 20;
 
 function probeUpstream() {
   const prevReady = lastStatus.ready;
@@ -165,14 +271,6 @@ function probeUpstream() {
   setTimeout(probeUpstream, nextDelay);
 }
 
-function broadcastStatus() {
-  const payload = JSON.stringify({ type: "status", ...lastStatus });
-  for (const res of sseClients) {
-    if (res.writable) res.write("event: status\\ndata: " + payload + "\\n\\n");
-  }
-}
-
-// Start probing after 1s
 setTimeout(probeUpstream, 1000);
 
 // --- HTTP server ---
@@ -195,20 +293,27 @@ http.createServer((req, res) => {
       "Connection": "keep-alive",
       "Access-Control-Allow-Origin": "*",
     });
-    // Send current status immediately
+    // 1. Replay status
     res.write("event: status\\ndata: " + JSON.stringify({ type: "status", ...lastStatus }) + "\\n\\n");
-    // Replay last lines from memory
-    for (const source of ["setup", "install", "dev", "daemon"]) {
+    // 2. Replay log buffers
+    for (const source of Object.keys(replayBuffers)) {
       const buf = replayBuffers[source];
-      if (buf.length > 0) {
+      if (buf && buf.length > 0) {
         const payload = JSON.stringify({ source: source, data: buf });
         res.write("event: log\\ndata: " + payload + "\\n\\n");
       }
     }
+    // 3. Replay discovered scripts
+    if (discoveredScripts) {
+      res.write("event: scripts\\ndata: " + JSON.stringify({ type: "scripts", scripts: discoveredScripts }) + "\\n\\n");
+    }
+    // 4. Replay active processes
+    const active = Object.keys(children).filter(k => children[k] !== null);
+    res.write("event: processes\\ndata: " + JSON.stringify({ type: "processes", active: active }) + "\\n\\n");
+
     sseClients.add(res);
     log("SSE connect, clients=" + sseClients.size);
     req.on("close", () => { sseClients.delete(res); log("SSE disconnect, clients=" + sseClients.size); });
-    // Broadcast status every 15s (doubles as keepalive)
     const ka = setInterval(() => {
       if (!res.writable) { clearInterval(ka); sseClients.delete(res); return; }
       res.write("event: status\\ndata: " + JSON.stringify({ type: "status", ...lastStatus }) + "\\n\\n");
@@ -217,57 +322,67 @@ http.createServer((req, res) => {
     return;
   }
 
-  // Exec endpoints
-  if (req.method === "POST" && req.url === "/_daemon/exec/setup") {
-    log("exec setup");
-    runProcess("setup", SETUP_CMD, SETUP_LABEL);
-    res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
-    res.end(JSON.stringify({ ok: true }));
-    return;
-  }
-
-  if (req.method === "POST" && req.url === "/_daemon/exec/install") {
-    log("exec install");
-    if (setupDone) {
-      runProcess("install", INSTALL_CMD, INSTALL_LABEL);
-    } else {
-      log("setup not done yet, install will auto-start after clone");
+  // Exec endpoint — run any script by name
+  if (req.method === "POST" && req.url.startsWith("/_daemon/exec/")) {
+    const name = req.url.slice("/_daemon/exec/".length);
+    if (!name) {
+      res.writeHead(400, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+      res.end(JSON.stringify({ error: "missing script name" }));
+      return;
     }
-    res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
-    res.end(JSON.stringify({ ok: true }));
-    return;
-  }
-
-  if (req.method === "POST" && req.url === "/_daemon/exec/dev") {
-    log("exec dev");
-    runProcess("dev", DEV_CMD, DEV_LABEL);
-    res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
-    res.end(JSON.stringify({ ok: true }));
-    return;
-  }
-
-  // Kill endpoints
-  if (req.method === "POST" && req.url.startsWith("/_daemon/kill/")) {
-    const source = req.url.split("/").pop();
-    if (source === "install" || source === "dev") {
-      if (children[source]) {
-        log("kill", source, "pid=" + children[source].pid);
-        try { children[source].kill("SIGKILL"); } catch (e) {}
-        children[source] = null;
-      } else {
-        log("kill", source, "(no process running)");
-      }
+    if (name === "setup") {
+      log("exec setup");
+      runSetup();
       res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
       res.end(JSON.stringify({ ok: true }));
-    } else {
-      res.writeHead(400, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
-      res.end(JSON.stringify({ error: "invalid source" }));
+      return;
     }
+    if (!PM || !setupDone) {
+      log("exec rejected: setup not done or no package manager");
+      res.writeHead(400, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+      res.end(JSON.stringify({ error: "setup not complete" }));
+      return;
+    }
+    const pmConfig = PM_CONFIG[PM];
+    if (!pmConfig) {
+      res.writeHead(400, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+      res.end(JSON.stringify({ error: "unknown package manager" }));
+      return;
+    }
+    const cmd = PATH_PREFIX + "cd /app && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=" + PORT + " " + pmConfig.runPrefix + " " + name;
+    const label = "$ " + pmConfig.runPrefix + " " + name;
+    log("exec", name);
+    runProcess(name, cmd, label);
+    res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+    res.end(JSON.stringify({ ok: true }));
     return;
   }
 
-  // CORS preflight for SSE and exec endpoints
-  if (req.method === "OPTIONS" && (req.url === "/_daemon/events" || req.url.startsWith("/_daemon/exec/") || req.url.startsWith("/_daemon/kill/"))) {
+  // Kill endpoint
+  if (req.method === "POST" && req.url.startsWith("/_daemon/kill/")) {
+    const name = req.url.slice("/_daemon/kill/".length);
+    if (children[name]) {
+      log("kill", name, "pid=" + children[name].pid);
+      try { children[name].kill("SIGKILL"); } catch (e) {}
+      children[name] = null;
+      broadcastEvent("processes", { type: "processes", active: Object.keys(children).filter(k => children[k] !== null) });
+    } else {
+      log("kill", name, "(no process running)");
+    }
+    res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+    res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+
+  // Scripts endpoint (fallback for missed SSE)
+  if (req.method === "GET" && req.url === "/_daemon/scripts") {
+    res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+    res.end(JSON.stringify({ scripts: discoveredScripts || [] }));
+    return;
+  }
+
+  // CORS preflight
+  if (req.method === "OPTIONS" && req.url.startsWith("/_daemon/")) {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST",
@@ -310,9 +425,9 @@ http.createServer((req, res) => {
   req.pipe(p);
 }).listen(PROXY_PORT, "0.0.0.0");
 
-// Auto-start setup (clone) on daemon boot
+// Auto-start setup on daemon boot
 log("starting setup: cloning " + REPO_NAME);
-runProcess("setup", SETUP_CMD, SETUP_LABEL);
+runSetup();
 `;
 };
 
@@ -367,7 +482,7 @@ export const VM_START = defineTool({
     }
 
     const { owner, name } = metadata.githubRepo;
-    const { selected, port, installScript, devScript, runtimeBinPath } =
+    const { packageManager, runtime, port, runtimeBinPath } =
       resolveRuntimeConfig(metadata);
     const pathPrefix = runtimeBinPath
       ? `export PATH=${runtimeBinPath}:$PATH && `
@@ -401,8 +516,7 @@ export const VM_START = defineTool({
         "/opt/daemon.js": {
           content: buildDaemonScript({
             upstreamPort: port,
-            installScript,
-            devScript,
+            packageManager,
             pathPrefix,
             port,
             cloneUrl,
@@ -424,9 +538,9 @@ export const VM_START = defineTool({
       });
 
     const spec =
-      selected === "deno"
+      runtime === "deno"
         ? baseSpec.with("deno", new VmDeno())
-        : selected === "bun"
+        : runtime === "bun"
           ? baseSpec.with("js", new VmBun())
           : baseSpec;
 
@@ -459,7 +573,7 @@ export const VM_START = defineTool({
       }
     }
 
-    console.log(`[VM_START] repo: ${owner}/${name} runtime: ${selected}`);
+    console.log(`[VM_START] repo: ${owner}/${name} pm: ${packageManager ?? "none"} runtime: ${runtime ?? "none"}`);
 
     // Create VM from spec.
     // Domain routes to the iframe proxy which strips X-Frame-Options/CSP
