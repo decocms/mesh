@@ -93,6 +93,23 @@ function PickerContent({
   // Find all mcp-github connections in the organization
   const githubConnections = useConnections({ slug: "mcp-github" });
 
+  // Auto-install hook — only enabled when no connections exist
+  const autoInstall = useAutoInstallGitHub({
+    enabled: githubConnections.length === 0,
+  });
+
+  console.log(
+    "[PickerContent] githubConnections",
+    githubConnections.length,
+    "autoInstall.status",
+    autoInstall.status,
+    githubConnections.map((c) => ({
+      id: c.id,
+      status: c.status,
+      title: c.title,
+    })),
+  );
+
   // Check which org-wide GitHub connections are already on this virtual MCP
   const virtualMcpConnectionIds = new Set(
     (inset?.entity?.connections ?? []).map((c) => c.connection_id),
@@ -319,9 +336,39 @@ function PickerContent({
     },
   });
 
-  // No GitHub connections — auto-install from registry
-  if (githubConnections.length === 0) {
-    return <AutoInstallGitHub />;
+  // Auto-install in progress — keep showing progress UI until flow completes
+  if (
+    autoInstall.status === "installing" ||
+    autoInstall.status === "authenticating"
+  ) {
+    return (
+      <AutoInstallGitHubUI
+        status={autoInstall.status}
+        error={null}
+        retry={autoInstall.retry}
+      />
+    );
+  }
+
+  if (autoInstall.status === "error") {
+    return (
+      <AutoInstallGitHubUI
+        status="error"
+        error={autoInstall.error}
+        retry={autoInstall.retry}
+      />
+    );
+  }
+
+  // No GitHub connections and auto-install is idle (shouldn't happen, but safety net)
+  if (githubConnections.length === 0 && autoInstall.status === "idle") {
+    return (
+      <AutoInstallGitHubUI
+        status="installing"
+        error={null}
+        retry={autoInstall.retry}
+      />
+    );
   }
 
   // Multiple connections, none selected — show connection picker
@@ -397,13 +444,19 @@ function InstallationPicker({
     orgId,
   });
 
+  console.log("[InstallationPicker] rendering", { connectionId, orgId });
+
   const installationsQuery = useQuery({
     queryKey: KEYS.githubUserOrgs(orgId, connectionId),
     queryFn: async () => {
+      console.log("[InstallationPicker] calling GITHUB_LIST_USER_ORGS", {
+        connectionId,
+      });
       const result = await selfClient.callTool({
         name: "GITHUB_LIST_USER_ORGS",
         arguments: { connectionId },
       });
+      console.log("[InstallationPicker] GITHUB_LIST_USER_ORGS result", result);
       const content = (result as { content?: Array<{ text?: string }> })
         .content?.[0]?.text;
       if (!content) throw new Error("No response from GITHUB_LIST_USER_ORGS");
@@ -413,6 +466,10 @@ function InstallationPicker({
       };
     },
   });
+
+  if (installationsQuery.isError) {
+    console.error("[InstallationPicker] query error", installationsQuery.error);
+  }
 
   if (installationsQuery.isLoading) {
     return (
@@ -691,13 +748,15 @@ function RepoSearchResults({
   );
 }
 
-function AutoInstallGitHub() {
-  const { status, error, retry } = useAutoInstallGitHub({ enabled: true });
-
-  if (status === "ready") {
-    return null;
-  }
-
+function AutoInstallGitHubUI({
+  status,
+  error,
+  retry,
+}: {
+  status: string;
+  error: string | null;
+  retry: () => void;
+}) {
   if (status === "error") {
     return (
       <div className="flex flex-col items-center gap-3 py-6">

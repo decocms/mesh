@@ -55,6 +55,14 @@ export function useAutoInstallGitHub(opts: {
     session?.user?.id &&
     status === "idle"
   ) {
+    console.log(
+      "[useAutoInstallGitHub] registry item loaded, starting install flow",
+      {
+        appId: GITHUB_APP_ID,
+        registryItemId: registryItem.id,
+        remoteUrl: registryItem.server?.remotes?.[0]?.url,
+      },
+    );
     setStarted(true);
     runInstallFlow();
   }
@@ -80,23 +88,41 @@ export function useAutoInstallGitHub(opts: {
       }
 
       const { id } = await actions.create.mutateAsync(connectionData);
+      console.log("[useAutoInstallGitHub] connection created", {
+        id,
+        connectionType: connectionData.connection_type,
+        url: remoteUrl,
+      });
 
       // Step 2: Check if OAuth is needed
       setStatus("authenticating");
       const mcpProxyUrl = new URL(`/mcp/${id}`, window.location.origin);
+      console.log("[useAutoInstallGitHub] checking auth status", {
+        mcpProxyUrl: mcpProxyUrl.href,
+      });
       const authStatus = await isConnectionAuthenticated({
         url: mcpProxyUrl.href,
         token: null,
       });
+      console.log("[useAutoInstallGitHub] auth status result", authStatus);
 
       if (authStatus.supportsOAuth && !authStatus.isAuthenticated) {
         // Step 3: Run OAuth flow
+        console.log(
+          "[useAutoInstallGitHub] starting OAuth flow for connection",
+          id,
+        );
         const {
           token,
           tokenInfo,
           error: oauthError,
         } = await authenticateMcp({
           connectionId: id,
+        });
+        console.log("[useAutoInstallGitHub] OAuth result", {
+          hasToken: !!token,
+          hasTokenInfo: !!tokenInfo,
+          error: oauthError,
         });
 
         if (oauthError || !token) {
@@ -112,6 +138,9 @@ export function useAutoInstallGitHub(opts: {
         // Step 4: Persist OAuth token
         if (tokenInfo) {
           try {
+            console.log(
+              "[useAutoInstallGitHub] persisting OAuth token via /api/connections endpoint",
+            );
             const response = await fetch(`/api/connections/${id}/oauth-token`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -126,22 +155,38 @@ export function useAutoInstallGitHub(opts: {
                 tokenEndpoint: tokenInfo.tokenEndpoint,
               }),
             });
+            console.log("[useAutoInstallGitHub] token persist response", {
+              ok: response.ok,
+              status: response.status,
+            });
             if (!response.ok) {
+              console.log(
+                "[useAutoInstallGitHub] falling back to connection_token field",
+              );
               await actions.update.mutateAsync({
                 id,
                 data: { connection_token: token },
               });
             }
-          } catch {
+          } catch (persistErr) {
+            console.log(
+              "[useAutoInstallGitHub] token persist error, using fallback",
+              persistErr,
+            );
             await actions.update.mutateAsync({
               id,
               data: { connection_token: token },
             });
           }
         }
+      } else {
+        console.log(
+          "[useAutoInstallGitHub] no OAuth needed or already authenticated",
+        );
       }
 
       // Step 5: Invalidate connection queries so picker re-renders
+      console.log("[useAutoInstallGitHub] invalidating connection queries");
       await queryClient.invalidateQueries({
         predicate: (query) => {
           const key = query.queryKey;
@@ -151,7 +196,11 @@ export function useAutoInstallGitHub(opts: {
 
       setConnection(connectionData as ConnectionEntity);
       setStatus("ready");
+      console.log("[useAutoInstallGitHub] flow complete, status=ready", {
+        connectionId: connectionData.id,
+      });
     } catch (err) {
+      console.error("[useAutoInstallGitHub] flow error", err);
       setError(err instanceof Error ? err.message : String(err));
       setStatus("error");
     }
