@@ -50,10 +50,7 @@ import { EmptyState } from "../../empty-state";
 import { LiveTimer } from "../../live-timer";
 import { useActiveGithubRepo } from "@/web/hooks/use-active-github-repo";
 import { authClient } from "@/web/lib/auth-client";
-import {
-  PACKAGE_MANAGER_CONFIG,
-  PACKAGE_MANAGER_LABELS,
-} from "@/shared/runtime-defaults";
+import { PACKAGE_MANAGER_CONFIG } from "@/shared/runtime-defaults";
 import type { PackageManager } from "@/shared/runtime-defaults";
 import { toast } from "sonner";
 
@@ -401,7 +398,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
                     <SelectItem value={NONE_VALUE}>None</SelectItem>
                     {packageManagers.map((pm) => (
                       <SelectItem key={pm} value={pm}>
-                        {PACKAGE_MANAGER_LABELS[pm]}
+                        {pm}
                       </SelectItem>
                     ))}
                   </SelectContent>

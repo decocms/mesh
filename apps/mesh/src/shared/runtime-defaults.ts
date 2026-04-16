@@ -36,11 +36,3 @@ export const PACKAGE_MANAGER_CONFIG: Record<
     runtime: "deno",
   },
 };
-
-export const PACKAGE_MANAGER_LABELS: Record<PackageManager, string> = {
-  npm: "npm",
-  pnpm: "pnpm",
-  yarn: "yarn",
-  bun: "bun",
-  deno: "deno",
-};
