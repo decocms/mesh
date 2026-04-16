@@ -25,7 +25,6 @@ import { KEYS } from "@/web/lib/query-keys";
 import { toast } from "sonner";
 import { Loading01 } from "@untitledui/icons";
 import { useAutoInstallGitHub } from "@/web/hooks/use-auto-install-github";
-import { useToggleEnvPanel } from "@/web/hooks/use-toggle-env-panel";
 
 interface GitHubInstallation {
   installationId: number;
@@ -68,7 +67,7 @@ export function GitHubRepoPicker({
               </div>
             }
           >
-            <PickerContent onOpenChange={onOpenChange} />
+            <PickerContent onComplete={() => onOpenChange(false)} />
           </Suspense>
         </div>
       </DialogContent>
@@ -76,11 +75,7 @@ export function GitHubRepoPicker({
   );
 }
 
-function PickerContent({
-  onOpenChange,
-}: {
-  onOpenChange: (open: boolean) => void;
-}) {
+export function PickerContent({ onComplete }: { onComplete: () => void }) {
   const { org } = useProjectContext();
   const inset = useInsetContext();
   const queryClient = useQueryClient();
@@ -90,7 +85,6 @@ function PickerContent({
     useState<GitHubInstallation | null>(null);
 
   const actions = useVirtualMCPActions();
-  const { toggleEnv } = useToggleEnvPanel();
 
   // Find all mcp-github connections in the organization
   const githubConnections = useConnections({ slug: "mcp-github" });
@@ -187,14 +181,10 @@ function PickerContent({
       });
     },
     onSuccess: (_data, repo) => {
-      console.log(
-        "[GitHubRepoPicker] saveMutation onSuccess, toggling env panel",
-      );
+      console.log("[GitHubRepoPicker] saveMutation onSuccess");
       toast.success("GitHub repo connected");
-      onOpenChange(false);
-      toggleEnv();
 
-      // Background: detect runtime from the repo via the GitHub connection
+      // Detect runtime from the repo via the GitHub connection, then close
       if (inset?.entity && effectiveConnection) {
         const entityId = inset.entity.id;
 
@@ -319,7 +309,10 @@ function PickerContent({
               );
             },
           });
+          onComplete();
         });
+      } else {
+        onComplete();
       }
     },
     onError: (error) => {

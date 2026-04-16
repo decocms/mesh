@@ -191,19 +191,6 @@ function discoverScripts() {
   discoveredScripts = scriptNames;
   log("discovered scripts:", scriptNames.join(", ") || "(none)");
   broadcastEvent("scripts", { type: "scripts", scripts: scriptNames });
-
-  // Auto-start first well-known starter found
-  const pmConfig = PM_CONFIG[PM];
-  if (!pmConfig) return;
-  for (const name of WELL_KNOWN_STARTERS) {
-    if (scripts[name]) {
-      const cmd = PATH_PREFIX + "cd /app && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=" + PORT + " " + pmConfig.runPrefix + " " + name;
-      const label = "$ " + pmConfig.runPrefix + " " + name;
-      log("auto-starting:", name);
-      runProcess(name, cmd, label);
-      break;
-    }
-  }
 }
 
 function runSetup() {
@@ -232,7 +219,7 @@ function runSetup() {
     // Run install in the same "setup" stream
     const pmConfig = PM_CONFIG[PM];
     if (!pmConfig) { setupDone = true; return; }
-    const corepackSetup = PM === "yarn" ? "corepack enable && " : "";
+    const corepackSetup = PM === "yarn" ? "export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 && corepack enable && " : "";
     const installCmd = PATH_PREFIX + "cd /app && " + corepackSetup + pmConfig.install;
     const installLabel = "$ " + pmConfig.install;
     broadcastChunk("setup", "\\r\\n" + installLabel + "\\r\\n");

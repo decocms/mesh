@@ -8,7 +8,7 @@ import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
-import { usePreferences } from "@/web/hooks/use-preferences";
+
 import {
   authenticateMcp,
   isConnectionAuthenticated,
@@ -16,8 +16,6 @@ import {
 import { KEYS } from "@/web/lib/query-keys";
 import { unwrapToolResult } from "@/web/lib/unwrap-tool-result";
 import { getConnectionSlug } from "@/shared/utils/connection-slug";
-import { RepositoryTabContent } from "@/web/views/settings/repository";
-
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1065,13 +1063,8 @@ function VirtualMcpDetailViewWithData({
     settingsConnectionId: null,
   });
 
-  // Chat hooks
-  const [preferences] = usePreferences();
-
   // Tab state
-  const validTabIds = preferences.experimental_vibecode
-    ? ["instructions", "connections", "layout", "repository"]
-    : ["instructions", "connections", "layout"];
+  const validTabIds = ["instructions", "connections", "layout"];
   const [activeTab, setActiveTab] = useState(() => {
     const stored = localStorage.getItem("agent-detail-tab") || "instructions";
     // Migrate old "sidebar" tab to "layout"
@@ -1389,9 +1382,6 @@ Define step-by-step how the agent should handle requests.
       count: connections.length || undefined,
     },
     { id: "layout", label: "Layout" },
-    ...(preferences.experimental_vibecode
-      ? [{ id: "repository", label: "Repository" }]
-      : []),
   ];
 
   return (
@@ -1559,8 +1549,6 @@ Define step-by-step how the agent should handle requests.
                 )}
               </div>
             )}
-
-            {activeTab === "repository" && <RepositoryTabContent />}
 
             {activeTab === "layout" && (
               <LayoutTabContent virtualMcpId={virtualMcp.id} />

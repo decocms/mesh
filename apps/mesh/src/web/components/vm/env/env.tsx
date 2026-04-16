@@ -10,12 +10,22 @@ import {
   Loading01,
   Play,
   StopCircle,
-  Monitor04,
   ChevronDown,
   Plus,
   MessageChatCircle,
+  LinkExternal01,
 } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@deco/ui/components/select.tsx";
+import { Input } from "@deco/ui/components/input.tsx";
+import { Label } from "@deco/ui/components/label.tsx";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,7 +46,29 @@ import { useVmEvents } from "../hooks/use-vm-events";
 import { VmTerminal } from "./terminal";
 import type { Terminal as XTerminal } from "@xterm/xterm";
 import { EmptyState } from "../../empty-state";
+import { GitHubRepoPicker } from "../../github-repo-picker";
 import { LiveTimer } from "../../live-timer";
+import { useActiveGithubRepo } from "@/web/hooks/use-active-github-repo";
+import {
+  PACKAGE_MANAGER_CONFIG,
+  PACKAGE_MANAGER_LABELS,
+} from "@/shared/runtime-defaults";
+import type { PackageManager } from "@/shared/runtime-defaults";
+import { toast } from "sonner";
+
+function GitHubIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z" />
+    </svg>
+  );
+}
 
 interface VmData {
   terminalUrl: string | null;
@@ -242,16 +274,6 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     });
   };
 
-  const handleStartRef = useRef(handleStart);
-  handleStartRef.current = handleStart;
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — auto-start on mount requires DOM lifecycle; no React 19 alternative
-  useEffect(() => {
-    if (inset?.entity?.id) {
-      handleStartRef.current();
-    }
-  }, [inset?.entity?.id]);
-
   // Detect suspension via SSE disconnect
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — responds to vmEvents.suspended changing; drives status transition
   useEffect(() => {
@@ -263,19 +285,160 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     }
   }, [vmEvents.suspended, status]);
 
+  const githubRepo = useActiveGithubRepo();
+
+  // State 1: No repo connected — show empty state with dialog trigger
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  if (!githubRepo) {
+    return (
+      <div className="flex flex-col items-center justify-center w-full h-full gap-4 p-6">
+        <GitHubIcon size={48} />
+        <h3 className="text-lg font-medium">Connect a GitHub repository</h3>
+        <p className="text-sm text-muted-foreground text-center max-w-sm">
+          Connect a repository to start your development environment.
+        </p>
+        <Button variant="outline" onClick={() => setPickerOpen(true)}>
+          <GitHubIcon size={16} />
+          Connect GitHub
+        </Button>
+        <GitHubRepoPicker open={pickerOpen} onOpenChange={setPickerOpen} />
+      </div>
+    );
+  }
+
+  const runtime = (
+    inset?.entity?.metadata as
+      | { runtime?: { selected: string | null; port?: string | null } | null }
+      | undefined
+  )?.runtime;
+  const isDetecting = runtime === undefined;
+  const NONE_VALUE = "__none__";
+  const packageManagers = Object.keys(
+    PACKAGE_MANAGER_CONFIG,
+  ) as PackageManager[];
+
+  const handleFieldUpdate = async (
+    field: "selected" | "port",
+    value: string | null,
+  ) => {
+    if (!inset?.entity) return;
+    try {
+      await client.callTool({
+        name: "COLLECTION_VIRTUAL_MCP_UPDATE",
+        arguments: {
+          id: inset.entity.id,
+          data: {
+            metadata: {
+              runtime: {
+                ...runtime,
+                [field]: value,
+              },
+            },
+          },
+        },
+      });
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey;
+          return key[3] === "collection" && key[4] === "VIRTUAL_MCP";
+        },
+      });
+    } catch {
+      toast.error("Failed to update setting");
+    }
+  };
+
+  // State 2: Repo connected, VM stopped — show config + Start
   if (status === "idle" || status === "stopping") {
     const isStopping = status === "stopping";
     return (
-      <div className="flex flex-col items-center justify-center w-full h-full gap-4">
-        <Monitor04 size={48} className="text-muted-foreground/40" />
-        <h3 className="text-lg font-medium">Server</h3>
-        <p className="text-sm text-muted-foreground text-center max-w-sm">
-          Start the development server
-        </p>
-        <Button onClick={handleStart} disabled={isStopping}>
-          {isStopping && <Loading01 size={14} className="animate-spin" />}
-          {isStopping ? "Stopping..." : "Start Server"}
-        </Button>
+      <div className="flex flex-col items-center justify-center w-full h-full p-6">
+        <div className="flex flex-col gap-4 w-full max-w-xs">
+          <a
+            href={`https://github.com/${githubRepo.owner}/${githubRepo.name}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors"
+          >
+            <GitHubIcon size={24} />
+            <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+              <span className="text-sm font-medium truncate">
+                {githubRepo.owner}/{githubRepo.name}
+              </span>
+              <span className="text-xs text-muted-foreground truncate">
+                github.com/{githubRepo.owner}/{githubRepo.name}
+              </span>
+            </div>
+            <LinkExternal01
+              size={14}
+              className="text-muted-foreground shrink-0"
+            />
+          </a>
+
+          {isDetecting ? (
+            <div className="flex items-center justify-center gap-2 w-full">
+              <Loading01
+                size={14}
+                className="animate-spin text-muted-foreground"
+              />
+              <p className="text-sm text-muted-foreground">
+                Detecting project configuration...
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-end justify-between gap-2 w-full">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="env-runtime" className="text-xs font-medium">
+                  Runtime
+                </Label>
+                <Select
+                  value={runtime?.selected ?? NONE_VALUE}
+                  onValueChange={(v) =>
+                    handleFieldUpdate("selected", v === NONE_VALUE ? null : v)
+                  }
+                >
+                  <SelectTrigger id="env-runtime" className="w-28">
+                    <SelectValue placeholder="None" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE_VALUE}>None</SelectItem>
+                    {packageManagers.map((pm) => (
+                      <SelectItem key={pm} value={pm}>
+                        {PACKAGE_MANAGER_LABELS[pm]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="env-port" className="text-xs font-medium">
+                  Port
+                </Label>
+                <Input
+                  id="env-port"
+                  placeholder="3000"
+                  className="w-20 h-8"
+                  defaultValue={runtime?.port ?? ""}
+                  onBlur={(e) =>
+                    handleFieldUpdate("port", e.target.value || null)
+                  }
+                />
+              </div>
+              <Button
+                onClick={handleStart}
+                disabled={isStopping || isDetecting}
+              >
+                {isStopping ? (
+                  <Loading01 size={14} className="animate-spin" />
+                ) : (
+                  <Play size={14} />
+                )}
+                {isStopping ? "Stopping..." : "Run"}
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
