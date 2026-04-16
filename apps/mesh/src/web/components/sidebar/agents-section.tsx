@@ -418,7 +418,7 @@ function PinAgentPopoverContent({
                 <FolderPlus size={14} />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuContent side="right" align="start" className="w-48">
               <DropdownMenuItem
                 disabled={isCreating}
                 onClick={async () => {
