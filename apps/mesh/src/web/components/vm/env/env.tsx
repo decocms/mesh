@@ -49,6 +49,7 @@ import { EmptyState } from "../../empty-state";
 import { GitHubRepoPicker } from "../../github-repo-picker";
 import { LiveTimer } from "../../live-timer";
 import { useActiveGithubRepo } from "@/web/hooks/use-active-github-repo";
+import { authClient } from "@/web/lib/auth-client";
 import {
   PACKAGE_MANAGER_CONFIG,
   PACKAGE_MANAGER_LABELS,
@@ -91,14 +92,39 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const { org } = useProjectContext();
   const inset = useInsetContext();
   const queryClient = useQueryClient();
-  const [status, setStatus] = useState<ViewStatus>("idle");
+  const { data: session } = authClient.useSession();
+
+  // Check if there's already an active VM for this user
+  const userId = session?.user?.id;
+  const activeVmMetadata = inset?.entity?.metadata as
+    | {
+        activeVms?: Record<
+          string,
+          { previewUrl: string; vmId: string; terminalUrl: string | null }
+        >;
+      }
+    | undefined;
+  const existingVm = userId ? activeVmMetadata?.activeVms?.[userId] : undefined;
+
+  const [status, setStatus] = useState<ViewStatus>(
+    existingVm ? "running" : "idle",
+  );
   const [statusLabel, setStatusLabel] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [execInFlight, setExecInFlight] = useState(false);
   const [killedProcesses, setKilledProcesses] = useState<Set<string>>(
     new Set(),
   );
-  const vmDataRef = useRef<VmData | null>(null);
+  const vmDataRef = useRef<VmData | null>(
+    existingVm
+      ? {
+          terminalUrl: existingVm.terminalUrl,
+          previewUrl: existingVm.previewUrl,
+          vmId: existingVm.vmId,
+          isNewVm: false,
+        }
+      : null,
+  );
   const startingRef = useRef(false);
   const startedAtRef = useRef<number>(Date.now());
 
