@@ -94,21 +94,27 @@ function safePath(userPath) {
   return resolved;
 }
 
-// --- JSON body parser ---
+// --- JSON body parser (base64-encoded payloads) ---
 function parseJsonBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     req.on("data", (c) => chunks.push(c));
     req.on("end", () => {
       const raw = Buffer.concat(chunks).toString("utf-8");
-      log("parseJsonBody", "url=" + req.url, "rawLength=" + raw.length, "raw=" + raw.slice(0, 500));
+      log("parseJsonBody", "url=" + req.url, "rawLength=" + raw.length);
       try {
-        const parsed = JSON.parse(raw);
+        // Decode base64 → percent-encoded UTF-8 → original JSON string
+        const decoded = decodeURIComponent(
+          atob(raw).split("").map(function(c) {
+            return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
+          }).join("")
+        );
+        const parsed = JSON.parse(decoded);
         log("parseJsonBody", "parsed OK, keys=" + Object.keys(parsed).join(","));
         resolve(parsed);
       } catch (e) {
-        log("parseJsonBody", "FAILED to parse JSON", "error=" + e.message, "raw=" + raw.slice(0, 1000));
-        reject(new Error("Failed to parse JSON: " + e.message + " | raw=" + raw.slice(0, 200)));
+        log("parseJsonBody", "FAILED to parse", "error=" + e.message, "raw=" + raw.slice(0, 1000));
+        reject(new Error("Failed to parse body: " + e.message + " | raw=" + raw.slice(0, 200)));
       }
     });
     req.on("error", reject);

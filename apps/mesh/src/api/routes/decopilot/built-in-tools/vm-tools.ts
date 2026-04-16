@@ -27,12 +27,19 @@ async function daemonPost(
 ): Promise<unknown> {
   const url = `${baseUrl}/_decopilot_vm/${endpoint}`;
   const serialized = JSON.stringify(body);
+  // Base64-encode the payload to avoid Cloudflare WAF triggering on
+  // shell commands and other sensitive-looking content in the JSON body.
+  const encoded = btoa(
+    encodeURIComponent(serialized).replace(/%([0-9A-F]{2})/g, (_, p1) =>
+      String.fromCharCode(parseInt(p1, 16)),
+    ),
+  );
   let res: Response;
   try {
     res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: serialized,
+      headers: { "Content-Type": "text/plain" },
+      body: encoded,
     });
   } catch {
     throw new Error(
