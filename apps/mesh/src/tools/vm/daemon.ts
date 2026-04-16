@@ -9,6 +9,8 @@
  *   4. File operations: read/write/edit/grep/glob/bash endpoints
  */
 
+import { PACKAGE_MANAGER_DAEMON_CONFIG } from "../../shared/runtime-defaults";
+
 export interface DaemonConfig {
   upstreamPort: string;
   packageManager: string | null;
@@ -52,14 +54,7 @@ const PORT = ${JSON.stringify(port)};
 const PATH_PREFIX = ${JSON.stringify(pathPrefix)};
 const APP_ROOT = "/app";
 
-// Package manager config — mirrors PACKAGE_MANAGER_CONFIG from the server
-const PM_CONFIG = {
-  npm:  { install: "npm install",  runPrefix: "npm run" },
-  pnpm: { install: "pnpm install", runPrefix: "pnpm run" },
-  yarn: { install: "yarn install", runPrefix: "yarn run" },
-  bun:  { install: "bun install",  runPrefix: "bun run" },
-  deno: { install: "deno install", runPrefix: "deno task" },
-};
+const PM_CONFIG = ${JSON.stringify(PACKAGE_MANAGER_DAEMON_CONFIG)};
 
 const WELL_KNOWN_STARTERS = ["dev", "start"];
 
