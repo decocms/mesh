@@ -1,5 +1,5 @@
 import { Suspense, useState, useRef } from "react";
-import { GitHubIcon } from "@/web/components/icons/github-icon";
+import { CreateAgentDropdownContent } from "@/web/components/create-agent-dropdown";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
@@ -40,7 +40,7 @@ import {
 } from "@deco/ui/components/drawer.tsx";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { CollectionSearch } from "@deco/ui/components/collection-search.tsx";
-import { FolderPlus, Plus, Settings02, Users03, X } from "@untitledui/icons";
+import { FolderPlus, Plus, Settings02, X } from "@untitledui/icons";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -63,8 +63,6 @@ import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
@@ -419,30 +417,17 @@ function PinAgentPopoverContent({
                 <FolderPlus size={14} />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="right" align="start" className="w-48">
-              <DropdownMenuItem
-                disabled={isCreating}
-                onClick={async () => {
-                  await createVirtualMCP();
-                  onClose();
-                }}
-              >
-                <Users03 size={14} />
-                Create from scratch
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onOpenGithubImport}>
-                <GitHubIcon className="size-3.5" />
-                Import from GitHub
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onOpenImportDeco}>
-                <img
-                  src="/logos/deco%20logo.svg"
-                  alt="deco.cx"
-                  className="size-3.5"
-                />
-                Import from deco.cx
-              </DropdownMenuItem>
-            </DropdownMenuContent>
+            <CreateAgentDropdownContent
+              onCreateFromScratch={async () => {
+                await createVirtualMCP();
+                onClose();
+              }}
+              onImportGitHub={onOpenGithubImport}
+              onImportDeco={onOpenImportDeco}
+              isCreating={isCreating}
+              side="right"
+              align="start"
+            />
           </DropdownMenu>
         </div>
         <div className="grid grid-cols-3 gap-1">

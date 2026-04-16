@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GitHubIcon } from "@/web/components/icons/github-icon";
+import { CreateAgentDropdownContent } from "@/web/components/create-agent-dropdown";
 import {
   WELL_KNOWN_AGENT_TEMPLATES,
   isStudioPackAgent,
@@ -32,11 +32,9 @@ import { Card } from "@deco/ui/components/card.tsx";
 import { SearchInput } from "@deco/ui/components/search-input.tsx";
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
-import { FolderClosed, Plus, Users03 } from "@untitledui/icons";
+import { FolderClosed, Plus } from "@untitledui/icons";
 import { toast } from "sonner";
 import { GitHubRepoPicker } from "@/web/components/github-repo-picker.tsx";
 
@@ -139,27 +137,13 @@ export default function AgentsListPage() {
                       Create Agent
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem
-                      disabled={isCreating}
-                      onClick={() => createVirtualMCP()}
-                    >
-                      <Users03 size={14} />
-                      Create from scratch
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setGithubPickerOpen(true)}>
-                      <GitHubIcon className="size-3.5" />
-                      Import from GitHub
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setImportDecoOpen(true)}>
-                      <img
-                        src="/logos/deco%20logo.svg"
-                        alt="deco.cx"
-                        className="size-3.5"
-                      />
-                      Import from deco.cx
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
+                  <CreateAgentDropdownContent
+                    onCreateFromScratch={() => createVirtualMCP()}
+                    onImportGitHub={() => setGithubPickerOpen(true)}
+                    onImportDeco={() => setImportDecoOpen(true)}
+                    isCreating={isCreating}
+                    align="end"
+                  />
                 </DropdownMenu>
               }
             >
@@ -200,34 +184,14 @@ export default function AgentsListPage() {
                           Create Agent
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="center" className="w-48">
-                        <DropdownMenuItem
-                          disabled={isCreating}
-                          onClick={() => createVirtualMCP()}
-                        >
-                          <Users03 size={14} />
-                          Create from scratch
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => setGithubPickerOpen(true)}
-                        >
-                          <GitHubIcon className="size-3.5" />
-                          Import from GitHub
-                          <span className="ml-auto text-[10px] font-medium text-muted-foreground bg-muted rounded px-1 py-0.5">
-                            Beta
-                          </span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => setImportDecoOpen(true)}
-                        >
-                          <img
-                            src="/logos/deco%20logo.svg"
-                            alt="deco.cx"
-                            className="size-3.5"
-                          />
-                          Import from deco.cx
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
+                      <CreateAgentDropdownContent
+                        onCreateFromScratch={() => createVirtualMCP()}
+                        onImportGitHub={() => setGithubPickerOpen(true)}
+                        onImportDeco={() => setImportDecoOpen(true)}
+                        isCreating={isCreating}
+                        align="center"
+                        showBetaBadge
+                      />
                     </DropdownMenu>
                   )
                 }
