@@ -655,30 +655,26 @@ function AgentInsetProvider() {
                       </TooltipContent>
                     </Tooltip>
                   )}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        onClick={toggleEnv}
-                        aria-pressed={envOpen}
-                        className={cn(
-                          "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
-                          envOpen
-                            ? "bg-sidebar-accent text-sidebar-foreground"
-                            : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                        )}
-                      >
-                        {activeRepo ? (
+                  {activeRepo && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={toggleEnv}
+                          aria-pressed={envOpen}
+                          className={cn(
+                            "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                            envOpen
+                              ? "bg-sidebar-accent text-sidebar-foreground"
+                              : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                          )}
+                        >
                           <Server01 size={16} />
-                        ) : (
-                          <GitHubIcon size={16} />
-                        )}
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">
-                      {activeRepo ? "Server" : "Connect GitHub repo"}
-                    </TooltipContent>
-                  </Tooltip>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">Server</TooltipContent>
+                    </Tooltip>
+                  )}
                 </>
               );
             })()}
