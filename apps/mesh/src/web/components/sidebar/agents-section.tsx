@@ -427,7 +427,7 @@ function PinAgentPopoverContent({
                 }}
               >
                 <Users03 size={14} />
-                Create agent
+                Create from scratch
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onOpenGithubImport}>
                 <svg

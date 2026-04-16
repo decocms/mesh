@@ -144,7 +144,7 @@ export default function AgentsListPage() {
                       onClick={() => createVirtualMCP()}
                     >
                       <Users03 size={14} />
-                      Create agent
+                      Create from scratch
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setGithubPickerOpen(true)}>
                       <svg
@@ -211,7 +211,7 @@ export default function AgentsListPage() {
                           onClick={() => createVirtualMCP()}
                         >
                           <Users03 size={14} />
-                          Create agent
+                          Create from scratch
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => setGithubPickerOpen(true)}
