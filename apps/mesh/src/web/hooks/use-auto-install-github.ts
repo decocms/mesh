@@ -3,7 +3,7 @@
  * Used by the GitHub repo picker when no GitHub connection exists.
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useConnectionActions,
@@ -43,19 +43,21 @@ export function useAutoInstallGitHub(opts: {
     { enabled: opts.enabled },
   );
 
-  // Track whether we've started the flow to avoid re-triggering
-  const [started, setStarted] = useState(false);
+  // Track whether we've started the flow to avoid re-triggering.
+  // useRef (not useState) because refs mutate synchronously — prevents
+  // duplicate fires under React 19 concurrent rendering / Strict Mode.
+  const startedRef = useRef(false);
 
   // Auto-trigger when registry data arrives and we haven't started yet
   if (
     opts.enabled &&
     registryItem &&
     !isRegistryLoading &&
-    !started &&
+    !startedRef.current &&
     session?.user?.id &&
     status === "idle"
   ) {
-    setStarted(true);
+    startedRef.current = true;
     runInstallFlow();
   }
 
@@ -161,7 +163,7 @@ export function useAutoInstallGitHub(opts: {
     setStatus("idle");
     setError(null);
     setConnection(null);
-    setStarted(false);
+    startedRef.current = false;
   }
 
   // While registry is loading, show installing status

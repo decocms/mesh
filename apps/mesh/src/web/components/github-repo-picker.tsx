@@ -603,9 +603,10 @@ function RepoList({
 }) {
   const githubClient = useMCPClient({ connectionId, orgId });
 
+  const qualifier = installation.type === "User" ? "user" : "org";
   const searchQuery = query
-    ? `org:${installation.login} ${query} in:name`
-    : `org:${installation.login}`;
+    ? `${qualifier}:${installation.login} ${query} in:name`
+    : `${qualifier}:${installation.login}`;
 
   const { data: repos } = useSuspenseQuery({
     queryKey: KEYS.githubOrgRepos(

@@ -1046,6 +1046,7 @@ export function getToolsByCategory() {
     "Object Storage": [],
     Registry: [],
     GitHub: [],
+    VM: [],
   };
 
   for (const tool of MANAGEMENT_TOOLS) {
