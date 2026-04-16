@@ -27,13 +27,6 @@ async function daemonPost(
 ): Promise<unknown> {
   const url = `${baseUrl}/_daemon/${endpoint}`;
   const serialized = JSON.stringify(body);
-  console.log(
-    "[vm-tools:daemonPost] endpoint=%s bodyType=%s bodyLength=%d body=%s",
-    endpoint,
-    typeof body,
-    serialized.length,
-    serialized.slice(0, 500),
-  );
   let res: Response;
   try {
     res = await fetch(url, {
@@ -47,13 +40,6 @@ async function daemonPost(
     );
   }
   const rawText = await res.text();
-  console.log(
-    "[vm-tools:daemonPost] endpoint=%s status=%d rawResponseLength=%d rawResponse=%s",
-    endpoint,
-    res.status,
-    rawText.length,
-    rawText.slice(0, 500),
-  );
   let json: unknown;
   try {
     json = JSON.parse(rawText);
