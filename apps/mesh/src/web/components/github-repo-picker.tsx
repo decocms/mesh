@@ -245,7 +245,7 @@ function PickerContent({ onComplete }: { onComplete: () => void }) {
             title: repo.name,
             description: repo.description || "Imported from GitHub",
             pinned: true,
-            icon: "icon://GitBranch01?color=purple",
+            icon: null,
             metadata: {
               githubRepo: {
                 owner: repo.owner,

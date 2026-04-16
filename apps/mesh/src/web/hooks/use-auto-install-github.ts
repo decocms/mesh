@@ -14,6 +14,7 @@ import { authenticateMcp, isConnectionAuthenticated } from "@decocms/mesh-sdk";
 import { authClient } from "@/web/lib/auth-client";
 import { useRegistryApp } from "@/web/hooks/use-registry-app";
 import { extractConnectionData } from "@/web/utils/extract-connection-data";
+import { invalidateVirtualMcpQueries } from "@/web/lib/query-keys";
 
 type Status = "idle" | "installing" | "authenticating" | "ready" | "error";
 
@@ -144,12 +145,7 @@ export function useAutoInstallGitHub(opts: {
       }
 
       // Step 5: Invalidate connection queries so picker re-renders
-      await queryClient.invalidateQueries({
-        predicate: (query) => {
-          const key = query.queryKey;
-          return key[1] === org.id && key[3] === "collection";
-        },
-      });
+      invalidateVirtualMcpQueries(queryClient, org.id);
 
       setConnection(connectionData as ConnectionEntity);
       setStatus("ready");

@@ -140,7 +140,7 @@ export function ImportFromDecoDialog({
             title: siteName,
             description: "Imported from deco.cx",
             pinned: true,
-            icon: projectIcon ?? "icon://Globe01?color=green",
+            icon: projectIcon ?? null,
             subtype: "project",
             metadata: {
               instructions: null,
