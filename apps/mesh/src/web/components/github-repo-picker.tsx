@@ -203,8 +203,12 @@ function PickerContent({
             name: "get_file_contents",
             arguments: { owner: repo.owner, repo: repo.name, path },
           });
-          const content = (result as { content?: Array<{ text?: string }> })
-            .content?.[0]?.text;
+          const typed = result as {
+            isError?: boolean;
+            content?: Array<{ text?: string }>;
+          };
+          if (typed.isError) return null;
+          const content = typed.content?.[0]?.text;
           if (!content) return null;
           try {
             const parsed = JSON.parse(content);

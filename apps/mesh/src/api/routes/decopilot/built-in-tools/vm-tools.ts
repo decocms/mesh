@@ -26,19 +26,47 @@ async function daemonPost(
   body: Record<string, unknown>,
 ): Promise<unknown> {
   const url = `${baseUrl}/_daemon/${endpoint}`;
+  const serialized = JSON.stringify(body);
+  console.log(
+    "[vm-tools:daemonPost] endpoint=%s bodyType=%s bodyLength=%d body=%s",
+    endpoint,
+    typeof body,
+    serialized.length,
+    serialized.slice(0, 500),
+  );
   let res: Response;
   try {
     res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: serialized,
     });
   } catch {
     throw new Error(
       "The server is not running. Ask the user to start it by clicking the server button (left side of the header bar).",
     );
   }
-  const json = await res.json();
+  const rawText = await res.text();
+  console.log(
+    "[vm-tools:daemonPost] endpoint=%s status=%d rawResponseLength=%d rawResponse=%s",
+    endpoint,
+    res.status,
+    rawText.length,
+    rawText.slice(0, 500),
+  );
+  let json: unknown;
+  try {
+    json = JSON.parse(rawText);
+  } catch (e) {
+    console.error(
+      "[vm-tools:daemonPost] Failed to parse JSON response endpoint=%s rawText=%s",
+      endpoint,
+      rawText.slice(0, 1000),
+    );
+    throw new Error(
+      `Daemon ${endpoint} returned invalid JSON (${res.status}): ${rawText.slice(0, 200)}`,
+    );
+  }
   if (!res.ok) {
     throw new Error(
       (json as { error?: string }).error ??
@@ -169,6 +197,11 @@ export function createVmTools(params: VmToolsParams) {
       }),
     ),
     execute: async (input) => {
+      console.log(
+        "[vm-tools:grep] inputType=%s input=%s",
+        typeof input,
+        JSON.stringify(input).slice(0, 500),
+      );
       const result = await daemonPost(vmBaseUrl, "grep", input);
       return maybeTruncate(result, toolOutputMap);
     },
@@ -214,6 +247,11 @@ export function createVmTools(params: VmToolsParams) {
 
     inputSchema: zodSchema(bashSchema),
     execute: async (input: z.infer<typeof bashSchema>) => {
+      console.log(
+        "[vm-tools:bash] inputType=%s input=%s",
+        typeof input,
+        JSON.stringify(input).slice(0, 500),
+      );
       const result = await daemonPost(vmBaseUrl, "bash", input);
       return maybeTruncate(result, toolOutputMap);
     },
