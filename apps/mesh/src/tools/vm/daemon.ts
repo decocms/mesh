@@ -78,10 +78,15 @@ function parseJsonBody(req) {
     const chunks = [];
     req.on("data", (c) => chunks.push(c));
     req.on("end", () => {
+      const raw = Buffer.concat(chunks).toString("utf-8");
+      log("parseJsonBody", "url=" + req.url, "rawLength=" + raw.length, "raw=" + raw.slice(0, 500));
       try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString("utf-8")));
+        const parsed = JSON.parse(raw);
+        log("parseJsonBody", "parsed OK, keys=" + Object.keys(parsed).join(","));
+        resolve(parsed);
       } catch (e) {
-        reject(new Error("Invalid JSON body"));
+        log("parseJsonBody", "FAILED to parse JSON", "error=" + e.message, "raw=" + raw.slice(0, 1000));
+        reject(new Error("Failed to parse JSON: " + e.message + " | raw=" + raw.slice(0, 200)));
       }
     });
     req.on("error", reject);
@@ -227,7 +232,8 @@ function runSetup() {
     // Run install in the same "setup" stream
     const pmConfig = PM_CONFIG[PM];
     if (!pmConfig) { setupDone = true; return; }
-    const installCmd = PATH_PREFIX + "cd /app && " + pmConfig.install;
+    const corepackSetup = PM === "yarn" ? "corepack enable && " : "";
+    const installCmd = PATH_PREFIX + "cd /app && " + corepackSetup + pmConfig.install;
     const installLabel = "$ " + pmConfig.install;
     broadcastChunk("setup", "\\r\\n" + installLabel + "\\r\\n");
 
