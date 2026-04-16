@@ -109,7 +109,6 @@ export const VM_START = defineTool({
       // Freestyle docs: /v2/vms/integrations/deno, /v2/vms/integrations/bun, /v2/vms/integrations/web-terminal
       const baseSpec = new VmSpec()
         .with("node", new VmNodeJs())
-        .runCommands("useradd -m -u 1000 deco")
         .additionalFiles({
           "/opt/daemon.js": {
             content: buildDaemonScript({
@@ -132,7 +131,8 @@ export const VM_START = defineTool({
               "#!/bin/bash\napt-get update -qq && apt-get install -y -qq ripgrep locales && sed -i 's/^#\\s*en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && locale-gen\n",
           },
           "/opt/prepare-app-dir.sh": {
-            content: "#!/bin/bash\nmkdir -p /app && chown deco:deco /app\n",
+            content:
+              "#!/bin/bash\nid -u deco &>/dev/null || useradd -m -u 1000 deco\nmkdir -p /app && chown deco:deco /app\n",
           },
         })
         .systemdService({
