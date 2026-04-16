@@ -8,6 +8,7 @@ import {
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport as HttpServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type {
+  CallToolResult,
   GetPromptResult,
   Implementation,
   ToolAnnotations,
@@ -956,6 +957,22 @@ export const createMCPServer = <
             { context: args, runtimeContext: ctx },
             ctx,
           );
+
+          if (
+            result != null &&
+            typeof result === "object" &&
+            "content" in result &&
+            Array.isArray(result.content) &&
+            result.content.every(
+              (item: unknown) =>
+                item != null &&
+                typeof item === "object" &&
+                "type" in item &&
+                typeof (item as Record<string, unknown>).type === "string",
+            )
+          ) {
+            return result as CallToolResult;
+          }
 
           return {
             structuredContent: result as Record<string, unknown>,
