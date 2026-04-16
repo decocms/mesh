@@ -219,7 +219,7 @@ function runSetup() {
     // Run install in the same "setup" stream
     const pmConfig = PM_CONFIG[PM];
     if (!pmConfig) { setupDone = true; return; }
-    const corepackSetup = PM === "yarn" ? "export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 && corepack enable && " : "";
+    const corepackSetup = "export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 && corepack enable && ";
     const installCmd = PATH_PREFIX + "cd /app && " + corepackSetup + pmConfig.install;
     const installLabel = "$ " + pmConfig.install;
     broadcastChunk("setup", "\\r\\n" + installLabel + "\\r\\n");
