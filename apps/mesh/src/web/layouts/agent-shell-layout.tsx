@@ -70,7 +70,6 @@ import {
   usePanelState,
 } from "@/web/hooks/use-layout-state";
 import { getActiveGithubRepo } from "@/web/lib/github-repo";
-import { usePreferences } from "@/web/hooks/use-preferences";
 import { EnvContent } from "@/web/components/vm/env/env";
 import { useToggleEnvPanel } from "@/web/hooks/use-toggle-env-panel";
 
@@ -486,7 +485,6 @@ function AgentInsetProvider() {
   // Tasks panel virtualMcpId
   const tasksVirtualMcpId = virtualMcpId;
 
-  const [preferences] = usePreferences();
   const { setOpenMobile, openMobile: mobileSidebarOpen } = useSidebar();
   const setMobileSidebarOpen = setOpenMobile;
 
@@ -629,8 +627,7 @@ function AgentInsetProvider() {
           >
             <ChevronRight size={16} />
           </button>
-          {preferences.experimental_vibecode &&
-            isAgentRoute &&
+          {isAgentRoute &&
             (() => {
               const activeRepo = getActiveGithubRepo(entity);
               return (
