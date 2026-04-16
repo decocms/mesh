@@ -188,45 +188,84 @@ export function PickerContent({ onComplete }: { onComplete: () => void }) {
       if (inset?.entity && effectiveConnection) {
         const entityId = inset.entity.id;
 
-        const getFileContent = async (path: string) => {
-          const result = await githubClient.callTool({
-            name: "get_file_contents",
-            arguments: { owner: repo.owner, repo: repo.name, path },
-          });
-          const typed = result as {
-            isError?: boolean;
-            content?: Array<{
-              type?: string;
-              text?: string;
-              resource?: { text?: string };
-            }>;
-          };
-          if (typed.isError) return null;
-          // get_file_contents returns file data inside a resource content block
-          const resourceBlock = typed.content?.find(
-            (c) => c.type === "resource",
-          );
-          const content = resourceBlock?.resource?.text;
-          if (!content) return null;
+        const getFileContent = async (path: string): Promise<string | null> => {
           try {
-            const parsed = JSON.parse(content);
-            return typeof parsed === "string" ? parsed : JSON.stringify(parsed);
-          } catch {
-            return content;
+            console.log(`[GitHubRepoPicker] getFileContent: fetching ${path}`);
+            const result = await githubClient.callTool({
+              name: "get_file_contents",
+              arguments: { owner: repo.owner, repo: repo.name, path },
+            });
+            console.log(
+              `[GitHubRepoPicker] getFileContent: ${path} raw result:`,
+              JSON.stringify(result).slice(0, 500),
+            );
+            const typed = result as {
+              isError?: boolean;
+              content?: Array<{
+                type?: string;
+                text?: string;
+                resource?: { text?: string };
+              }>;
+            };
+            if (typed.isError) {
+              console.log(
+                `[GitHubRepoPicker] getFileContent: ${path} returned isError`,
+              );
+              return null;
+            }
+            // get_file_contents returns file data inside a resource content block
+            const resourceBlock = typed.content?.find(
+              (c) => c.type === "resource",
+            );
+            const content = resourceBlock?.resource?.text;
+            console.log(
+              `[GitHubRepoPicker] getFileContent: ${path} resourceBlock found=${!!resourceBlock}, content length=${content?.length ?? 0}`,
+            );
+            if (!content) return null;
+            try {
+              const parsed = JSON.parse(content);
+              return typeof parsed === "string"
+                ? parsed
+                : JSON.stringify(parsed);
+            } catch {
+              return content;
+            }
+          } catch (err) {
+            console.error(
+              `[GitHubRepoPicker] getFileContent: ${path} threw:`,
+              err,
+            );
+            return null;
           }
         };
 
         const fetchInstructions = async (files: Map<string, string | null>) => {
+          console.log("[GitHubRepoPicker] fetchInstructions: starting");
           const content = files.get("AGENTS.md") ?? files.get("CLAUDE.md");
+          console.log(
+            `[GitHubRepoPicker] fetchInstructions: found=${!!content}, length=${content?.length ?? 0}`,
+          );
           if (content) {
             await actions.update.mutateAsync({
               id: entityId,
               data: { metadata: { instructions: content } } as any,
             });
+            console.log(
+              "[GitHubRepoPicker] fetchInstructions: saved instructions",
+            );
           }
         };
 
         const detectRuntime = async (files: Map<string, string | null>) => {
+          console.log(
+            "[GitHubRepoPicker] detectRuntime: starting, files map:",
+            Object.fromEntries(
+              [...files.entries()].map(([k, v]) => [
+                k,
+                v === null ? null : `${v.length} chars`,
+              ]),
+            ),
+          );
           const runtimeFiles: Array<{ file: string; pm: string }> = [
             { file: "deno.json", pm: "deno" },
             { file: "deno.jsonc", pm: "deno" },
@@ -274,6 +313,9 @@ export function PickerContent({ onComplete }: { onComplete: () => void }) {
             }
           }
 
+          console.log(
+            `[GitHubRepoPicker] detectRuntime: detected=${detected}, devPort=${devPort}`,
+          );
           await actions.update.mutateAsync({
             id: entityId,
             data: {
@@ -285,6 +327,7 @@ export function PickerContent({ onComplete }: { onComplete: () => void }) {
               },
             } as any,
           });
+          console.log("[GitHubRepoPicker] detectRuntime: saved runtime");
         };
 
         // Fetch all files in parallel, then run detection from the results
@@ -300,17 +343,28 @@ export function PickerContent({ onComplete }: { onComplete: () => void }) {
           "package-lock.json",
           "package.json",
         ];
+        console.log(
+          "[GitHubRepoPicker] Starting parallel file fetch for:",
+          allPaths,
+        );
         Promise.all(
           allPaths.map(async (p) => [p, await getFileContent(p)] as const),
         )
           .then((entries) => {
+            console.log(
+              "[GitHubRepoPicker] All files fetched, running detection",
+            );
             const files = new Map(entries);
             return Promise.allSettled([
               fetchInstructions(files),
               detectRuntime(files),
             ]);
           })
-          .then(() => {
+          .then((results) => {
+            console.log(
+              "[GitHubRepoPicker] Detection complete, results:",
+              results,
+            );
             queryClient.invalidateQueries({
               predicate: (query) => {
                 const key = query.queryKey;
@@ -321,6 +375,10 @@ export function PickerContent({ onComplete }: { onComplete: () => void }) {
                 );
               },
             });
+            onComplete();
+          })
+          .catch((err) => {
+            console.error("[GitHubRepoPicker] Detection chain failed:", err);
             onComplete();
           });
       } else {
