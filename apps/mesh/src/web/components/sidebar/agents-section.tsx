@@ -39,7 +39,7 @@ import {
 } from "@deco/ui/components/drawer.tsx";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { CollectionSearch } from "@deco/ui/components/collection-search.tsx";
-import { Plus, Settings02, Users03, X } from "@untitledui/icons";
+import { FolderPlus, Plus, Settings02, Users03, X } from "@untitledui/icons";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -415,7 +415,7 @@ function PinAgentPopoverContent({
                 type="button"
                 className="flex items-center justify-center size-5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
               >
-                <Plus size={14} />
+                <FolderPlus size={14} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
