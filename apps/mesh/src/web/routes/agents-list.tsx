@@ -9,10 +9,10 @@ import {
 import { Page } from "@/web/components/page";
 import { ProjectCard } from "@/web/components/project-card";
 import { EmptyState } from "@/web/components/empty-state.tsx";
+import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.tsx";
-import { CreateAgentModal } from "@/web/components/create-agent-modal.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
 import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
@@ -38,7 +38,9 @@ export default function AgentsListPage() {
   const actions = useVirtualMCPActions();
   const navigateToAgent = useNavigateToAgent();
   const [search, setSearch] = useState("");
-  const [createAgentOpen, setCreateAgentOpen] = useState(false);
+  const { createVirtualMCP, isCreating } = useCreateVirtualMCP({
+    navigateOnCreate: true,
+  });
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string;
     title: string;
@@ -121,7 +123,11 @@ export default function AgentsListPage() {
           <div className="flex flex-col gap-6">
             <Page.Title
               actions={
-                <Button onClick={() => setCreateAgentOpen(true)} size="sm">
+                <Button
+                  onClick={() => createVirtualMCP()}
+                  disabled={isCreating}
+                  size="sm"
+                >
                   <Plus size={14} />
                   Create Agent
                 </Button>
@@ -157,7 +163,11 @@ export default function AgentsListPage() {
                 }
                 actions={
                   !search && (
-                    <Button size="sm" onClick={() => setCreateAgentOpen(true)}>
+                    <Button
+                      size="sm"
+                      onClick={() => createVirtualMCP()}
+                      disabled={isCreating}
+                    >
                       <Plus size={14} />
                       Create Agent
                     </Button>
@@ -227,10 +237,6 @@ export default function AgentsListPage() {
         </Page.Body>
       </Page.Content>
 
-      <CreateAgentModal
-        open={createAgentOpen}
-        onOpenChange={setCreateAgentOpen}
-      />
       <ImportFromDecoDialog
         open={importDecoOpen}
         onOpenChange={setImportDecoOpen}

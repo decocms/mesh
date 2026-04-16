@@ -56,12 +56,13 @@ import {
 } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { usePinnedAgents } from "@/web/hooks/use-pinned-agents";
+import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useCreateTaskAndNavigate } from "@/web/hooks/use-create-task-and-navigate";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.tsx";
-import { CreateAgentModal } from "@/web/components/create-agent-modal.tsx";
+import { GitHubRepoPicker } from "@/web/components/github-repo-picker.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
 import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
@@ -292,14 +293,14 @@ function AgentGridItem({
 function PinAgentPopoverContent({
   onClose,
   onOpenSiteEditorModal,
-  onOpenCreateAgent,
+  onOpenGithubImport,
   onOpenDiagnosticsModal,
   onOpenLeanCanvasModal,
   onOpenStudioPackModal,
 }: {
   onClose: () => void;
   onOpenSiteEditorModal: () => void;
-  onOpenCreateAgent: () => void;
+  onOpenGithubImport: () => void;
   onOpenDiagnosticsModal: () => void;
   onOpenLeanCanvasModal: () => void;
   onOpenStudioPackModal: () => void;
@@ -309,6 +310,9 @@ function PinAgentPopoverContent({
   const { org } = useProjectContext();
   const serverPinnedIds = allAgents.filter((a) => a.pinned).map((a) => a.id);
   const { pin, isPinned } = usePinnedAgents(org.id, serverPinnedIds);
+  const { createVirtualMCP, isCreating } = useCreateVirtualMCP({
+    navigateOnCreate: true,
+  });
 
   const navigateToNewTask = useCreateTaskAndNavigate();
   const navigateToAgent = useNavigateToAgent();
@@ -403,17 +407,38 @@ function PinAgentPopoverContent({
           {/* Create new button */}
           <button
             type="button"
-            onClick={() => {
+            disabled={isCreating}
+            onClick={async () => {
+              await createVirtualMCP();
               onClose();
-              onOpenCreateAgent();
             }}
-            className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group"
+            className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <div className="w-12 h-12 rounded-xl border-2 border-dashed border-border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
               <Plus size={18} className="text-muted-foreground" />
             </div>
             <span className="text-xs leading-tight text-center text-muted-foreground group-hover:text-foreground">
               Create new
+            </span>
+          </button>
+
+          {/* Import from GitHub button */}
+          <button
+            type="button"
+            onClick={onOpenGithubImport}
+            className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group"
+          >
+            <div className="w-12 h-12 rounded-xl border border-border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+              <svg
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                className="w-5 h-5 text-muted-foreground"
+              >
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+              </svg>
+            </div>
+            <span className="text-xs leading-tight text-center text-muted-foreground group-hover:text-foreground">
+              Import from GitHub
             </span>
           </button>
 
@@ -457,11 +482,13 @@ function PinAgentPopoverContent({
           </>
         )}
 
-        {userAgents.length === 0 && filteredTemplates.length === 0 && (
-          <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
-            {search ? "No agents found" : "No agents yet"}
-          </div>
-        )}
+        {userAgents.length === 0 &&
+          filteredTemplates.length === 0 &&
+          !isCreating && (
+            <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
+              {search ? "No agents found" : "No agents yet"}
+            </div>
+          )}
       </div>
 
       {/* Footer */}
@@ -482,7 +509,7 @@ function PinAgentPopoverContent({
 function PinAgentPopover() {
   const [open, setOpen] = useState(false);
   const [importDecoOpen, setImportDecoOpen] = useState(false);
-  const [createAgentOpen, setCreateAgentOpen] = useState(false);
+  const [githubPickerOpen, setGithubPickerOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
   const [leanCanvasModalOpen, setLeanCanvasModalOpen] = useState(false);
   const [studioPackModalOpen, setStudioPackModalOpen] = useState(false);
@@ -505,7 +532,10 @@ function PinAgentPopover() {
       <PinAgentPopoverContent
         onClose={handleClose}
         onOpenSiteEditorModal={() => setImportDecoOpen(true)}
-        onOpenCreateAgent={() => setCreateAgentOpen(true)}
+        onOpenGithubImport={() => {
+          setGithubPickerOpen(true);
+          handleClose();
+        }}
         onOpenDiagnosticsModal={() => setDiagnosticsModalOpen(true)}
         onOpenLeanCanvasModal={() => setLeanCanvasModalOpen(true)}
         onOpenStudioPackModal={() => setStudioPackModalOpen(true)}
@@ -558,9 +588,9 @@ function PinAgentPopover() {
         open={importDecoOpen}
         onOpenChange={setImportDecoOpen}
       />
-      <CreateAgentModal
-        open={createAgentOpen}
-        onOpenChange={setCreateAgentOpen}
+      <GitHubRepoPicker
+        open={githubPickerOpen}
+        onOpenChange={setGithubPickerOpen}
       />
       <SiteDiagnosticsRecruitModal
         open={diagnosticsModalOpen}
