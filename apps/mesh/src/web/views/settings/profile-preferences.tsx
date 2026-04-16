@@ -259,27 +259,6 @@ function PreferencesSection() {
           }
         />
         <PreferenceRow
-          label="Experimental: VibeCode"
-          description="Enable GitHub repository integration for agents."
-          onClick={() =>
-            setPreferences((prev) => ({
-              ...prev,
-              experimental_vibecode: !prev.experimental_vibecode,
-            }))
-          }
-          control={
-            <Switch
-              checked={preferences.experimental_vibecode}
-              onCheckedChange={(checked) =>
-                setPreferences((prev) => ({
-                  ...prev,
-                  experimental_vibecode: checked,
-                }))
-              }
-            />
-          }
-        />
-        <PreferenceRow
           label="Tool Approval"
           description="Control how tools are approved before execution."
           control={
