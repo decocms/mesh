@@ -132,7 +132,8 @@ export const VM_START = defineTool({
               "#!/bin/bash\napt-get update -qq && apt-get install -y -qq ripgrep\n",
           },
           "/opt/prepare-app-dir.sh": {
-            content: "#!/bin/bash\nmkdir -p /app && chown deco:deco /app\n",
+            content:
+              "#!/bin/bash\nmkdir -p /app && chown deco:deco /app && chown -R deco:deco /home/deco\n",
           },
         })
         .systemdService({
