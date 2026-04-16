@@ -133,7 +133,7 @@ export const VM_START = defineTool({
           },
           "/opt/prepare-app-dir.sh": {
             content:
-              "#!/bin/bash\nmkdir -p /app /home/deco && chown deco:deco /app /home/deco\n",
+              "#!/bin/bash\nlocale-gen en_US.UTF-8 && mkdir -p /app /home/deco && chown deco:deco /app /home/deco\n",
           },
         })
         .systemdService({
