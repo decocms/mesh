@@ -55,6 +55,7 @@ const PATH_PREFIX = ${JSON.stringify(pathPrefix)};
 const APP_ROOT = "/app";
 const DECO_UID = 1000;
 const DECO_GID = 1000;
+const DECO_ENV = Object.assign({}, process.env, { TERM: "xterm-256color", HOME: "/home/deco", LANG: "en_US.UTF-8", LC_ALL: "en_US.UTF-8" });
 
 const PM_CONFIG = ${JSON.stringify(PACKAGE_MANAGER_DAEMON_CONFIG)};
 
@@ -156,7 +157,7 @@ function runProcess(source, cmd, label) {
     stdio: ["ignore", "pipe", "pipe"],
     uid: DECO_UID,
     gid: DECO_GID,
-    env: Object.assign({}, process.env, { TERM: "xterm-256color", HOME: "/home/deco" }),
+    env: DECO_ENV,
   });
   children[source] = child;
   log("spawned", source, "pid=" + child.pid);
@@ -213,7 +214,7 @@ function runSetup() {
     stdio: ["ignore", "pipe", "pipe"],
     uid: DECO_UID,
     gid: DECO_GID,
-    env: Object.assign({}, process.env, { TERM: "xterm-256color", HOME: "/home/deco" }),
+    env: DECO_ENV,
   });
   log("spawned setup (clone) pid=" + child.pid);
   child.stdout.on("data", (chunk) => broadcastChunk("setup", chunk.toString("utf-8")));
@@ -241,7 +242,7 @@ function runSetup() {
       stdio: ["ignore", "pipe", "pipe"],
       uid: DECO_UID,
       gid: DECO_GID,
-      env: Object.assign({}, process.env, { TERM: "xterm-256color", HOME: "/home/deco" }),
+      env: DECO_ENV,
     });
     log("spawned setup (install) pid=" + installChild.pid);
     installChild.stdout.on("data", (chunk) => broadcastChunk("setup", chunk.toString("utf-8")));
@@ -445,7 +446,7 @@ async function handleBash(req, res) {
       stdio: ["ignore", "pipe", "pipe"],
       uid: DECO_UID,
       gid: DECO_GID,
-      env: Object.assign({}, process.env, { TERM: "xterm-256color", HOME: "/home/deco" }),
+      env: DECO_ENV,
     });
 
     let stdout = "";
