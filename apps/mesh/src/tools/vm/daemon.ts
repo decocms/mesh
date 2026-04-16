@@ -53,6 +53,8 @@ const PM = ${JSON.stringify(packageManager)};
 const PORT = ${JSON.stringify(port)};
 const PATH_PREFIX = ${JSON.stringify(pathPrefix)};
 const APP_ROOT = "/app";
+const DECO_UID = 1000;
+const DECO_GID = 1000;
 
 const PM_CONFIG = ${JSON.stringify(PACKAGE_MANAGER_DAEMON_CONFIG)};
 
@@ -152,7 +154,9 @@ function runProcess(source, cmd, label) {
   broadcastChunk(source, label + "\\r\\n");
   const child = spawn("script", ["-q", "-c", cmd, "/dev/null"], {
     stdio: ["ignore", "pipe", "pipe"],
-    env: Object.assign({}, process.env, { TERM: "xterm-256color" }),
+    uid: DECO_UID,
+    gid: DECO_GID,
+    env: Object.assign({}, process.env, { TERM: "xterm-256color", HOME: "/home/deco" }),
   });
   children[source] = child;
   log("spawned", source, "pid=" + child.pid);
@@ -201,13 +205,15 @@ function discoverScripts() {
 }
 
 function runSetup() {
-  const cloneCmd = "git clone " + CLONE_URL + " /app";
-  const cloneLabel = "$ git clone " + REPO_NAME + " /app";
+  const cloneCmd = "git clone --depth 1 --single-branch " + CLONE_URL + " /app";
+  const cloneLabel = "$ git clone --depth 1 --single-branch " + REPO_NAME + " /app";
   broadcastChunk("setup", cloneLabel + "\\r\\n");
 
   const child = spawn("script", ["-q", "-c", cloneCmd, "/dev/null"], {
     stdio: ["ignore", "pipe", "pipe"],
-    env: Object.assign({}, process.env, { TERM: "xterm-256color" }),
+    uid: DECO_UID,
+    gid: DECO_GID,
+    env: Object.assign({}, process.env, { TERM: "xterm-256color", HOME: "/home/deco" }),
   });
   log("spawned setup (clone) pid=" + child.pid);
   child.stdout.on("data", (chunk) => broadcastChunk("setup", chunk.toString("utf-8")));
@@ -233,7 +239,9 @@ function runSetup() {
 
     const installChild = spawn("script", ["-q", "-c", installCmd, "/dev/null"], {
       stdio: ["ignore", "pipe", "pipe"],
-      env: Object.assign({}, process.env, { TERM: "xterm-256color" }),
+      uid: DECO_UID,
+      gid: DECO_GID,
+      env: Object.assign({}, process.env, { TERM: "xterm-256color", HOME: "/home/deco" }),
     });
     log("spawned setup (install) pid=" + installChild.pid);
     installChild.stdout.on("data", (chunk) => broadcastChunk("setup", chunk.toString("utf-8")));
@@ -378,7 +386,7 @@ async function handleGrep(req, res) {
     args.push("--", body.pattern, searchPath);
 
     const limit = body.limit || 250;
-    const child = spawn("rg", args, { cwd: APP_ROOT, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn("rg", args, { cwd: APP_ROOT, stdio: ["ignore", "pipe", "pipe"], uid: DECO_UID, gid: DECO_GID });
     let stdout = "";
     let lineCount = 0;
     child.stdout.on("data", (chunk) => {
@@ -409,7 +417,7 @@ async function handleGlob(req, res) {
     const searchPath = body.path ? safePath(body.path) : APP_ROOT;
     if (!searchPath) return jsonResponse(res, 400, { error: "Path escapes /app" });
 
-    const child = spawn("rg", ["--files", "--glob", body.pattern, searchPath], { cwd: APP_ROOT, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn("rg", ["--files", "--glob", body.pattern, searchPath], { cwd: APP_ROOT, stdio: ["ignore", "pipe", "pipe"], uid: DECO_UID, gid: DECO_GID });
     let stdout = "";
     child.stdout.on("data", (chunk) => { stdout += chunk.toString("utf-8"); });
     let stderr = "";
@@ -435,7 +443,9 @@ async function handleBash(req, res) {
     const child = spawn("bash", ["-c", body.command], {
       cwd: APP_ROOT,
       stdio: ["ignore", "pipe", "pipe"],
-      env: Object.assign({}, process.env, { TERM: "xterm-256color" }),
+      uid: DECO_UID,
+      gid: DECO_GID,
+      env: Object.assign({}, process.env, { TERM: "xterm-256color", HOME: "/home/deco" }),
     });
 
     let stdout = "";

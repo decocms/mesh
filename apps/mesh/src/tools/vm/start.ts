@@ -109,6 +109,7 @@ export const VM_START = defineTool({
       // Freestyle docs: /v2/vms/integrations/deno, /v2/vms/integrations/bun, /v2/vms/integrations/web-terminal
       const baseSpec = new VmSpec()
         .with("node", new VmNodeJs())
+        .users([{ name: "deco", uid: 1000 }])
         .additionalFiles({
           "/opt/daemon.js": {
             content: buildDaemonScript({
@@ -130,6 +131,9 @@ export const VM_START = defineTool({
             content:
               "#!/bin/bash\napt-get update -qq && apt-get install -y -qq ripgrep\n",
           },
+          "/opt/prepare-app-dir.sh": {
+            content: "#!/bin/bash\nmkdir -p /app && chown deco:deco /app\n",
+          },
         })
         .systemdService({
           name: "install-ripgrep",
@@ -138,11 +142,25 @@ export const VM_START = defineTool({
           wantedBy: ["multi-user.target"],
         })
         .systemdService({
+          name: "prepare-app-dir",
+          mode: "oneshot",
+          exec: ["/bin/bash /opt/prepare-app-dir.sh"],
+          wantedBy: ["multi-user.target"],
+        })
+        .systemdService({
           name: "daemon",
           mode: "service",
           exec: ["/bin/bash /opt/run-daemon.sh"],
-          after: ["install-nodejs.service", "install-ripgrep.service"],
-          requires: ["install-nodejs.service", "install-ripgrep.service"],
+          after: [
+            "install-nodejs.service",
+            "install-ripgrep.service",
+            "prepare-app-dir.service",
+          ],
+          requires: [
+            "install-nodejs.service",
+            "install-ripgrep.service",
+            "prepare-app-dir.service",
+          ],
           wantedBy: ["multi-user.target"],
         });
 
