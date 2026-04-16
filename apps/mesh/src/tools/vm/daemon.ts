@@ -20,6 +20,8 @@ export interface DaemonConfig {
   repoName: string;
   proxyPort: number;
   bootstrapScript: string;
+  gitUserName: string;
+  gitUserEmail: string;
 }
 
 export function buildDaemonScript(config: DaemonConfig): string {
@@ -32,6 +34,8 @@ export function buildDaemonScript(config: DaemonConfig): string {
     repoName,
     proxyPort,
     bootstrapScript,
+    gitUserName,
+    gitUserEmail,
   } = config;
 
   if (!/^\d+$/.test(upstreamPort)) {
@@ -52,6 +56,18 @@ const REPO_NAME = ${JSON.stringify(repoName)};
 const PM = ${JSON.stringify(packageManager)};
 const PORT = ${JSON.stringify(port)};
 const PATH_PREFIX = ${JSON.stringify(pathPrefix)};
+const GIT_USER_NAME = ${JSON.stringify(gitUserName)};
+const GIT_USER_EMAIL = ${JSON.stringify(gitUserEmail)};
+
+const ADJECTIVES = ["amber","bold","bright","calm","crimson","coral","daring","deep","dusty","eager","faint","fierce","frozen","gentle","golden","grand","green","hollow","iron","ivory","keen","lasting","lunar","mellow","misty","noble","olive","pale","prime","quiet","rapid","rustic","serene","sharp","silver","sleek","solar","stark","still","swift","tawny","tender","thin","true","vast","velvet","warm","wild","young","zen"];
+const NOUNS = ["anchor","birch","brook","cedar","cliff","cove","crane","dune","echo","ember","falcon","fern","flint","forge","frost","glade","grove","harbor","hawk","iris","jade","lark","maple","marsh","mesa","opal","orbit","peak","pine","plume","quartz","rapids","reef","ridge","river","sage","shore","slate","spruce","stone","summit","thorn","tide","trail","vale","wren","aspen","delta","crest","spark"];
+
+function randomBranch() {
+  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
+  return "decopilot/" + adj + "-" + noun;
+}
+
 const APP_ROOT = "/app";
 const DECO_UID = 1000;
 const DECO_GID = 1000;
@@ -225,6 +241,20 @@ function runSetup() {
       broadcastChunk("setup", "\\r\\nClone failed with exit code " + code + "\\r\\n");
       return;
     }
+
+    // Configure git identity and create branch
+    try {
+      execSync("git config user.name " + JSON.stringify(GIT_USER_NAME), { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
+      execSync("git config user.email " + JSON.stringify(GIT_USER_EMAIL), { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
+      const branch = randomBranch();
+      execSync("git checkout -b " + branch, { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
+      broadcastChunk("setup", "\\r\\n$ git checkout -b " + branch + "\\r\\n");
+      log("created branch " + branch);
+    } catch (e) {
+      log("git branch setup failed:", e.message);
+      broadcastChunk("setup", "\\r\\nWarning: could not create branch\\r\\n");
+    }
+
     if (!PM) {
       setupDone = true;
       log("setup complete (clone only, no package manager)");

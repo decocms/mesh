@@ -257,6 +257,15 @@ function PickerContent({ onComplete }: { onComplete: () => void }) {
               activeVms: {},
               instructions: null,
               runtime: null,
+              ui: {
+                pinnedViews: null,
+                layout: {
+                  defaultMainView: {
+                    type: "preview",
+                  },
+                  chatDefaultOpen: false,
+                },
+              },
             },
             connections: [{ connection_id: connectionId }],
           },

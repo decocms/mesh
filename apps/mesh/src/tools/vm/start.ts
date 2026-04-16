@@ -28,16 +28,16 @@ const PROXY_PORT = 9000;
 const BOOTSTRAP_SCRIPT = `<script>(function(){window.addEventListener("message",function(e){if(e.data&&e.data.type==="visual-editor::activate"&&e.data.script){try{new Function(e.data.script)()}catch(err){console.error("[visual-editor] injection failed",err)}}});})();</script>`;
 
 /**
- * Fetches the GitHub OAuth token from downstream_tokens for the given connection.
- * Returns the authenticated git clone URL.
+ * Fetches the GitHub OAuth token and user profile from downstream_tokens.
+ * Returns the authenticated git clone URL and the user's git identity.
  */
-async function buildCloneUrl(
+async function buildCloneInfo(
   connectionId: string,
   owner: string,
   name: string,
   db: import("kysely").Kysely<import("../../storage/types").Database>,
   vault: import("../../encryption/credential-vault").CredentialVault,
-): Promise<string> {
+): Promise<{ cloneUrl: string; gitUserName: string; gitUserEmail: string }> {
   const tokenStorage = new DownstreamTokenStorage(db, vault);
   const token = await tokenStorage.get(connectionId);
   if (!token) {
@@ -45,7 +45,31 @@ async function buildCloneUrl(
       "No GitHub token found. Ensure the mcp-github connection is authenticated.",
     );
   }
-  return `https://x-access-token:${token.accessToken}@github.com/${owner}/${name}.git`;
+  const cloneUrl = `https://x-access-token:${token.accessToken}@github.com/${owner}/${name}.git`;
+
+  let gitUserName = "Deco Studio";
+  let gitUserEmail = "studio@deco.cx";
+  try {
+    const res = await fetch("https://api.github.com/user", {
+      headers: {
+        Authorization: `token ${token.accessToken}`,
+        Accept: "application/vnd.github+json",
+      },
+    });
+    if (res.ok) {
+      const user = (await res.json()) as {
+        name?: string | null;
+        login: string;
+        email?: string | null;
+      };
+      gitUserName = user.name || user.login;
+      gitUserEmail = user.email || `${user.login}@users.noreply.github.com`;
+    }
+  } catch {
+    // Fallback to defaults — don't block VM start
+  }
+
+  return { cloneUrl, gitUserName, gitUserEmail };
 }
 
 export const VM_START = defineTool({
@@ -85,8 +109,8 @@ export const VM_START = defineTool({
         ? `export PATH=${runtimeBinPath}:$PATH && `
         : "";
 
-      // Build authenticated clone URL from downstream token
-      const cloneUrl = await buildCloneUrl(
+      // Build authenticated clone URL and git identity from downstream token
+      const { cloneUrl, gitUserName, gitUserEmail } = await buildCloneInfo(
         metadata.githubRepo.connectionId,
         owner,
         name,
@@ -120,6 +144,8 @@ export const VM_START = defineTool({
               repoName: `${owner}/${name}`,
               proxyPort: PROXY_PORT,
               bootstrapScript: BOOTSTRAP_SCRIPT,
+              gitUserName,
+              gitUserEmail,
             }),
           },
           "/opt/run-daemon.sh": {
