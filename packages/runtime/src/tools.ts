@@ -957,6 +957,25 @@ export const createMCPServer = <
             ctx,
           );
 
+          if (
+            result != null &&
+            typeof result === "object" &&
+            "content" in result &&
+            Array.isArray(result.content) &&
+            result.content.every(
+              (item: unknown) =>
+                item != null &&
+                typeof item === "object" &&
+                "type" in item &&
+                typeof (item as Record<string, unknown>).type === "string",
+            )
+          ) {
+            return result as {
+              structuredContent?: Record<string, unknown>;
+              content: Array<{ type: string; [key: string]: unknown }>;
+            };
+          }
+
           return {
             structuredContent: result as Record<string, unknown>,
             content: [
