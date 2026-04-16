@@ -63,6 +63,14 @@ const PM_CONFIG = {
 
 const WELL_KNOWN_STARTERS = ["dev", "start"];
 
+// --- Process-level error handlers (keep daemon alive on unhandled errors) ---
+process.on("uncaughtException", (err) => {
+  console.error("[daemon] uncaughtException:", err.stack || err.message || err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[daemon] unhandledRejection:", reason);
+});
+
 // --- Path safety ---
 function safePath(userPath) {
   const resolved = path.resolve(APP_ROOT, userPath);
@@ -94,6 +102,10 @@ function parseJsonBody(req) {
 }
 
 function jsonResponse(res, statusCode, body) {
+  if (res.writableEnded || res.destroyed) {
+    log("jsonResponse: response already closed, dropping", statusCode, JSON.stringify(body).slice(0, 200));
+    return;
+  }
   res.writeHead(statusCode, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
   res.end(JSON.stringify(body));
 }
@@ -607,7 +619,7 @@ http.createServer(async (req, res) => {
       upstream.pipe(res);
     }
   });
-  p.on("error", (e) => { log("proxy error", req.method, req.url, e.message); res.writeHead(502); res.end("proxy error: " + e.message); });
+  p.on("error", (e) => { log("proxy error", req.method, req.url, e.message); jsonResponse(res, 502, { error: "proxy error: " + e.message }); });
   req.pipe(p);
 }).listen(PROXY_PORT, "0.0.0.0");
 

@@ -59,12 +59,19 @@ async function daemonPost(
     json = JSON.parse(rawText);
   } catch (e) {
     console.error(
-      "[vm-tools:daemonPost] Failed to parse JSON response endpoint=%s rawText=%s",
+      "[vm-tools:daemonPost] Failed to parse JSON response endpoint=%s status=%d rawText=%s",
       endpoint,
-      rawText.slice(0, 1000),
+      res.status,
+      rawText.slice(0, 2000),
     );
+    const statusHint =
+      res.status >= 500
+        ? " (server error)"
+        : res.status === 0
+          ? " (no response)"
+          : "";
     throw new Error(
-      `Daemon ${endpoint} returned invalid JSON (${res.status}): ${rawText.slice(0, 200)}`,
+      `Daemon ${endpoint} returned invalid JSON (HTTP ${res.status}${statusHint}): ${rawText.slice(0, 800)}`,
     );
   }
   if (!res.ok) {
@@ -80,8 +87,13 @@ function maybeTruncate(
   result: unknown,
   toolOutputMap: Map<string, string>,
 ): unknown {
-  const serialized =
-    typeof result === "string" ? result : JSON.stringify(result, null, 2);
+  let serialized: string;
+  try {
+    serialized =
+      typeof result === "string" ? result : JSON.stringify(result, null, 2);
+  } catch {
+    serialized = String(result);
+  }
   const tokenCount = estimateJsonTokens(serialized);
   if (tokenCount > MAX_RESULT_TOKENS) {
     const toolCallId = `vm_${Date.now()}`;
