@@ -331,8 +331,7 @@ function PinAgentPopoverContent({
   const filteredTemplates = WELL_KNOWN_AGENT_TEMPLATES.filter(
     (t) =>
       (!search || t.title.toLowerCase().includes(lowerSearch)) &&
-      !(t.id === "studio-pack" && studioPackInstalled) &&
-      t.id !== "site-editor",
+      !(t.id === "studio-pack" && studioPackInstalled),
   );
 
   // Find existing recruited Site Diagnostics agent
