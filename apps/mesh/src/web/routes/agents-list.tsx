@@ -12,7 +12,7 @@ import { EmptyState } from "@/web/components/empty-state.tsx";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { AgentAvatar } from "@/web/components/agent-icon";
-import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
+import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
 import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
@@ -45,7 +45,7 @@ export default function AgentsListPage() {
     id: string;
     title: string;
   } | null>(null);
-  const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
+  const [importDecoOpen, setImportDecoOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
   const [studioPackModalOpen, setStudioPackModalOpen] = useState(false);
   const [leanCanvasModalOpen, setLeanCanvasModalOpen] = useState(false);
@@ -86,7 +86,7 @@ export default function AgentsListPage() {
 
   const handleTemplateClick = (templateId: string) => {
     if (templateId === "site-editor") {
-      setSiteEditorModalOpen(true);
+      setImportDecoOpen(true);
     } else if (templateId === "site-diagnostics") {
       if (existingDiagnostics) {
         navigateToAgent(existingDiagnostics.id);
@@ -237,9 +237,9 @@ export default function AgentsListPage() {
         </Page.Body>
       </Page.Content>
 
-      <SiteEditorOnboardingModal
-        open={siteEditorModalOpen}
-        onOpenChange={setSiteEditorModalOpen}
+      <ImportFromDecoDialog
+        open={importDecoOpen}
+        onOpenChange={setImportDecoOpen}
       />
       <SiteDiagnosticsRecruitModal
         open={diagnosticsModalOpen}

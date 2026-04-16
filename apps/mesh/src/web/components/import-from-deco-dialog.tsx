@@ -239,14 +239,16 @@ export function ImportFromDecoDialog({
         </DialogHeader>
 
         <div className="flex items-center h-12 border-b border-border px-4 gap-3">
-          <button
-            type="button"
-            onClick={() => (onBack ? onBack() : handleClose(false))}
-            className="flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Go back"
-          >
-            <ArrowLeft size={18} />
-          </button>
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Go back"
+            >
+              <ArrowLeft size={18} />
+            </button>
+          )}
           <span className="text-sm font-medium text-foreground">
             Import from deco.cx
           </span>

@@ -46,7 +46,6 @@ import { useVmEvents } from "../hooks/use-vm-events";
 import { VmTerminal } from "./terminal";
 import type { Terminal as XTerminal } from "@xterm/xterm";
 import { EmptyState } from "../../empty-state";
-import { GitHubRepoPicker } from "../../github-repo-picker";
 import { LiveTimer } from "../../live-timer";
 import { useActiveGithubRepo } from "@/web/hooks/use-active-github-repo";
 import { authClient } from "@/web/lib/auth-client";
@@ -313,24 +312,8 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
 
   const githubRepo = useActiveGithubRepo();
 
-  // State 1: No repo connected — show empty state with dialog trigger
-  const [pickerOpen, setPickerOpen] = useState(false);
-
   if (!githubRepo) {
-    return (
-      <div className="flex flex-col items-center justify-center w-full h-full gap-4 p-6">
-        <GitHubIcon size={48} />
-        <h3 className="text-lg font-medium">Connect a GitHub repository</h3>
-        <p className="text-sm text-muted-foreground text-center max-w-sm">
-          Connect a repository to start your development environment.
-        </p>
-        <Button variant="outline" onClick={() => setPickerOpen(true)}>
-          <GitHubIcon size={16} />
-          Connect GitHub
-        </Button>
-        <GitHubRepoPicker open={pickerOpen} onOpenChange={setPickerOpen} />
-      </div>
-    );
+    return null;
   }
 
   const runtime = (
