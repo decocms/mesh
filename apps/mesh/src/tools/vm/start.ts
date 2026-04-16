@@ -129,7 +129,7 @@ export const VM_START = defineTool({
           },
           "/opt/install-ripgrep.sh": {
             content:
-              "#!/bin/bash\napt-get update -qq && apt-get install -y -qq ripgrep locales && locale-gen en_US.UTF-8\n",
+              "#!/bin/bash\napt-get update -qq && apt-get install -y -qq ripgrep locales && sed -i 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && locale-gen\n",
           },
           "/opt/prepare-app-dir.sh": {
             content:
