@@ -182,7 +182,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     setExecInFlight(true);
     try {
       const res = await fetch(
-        `${vmDataRef.current.previewUrl}/_daemon/exec/${scriptName}`,
+        `${vmDataRef.current.previewUrl}/_decopilot_vm/exec/${scriptName}`,
         { method: "POST" },
       );
       if (!res.ok) throw new Error(`Exec failed: ${res.statusText}`);
@@ -201,7 +201,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     setExecInFlight(true);
     try {
       const res = await fetch(
-        `${vmDataRef.current.previewUrl}/_daemon/kill/${scriptName}`,
+        `${vmDataRef.current.previewUrl}/_decopilot_vm/kill/${scriptName}`,
         { method: "POST" },
       );
       if (!res.ok) throw new Error(`Kill failed: ${res.statusText}`);

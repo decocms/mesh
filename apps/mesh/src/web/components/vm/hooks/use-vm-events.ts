@@ -1,7 +1,7 @@
 /**
  * useVmEvents — SSE hook for the VM daemon.
  *
- * Connects to the daemon's /_daemon/events endpoint running inside the VM
+ * Connects to the daemon's /_decopilot_vm/events endpoint running inside the VM
  * and streams raw PTY chunks, upstream status, discovered scripts, and
  * active process state back to React.
  *
@@ -125,7 +125,7 @@ export function useVmEvents(
     function connect() {
       if (disposed) return;
 
-      es = new EventSource(`${previewUrl}/_daemon/events`);
+      es = new EventSource(`${previewUrl}/_decopilot_vm/events`);
 
       es.onopen = () => {
         reconnectAttempt = 0;

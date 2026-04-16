@@ -501,12 +501,12 @@ async function handleBash(req, res) {
 
 // --- HTTP server ---
 http.createServer(async (req, res) => {
-  if (!req.url.startsWith("/_daemon/")) {
+  if (!req.url.startsWith("/_decopilot_vm/")) {
     log("proxy", req.method, req.url);
   }
 
   // SSE endpoint
-  if (req.url === "/_daemon/events" && req.method === "GET") {
+  if (req.url === "/_decopilot_vm/events" && req.method === "GET") {
     if (sseClients.size >= MAX_SSE_CLIENTS) {
       log("SSE rejected (max clients)");
       res.writeHead(429);
@@ -549,16 +549,16 @@ http.createServer(async (req, res) => {
   }
 
   // File operation endpoints
-  if (req.method === "POST" && req.url === "/_daemon/read") return handleRead(req, res);
-  if (req.method === "POST" && req.url === "/_daemon/write") return handleWrite(req, res);
-  if (req.method === "POST" && req.url === "/_daemon/edit") return handleEdit(req, res);
-  if (req.method === "POST" && req.url === "/_daemon/grep") return handleGrep(req, res);
-  if (req.method === "POST" && req.url === "/_daemon/glob") return handleGlob(req, res);
-  if (req.method === "POST" && req.url === "/_daemon/bash") return handleBash(req, res);
+  if (req.method === "POST" && req.url === "/_decopilot_vm/read") return handleRead(req, res);
+  if (req.method === "POST" && req.url === "/_decopilot_vm/write") return handleWrite(req, res);
+  if (req.method === "POST" && req.url === "/_decopilot_vm/edit") return handleEdit(req, res);
+  if (req.method === "POST" && req.url === "/_decopilot_vm/grep") return handleGrep(req, res);
+  if (req.method === "POST" && req.url === "/_decopilot_vm/glob") return handleGlob(req, res);
+  if (req.method === "POST" && req.url === "/_decopilot_vm/bash") return handleBash(req, res);
 
   // Exec endpoint — run any script by name
-  if (req.method === "POST" && req.url.startsWith("/_daemon/exec/")) {
-    const name = req.url.slice("/_daemon/exec/".length);
+  if (req.method === "POST" && req.url.startsWith("/_decopilot_vm/exec/")) {
+    const name = req.url.slice("/_decopilot_vm/exec/".length);
     if (!name) {
       res.writeHead(400, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
       res.end(JSON.stringify({ error: "missing script name" }));
@@ -593,8 +593,8 @@ http.createServer(async (req, res) => {
   }
 
   // Kill endpoint
-  if (req.method === "POST" && req.url.startsWith("/_daemon/kill/")) {
-    const name = req.url.slice("/_daemon/kill/".length);
+  if (req.method === "POST" && req.url.startsWith("/_decopilot_vm/kill/")) {
+    const name = req.url.slice("/_decopilot_vm/kill/".length);
     if (children[name]) {
       log("kill", name, "pid=" + children[name].pid);
       try { children[name].kill("SIGKILL"); } catch (e) {}
@@ -609,14 +609,14 @@ http.createServer(async (req, res) => {
   }
 
   // Scripts endpoint (fallback for missed SSE)
-  if (req.method === "GET" && req.url === "/_daemon/scripts") {
+  if (req.method === "GET" && req.url === "/_decopilot_vm/scripts") {
     res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
     res.end(JSON.stringify({ scripts: discoveredScripts || [] }));
     return;
   }
 
   // CORS preflight
-  if (req.method === "OPTIONS" && req.url.startsWith("/_daemon/")) {
+  if (req.method === "OPTIONS" && req.url.startsWith("/_decopilot_vm/")) {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST",

@@ -25,7 +25,7 @@ async function daemonPost(
   endpoint: string,
   body: Record<string, unknown>,
 ): Promise<unknown> {
-  const url = `${baseUrl}/_daemon/${endpoint}`;
+  const url = `${baseUrl}/_decopilot_vm/${endpoint}`;
   const serialized = JSON.stringify(body);
   let res: Response;
   try {

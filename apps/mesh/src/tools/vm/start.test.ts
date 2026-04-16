@@ -354,7 +354,7 @@ describe("VM_START", () => {
     expect(createCall.idleTimeoutSeconds).toBe(1800);
   });
 
-  it("daemon script includes /_daemon/events SSE endpoint and setup source", async () => {
+  it("daemon script includes /_decopilot_vm/events SSE endpoint and setup source", async () => {
     const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
     const ctx = makeCtx({ virtualMcp });
 
@@ -367,9 +367,9 @@ describe("VM_START", () => {
     const files = createCall.spec._files as Record<string, { content: string }>;
     const daemonJs = files["/opt/daemon.js"];
     expect(daemonJs).toBeDefined();
-    expect(daemonJs!.content).toContain("/_daemon/events");
+    expect(daemonJs!.content).toContain("/_decopilot_vm/events");
     expect(daemonJs!.content).toContain("text/event-stream");
-    expect(daemonJs!.content).toContain("/_daemon/exec/");
+    expect(daemonJs!.content).toContain("/_decopilot_vm/exec/");
     expect(daemonJs!.content).toContain("git clone");
     expect(files["/opt/run-daemon.sh"]).toBeDefined();
   });
