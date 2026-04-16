@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { Loading01 } from "@untitledui/icons";
 import { useAutoInstallGitHub } from "@/web/hooks/use-auto-install-github";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
+import { usePreferences } from "@/web/hooks/use-preferences.ts";
 
 interface GitHubInstallation {
   installationId: number;
@@ -50,6 +51,12 @@ export function GitHubRepoPicker({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const [preferences] = usePreferences();
+
+  if (!preferences.experimental_vibecode) {
+    return null;
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">

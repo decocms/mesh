@@ -8,6 +8,7 @@ interface Preferences {
   enableNotifications: boolean;
   enableSounds: boolean;
   theme: ThemeMode;
+  experimental_vibecode: boolean;
 }
 
 const DEFAULT_PREFERENCES: Preferences = {
@@ -15,6 +16,7 @@ const DEFAULT_PREFERENCES: Preferences = {
   enableNotifications: typeof Notification !== "undefined" ? true : false,
   enableSounds: false,
   theme: "system",
+  experimental_vibecode: false,
 };
 
 const VALID_TOOL_APPROVAL_LEVELS: ToolApprovalLevel[] = ["auto", "readonly"];
