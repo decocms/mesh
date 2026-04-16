@@ -16,15 +16,14 @@ import {
   useProjectContext,
   useMCPClient,
   useConnections,
-  useVirtualMCPActions,
   SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 import type { ConnectionEntity } from "@decocms/mesh-sdk";
-import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import { KEYS } from "@/web/lib/query-keys";
 import { toast } from "sonner";
 import { Loading01 } from "@untitledui/icons";
 import { useAutoInstallGitHub } from "@/web/hooks/use-auto-install-github";
+import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 
 interface GitHubInstallation {
   installationId: number;
@@ -54,7 +53,7 @@ export function GitHubRepoPicker({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Connect GitHub Repository</DialogTitle>
+          <DialogTitle>Import from GitHub</DialogTitle>
         </DialogHeader>
         <div className="min-w-0">
           <Suspense
@@ -75,16 +74,14 @@ export function GitHubRepoPicker({
   );
 }
 
-export function PickerContent({ onComplete }: { onComplete: () => void }) {
+function PickerContent({ onComplete }: { onComplete: () => void }) {
   const { org } = useProjectContext();
-  const inset = useInsetContext();
   const queryClient = useQueryClient();
+  const navigateToAgent = useNavigateToAgent();
   const [selectedConnection, setSelectedConnection] =
     useState<ConnectionEntity | null>(null);
   const [selectedInstallation, setSelectedInstallation] =
     useState<GitHubInstallation | null>(null);
-
-  const actions = useVirtualMCPActions();
 
   // Find all mcp-github connections in the organization
   const githubConnections = useConnections({ slug: "mcp-github" });
@@ -94,300 +91,232 @@ export function PickerContent({ onComplete }: { onComplete: () => void }) {
     enabled: githubConnections.length === 0,
   });
 
-  // Check which org-wide GitHub connections are already on this virtual MCP
-  const virtualMcpConnectionIds = new Set(
-    (inset?.entity?.connections ?? []).map((c) => c.connection_id),
-  );
-  const attachedGithubConnections = githubConnections.filter((c) =>
-    virtualMcpConnectionIds.has(c.id),
-  );
-
-  // Resolve the effective connection:
-  // 1. If virtual MCP already has a GitHub connection, use it
-  // 2. If not, fall back to org-wide connections
-  const resolvedConnections =
-    attachedGithubConnections.length > 0
-      ? attachedGithubConnections
-      : githubConnections;
-
   const effectiveConnection =
-    resolvedConnections.length === 1
-      ? (resolvedConnections[0] ?? null)
+    githubConnections.length === 1
+      ? (githubConnections[0] ?? null)
       : selectedConnection;
 
-  // Whether we need to add the connection to the virtual MCP before proceeding
-  const needsAttach =
-    effectiveConnection !== null &&
-    !virtualMcpConnectionIds.has(effectiveConnection.id);
-
-  // Create MCP client for the selected GitHub connection (used for post-selection get_file_contents)
+  // MCP clients
   const githubClient = useMCPClient({
     connectionId: effectiveConnection?.id ?? "",
     orgId: org.id,
   });
-
-  // Eagerly attach the connection to the virtual MCP as soon as it's resolved
-  const attachMutation = useMutation({
-    mutationFn: async (connectionId: string) => {
-      if (!inset?.entity) return;
-      const existing = inset.entity.connections ?? [];
-      if (existing.some((c) => c.connection_id === connectionId)) return;
-      await actions.update.mutateAsync({
-        id: inset.entity.id,
-        data: {
-          connections: [
-            ...existing,
-            {
-              connection_id: connectionId,
-              selected_tools: null,
-              selected_resources: null,
-              selected_prompts: null,
-            },
-          ],
-        } as any,
-      });
-    },
+  const selfClient = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
   });
 
-  if (
-    needsAttach &&
-    effectiveConnection &&
-    !attachMutation.isPending &&
-    !attachMutation.isSuccess
-  ) {
-    attachMutation.mutate(effectiveConnection.id);
-  }
-
-  // Save selected repo with connectionId
-  const saveMutation = useMutation({
-    mutationFn: async (repo: Repo) => {
-      if (!inset?.entity || !effectiveConnection) {
-        throw new Error("No virtual MCP context or GitHub connection");
-      }
-      await actions.update.mutateAsync({
-        id: inset.entity.id,
-        data: {
-          metadata: {
-            githubRepo: {
-              owner: repo.owner,
-              name: repo.name,
-              url: repo.url,
-              installationId: selectedInstallation!.installationId,
-              connectionId: effectiveConnection.id,
-            },
-            activeVms: {},
-          },
-        } as any,
+  const getFileContent = async (
+    repo: Repo,
+    path: string,
+  ): Promise<string | null> => {
+    try {
+      const result = await githubClient.callTool({
+        name: "get_file_contents",
+        arguments: { owner: repo.owner, repo: repo.name, path },
       });
-    },
-    onSuccess: (_data, repo) => {
-      console.log("[GitHubRepoPicker] saveMutation onSuccess");
-      toast.success("GitHub repo connected");
+      const typed = result as {
+        isError?: boolean;
+        content?: Array<{
+          type?: string;
+          text?: string;
+          resource?: { text?: string };
+        }>;
+      };
+      if (typed.isError) return null;
+      const resourceBlock = typed.content?.find((c) => c.type === "resource");
+      const content = resourceBlock?.resource?.text;
+      if (!content) return null;
+      try {
+        const parsed = JSON.parse(content);
+        return typeof parsed === "string" ? parsed : JSON.stringify(parsed);
+      } catch {
+        return content;
+      }
+    } catch {
+      return null;
+    }
+  };
 
-      // Detect runtime from the repo via the GitHub connection, then close
-      if (inset?.entity && effectiveConnection) {
-        const entityId = inset.entity.id;
+  const detectRepoFiles = (virtualMcpId: string, repo: Repo) => {
+    const allPaths = [
+      "AGENTS.md",
+      "CLAUDE.md",
+      "deno.json",
+      "deno.jsonc",
+      "bun.lock",
+      "bunfig.toml",
+      "pnpm-lock.yaml",
+      "yarn.lock",
+      "package-lock.json",
+      "package.json",
+    ];
 
-        const getFileContent = async (path: string): Promise<string | null> => {
-          try {
-            console.log(`[GitHubRepoPicker] getFileContent: fetching ${path}`);
-            const result = await githubClient.callTool({
-              name: "get_file_contents",
-              arguments: { owner: repo.owner, repo: repo.name, path },
-            });
-            console.log(
-              `[GitHubRepoPicker] getFileContent: ${path} raw result:`,
-              JSON.stringify(result).slice(0, 500),
-            );
-            const typed = result as {
-              isError?: boolean;
-              content?: Array<{
-                type?: string;
-                text?: string;
-                resource?: { text?: string };
-              }>;
-            };
-            if (typed.isError) {
-              console.log(
-                `[GitHubRepoPicker] getFileContent: ${path} returned isError`,
-              );
-              return null;
-            }
-            // get_file_contents returns file data inside a resource content block
-            const resourceBlock = typed.content?.find(
-              (c) => c.type === "resource",
-            );
-            const content = resourceBlock?.resource?.text;
-            console.log(
-              `[GitHubRepoPicker] getFileContent: ${path} resourceBlock found=${!!resourceBlock}, content length=${content?.length ?? 0}`,
-            );
-            if (!content) return null;
+    Promise.all(
+      allPaths.map(async (p) => [p, await getFileContent(repo, p)] as const),
+    )
+      .then(async (entries) => {
+        const files = new Map(entries);
+
+        // Detect instructions
+        const instructions =
+          files.get("AGENTS.md") ?? files.get("CLAUDE.md") ?? null;
+
+        // Detect runtime
+        const runtimeFiles: Array<{ file: string; pm: string }> = [
+          { file: "deno.json", pm: "deno" },
+          { file: "deno.jsonc", pm: "deno" },
+          { file: "bun.lock", pm: "bun" },
+          { file: "bunfig.toml", pm: "bun" },
+          { file: "pnpm-lock.yaml", pm: "pnpm" },
+          { file: "yarn.lock", pm: "yarn" },
+          { file: "package-lock.json", pm: "npm" },
+          { file: "package.json", pm: "npm" },
+        ];
+        let detected: string | null = null;
+        for (const { file, pm } of runtimeFiles) {
+          if (files.get(file) !== null) {
+            detected = pm;
+            break;
+          }
+        }
+
+        let devPort = "";
+        if (detected) {
+          const extractPort = (content: string | null) => {
+            if (!content) return "";
             try {
-              const parsed = JSON.parse(content);
-              return typeof parsed === "string"
-                ? parsed
-                : JSON.stringify(parsed);
+              const parsed = JSON.parse(content) as {
+                tasks?: Record<string, string>;
+                scripts?: Record<string, string>;
+              };
+              const cmds = parsed.tasks ?? parsed.scripts ?? {};
+              const devCmd = cmds.dev ?? cmds.start ?? "";
+              const portMatch = devCmd.match(/(?:--port|PORT=|:)(\d{4,5})/);
+              return portMatch?.[1] ?? "";
             } catch {
-              return content;
+              return "";
             }
-          } catch (err) {
-            console.error(
-              `[GitHubRepoPicker] getFileContent: ${path} threw:`,
-              err,
-            );
-            return null;
+          };
+          if (detected === "deno") {
+            devPort =
+              extractPort(files.get("deno.json") ?? null) ||
+              extractPort(files.get("deno.jsonc") ?? null);
+          } else {
+            devPort = extractPort(files.get("package.json") ?? null);
           }
-        };
+        }
 
-        const fetchInstructions = async (files: Map<string, string | null>) => {
-          console.log("[GitHubRepoPicker] fetchInstructions: starting");
-          const content = files.get("AGENTS.md") ?? files.get("CLAUDE.md");
-          console.log(
-            `[GitHubRepoPicker] fetchInstructions: found=${!!content}, length=${content?.length ?? 0}`,
-          );
-          if (content) {
-            await actions.update.mutateAsync({
-              id: entityId,
-              data: { metadata: { instructions: content } } as any,
-            });
-            console.log(
-              "[GitHubRepoPicker] fetchInstructions: saved instructions",
-            );
-          }
-        };
-
-        const detectRuntime = async (files: Map<string, string | null>) => {
-          console.log(
-            "[GitHubRepoPicker] detectRuntime: starting, files map:",
-            Object.fromEntries(
-              [...files.entries()].map(([k, v]) => [
-                k,
-                v === null ? null : `${v.length} chars`,
-              ]),
-            ),
-          );
-          const runtimeFiles: Array<{ file: string; pm: string }> = [
-            { file: "deno.json", pm: "deno" },
-            { file: "deno.jsonc", pm: "deno" },
-            { file: "bun.lock", pm: "bun" },
-            { file: "bunfig.toml", pm: "bun" },
-            { file: "pnpm-lock.yaml", pm: "pnpm" },
-            { file: "yarn.lock", pm: "yarn" },
-            { file: "package-lock.json", pm: "npm" },
-            { file: "package.json", pm: "npm" },
-          ];
-
-          let detected: string | null = null;
-          for (const { file, pm } of runtimeFiles) {
-            if (files.get(file) !== null) {
-              detected = pm;
-              break;
-            }
-          }
-
-          // Extract port from dev/start script if possible
-          let devPort = "";
-          if (detected) {
-            const extractPort = (content: string | null) => {
-              if (!content) return "";
-              try {
-                const parsed = JSON.parse(content) as {
-                  tasks?: Record<string, string>;
-                  scripts?: Record<string, string>;
-                };
-                const cmds = parsed.tasks ?? parsed.scripts ?? {};
-                const devCmd = cmds.dev ?? cmds.start ?? "";
-                const portMatch = devCmd.match(/(?:--port|PORT=|:)(\d{4,5})/);
-                return portMatch?.[1] ?? "";
-              } catch {
-                return "";
-              }
-            };
-
-            if (detected === "deno") {
-              devPort =
-                extractPort(files.get("deno.json") ?? null) ||
-                extractPort(files.get("deno.jsonc") ?? null);
-            } else {
-              devPort = extractPort(files.get("package.json") ?? null);
-            }
-          }
-
-          console.log(
-            `[GitHubRepoPicker] detectRuntime: detected=${detected}, devPort=${devPort}`,
-          );
-          await actions.update.mutateAsync({
-            id: entityId,
+        // Update the virtual MCP with detected metadata
+        await selfClient.callTool({
+          name: "COLLECTION_VIRTUAL_MCP_UPDATE",
+          arguments: {
+            id: virtualMcpId,
             data: {
               metadata: {
-                runtime: {
-                  selected: detected,
-                  port: devPort || null,
-                },
+                instructions,
+                runtime: { selected: detected, port: devPort || null },
               },
-            } as any,
-          });
-          console.log("[GitHubRepoPicker] detectRuntime: saved runtime");
-        };
+            },
+          },
+        });
 
-        // Fetch all files in parallel, then run detection from the results
-        const allPaths = [
-          "AGENTS.md",
-          "CLAUDE.md",
-          "deno.json",
-          "deno.jsonc",
-          "bun.lock",
-          "bunfig.toml",
-          "pnpm-lock.yaml",
-          "yarn.lock",
-          "package-lock.json",
-          "package.json",
-        ];
-        console.log(
-          "[GitHubRepoPicker] Starting parallel file fetch for:",
-          allPaths,
-        );
-        Promise.all(
-          allPaths.map(async (p) => [p, await getFileContent(p)] as const),
-        )
-          .then((entries) => {
-            console.log(
-              "[GitHubRepoPicker] All files fetched, running detection",
+        queryClient.invalidateQueries({
+          predicate: (query) => {
+            const key = query.queryKey;
+            return (
+              key[1] === org.id &&
+              key[3] === "collection" &&
+              key[4] === "VIRTUAL_MCP"
             );
-            const files = new Map(entries);
-            return Promise.allSettled([
-              fetchInstructions(files),
-              detectRuntime(files),
-            ]);
-          })
-          .then((results) => {
-            console.log(
-              "[GitHubRepoPicker] Detection complete, results:",
-              results,
-            );
-            queryClient.invalidateQueries({
-              predicate: (query) => {
-                const key = query.queryKey;
-                return (
-                  key[1] === org.id &&
-                  key[3] === "collection" &&
-                  key[4] === "VIRTUAL_MCP"
-                );
-              },
-            });
-            onComplete();
-          })
-          .catch((err) => {
-            console.error("[GitHubRepoPicker] Detection chain failed:", err);
-            onComplete();
-          });
-      } else {
-        onComplete();
+          },
+        });
+      })
+      .catch((err) => {
+        console.error("GitHub repo file detection failed:", err);
+      });
+  };
+
+  // Import mutation: create virtual MCP + detect runtime/instructions
+  const importMutation = useMutation({
+    mutationFn: async (repo: Repo) => {
+      if (!effectiveConnection || !selectedInstallation) {
+        throw new Error("No GitHub connection or installation");
       }
+
+      const connectionId = effectiveConnection.id;
+
+      const result = (await selfClient.callTool({
+        name: "COLLECTION_VIRTUAL_MCP_CREATE",
+        arguments: {
+          data: {
+            title: repo.name,
+            description: repo.description || "Imported from GitHub",
+            pinned: true,
+            icon: "icon://GitBranch01?color=purple",
+            metadata: {
+              githubRepo: {
+                owner: repo.owner,
+                name: repo.name,
+                url: repo.url,
+                installationId: selectedInstallation.installationId,
+                connectionId,
+              },
+              activeVms: {},
+              instructions: null,
+              runtime: null,
+            },
+            connections: [{ connection_id: connectionId }],
+          },
+        },
+      })) as { structuredContent?: unknown };
+
+      const payload = (result.structuredContent ?? result) as {
+        item: { id: string; title: string };
+      };
+
+      return {
+        virtualMcpId: payload.item.id,
+        repo,
+        item: payload.item,
+      };
+    },
+    onSuccess: ({ virtualMcpId, repo, item }) => {
+      toast.success(`Imported ${repo.name} from GitHub`);
+
+      // Seed cache so navigation is instant
+      queryClient.setQueryData(
+        KEYS.collectionItem(
+          selfClient,
+          org.id,
+          "",
+          "VIRTUAL_MCP",
+          virtualMcpId,
+        ),
+        { item },
+      );
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey;
+          return (
+            key[1] === org.id &&
+            key[3] === "collection" &&
+            key[4] === "VIRTUAL_MCP"
+          );
+        },
+      });
+
+      // Navigate immediately, detect runtime/instructions in background
+      onComplete();
+      localStorage.setItem("mesh:sidebar-open", JSON.stringify(false));
+      navigateToAgent(virtualMcpId);
+
+      // Background: fetch files and update metadata
+      detectRepoFiles(virtualMcpId, repo);
     },
     onError: (error) => {
       toast.error(
-        "Failed to connect repo: " +
+        "Failed to import repo: " +
           (error instanceof Error ? error.message : "Unknown error"),
       );
     },
@@ -429,13 +358,13 @@ export function PickerContent({ onComplete }: { onComplete: () => void }) {
   }
 
   // Multiple connections, none selected — show connection picker
-  if (resolvedConnections.length > 1 && !effectiveConnection) {
+  if (githubConnections.length > 1 && !effectiveConnection) {
     return (
       <div className="flex flex-col gap-2">
         <p className="text-sm text-muted-foreground">
           Select a GitHub connection:
         </p>
-        {resolvedConnections.map((conn) => (
+        {githubConnections.map((conn) => (
           <button
             key={conn.id}
             type="button"
@@ -465,7 +394,7 @@ export function PickerContent({ onComplete }: { onComplete: () => void }) {
         connectionId={effectiveConnection.id}
         orgId={org.id}
         onSelect={setSelectedInstallation}
-        showBackButton={resolvedConnections.length > 1}
+        showBackButton={githubConnections.length > 1}
         onBack={() => setSelectedConnection(null)}
       />
     );
@@ -477,8 +406,8 @@ export function PickerContent({ onComplete }: { onComplete: () => void }) {
       orgId={org.id}
       installation={selectedInstallation}
       onBack={() => setSelectedInstallation(null)}
-      onSelectRepo={(repo) => saveMutation.mutate(repo)}
-      isSaving={saveMutation.isPending}
+      onSelectRepo={(repo) => importMutation.mutate(repo)}
+      isSaving={importMutation.isPending}
     />
   );
 }
