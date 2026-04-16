@@ -42,8 +42,8 @@ import {
 import { cn } from "@deco/ui/lib/utils.ts";
 import { useChatBridge } from "@/web/components/chat/context";
 import { usePanelActions } from "@/web/layouts/shell-layout";
-import { useTerminalSelection } from "@/web/hooks/use-terminal-selection";
 import { VmErrorState } from "../vm-error-state";
+import { VmSuspendedState } from "../vm-suspended-state";
 import { useVmEvents } from "../hooks/use-vm-events";
 import { VmTerminal } from "./terminal";
 import type { Terminal as XTerminal } from "@xterm/xterm";
@@ -112,23 +112,40 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const startingRef = useRef(false);
   const startedAtRef = useRef<number>(Date.now());
 
-  const [activeTab, setActiveTab] = useState<string>("setup");
+  const [activeTab, setActiveTabRaw] = useState<string>("setup");
   const [openScriptTabs, setOpenScriptTabs] = useState<string[]>([]);
   const terminalRefs = useRef(new Map<string, XTerminal>());
 
   const { sendMessage } = useChatBridge();
   const { setChatOpen } = usePanelActions();
-  const activeTerminal = terminalRefs.current.get(activeTab) ?? null;
-  const { hasSelection, getSelectedText } =
-    useTerminalSelection(activeTerminal);
+
+  const [hasSelection, setHasSelection] = useState(false);
+  const getSelectedTextRef = useRef<(() => string) | null>(null);
+
+  const setActiveTab = (tab: string) => {
+    setActiveTabRaw(tab);
+    setHasSelection(false);
+    getSelectedTextRef.current = null;
+  };
+
+  const handleSelectionChange = (
+    tab: string,
+    has: boolean,
+    getText: () => string,
+  ) => {
+    if (tab !== activeTab) return;
+    setHasSelection(has);
+    getSelectedTextRef.current = has ? getText : null;
+  };
 
   const handleAddToChat = () => {
-    const text = getSelectedText();
+    const text = getSelectedTextRef.current?.();
     if (!text) return;
     setChatOpen(true);
     sendMessage({
       parts: [{ type: "text", text: `<server-logs>\n${text}\n</server-logs>` }],
     });
+    const activeTerminal = terminalRefs.current.get(activeTab);
     activeTerminal?.clearSelection();
   };
 
@@ -437,14 +454,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   }
 
   if (status === "suspended") {
-    return (
-      <div className="flex flex-col items-center justify-center w-full h-full gap-4">
-        <p className="text-sm text-muted-foreground">
-          VM suspended due to inactivity.
-        </p>
-        <Button onClick={() => setStatus("running")}>Resume</Button>
-      </div>
-    );
+    return <VmSuspendedState onResume={handleStart} />;
   }
 
   // All tabs: setup + open script tabs + optional daemon
@@ -623,6 +633,9 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
                   onReady={(t) => {
                     terminalRefs.current.set(tab, t);
                   }}
+                  onSelectionChange={(has, getText) =>
+                    handleSelectionChange(tab, has, getText)
+                  }
                   initialData={vmEvents.getBuffer(tab)}
                   className="h-full"
                 />

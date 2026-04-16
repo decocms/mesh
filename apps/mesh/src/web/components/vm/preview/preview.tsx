@@ -26,6 +26,7 @@ import {
 } from "./visual-editor-script";
 import { VisualEditorPrompt } from "./visual-editor-prompt";
 import { useVmEvents } from "../hooks/use-vm-events";
+import { VmSuspendedState } from "../vm-suspended-state";
 
 type PreviewViewMode = "preview" | "visual";
 
@@ -196,14 +197,8 @@ export function PreviewContent() {
         )}
 
         {suspended && (
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-background/80 backdrop-blur-sm">
-            <p className="text-sm text-muted-foreground">
-              VM suspended due to inactivity.
-            </p>
-            <Button onClick={openEnv}>
-              <Server01 size={14} />
-              Resume Server
-            </Button>
+          <div className="absolute inset-0 z-30 bg-background/80 backdrop-blur-sm">
+            <VmSuspendedState onResume={openEnv} />
           </div>
         )}
 

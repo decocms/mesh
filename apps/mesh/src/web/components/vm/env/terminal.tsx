@@ -6,17 +6,21 @@ import "@xterm/xterm/css/xterm.css";
 
 interface VmTerminalProps {
   onReady?: (terminal: Terminal) => void;
+  onSelectionChange?: (hasSelection: boolean, getText: () => string) => void;
   initialData?: string;
   className?: string;
 }
 
 export function VmTerminal({
   onReady,
+  onSelectionChange,
   initialData,
   className,
 }: VmTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
+  const onSelectionChangeRef = useRef(onSelectionChange);
+  onSelectionChangeRef.current = onSelectionChange;
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — xterm.js lifecycle: create on mount, dispose on unmount
   useEffect(() => {
@@ -75,12 +79,18 @@ export function VmTerminal({
     terminalRef.current = terminal;
     onReady?.(terminal);
 
+    const selectionDisposable = terminal.onSelectionChange(() => {
+      const has = !!terminal.getSelection();
+      onSelectionChangeRef.current?.(has, () => terminal.getSelection());
+    });
+
     const observer = new ResizeObserver(() => {
       fitAddon.fit();
     });
     observer.observe(el);
 
     return () => {
+      selectionDisposable.dispose();
       observer.disconnect();
       terminalRef.current = null;
       terminal.dispose();

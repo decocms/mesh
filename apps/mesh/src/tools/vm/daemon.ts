@@ -515,7 +515,7 @@ http.createServer(async (req, res) => {
   if (req.url === "/_decopilot_vm/events" && req.method === "GET") {
     if (sseClients.size >= MAX_SSE_CLIENTS) {
       log("SSE rejected (max clients)");
-      res.writeHead(429);
+      res.writeHead(429, { "Access-Control-Allow-Origin": "*" });
       res.end("Too many connections");
       return;
     }
@@ -632,6 +632,13 @@ http.createServer(async (req, res) => {
     return;
   }
 
+  // Catch-all for unmatched /_decopilot_vm/ routes — return 404 with CORS
+  if (req.url.startsWith("/_decopilot_vm/")) {
+    log("unmatched daemon route", req.method, req.url);
+    jsonResponse(res, 404, { error: "Not found: " + req.url });
+    return;
+  }
+
   // Reverse proxy to upstream
   const hdrs = Object.assign({}, req.headers);
   delete hdrs["accept-encoding"];
@@ -665,7 +672,7 @@ http.createServer(async (req, res) => {
     log("proxy error", req.method, req.url, e.message);
     const connErr = ["ECONNREFUSED", "ECONNRESET", "ECONNABORTED"].includes(e.code);
     if (req.url === "/" && connErr) {
-      res.writeHead(503, { "Content-Type": "text/html; charset=utf-8", "Retry-After": "1" });
+      res.writeHead(503, { "Content-Type": "text/html; charset=utf-8", "Retry-After": "1", "Access-Control-Allow-Origin": "*" });
       res.end('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Starting...</title><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#fafafa;color:#555}div{text-align:center}p{margin-top:8px;font-size:14px;color:#999}</style></head><body><div><h3>Server is starting\\u2026</h3><p>This page will refresh automatically.</p></div><script>setTimeout(function(){window.location.reload()},1000)</script></body></html>');
       return;
     }

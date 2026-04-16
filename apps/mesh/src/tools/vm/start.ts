@@ -188,6 +188,10 @@ export const VM_START = defineTool({
             "prepare-app-dir.service",
           ],
           wantedBy: ["multi-user.target"],
+          restartPolicy: {
+            policy: "always",
+            restartSec: 2,
+          },
         });
 
       const spec =
