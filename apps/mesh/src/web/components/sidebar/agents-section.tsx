@@ -39,7 +39,7 @@ import {
 } from "@deco/ui/components/drawer.tsx";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { CollectionSearch } from "@deco/ui/components/collection-search.tsx";
-import { Plus, Settings02, X } from "@untitledui/icons";
+import { Plus, Settings02, Users03, X } from "@untitledui/icons";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -429,8 +429,8 @@ function PinAgentPopoverContent({
                     onClose();
                   }}
                 >
-                  <Plus size={14} />
-                  Create from scratch
+                  <Users03 size={14} />
+                  Create agent
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={onOpenGithubImport}>
                   <svg
@@ -443,19 +443,11 @@ function PinAgentPopoverContent({
                   Import from GitHub
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={onOpenImportDeco}>
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+                  <img
+                    src="/logos/deco%20logo.svg"
+                    alt="deco.cx"
                     className="size-3.5"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M2 12h20" />
-                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                  </svg>
+                  />
                   Import from deco.cx
                 </DropdownMenuItem>
               </DropdownMenuContent>
