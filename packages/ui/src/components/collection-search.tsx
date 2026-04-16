@@ -1,5 +1,4 @@
 import { SearchMd, Loading01 } from "@untitledui/icons";
-import { Input } from "@deco/ui/components/input.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 
 interface CollectionSearchProps {
@@ -49,13 +48,14 @@ export function CollectionSearch({
         ) : (
           <SearchMd size={16} className="text-muted-foreground shrink-0" />
         )}
-        <Input
+        <input
+          type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder={placeholder}
           disabled={disabled}
-          className="flex-1 border-0 shadow-none focus-visible:ring-0 px-0 h-full text-sm placeholder:text-muted-foreground/50 bg-transparent"
+          className="flex-1 min-w-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
         />
       </label>
     </div>
