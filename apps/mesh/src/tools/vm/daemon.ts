@@ -655,7 +655,16 @@ http.createServer(async (req, res) => {
       upstream.pipe(res);
     }
   });
-  p.on("error", (e) => { log("proxy error", req.method, req.url, e.message); jsonResponse(res, 502, { error: "proxy error: " + e.message }); });
+  p.on("error", (e) => {
+    log("proxy error", req.method, req.url, e.message);
+    const connErr = ["ECONNREFUSED", "ECONNRESET", "ECONNABORTED"].includes(e.code);
+    if (req.url === "/" && connErr) {
+      res.writeHead(503, { "Content-Type": "text/html; charset=utf-8", "Retry-After": "1" });
+      res.end('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Starting...</title><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#fafafa;color:#555}div{text-align:center}p{margin-top:8px;font-size:14px;color:#999}</style></head><body><div><h3>Server is starting\\u2026</h3><p>This page will refresh automatically.</p></div><script>setTimeout(function(){window.location.reload()},1000)</script></body></html>');
+      return;
+    }
+    jsonResponse(res, 502, { error: "proxy error: " + e.message });
+  });
   req.pipe(p);
 }).listen(PROXY_PORT, "0.0.0.0");
 
