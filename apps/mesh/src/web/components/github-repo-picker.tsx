@@ -195,10 +195,18 @@ export function PickerContent({ onComplete }: { onComplete: () => void }) {
           });
           const typed = result as {
             isError?: boolean;
-            content?: Array<{ text?: string }>;
+            content?: Array<{
+              type?: string;
+              text?: string;
+              resource?: { text?: string };
+            }>;
           };
           if (typed.isError) return null;
-          const content = typed.content?.[0]?.text;
+          // get_file_contents returns file data inside a resource content block
+          const resourceBlock = typed.content?.find(
+            (c) => c.type === "resource",
+          );
+          const content = resourceBlock?.resource?.text;
           if (!content) return null;
           try {
             const parsed = JSON.parse(content);
@@ -208,20 +216,17 @@ export function PickerContent({ onComplete }: { onComplete: () => void }) {
           }
         };
 
-        const fetchInstructions = async () => {
-          for (const path of ["AGENTS.md", "CLAUDE.md"]) {
-            const content = await getFileContent(path);
-            if (content) {
-              await actions.update.mutateAsync({
-                id: entityId,
-                data: { metadata: { instructions: content } } as any,
-              });
-              return;
-            }
+        const fetchInstructions = async (files: Map<string, string | null>) => {
+          const content = files.get("AGENTS.md") ?? files.get("CLAUDE.md");
+          if (content) {
+            await actions.update.mutateAsync({
+              id: entityId,
+              data: { metadata: { instructions: content } } as any,
+            });
           }
         };
 
-        const detectRuntime = async () => {
+        const detectRuntime = async (files: Map<string, string | null>) => {
           const runtimeFiles: Array<{ file: string; pm: string }> = [
             { file: "deno.json", pm: "deno" },
             { file: "deno.jsonc", pm: "deno" },
@@ -235,8 +240,7 @@ export function PickerContent({ onComplete }: { onComplete: () => void }) {
 
           let detected: string | null = null;
           for (const { file, pm } of runtimeFiles) {
-            const content = await getFileContent(file);
-            if (content !== null) {
+            if (files.get(file) !== null) {
               detected = pm;
               break;
             }
@@ -245,43 +249,28 @@ export function PickerContent({ onComplete }: { onComplete: () => void }) {
           // Extract port from dev/start script if possible
           let devPort = "";
           if (detected) {
+            const extractPort = (content: string | null) => {
+              if (!content) return "";
+              try {
+                const parsed = JSON.parse(content) as {
+                  tasks?: Record<string, string>;
+                  scripts?: Record<string, string>;
+                };
+                const cmds = parsed.tasks ?? parsed.scripts ?? {};
+                const devCmd = cmds.dev ?? cmds.start ?? "";
+                const portMatch = devCmd.match(/(?:--port|PORT=|:)(\d{4,5})/);
+                return portMatch?.[1] ?? "";
+              } catch {
+                return "";
+              }
+            };
+
             if (detected === "deno") {
-              for (const denoFile of ["deno.json", "deno.jsonc"]) {
-                const content = await getFileContent(denoFile);
-                if (content) {
-                  try {
-                    const deno = JSON.parse(content) as {
-                      tasks?: Record<string, string>;
-                    };
-                    const tasks = deno.tasks ?? {};
-                    const devTask = tasks.dev ?? tasks.start ?? "";
-                    const portMatch = devTask.match(
-                      /(?:--port|PORT=|:)(\d{4,5})/,
-                    );
-                    if (portMatch?.[1]) devPort = portMatch[1];
-                  } catch {
-                    // Invalid JSON
-                  }
-                  break;
-                }
-              }
+              devPort =
+                extractPort(files.get("deno.json") ?? null) ||
+                extractPort(files.get("deno.jsonc") ?? null);
             } else {
-              const pkgContent = await getFileContent("package.json");
-              if (pkgContent) {
-                try {
-                  const pkg = JSON.parse(pkgContent) as {
-                    scripts?: Record<string, string>;
-                  };
-                  const scripts = pkg.scripts ?? {};
-                  const devScript = scripts.dev ?? scripts.start ?? "";
-                  const portMatch = devScript.match(
-                    /(?:--port|PORT=|:)(\d{4,5})/,
-                  );
-                  if (portMatch?.[1]) devPort = portMatch[1];
-                } catch {
-                  // Invalid JSON
-                }
-              }
+              devPort = extractPort(files.get("package.json") ?? null);
             }
           }
 
@@ -298,19 +287,42 @@ export function PickerContent({ onComplete }: { onComplete: () => void }) {
           });
         };
 
-        Promise.allSettled([fetchInstructions(), detectRuntime()]).then(() => {
-          queryClient.invalidateQueries({
-            predicate: (query) => {
-              const key = query.queryKey;
-              return (
-                key[1] === org.id &&
-                key[3] === "collection" &&
-                key[4] === "VIRTUAL_MCP"
-              );
-            },
+        // Fetch all files in parallel, then run detection from the results
+        const allPaths = [
+          "AGENTS.md",
+          "CLAUDE.md",
+          "deno.json",
+          "deno.jsonc",
+          "bun.lock",
+          "bunfig.toml",
+          "pnpm-lock.yaml",
+          "yarn.lock",
+          "package-lock.json",
+          "package.json",
+        ];
+        Promise.all(
+          allPaths.map(async (p) => [p, await getFileContent(p)] as const),
+        )
+          .then((entries) => {
+            const files = new Map(entries);
+            return Promise.allSettled([
+              fetchInstructions(files),
+              detectRuntime(files),
+            ]);
+          })
+          .then(() => {
+            queryClient.invalidateQueries({
+              predicate: (query) => {
+                const key = query.queryKey;
+                return (
+                  key[1] === org.id &&
+                  key[3] === "collection" &&
+                  key[4] === "VIRTUAL_MCP"
+                );
+              },
+            });
+            onComplete();
           });
-          onComplete();
-        });
       } else {
         onComplete();
       }
