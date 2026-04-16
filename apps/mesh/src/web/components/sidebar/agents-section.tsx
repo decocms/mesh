@@ -413,7 +413,7 @@ function PinAgentPopoverContent({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="flex items-center justify-center size-5 rounded border border-border text-muted-foreground hover:text-foreground transition-colors"
+                className="flex items-center justify-center size-5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
               >
                 <Plus size={14} />
               </button>
