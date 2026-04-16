@@ -12,6 +12,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
+import { invalidateVirtualMcpQueries } from "@/web/lib/query-keys";
 import {
   useProjectContext,
   useMCPClient,
@@ -221,16 +222,7 @@ function PickerContent({ onComplete }: { onComplete: () => void }) {
           },
         });
 
-        queryClient.invalidateQueries({
-          predicate: (query) => {
-            const key = query.queryKey;
-            return (
-              key[1] === org.id &&
-              key[3] === "collection" &&
-              key[4] === "VIRTUAL_MCP"
-            );
-          },
-        });
+        invalidateVirtualMcpQueries(queryClient, org.id);
       })
       .catch((err) => {
         console.error("GitHub repo file detection failed:", err);
@@ -295,16 +287,7 @@ function PickerContent({ onComplete }: { onComplete: () => void }) {
         ),
         { item },
       );
-      queryClient.invalidateQueries({
-        predicate: (query) => {
-          const key = query.queryKey;
-          return (
-            key[1] === org.id &&
-            key[3] === "collection" &&
-            key[4] === "VIRTUAL_MCP"
-          );
-        },
-      });
+      invalidateVirtualMcpQueries(queryClient, org.id);
 
       // Navigate immediately, detect runtime/instructions in background
       onComplete();

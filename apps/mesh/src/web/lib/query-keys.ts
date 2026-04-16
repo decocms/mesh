@@ -340,3 +340,19 @@ export const KEYS = {
       query,
     ] as const,
 } as const;
+
+export function invalidateVirtualMcpQueries(
+  queryClient: import("@tanstack/react-query").QueryClient,
+  orgId?: string,
+) {
+  queryClient.invalidateQueries({
+    predicate: (query) => {
+      const key = query.queryKey;
+      return (
+        (!orgId || key[1] === orgId) &&
+        key[3] === "collection" &&
+        key[4] === "VIRTUAL_MCP"
+      );
+    },
+  });
+}

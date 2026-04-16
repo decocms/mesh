@@ -6,6 +6,7 @@ import {
   SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 import { useQueryClient } from "@tanstack/react-query";
+import { invalidateVirtualMcpQueries } from "@/web/lib/query-keys";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import {
   Loading01,
@@ -242,12 +243,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
       vmDataRef.current = data;
       setStatus("running");
       setStatusLabel("");
-      queryClient.invalidateQueries({
-        predicate: (query) => {
-          const key = query.queryKey;
-          return key[3] === "collection" && key[4] === "VIRTUAL_MCP";
-        },
-      });
+      invalidateVirtualMcpQueries(queryClient);
     } catch (error) {
       setStatus("error");
       setErrorMsg(
@@ -275,12 +271,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     }
 
     setStatus("idle");
-    queryClient.invalidateQueries({
-      predicate: (query) => {
-        const key = query.queryKey;
-        return key[3] === "collection" && key[4] === "VIRTUAL_MCP";
-      },
-    });
+    invalidateVirtualMcpQueries(queryClient);
   };
 
   // Detect suspension via SSE disconnect
@@ -331,12 +322,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
           },
         },
       });
-      queryClient.invalidateQueries({
-        predicate: (query) => {
-          const key = query.queryKey;
-          return key[3] === "collection" && key[4] === "VIRTUAL_MCP";
-        },
-      });
+      invalidateVirtualMcpQueries(queryClient);
     } catch {
       toast.error("Failed to update setting");
     }
