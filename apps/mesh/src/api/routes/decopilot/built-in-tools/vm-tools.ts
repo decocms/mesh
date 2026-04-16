@@ -61,6 +61,12 @@ async function daemonPost(
     );
   }
   if (!res.ok) {
+    console.error(
+      "[vm-tools:daemonPost] Non-OK response endpoint=%s status=%d body=%s",
+      endpoint,
+      res.status,
+      rawText.slice(0, 2000),
+    );
     throw new Error(
       (json as { error?: string }).error ??
         `Daemon ${endpoint} failed (${res.status})`,
