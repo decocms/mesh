@@ -8,7 +8,7 @@
 import { useSearch } from "@tanstack/react-router";
 import { TasksPanel } from "@/web/layouts/tasks-panel";
 
-const TASKS_COLUMN_WIDTH_PX = 212;
+const TASKS_COLUMN_WIDTH_PX = 240;
 
 export function TasksPanelColumn() {
   const search = useSearch({ strict: false }) as { tasks?: number };
@@ -16,7 +16,7 @@ export function TasksPanelColumn() {
   if (!open) return null;
   return (
     <aside
-      className="shrink-0 h-full border-r border-sidebar bg-sidebar"
+      className="shrink-0 h-full bg-sidebar pb-1"
       style={{ width: `${TASKS_COLUMN_WIDTH_PX}px` }}
     >
       <div className="h-full p-0.5">
