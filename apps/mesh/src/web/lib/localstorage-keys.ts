@@ -38,4 +38,6 @@ export const LOCALSTORAGE_KEYS = {
     `mesh:chat:task-last-viewed:${locator}`,
   agentLastSeen: (orgId: string) => `mesh:agent:last-seen:${orgId}`,
   agentLastUpdated: (orgId: string) => `mesh:agent:last-updated:${orgId}`,
+  automationsSectionCollapsed: (orgId: string) =>
+    `mesh:tasks-panel:automations-collapsed:${orgId}`,
 } as const;
