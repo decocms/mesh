@@ -181,7 +181,7 @@ const agentShellLayout = createRoute({
   getParentRoute: () => orgLayout,
   id: "agent-shell",
   component: lazyRouteComponent(
-    () => import("./layouts/agent-shell-layout.tsx"),
+    () => import("./layouts/agent-shell-layout/index.tsx"),
   ),
 });
 
