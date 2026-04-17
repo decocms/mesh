@@ -37,6 +37,21 @@ export type ThreadMessageEntity = z.infer<typeof ThreadMessageEntitySchema>;
 // Thread Schema
 // ============================================================================
 
+export const ThreadExpandedToolSchema = z.object({
+  toolName: z.string().describe("Fully qualified tool name"),
+  appId: z.string().describe("App ID that owns the tool"),
+  args: z
+    .record(z.string(), z.unknown())
+    .describe("Arguments used when expanding the tool"),
+  expandedAt: z.string().datetime().describe("When the tool was expanded"),
+});
+
+export const ThreadMetadataSchema = z
+  .object({
+    expanded_tools: z.array(ThreadExpandedToolSchema).optional(),
+  })
+  .catchall(z.unknown());
+
 export const ThreadEntitySchema = z.object({
   id: z.string().describe("Unique thread ID"),
   organization_id: z.string().describe("Organization this thread belongs to"),
@@ -59,6 +74,9 @@ export const ThreadEntitySchema = z.object({
     .string()
     .optional()
     .describe("Virtual MCP (agent) this thread was initiated with"),
+  metadata: ThreadMetadataSchema.optional().describe(
+    "Free-form per-thread UI state (e.g. expanded_tools)",
+  ),
   // Typed as a loose record to stay compatible with the Kysely storage type
   // (Thread.run_config: Record<string, unknown> | null). Callers that need the
   // typed shape should parse with PersistedRunConfigSchema from run-config.ts.
@@ -93,6 +111,9 @@ export const ThreadUpdateDataSchema = z.object({
     .describe(
       "New thread status (user-set override). 'expired' is a computed virtual status and cannot be set directly.",
     ),
+  metadata: ThreadMetadataSchema.optional().describe(
+    "Full replacement of the thread's metadata object",
+  ),
 });
 
 export type ThreadUpdateData = z.infer<typeof ThreadUpdateDataSchema>;
