@@ -208,7 +208,6 @@ function UnifiedPanelGroup({
   virtualMcpId,
   taskId,
   isDecopilot,
-  tasksVirtualMcpId,
   tasksOpen,
   mainOpen,
   chatOpen,
@@ -216,7 +215,6 @@ function UnifiedPanelGroup({
   virtualMcpId: string;
   taskId: string;
   isDecopilot: boolean;
-  tasksVirtualMcpId: string;
   tasksOpen: boolean;
   mainOpen: boolean;
   chatOpen: boolean;
@@ -243,11 +241,7 @@ function UnifiedPanelGroup({
       <TasksResizablePanel defaultSize={sizes.tasks}>
         <div className="h-full p-0.5">
           <div className="h-full bg-background rounded-[0.75rem] overflow-hidden card-shadow">
-            <TasksPanel
-              virtualMcpId={tasksVirtualMcpId}
-              hideProjectHeader={isDecopilot}
-              showAutomations={!isDecopilot}
-            />
+            <TasksPanel />
           </div>
         </div>
       </TasksResizablePanel>
@@ -365,9 +359,6 @@ function AgentInsetProvider() {
     tasks.length,
   );
 
-  // Tasks panel virtualMcpId
-  const tasksVirtualMcpId = virtualMcpId;
-
   const { setOpenMobile, openMobile: mobileSidebarOpen } = useSidebar();
   const setMobileSidebarOpen = setOpenMobile;
 
@@ -443,11 +434,7 @@ function AgentInsetProvider() {
             </div>
             {/* Tasks / agent panel */}
             <div className="flex-1 min-w-0 overflow-hidden">
-              <TasksPanel
-                virtualMcpId={showThreePanels ? tasksVirtualMcpId : undefined}
-                hideProjectHeader={isDecopilot}
-                showAutomations={!isDecopilot}
-              />
+              <TasksPanel />
             </div>
           </div>
         </SheetContent>
@@ -615,7 +602,6 @@ function AgentInsetProvider() {
           virtualMcpId={virtualMcpId}
           taskId={layout.taskId}
           isDecopilot={isDecopilot}
-          tasksVirtualMcpId={tasksVirtualMcpId}
           tasksOpen={layout.tasksOpen}
           mainOpen={layout.mainOpen}
           chatOpen={layout.chatOpen}
