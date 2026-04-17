@@ -6,22 +6,11 @@ import {
 } from "./use-layout-state";
 
 describe("resolveDefaultPanelState", () => {
-  test("no tasks, no metadata → tasks closed, main closed, chat open", () => {
+  test("no metadata → tasks open, main closed, chat open", () => {
     expect(
       resolveDefaultPanelState({
         entityMetadata: null,
         mainParamPresent: false,
-        taskCount: 0,
-      }),
-    ).toEqual({ tasksOpen: false, mainOpen: false, chatOpen: true });
-  });
-
-  test("has tasks → tasks open", () => {
-    expect(
-      resolveDefaultPanelState({
-        entityMetadata: null,
-        mainParamPresent: false,
-        taskCount: 3,
       }),
     ).toEqual({ tasksOpen: true, mainOpen: false, chatOpen: true });
   });
@@ -31,9 +20,8 @@ describe("resolveDefaultPanelState", () => {
       resolveDefaultPanelState({
         entityMetadata: { defaultMainView: { type: "ext-app", id: "x" } },
         mainParamPresent: false,
-        taskCount: 0,
       }),
-    ).toEqual({ tasksOpen: false, mainOpen: true, chatOpen: true });
+    ).toEqual({ tasksOpen: true, mainOpen: true, chatOpen: true });
   });
 
   test("?main=0 → main closed regardless of default", () => {
@@ -42,9 +30,8 @@ describe("resolveDefaultPanelState", () => {
         entityMetadata: { defaultMainView: { type: "settings" } },
         mainParamPresent: true,
         mainParamValue: "0",
-        taskCount: 0,
       }),
-    ).toEqual({ tasksOpen: false, mainOpen: false, chatOpen: true });
+    ).toEqual({ tasksOpen: true, mainOpen: false, chatOpen: true });
   });
 
   test("?main=<tabId> → main open", () => {
@@ -53,9 +40,8 @@ describe("resolveDefaultPanelState", () => {
         entityMetadata: null,
         mainParamPresent: true,
         mainParamValue: "layout",
-        taskCount: 0,
       }),
-    ).toEqual({ tasksOpen: false, mainOpen: true, chatOpen: true });
+    ).toEqual({ tasksOpen: true, mainOpen: true, chatOpen: true });
   });
 
   test("chatDefaultOpen = false → chat closed", () => {
@@ -66,9 +52,8 @@ describe("resolveDefaultPanelState", () => {
           chatDefaultOpen: false,
         },
         mainParamPresent: false,
-        taskCount: 0,
       }),
-    ).toEqual({ tasksOpen: false, mainOpen: true, chatOpen: false });
+    ).toEqual({ tasksOpen: true, mainOpen: true, chatOpen: false });
   });
 });
 

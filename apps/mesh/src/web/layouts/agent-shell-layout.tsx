@@ -8,7 +8,6 @@
 
 import { createContext, use, useEffect, useLayoutEffect, useRef } from "react";
 import { Chat, useChatTask } from "@/web/components/chat/index";
-import { useTasks } from "@/web/components/chat/task/use-task-manager";
 import { ChatCenterPanel } from "@/web/layouts/chat-center-panel";
 import { TasksPanel } from "@/web/layouts/tasks-panel";
 import { ErrorBoundary } from "@/web/components/error-boundary";
@@ -343,21 +342,14 @@ function AgentInsetProvider() {
       }
     : null;
 
-  // Fetch task count for default panel state (deduped with TaskListContent's fetch).
-  const { tasks } = useTasks({
-    owner: "all",
-    status: "open",
-    virtualMcpId,
-  });
-
   // Layout state from URL querystring.
   // Route context is passed explicitly because usePanelState runs inside a pathless
   // layout that cannot see child route params via useMatch.
-  const layout = usePanelState(
-    entityMetadata,
-    { virtualMcpId, orgSlug, isAgentRoute },
-    tasks.length,
-  );
+  const layout = usePanelState(entityMetadata, {
+    virtualMcpId,
+    orgSlug,
+    isAgentRoute,
+  });
 
   const { setOpenMobile, openMobile: mobileSidebarOpen } = useSidebar();
   const setMobileSidebarOpen = setOpenMobile;

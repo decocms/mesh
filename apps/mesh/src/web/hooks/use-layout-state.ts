@@ -59,14 +59,13 @@ export function resolveDefaultPanelState(ctx: {
   entityMetadata: EntityLayoutMetadata | null;
   mainParamPresent: boolean;
   mainParamValue?: string;
-  taskCount: number;
 }): { tasksOpen: boolean; mainOpen: boolean; chatOpen: boolean } {
   const mainOpen = ctx.mainParamPresent
     ? ctx.mainParamValue !== "0"
     : ctx.entityMetadata?.defaultMainView != null;
 
   return {
-    tasksOpen: ctx.taskCount > 0,
+    tasksOpen: true,
     mainOpen,
     chatOpen: ctx.entityMetadata?.chatDefaultOpen ?? true,
   };
@@ -129,7 +128,6 @@ export interface PanelStateRouteCtx {
 export function usePanelState(
   entityMetadata: EntityLayoutMetadata | null,
   routeCtx: PanelStateRouteCtx,
-  taskCount: number,
 ): LayoutState & LayoutActions {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as PanelSearchParams;
@@ -144,7 +142,6 @@ export function usePanelState(
     entityMetadata,
     mainParamPresent: search.main !== undefined,
     mainParamValue: search.main,
-    taskCount,
   });
 
   const tasksOpen = parsePanelParam(search.tasks, defaults.tasksOpen);
