@@ -514,6 +514,7 @@ interface ConnectionWithTools {
 
 function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   const { org } = useProjectContext();
+  const navigate = useNavigate();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
@@ -588,7 +589,6 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
             id?: string;
             toolName?: string;
           } | null;
-          chatDefaultOpen?: boolean | null;
         } | null;
       }
     | null
@@ -596,7 +596,6 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
 
   const serverPinned: PinnedView[] = uiMeta?.pinnedViews ?? [];
   const serverDefaultMain = uiMeta?.layout?.defaultMainView ?? null;
-  const serverChatDefaultOpen = uiMeta?.layout?.chatDefaultOpen ?? false;
 
   const serverDefaultMainKey = (() => {
     if (!serverDefaultMain || serverDefaultMain.type === "chat") return "chat";
@@ -608,9 +607,6 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   const [pinnedViews, setPinnedViews] = useState<PinnedView[]>(serverPinned);
   const [defaultMainView, setDefaultMainView] =
     useState<string>(serverDefaultMainKey);
-  const [chatDefaultOpen, setChatDefaultOpen] = useState<boolean>(
-    serverChatDefaultOpen,
-  );
   const [isSaving, setIsSaving] = useState(false);
 
   // Parse default main view from composite key
@@ -700,11 +696,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   }
 
   // Auto-save helper that persists given state
-  const saveLayout = (
-    nextPinned: PinnedView[],
-    nextDefaultMain: string,
-    nextChatDefaultOpen?: boolean,
-  ) => {
+  const saveLayout = (nextPinned: PinnedView[], nextDefaultMain: string) => {
     setIsSaving(true);
     const doSave = async () => {
       try {
@@ -715,7 +707,6 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
             pinnedViews: nextPinned,
             layout: {
               defaultMainView: parseDefaultMainView(nextDefaultMain),
-              chatDefaultOpen: nextChatDefaultOpen ?? chatDefaultOpen,
             },
           },
         });
@@ -867,36 +858,6 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
               </SelectContent>
             </Select>
           </div>
-
-          <div className="flex items-center justify-between gap-4">
-            <div className="space-y-0.5">
-              <Label className="font-normal text-foreground">Show chat</Label>
-              <p className="text-xs text-muted-foreground">
-                Display the chat panel alongside the main view
-              </p>
-            </div>
-            <Tooltip delayDuration={0}>
-              <TooltipTrigger asChild>
-                <span>
-                  <Switch
-                    checked={
-                      defaultMainView === "chat" ? true : chatDefaultOpen
-                    }
-                    disabled={defaultMainView === "chat"}
-                    onCheckedChange={(checked) => {
-                      setChatDefaultOpen(checked);
-                      saveLayout(pinnedViews, defaultMainView, checked);
-                    }}
-                  />
-                </span>
-              </TooltipTrigger>
-              {defaultMainView === "chat" && (
-                <TooltipContent side="top">
-                  Chat is always shown when it is the default view
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </div>
         </CardContent>
       </Card>
 
@@ -1005,13 +966,14 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
           <TooltipTrigger asChild>
             <Button
               onClick={() => {
-                const url = new URL(window.location.href);
-                const taskId = url.searchParams.get("taskId");
-                url.search = "";
-                if (taskId) {
-                  url.searchParams.set("taskId", taskId);
-                }
-                window.location.href = url.toString();
+                navigate({
+                  to: "/$org/$taskId",
+                  params: {
+                    org: org.slug,
+                    taskId: crypto.randomUUID(),
+                  },
+                  search: { virtualmcpid: virtualMcpId },
+                });
               }}
             >
               Test layout

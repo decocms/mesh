@@ -270,7 +270,6 @@ function PickerContent({ onComplete }: { onComplete: () => void }) {
                   defaultMainView: {
                     type: "preview",
                   },
-                  chatDefaultOpen: false,
                 },
               },
             },
