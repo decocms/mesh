@@ -5,7 +5,12 @@
  * the working area. Keyed by virtualMcpId + taskId; remounts on switch.
  */
 
-import { useEffect, useRef, useTransition, type PropsWithChildren } from "react";
+import {
+  useEffect,
+  useRef,
+  useTransition,
+  type PropsWithChildren,
+} from "react";
 import { cn } from "@deco/ui/lib/utils.js";
 import {
   ResizableHandle,
