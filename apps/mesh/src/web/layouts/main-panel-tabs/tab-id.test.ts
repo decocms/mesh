@@ -38,28 +38,6 @@ describe("resolveDefaultTabId", () => {
     expect(resolveDefaultTabId({ defaultMainView: null })).toBe("instructions");
   });
 
-  test("settings + id='instructions' → 'instructions'", () => {
-    expect(
-      resolveDefaultTabId({
-        defaultMainView: { type: "settings", id: "instructions" },
-      }),
-    ).toBe("instructions");
-  });
-
-  test("settings + id='connections' → 'connections'", () => {
-    expect(
-      resolveDefaultTabId({
-        defaultMainView: { type: "settings", id: "connections" },
-      }),
-    ).toBe("connections");
-  });
-
-  test("settings no id → 'instructions'", () => {
-    expect(resolveDefaultTabId({ defaultMainView: { type: "settings" } })).toBe(
-      "instructions",
-    );
-  });
-
   test("ext-app with id → id", () => {
     expect(
       resolveDefaultTabId({
@@ -76,6 +54,42 @@ describe("resolveDefaultTabId", () => {
         tabs: [{ id: "t1" }, { id: "t2" }],
       }),
     ).toBe("t1");
+  });
+
+  test("instructions → 'instructions'", () => {
+    expect(
+      resolveDefaultTabId({ defaultMainView: { type: "instructions" } }),
+    ).toBe("instructions");
+  });
+
+  test("connections → 'connections'", () => {
+    expect(
+      resolveDefaultTabId({ defaultMainView: { type: "connections" } }),
+    ).toBe("connections");
+  });
+
+  test("layout → 'layout'", () => {
+    expect(resolveDefaultTabId({ defaultMainView: { type: "layout" } })).toBe(
+      "layout",
+    );
+  });
+
+  test("env → 'env'", () => {
+    expect(resolveDefaultTabId({ defaultMainView: { type: "env" } })).toBe(
+      "env",
+    );
+  });
+
+  test("legacy settings → 'layout'", () => {
+    expect(
+      resolveDefaultTabId({ defaultMainView: { type: "settings" } }),
+    ).toBe("layout");
+  });
+
+  test("preview → 'preview'", () => {
+    expect(resolveDefaultTabId({ defaultMainView: { type: "preview" } })).toBe(
+      "preview",
+    );
   });
 
   test("unknown type falls back to 'instructions'", () => {

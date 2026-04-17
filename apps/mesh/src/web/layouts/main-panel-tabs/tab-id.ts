@@ -2,7 +2,7 @@
  * Pure helpers for the `?main=<tabId>|0` URL model.
  *
  * Tab id grammar:
- *   - Fixed system: "instructions" | "connections" | "layout" | "preview"
+ *   - Fixed system: "instructions" | "connections" | "layout" | "env" | "preview"
  *   - Agent-declared: <agentTab.id> (from virtualMcp.metadata.ui.layout.tabs)
  *   - Expanded-from-chat: <toolName> (from task.metadata.expanded_tools)
  *   - Ephemeral automation: "automation:<id>" (id="new" = draft)
@@ -32,8 +32,11 @@ export const FIXED_SYSTEM_TABS = [
   "instructions",
   "connections",
   "layout",
+  "env",
   "preview",
 ] as const;
+
+const FIXED_SYSTEM_TAB_SET = new Set<string>(FIXED_SYSTEM_TABS);
 
 export function resolveDefaultTabId(
   metadata: EntityLayoutMetadata | null,
@@ -41,14 +44,15 @@ export function resolveDefaultTabId(
   const def = metadata?.defaultMainView ?? null;
   if (!def) return "instructions";
 
-  if (def.type === "preview") return "preview";
+  // Direct mapping for any fixed system tab id.
+  if (FIXED_SYSTEM_TAB_SET.has(def.type)) return def.type;
+
+  // Legacy: "settings" used to be its own tab; the settings card now
+  // lives inside the Layout tab.
+  if (def.type === "settings") return "layout";
 
   if (def.type === "ext-app" || def.type === "ext-apps") {
     return def.id ?? metadata?.tabs?.[0]?.id ?? "instructions";
-  }
-
-  if (def.type === "settings") {
-    return def.id ?? "instructions";
   }
 
   return metadata?.tabs?.[0]?.id ?? "instructions";
