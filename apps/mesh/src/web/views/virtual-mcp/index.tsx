@@ -821,12 +821,19 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   // Check if virtual MCP has an active GitHub repo (enables preview)
   const hasGithubRepo = !!getActiveGithubRepo(virtualMcp);
 
-  // Build options for default main view selector
+  // Build options for the default main view selector.
+  // Order mirrors the right-panel tab order in the unified chat layout:
+  // Chat (no main panel), then fixed system tabs, then pinned ext-apps.
+  // Terminal and Preview are gated behind an active GitHub repo,
+  // matching the gating in main-panel-tabs/index.tsx.
   const defaultMainOptions: { value: string; label: string }[] = [
     { value: "chat", label: "Chat" },
-    { value: "settings", label: "Settings" },
+    { value: "instructions", label: "Instructions" },
+    { value: "connections", label: "Connections" },
+    { value: "layout", label: "Layout" },
   ];
   if (hasGithubRepo) {
+    defaultMainOptions.push({ value: "env", label: "Terminal" });
     defaultMainOptions.push({ value: "preview", label: "Preview" });
   }
   for (const pv of pinnedViews) {
