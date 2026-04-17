@@ -47,14 +47,6 @@ export interface LayoutActions {
 // Pure helpers (exported for testing)
 // ---------------------------------------------------------------------------
 
-export function canToggle(
-  panelIsOpen: boolean,
-  expandedCount: number,
-): boolean {
-  if (panelIsOpen && expandedCount <= 1) return false;
-  return true;
-}
-
 export function resolveTasksOpen(
   urlParam: number | undefined,
   hasItems: boolean,
@@ -125,6 +117,7 @@ export interface PanelStateRouteCtx {
 export function usePanelState(
   entityMetadata: EntityLayoutMetadata | null,
   routeCtx: PanelStateRouteCtx,
+  tasksHasItems: boolean,
 ): LayoutState & LayoutActions {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as PanelSearchParams;
@@ -141,14 +134,12 @@ export function usePanelState(
     mainParamValue: search.main,
   });
 
-  const tasksOpen = parsePanelParam(search.tasks, defaults.tasksOpen);
+  const tasksOpen = resolveTasksOpen(search.tasks, tasksHasItems);
   const chatOpen = parsePanelParam(search.chat, defaults.chatOpen);
   const mainOpen = defaults.mainOpen;
 
   const fallbackRef = useRef(crypto.randomUUID());
   const taskId = routeParamsRaw.taskId ?? fallbackRef.current;
-
-  const expandedCount = [tasksOpen, mainOpen, chatOpen].filter(Boolean).length;
 
   const routeBase = "/$org/$taskId" as const;
   const makeParams = (tid: string) => ({ org: orgSlug, taskId: tid });
@@ -181,12 +172,10 @@ export function usePanelState(
   };
 
   const toggleTasks = () => {
-    if (!canToggle(tasksOpen, expandedCount)) return;
-    navigateSearch({ tasks: !tasksOpen ? 1 : 0 }, { replace: true });
+    navigateSearch({ tasks: tasksOpen ? 0 : 1 }, { replace: true });
   };
 
   const toggleMain = () => {
-    if (!canToggle(mainOpen, expandedCount)) return;
     if (mainOpen) {
       navigateSearch({ main: "0" }, { replace: true });
     } else {
@@ -198,8 +187,7 @@ export function usePanelState(
   };
 
   const toggleChat = () => {
-    if (!canToggle(chatOpen, expandedCount)) return;
-    navigateSearch({ chat: !chatOpen ? 1 : 0 }, { replace: true });
+    navigateSearch({ chat: chatOpen ? 0 : 1 }, { replace: true });
   };
 
   const openChat = () => {

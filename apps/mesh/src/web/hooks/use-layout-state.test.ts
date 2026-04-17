@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import {
-  canToggle,
   computeChatMainSizes,
   resolveDefaultPanelState,
   resolveTasksOpen,
@@ -52,19 +51,6 @@ describe("resolveDefaultPanelState", () => {
         mainParamValue: "layout",
       }),
     ).toEqual({ mainOpen: true, chatOpen: true });
-  });
-});
-
-describe("canToggle", () => {
-  test("panel open, expandedCount = 1 → false", () => {
-    expect(canToggle(true, 1)).toBe(false);
-  });
-  test("panel open, expandedCount = 2 → true", () => {
-    expect(canToggle(true, 2)).toBe(true);
-  });
-  test("panel closed → true", () => {
-    expect(canToggle(false, 0)).toBe(true);
-    expect(canToggle(false, 3)).toBe(true);
   });
 });
 
