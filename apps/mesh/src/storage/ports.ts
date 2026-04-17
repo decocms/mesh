@@ -46,7 +46,18 @@ export interface ThreadStoragePort {
   list(
     organizationId: string,
     createdBy?: string,
-    options?: { limit?: number; offset?: number },
+    options?: {
+      limit?: number;
+      offset?: number;
+      virtualMcpId?: string;
+      startDate?: string;
+      endDate?: string;
+      search?: string;
+      status?: string;
+      agentId?: string;
+      includeArchived?: boolean;
+      hasTrigger?: boolean;
+    },
   ): Promise<{ threads: Thread[]; total: number }>;
   listByTriggerIds(
     organizationId: string,

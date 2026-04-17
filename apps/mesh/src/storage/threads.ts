@@ -82,6 +82,8 @@ export class OrgScopedThreadStorage {
       search?: string;
       status?: string;
       agentId?: string;
+      includeArchived?: boolean;
+      hasTrigger?: boolean;
     },
   ): Promise<{ threads: Thread[]; total: number }> {
     return this.inner.list(this.requireOrg(), createdBy, options);
@@ -267,13 +269,16 @@ export class SqlThreadStorage implements ThreadStoragePort {
       search?: string;
       status?: string;
       agentId?: string;
+      includeArchived?: boolean;
+      hasTrigger?: boolean;
     },
   ): Promise<{ threads: Thread[]; total: number }> {
+    const archived = options?.includeArchived === true;
     let query = this.db
       .selectFrom("threads")
       .selectAll()
       .where("organization_id", "=", organizationId)
-      .where("hidden", "=", false)
+      .where("hidden", "=", archived)
       .orderBy("updated_at", "desc");
 
     if (createdBy) {
@@ -282,6 +287,11 @@ export class SqlThreadStorage implements ThreadStoragePort {
     const virtualMcpFilter = options?.virtualMcpId ?? options?.agentId;
     if (virtualMcpFilter) {
       query = query.where("virtual_mcp_id", "=", virtualMcpFilter);
+    }
+    if (options?.hasTrigger === true) {
+      query = query.where("trigger_id", "is not", null);
+    } else if (options?.hasTrigger === false) {
+      query = query.where("trigger_id", "is", null);
     }
     if (options?.startDate) {
       // updated_at is stored as ISO text — string comparison is correct for ISO dates
@@ -309,13 +319,18 @@ export class SqlThreadStorage implements ThreadStoragePort {
       .selectFrom("threads")
       .select((eb) => eb.fn.count("id").as("count"))
       .where("organization_id", "=", organizationId)
-      .where("hidden", "=", false);
+      .where("hidden", "=", archived);
 
     if (createdBy) {
       countQuery = countQuery.where("created_by", "=", createdBy);
     }
     if (virtualMcpFilter) {
       countQuery = countQuery.where("virtual_mcp_id", "=", virtualMcpFilter);
+    }
+    if (options?.hasTrigger === true) {
+      countQuery = countQuery.where("trigger_id", "is not", null);
+    } else if (options?.hasTrigger === false) {
+      countQuery = countQuery.where("trigger_id", "is", null);
     }
     if (options?.startDate) {
       countQuery = countQuery.where(

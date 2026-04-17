@@ -21,6 +21,10 @@ const ThreadListInputSchema = CollectionListInputSchema.extend({
       created_by: z.string().optional(),
       trigger_ids: z.array(z.string()).optional(),
       virtual_mcp_id: z.string().optional(),
+      /** Show archived (hidden=true) threads instead of open ones */
+      hidden: z.boolean().optional(),
+      /** Filter by presence of a trigger_id (automation-owned) */
+      has_trigger: z.boolean().optional(),
     })
     .optional(),
   startDate: z
@@ -101,6 +105,8 @@ export const COLLECTION_THREADS_LIST = defineTool({
           search: input.search,
           status: input.status,
           agentId: input.agentId,
+          includeArchived: input.where?.hidden,
+          hasTrigger: input.where?.has_trigger,
         });
 
     const hasMore = offset + limit < total;

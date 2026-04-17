@@ -7,51 +7,49 @@ import { KEYS } from "../../../lib/query-keys";
 import type { ChatMessage, Task, TasksQueryData } from "./types.ts";
 import { TASK_CONSTANTS } from "./types.ts";
 
+export interface TaskCacheFilters {
+  owner: "me" | "automation" | "all";
+  status: "open" | "archived";
+  virtualMcpId?: string;
+  userId?: string | null;
+}
+
 /**
- * Update task in React Query cache
+ * Update task across every cached task list where it appears.
+ * Returns true if the task was found (and updated) in any cache entry.
  */
 export function updateTaskInCache(
   queryClient: QueryClient,
   locator: string,
   taskId: string,
   updates: Partial<Task>,
-  ownerFilter?: "me" | "everyone",
-  userId?: string | null,
-  virtualMcpId?: string,
-): void {
-  const queryKey = KEYS.tasks(locator, ownerFilter, userId, virtualMcpId);
+): boolean {
+  let found = false;
+  queryClient.setQueriesData<TasksQueryData>(
+    { queryKey: KEYS.tasksPrefix(locator) },
+    (data) => {
+      if (!data) return data;
+      const idx = data.items.findIndex((t) => t.id === taskId);
+      if (idx === -1) return data;
 
-  const currentData = queryClient.getQueryData<TasksQueryData>(queryKey);
+      const current = data.items[idx];
+      if (!current) return data;
 
-  if (!currentData) {
-    return;
-  }
+      const next: Task = {
+        ...current,
+        title: updates.title ?? current.title,
+        updated_at: updates.updated_at ?? current.updated_at,
+        hidden: updates.hidden ?? current.hidden,
+        status: updates.status ?? current.status,
+      };
 
-  const taskIndex = currentData.items.findIndex((task) => task.id === taskId);
-  if (taskIndex === -1) {
-    return;
-  }
-
-  const currentTask = currentData.items[taskIndex];
-  if (!currentTask) {
-    return;
-  }
-
-  const updatedTask: Task = {
-    ...currentTask,
-    title: updates.title ?? currentTask.title,
-    updated_at: updates.updated_at ?? currentTask.updated_at,
-    hidden: updates.hidden ?? currentTask.hidden,
-    status: updates.status ?? currentTask.status,
-  };
-
-  const updatedItems = [...currentData.items];
-  updatedItems[taskIndex] = updatedTask;
-
-  queryClient.setQueryData(queryKey, {
-    ...currentData,
-    items: updatedItems,
-  });
+      const items = [...data.items];
+      items[idx] = next;
+      found = true;
+      return { ...data, items };
+    },
+  );
+  return found;
 }
 
 /**
@@ -61,11 +59,9 @@ export function addTaskToCache(
   queryClient: QueryClient,
   locator: string,
   task: Task,
-  ownerFilter?: "me" | "everyone",
-  userId?: string | null,
-  virtualMcpId?: string,
+  filters: TaskCacheFilters,
 ): void {
-  const queryKey = KEYS.tasks(locator, ownerFilter, userId, virtualMcpId);
+  const queryKey = KEYS.tasks(locator, filters);
 
   const currentData = queryClient.getQueryData<TasksQueryData>(queryKey);
 

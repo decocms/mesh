@@ -96,10 +96,16 @@ function TruncatedText({
 export function OwnerFilter() {
   const { ownerFilter, setOwnerFilter, isFilterChangePending } = useChatTask();
 
-  const isFiltered = ownerFilter === "me";
+  const isMine = ownerFilter === "me";
+  const title =
+    ownerFilter === "me"
+      ? "My tasks"
+      : ownerFilter === "automation"
+        ? "Automations"
+        : "All tasks";
   const Icon = isFilterChangePending
     ? Loading01
-    : isFiltered
+    : isMine
       ? UserIcon
       : UsersIcon;
 
@@ -109,7 +115,7 @@ export function OwnerFilter() {
         <button
           type="button"
           className="flex size-7 shrink-0 items-center justify-center rounded-md transition-colors text-muted-foreground hover:bg-accent hover:text-foreground"
-          title={isFiltered ? "My tasks" : "All tasks"}
+          title={title}
           disabled={isFilterChangePending}
         >
           <Icon
@@ -124,9 +130,10 @@ export function OwnerFilter() {
           onValueChange={(v) => setOwnerFilter(v as TaskOwnerFilter)}
         >
           <DropdownMenuRadioItem value="me">My tasks</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="everyone">
-            All tasks
+          <DropdownMenuRadioItem value="automation">
+            Automations
           </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="all">All tasks</DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -455,11 +462,12 @@ export function TaskListContent({
   // Own task list fetch — shares TanStack Query cache with ChatContextProvider
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
-  const { tasks } = useTasks(
-    ownerFilter,
-    ownerFilter === "me" ? userId : undefined,
-    virtualMcpId ?? "",
-  );
+  const { tasks } = useTasks({
+    owner: ownerFilter,
+    status: "open",
+    userId,
+    virtualMcpId: virtualMcpId ?? undefined,
+  });
 
   const visible = tasks
     .filter((t) => !t.hidden)

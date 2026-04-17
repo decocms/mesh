@@ -29,20 +29,24 @@ import {
 } from "./cache-operations.ts";
 import { buildOptimisticTask, callUpdateTaskTool } from "./helpers.ts";
 import { useState, useTransition } from "react";
-import type { ChatMessage, Task, TasksQueryData } from "./types.ts";
+import type { ChatMessage, Task } from "./types.ts";
 import { TASK_CONSTANTS } from "./types.ts";
 
-export type TaskOwnerFilter = "me" | "everyone";
+export type TaskOwnerFilter = "me" | "automation" | "all";
+export type TaskStatusFilter = "open" | "archived";
+
+export interface UseTasksParams {
+  owner: TaskOwnerFilter;
+  status: TaskStatusFilter;
+  userId?: string;
+  virtualMcpId?: string;
+}
 
 // ============================================================================
-// useTasks — fetch task list scoped by virtualMcpId
+// useTasks — fetch task list across agents, filtered by owner/status
 // ============================================================================
 
-export function useTasks(
-  ownerFilter: TaskOwnerFilter,
-  userId: string | undefined,
-  virtualMcpId: string,
-) {
+export function useTasks(params: UseTasksParams) {
   const { locator, org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -50,24 +54,28 @@ export function useTasks(
   });
 
   const { data, refetch } = useSuspenseQuery({
-    queryKey: KEYS.tasks(
-      locator,
-      ownerFilter,
-      ownerFilter === "me" ? userId : undefined,
-      virtualMcpId,
-    ),
+    queryKey: KEYS.tasks(locator, {
+      owner: params.owner,
+      status: params.status,
+      virtualMcpId: params.virtualMcpId,
+      userId: params.owner === "me" ? (params.userId ?? null) : null,
+    }),
     queryFn: async () => {
       if (!client) {
         throw new Error("MCP client is not available");
       }
+      const where: Record<string, unknown> = {
+        hidden: params.status === "archived",
+      };
+      if (params.virtualMcpId) where.virtual_mcp_id = params.virtualMcpId;
+      if (params.owner === "me") where.created_by = "me";
+      if (params.owner === "automation") where.has_trigger = true;
+
       const input = {
         limit: TASK_CONSTANTS.TASKS_PAGE_SIZE,
         offset: 0,
         orderBy: [{ field: ["updated_at"], direction: "desc" as const }],
-        where: {
-          ...(ownerFilter === "me" && { created_by: "me" }),
-          virtual_mcp_id: virtualMcpId,
-        },
+        where,
       };
 
       const result = (await client.callTool({
@@ -127,13 +135,19 @@ export function useTaskManager(virtualMcpId: string) {
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
 
-  // Owner filter (localStorage-backed)
+  // Owner filter (localStorage-backed). Legacy "everyone" migrated to "all".
   const readStoredFilter = (loc: ProjectLocator): TaskOwnerFilter => {
     try {
       const stored = localStorage.getItem(
         LOCALSTORAGE_KEYS.chatTaskOwnerFilter(loc),
       );
-      return stored ? (JSON.parse(stored) as TaskOwnerFilter) : "me";
+      if (!stored) return "me";
+      const parsed = JSON.parse(stored);
+      if (parsed === "everyone") return "all";
+      if (parsed === "me" || parsed === "automation" || parsed === "all") {
+        return parsed;
+      }
+      return "me";
     } catch {
       return "me";
     }
@@ -163,8 +177,13 @@ export function useTaskManager(virtualMcpId: string) {
     }
   };
 
-  // Fetch tasks (scoped by virtualMcpId)
-  const { tasks } = useTasks(ownerFilter, userId, virtualMcpId);
+  // Fetch tasks (scoped by virtualMcpId, open status)
+  const { tasks } = useTasks({
+    owner: ownerFilter,
+    status: "open",
+    userId,
+    virtualMcpId,
+  });
 
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -175,14 +194,12 @@ export function useTaskManager(virtualMcpId: string) {
   const createTask = (): string => {
     const newTaskId = crypto.randomUUID();
     const optimisticTask = buildOptimisticTask(newTaskId, virtualMcpId);
-    addTaskToCache(
-      queryClient,
-      locator,
-      optimisticTask,
-      ownerFilter,
-      ownerFilter === "me" ? userId : undefined,
+    addTaskToCache(queryClient, locator, optimisticTask, {
+      owner: ownerFilter,
+      status: "open",
       virtualMcpId,
-    );
+      userId: ownerFilter === "me" ? (userId ?? null) : null,
+    });
     if (client) {
       prefillCollectionCache(client, "THREAD_MESSAGES", org.id, {
         filters: [{ column: "thread_id", value: newTaskId }],
@@ -192,17 +209,9 @@ export function useTaskManager(virtualMcpId: string) {
     return newTaskId;
   };
 
-  // Update task in cache
+  // Update task in cache (across all matching task lists)
   const updateTask = (taskId: string, updates: Partial<Task>) => {
-    updateTaskInCache(
-      queryClient,
-      locator,
-      taskId,
-      updates,
-      ownerFilter,
-      ownerFilter === "me" ? userId : undefined,
-      virtualMcpId,
-    );
+    updateTaskInCache(queryClient, locator, taskId, updates);
   };
 
   // Set task status (backend + cache)
@@ -220,17 +229,7 @@ export function useTaskManager(virtualMcpId: string) {
         status: updatedTask?.status ?? (status as Task["status"]),
         updated_at: updatedTask?.updated_at ?? new Date().toISOString(),
       };
-      for (const filter of ["me", "everyone"] as const) {
-        updateTaskInCache(
-          queryClient,
-          locator,
-          taskId,
-          updates,
-          filter,
-          filter === "me" ? userId : undefined,
-          virtualMcpId,
-        );
-      }
+      updateTaskInCache(queryClient, locator, taskId, updates);
     } catch (error) {
       const err = error as Error;
       toast.error(`Failed to update task status: ${err.message}`);
@@ -243,18 +242,10 @@ export function useTaskManager(virtualMcpId: string) {
     try {
       const updatedTask = await callUpdateTaskTool(client, taskId, { title });
       if (updatedTask) {
-        updateTaskInCache(
-          queryClient,
-          locator,
-          taskId,
-          {
-            title,
-            updated_at: updatedTask.updated_at ?? new Date().toISOString(),
-          },
-          ownerFilter,
-          ownerFilter === "me" ? userId : undefined,
-          virtualMcpId,
-        );
+        updateTaskInCache(queryClient, locator, taskId, {
+          title,
+          updated_at: updatedTask.updated_at ?? new Date().toISOString(),
+        });
       }
     } catch (error) {
       const err = error as Error;
@@ -273,15 +264,10 @@ export function useTaskManager(virtualMcpId: string) {
       console.error("[chat] Failed to hide task:", error);
       return;
     }
-    updateTaskInCache(
-      queryClient,
-      locator,
-      taskId,
-      { hidden: true, updated_at: new Date().toISOString() },
-      ownerFilter,
-      ownerFilter === "me" ? userId : undefined,
-      virtualMcpId,
-    );
+    updateTaskInCache(queryClient, locator, taskId, {
+      hidden: true,
+      updated_at: new Date().toISOString(),
+    });
   };
 
   // Update messages cache
@@ -301,31 +287,16 @@ export function useTaskManager(virtualMcpId: string) {
       const newStatus = event.data.status;
       const updatedAt = event.time;
 
-      let foundInCache = false;
-      for (const filter of ["me", "everyone"] as const) {
-        const filterUserId = filter === "me" ? userId : undefined;
-        const cached = queryClient.getQueryData<TasksQueryData>(
-          KEYS.tasks(locator, filter, filterUserId, virtualMcpId),
-        );
-        const inCache = cached?.items.some((t) => t.id === threadId) ?? false;
+      const found = updateTaskInCache(queryClient, locator, threadId, {
+        status: newStatus,
+        updated_at: updatedAt,
+      });
 
-        if (inCache) {
-          foundInCache = true;
-          updateTaskInCache(
-            queryClient,
-            locator,
-            threadId,
-            { status: newStatus, updated_at: updatedAt },
-            filter,
-            filterUserId,
-            virtualMcpId,
-          );
-        }
-      }
-
-      // Task not in cache — refetch so new tasks appear in the list
-      if (!foundInCache) {
-        queryClient.invalidateQueries({ queryKey: KEYS.tasks(locator) });
+      // Task not in any cache — refetch so new tasks appear in the list
+      if (!found) {
+        queryClient.invalidateQueries({
+          queryKey: KEYS.tasksPrefix(locator),
+        });
       }
     },
   });
