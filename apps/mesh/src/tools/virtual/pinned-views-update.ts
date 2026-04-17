@@ -46,7 +46,6 @@ export const VIRTUAL_MCP_PINNED_VIEWS_UPDATE = defineTool({
           })
           .nullable()
           .optional(),
-        chatDefaultOpen: z.boolean().nullable().optional(),
       })
       .optional(),
   }),

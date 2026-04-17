@@ -89,7 +89,6 @@ export const VirtualMcpUILayoutSchema = z.object({
     })
     .nullable()
     .optional(),
-  chatDefaultOpen: z.boolean().nullable().optional(),
   tabs: z.array(VirtualMcpUILayoutTabSchema).optional(),
 });
 

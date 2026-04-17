@@ -13,7 +13,6 @@ describe("VirtualMcpUILayoutSchema tabs", () => {
         },
       ],
       defaultMainView: null,
-      chatDefaultOpen: null,
     });
     expect(parsed.tabs).toHaveLength(1);
     expect(parsed.tabs?.[0]!.view.type).toBe("ext-app");
@@ -23,7 +22,6 @@ describe("VirtualMcpUILayoutSchema tabs", () => {
   it("accepts tabs omitted (backwards compatible)", () => {
     const parsed = VirtualMcpUILayoutSchema.parse({
       defaultMainView: null,
-      chatDefaultOpen: null,
     });
     expect(parsed.tabs).toBeUndefined();
   });
