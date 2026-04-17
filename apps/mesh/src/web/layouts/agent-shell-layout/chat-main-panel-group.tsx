@@ -1,0 +1,117 @@
+/**
+ * ChatMainPanelGroup — two-panel resizable group (chat | main).
+ *
+ * Tasks panel is a separate sibling column; this group only manages
+ * the working area. Keyed by virtualMcpId + taskId; remounts on switch.
+ */
+
+import { useEffect, useRef, useTransition, type PropsWithChildren } from "react";
+import { cn } from "@deco/ui/lib/utils.js";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+  type ImperativePanelGroupHandle,
+} from "@/web/components/resizable";
+import { useLocalStorage } from "@/web/hooks/use-local-storage";
+import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
+import { computeChatMainSizes } from "@/web/hooks/use-layout-state";
+import { MainPanelWithTabs } from "@/web/layouts/main-panel-tabs";
+
+function PersistentChatPanel({
+  children,
+  defaultSize,
+}: PropsWithChildren<{ defaultSize: number }>) {
+  const [_isPending, startTransition] = useTransition();
+  const [, setChatPanelWidth] = useLocalStorage(
+    LOCALSTORAGE_KEYS.decoChatPanelWidth(),
+    45,
+  );
+  const handleResize = (size: number) =>
+    startTransition(() => {
+      if (size > 0) setChatPanelWidth(size);
+    });
+  return (
+    <ResizablePanel
+      defaultSize={defaultSize}
+      minSize={20}
+      collapsible={true}
+      collapsedSize={0}
+      className="min-w-0 overflow-hidden bg-sidebar"
+      onResize={handleResize}
+      order={1}
+    >
+      {children}
+    </ResizablePanel>
+  );
+}
+
+export interface ChatMainPanelGroupProps {
+  virtualMcpId: string;
+  taskId: string;
+  chatOpen: boolean;
+  mainOpen: boolean;
+  chatContent: React.ReactNode;
+}
+
+export function ChatMainPanelGroup({
+  virtualMcpId,
+  taskId,
+  chatOpen,
+  mainOpen,
+  chatContent,
+}: ChatMainPanelGroupProps) {
+  const sizes = computeChatMainSizes(chatOpen, mainOpen);
+  const panelGroupRef = useRef<ImperativePanelGroupHandle>(null);
+
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — syncs panel layout from URL-derived state; imperative DOM API has no React 19 alternative
+  useEffect(() => {
+    const handle = panelGroupRef.current;
+    if (!handle) return;
+    const s = computeChatMainSizes(chatOpen, mainOpen);
+    handle.setLayout([s.chat, s.main]);
+  }, [chatOpen, mainOpen]);
+
+  return (
+    <ResizablePanelGroup
+      ref={panelGroupRef}
+      key={`${virtualMcpId}-${taskId}`}
+      direction="horizontal"
+      className="flex-1 min-h-0 pb-1 pr-1 pl-0 pt-0"
+      style={{ overflow: "visible" }}
+    >
+      <PersistentChatPanel defaultSize={sizes.chat}>
+        <div className="h-full p-0.5">
+          <div className="h-full bg-background rounded-[0.75rem] overflow-hidden card-shadow">
+            {chatContent}
+          </div>
+        </div>
+      </PersistentChatPanel>
+
+      <ResizableHandle className="bg-sidebar" />
+
+      <ResizablePanel
+        className="min-w-0 flex flex-col"
+        order={2}
+        defaultSize={sizes.main}
+        style={{ overflow: "visible" }}
+        collapsible={true}
+        collapsedSize={0}
+        minSize={20}
+      >
+        <div className="h-full p-0.5">
+          <div
+            className={cn(
+              "flex flex-col h-full min-h-0 bg-background overflow-hidden",
+              "card-shadow",
+              "transition-[border-radius] duration-200 ease-[var(--ease-out-quart)]",
+              "rounded-[0.75rem]",
+            )}
+          >
+            <MainPanelWithTabs taskId={taskId} virtualMcpId={virtualMcpId} />
+          </div>
+        </div>
+      </ResizablePanel>
+    </ResizablePanelGroup>
+  );
+}
