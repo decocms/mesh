@@ -71,20 +71,14 @@ import { GitHubRepoPicker } from "@/web/components/github-repo-picker.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
 import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
-import { useAgentBadges } from "@/web/hooks/use-agent-badges";
-
 function AgentListItem({
   agent,
   org,
-  hasBadge,
-  onMarkSeen,
   onUnpin,
   isDragging,
 }: {
   agent: VirtualMCPEntity;
   org: string;
-  hasBadge?: boolean;
-  onMarkSeen?: () => void;
   onUnpin: () => void;
   isDragging?: boolean;
 }) {
@@ -142,7 +136,6 @@ function AgentListItem({
             tooltip={buttonRect ? undefined : agent.title}
             isActive={isActive}
             onClick={() => {
-              onMarkSeen?.();
               navigateToNewTask(agent.id);
               if (isMobile) setOpenMobile(false);
             }}
@@ -155,16 +148,12 @@ function AgentListItem({
               size="xs"
               className="w-full h-full [&_svg]:w-1/2 [&_svg]:h-1/2"
             />
-            {hasBadge && !isActive && (
-              <span className="absolute top-0.5 right-0.5 size-2 rounded-full bg-primary ring-2 ring-sidebar pointer-events-none" />
-            )}
           </SidebarMenuButton>
         </ContextMenuTrigger>
 
         <ContextMenuContent>
           <ContextMenuItem
             onClick={() => {
-              onMarkSeen?.();
               const taskId = crypto.randomUUID();
               navigate({
                 to: "/$org/$taskId",
@@ -235,8 +224,6 @@ function AgentListItem({
 function SortableAgentListItem(props: {
   agent: VirtualMCPEntity;
   org: string;
-  hasBadge?: boolean;
-  onMarkSeen?: () => void;
   onUnpin: () => void;
 }) {
   const {
@@ -630,8 +617,6 @@ function AgentsSectionContent() {
     .map((id) => agentMap.get(id))
     .filter((a): a is VirtualMCPEntity => !!a);
 
-  const { badges, markSeen } = useAgentBadges(pinnedAgents.map((s) => s.id));
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, {
@@ -671,8 +656,6 @@ function AgentsSectionContent() {
                   key={agent.id}
                   agent={agent}
                   org={org.slug}
-                  hasBadge={badges[agent.id]}
-                  onMarkSeen={() => markSeen(agent.id)}
                   onUnpin={() => unpin(agent.id)}
                 />
               ))}
