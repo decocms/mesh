@@ -6,7 +6,10 @@ import { getUIResourceUri } from "@/mcp-apps/types.ts";
 import {
   useOptionalChatStream,
   useOptionalChatPrefs,
+  useChatTask,
 } from "@/web/components/chat/context.tsx";
+import { useTaskExpandedTools } from "@/web/hooks/use-task-expanded-tools";
+import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Tooltip,
@@ -183,7 +186,10 @@ export function GenericToolCallPart({
   const chatPrefs = useOptionalChatPrefs();
   const { org } = useProjectContext();
 
-  const { setChatOpen, openMainView } = usePanelActions();
+  const { setChatOpen } = usePanelActions();
+  const { taskId } = useChatTask();
+  const { addOrReplace } = useTaskExpandedTools(taskId);
+  const navigate = useNavigate();
 
   const connectionId =
     toolMeta &&
@@ -215,9 +221,23 @@ export function GenericToolCallPart({
 
   const handleOpenInPanel = () => {
     if (!connectionId) return;
-    openMainView("ext-apps", {
-      id: connectionId,
+    const args =
+      "input" in part && part.input && typeof part.input === "object"
+        ? (part.input as Record<string, unknown>)
+        : {};
+    addOrReplace({
       toolName: rawToolName,
+      appId: connectionId,
+      args,
+    });
+    navigate({
+      to: ".",
+      search: (prev: Record<string, unknown>) => ({
+        ...prev,
+        tab: rawToolName,
+        mainOpen: 1,
+      }),
+      replace: true,
     });
   };
 

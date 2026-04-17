@@ -37,15 +37,14 @@ import { cn } from "@deco/ui/lib/utils.js";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import {
   AlertCircle,
-  Browser,
   ChevronLeft,
   ChevronRight,
   LayoutLeft,
   Edit05,
   Loading01,
   Menu01,
+  MessageChatCircle,
   LayoutRight,
-  Server01,
 } from "@untitledui/icons";
 import {
   getDecopilotId,
@@ -70,8 +69,7 @@ import {
   usePanelState,
 } from "@/web/hooks/use-layout-state";
 import { getActiveGithubRepo } from "@/web/lib/github-repo";
-import { EnvContent } from "@/web/components/vm/env/env";
-import { useToggleEnvPanel } from "@/web/hooks/use-toggle-env-panel";
+import { MainPanelWithTabs } from "@/web/layouts/main-panel-tabs";
 
 import { GitHubIcon } from "@/web/components/icons/github-icon";
 
@@ -139,7 +137,7 @@ function PersistentResizablePanel({
       collapsedSize={0}
       className="min-w-0 overflow-hidden bg-sidebar"
       onResize={handleResize}
-      order={3}
+      order={2}
     >
       {children}
     </ResizablePanel>
@@ -235,8 +233,6 @@ function UnifiedPanelGroup({
   tasksOpen,
   mainOpen,
   chatOpen,
-  envOpen,
-  daemonOpen,
 }: {
   virtualMcpId: string;
   taskId: string;
@@ -245,8 +241,6 @@ function UnifiedPanelGroup({
   tasksOpen: boolean;
   mainOpen: boolean;
   chatOpen: boolean;
-  envOpen: boolean;
-  daemonOpen: boolean;
 }) {
   const sizes = computeDefaultSizes({ tasksOpen, mainOpen, chatOpen });
   const panelGroupRef = useRef<ImperativePanelGroupHandle>(null);
@@ -256,7 +250,7 @@ function UnifiedPanelGroup({
     const handle = panelGroupRef.current;
     if (!handle) return;
     const s = computeDefaultSizes({ tasksOpen, mainOpen, chatOpen });
-    handle.setLayout([s.tasks, s.main, s.chat]);
+    handle.setLayout([s.tasks, s.chat, s.main]);
   }, [tasksOpen, mainOpen, chatOpen]);
 
   return (
@@ -280,9 +274,19 @@ function UnifiedPanelGroup({
       </TasksResizablePanel>
       <ResizableHandle className="bg-sidebar" />
 
+      <PersistentResizablePanel defaultSize={sizes.chat}>
+        <div className="h-full p-0.5">
+          <div className="h-full bg-background rounded-[0.75rem] overflow-hidden card-shadow">
+            <ActiveTaskBoundary variant={isDecopilot ? "home" : undefined} />
+          </div>
+        </div>
+      </PersistentResizablePanel>
+
+      <ResizableHandle className="bg-sidebar" />
+
       <ResizablePanel
         className="min-w-0 flex flex-col"
-        order={2}
+        order={3}
         defaultSize={sizes.main}
         style={{ overflow: "visible" }}
         collapsible={true}
@@ -298,48 +302,10 @@ function UnifiedPanelGroup({
               "rounded-[0.75rem]",
             )}
           >
-            <ResizablePanelGroup direction="vertical">
-              <ResizablePanel
-                defaultSize={envOpen ? 60 : 100}
-                minSize={20}
-                order={1}
-              >
-                <Suspense
-                  fallback={
-                    <div className="flex-1 flex items-center justify-center">
-                      <Loading01
-                        size={20}
-                        className="animate-spin text-muted-foreground"
-                      />
-                    </div>
-                  }
-                >
-                  <div className="flex flex-1 items-center overflow-hidden h-full">
-                    <Outlet />
-                  </div>
-                </Suspense>
-              </ResizablePanel>
-              {envOpen && (
-                <>
-                  <ResizableHandle />
-                  <ResizablePanel defaultSize={40} minSize={15} order={2}>
-                    <EnvContent daemonOpen={daemonOpen} />
-                  </ResizablePanel>
-                </>
-              )}
-            </ResizablePanelGroup>
+            <MainPanelWithTabs taskId={taskId} virtualMcpId={virtualMcpId} />
           </div>
         </div>
       </ResizablePanel>
-
-      <ResizableHandle className="bg-sidebar" />
-      <PersistentResizablePanel defaultSize={sizes.chat}>
-        <div className="h-full p-0.5">
-          <div className="h-full bg-background rounded-[0.75rem] overflow-hidden card-shadow">
-            <ActiveTaskBoundary variant={isDecopilot ? "home" : undefined} />
-          </div>
-        </div>
-      </PersistentResizablePanel>
     </ResizablePanelGroup>
   );
 }
@@ -486,20 +452,6 @@ function AgentInsetProvider() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  const { envOpen, toggleEnv } = useToggleEnvPanel();
-  const { toggleDaemon } = layout;
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — subscribes to document keydown for ⌘D toggle-daemon shortcut; DOM event listener has no React 19 alternative
-  useEffect(() => {
-    const handler = (e: globalThis.KeyboardEvent) => {
-      if (isModKey(e) && !e.shiftKey && e.code === "KeyD" && !e.repeat) {
-        e.preventDefault();
-        toggleDaemon();
-      }
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [toggleDaemon]);
-
   // Chat.Provider virtualMcpId
   const chatVirtualMcpId = virtualMcpId;
 
@@ -636,26 +588,6 @@ function AgentInsetProvider() {
                       </TooltipContent>
                     </Tooltip>
                   )}
-                  {activeRepo && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={toggleEnv}
-                          aria-pressed={envOpen}
-                          className={cn(
-                            "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
-                            envOpen
-                              ? "bg-sidebar-accent text-sidebar-foreground"
-                              : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                          )}
-                        >
-                          <Server01 size={16} />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">Server</TooltipContent>
-                    </Tooltip>
-                  )}
                 </>
               );
             })()}
@@ -712,20 +644,6 @@ function AgentInsetProvider() {
               </button>
               <button
                 type="button"
-                onClick={layout.toggleMain}
-                aria-pressed={layout.mainOpen}
-                className={cn(
-                  "flex size-7 items-center justify-center rounded-md transition-colors",
-                  layout.mainOpen
-                    ? "bg-sidebar-accent text-sidebar-foreground"
-                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                )}
-                title="Toggle content"
-              >
-                <Browser size={16} />
-              </button>
-              <button
-                type="button"
                 onClick={layout.toggleChat}
                 aria-pressed={layout.chatOpen}
                 className={cn(
@@ -735,6 +653,20 @@ function AgentInsetProvider() {
                     : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                 )}
                 title="Toggle chat"
+              >
+                <MessageChatCircle size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={layout.toggleMain}
+                aria-pressed={layout.mainOpen}
+                className={cn(
+                  "flex size-7 items-center justify-center rounded-md transition-colors",
+                  layout.mainOpen
+                    ? "bg-sidebar-accent text-sidebar-foreground"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                )}
+                title="Toggle main"
               >
                 <LayoutRight size={16} />
               </button>
@@ -756,8 +688,6 @@ function AgentInsetProvider() {
           tasksOpen={layout.tasksOpen}
           mainOpen={layout.mainOpen}
           chatOpen={layout.chatOpen}
-          envOpen={envOpen}
-          daemonOpen={layout.daemonOpen}
         />
       </Chat.Provider>
     </InsetContext>
