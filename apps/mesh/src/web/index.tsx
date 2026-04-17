@@ -204,7 +204,7 @@ const unifiedChatRoute = createRoute({
   getParentRoute: () => agentShellLayout,
   path: "/$taskId",
   validateSearch: unifiedChatSearchSchema,
-  component: lazyRouteComponent(() => import("./routes/unified-chat.tsx")),
+  component: () => null,
 });
 
 // Org index redirects to a fresh decopilot task

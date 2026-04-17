@@ -54,12 +54,7 @@ import {
   useVirtualMCP,
 } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
-import {
-  Outlet,
-  useNavigate,
-  useParams,
-  useSearch,
-} from "@tanstack/react-router";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { PropsWithChildren, Suspense, useTransition } from "react";
 import { useStatusSounds } from "../hooks/use-status-sounds";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -325,24 +320,6 @@ function MobileToolbar({ onOpenSidebar }: { onOpenSidebar: () => void }) {
   );
 }
 
-function MobileAgentContent({
-  isDecopilot,
-  mainOpen,
-}: {
-  isDecopilot: boolean;
-  mainOpen: boolean;
-}) {
-  return (
-    <div className="flex-1 min-h-0 overflow-hidden">
-      {isDecopilot || !mainOpen ? (
-        <ActiveTaskBoundary variant={isDecopilot ? "home" : undefined} />
-      ) : (
-        <Outlet />
-      )}
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // AgentInsetProvider — resolves virtualMcpId, provides InsetContext,
 // wraps in Chat.Provider, renders 3-panel layout.
@@ -523,10 +500,9 @@ function AgentInsetProvider() {
               createNewTask={layout.createNewTask}
             />
             <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
-            <MobileAgentContent
-              isDecopilot={isDecopilot}
-              mainOpen={layout.mainOpen}
-            />
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <ActiveTaskBoundary variant={isDecopilot ? "home" : undefined} />
+            </div>
             {mobileSidebarSheet}
           </Chat.Provider>
         </div>
