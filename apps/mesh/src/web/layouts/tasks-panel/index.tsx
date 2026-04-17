@@ -19,15 +19,15 @@ import { useTasks } from "@/web/components/chat/task/use-task-manager";
 import { callUpdateTaskTool } from "@/web/components/chat/task/helpers";
 import type { Task } from "@/web/components/chat/task/types";
 import { useAutomationsList } from "@/web/hooks/use-automations";
+import { useTasksAutoRefresh } from "@/web/hooks/use-tasks-auto-refresh";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { KEYS } from "@/web/lib/query-keys";
 import { toast } from "sonner";
 import { TasksSection } from "./tasks-section";
 import { AutomationsSection } from "./automations-section";
 
-export { statusVerb } from "./status-verb";
-
 function TasksPanelContent() {
+  useTasksAutoRefresh();
   const { tasks } = useTasks({ owner: "all", status: "open" });
   const { data: automations = [] } = useAutomationsList(undefined);
   const { setTaskId, openTab } = usePanelActions();

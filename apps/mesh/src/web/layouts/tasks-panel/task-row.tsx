@@ -1,7 +1,13 @@
 import { cn } from "@deco/ui/lib/utils.js";
 import { Archive } from "@untitledui/icons";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 import { McpAvatar } from "./mcp-avatar";
-import { statusVerb } from "./status-verb";
+import { getStatusConfig } from "@/web/lib/task-status";
+import { formatTimeAgo } from "@/web/lib/format-time";
 import type { Task } from "@/web/components/chat/task/types";
 
 export function TaskRow({
@@ -15,6 +21,9 @@ export function TaskRow({
   onClick: () => void;
   onArchive: () => void;
 }) {
+  const config = getStatusConfig(task.status);
+  const StatusIcon = config.icon;
+
   return (
     <div
       role="button"
@@ -33,21 +42,42 @@ export function TaskRow({
         <div className="text-sm text-foreground truncate">
           {task.title || "Untitled task"}
         </div>
-        <div className="text-xs text-muted-foreground truncate group-hover/row:hidden">
-          {statusVerb(task)}
-        </div>
+        {task.updated_at && (
+          <div className="text-xs text-muted-foreground truncate">
+            {formatTimeAgo(new Date(task.updated_at))}
+          </div>
+        )}
       </div>
-      <button
-        type="button"
-        aria-label="Archive task"
-        onClick={(e) => {
-          e.stopPropagation();
-          onArchive();
-        }}
-        className="hidden group-hover/row:flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
-      >
-        <Archive size={14} />
-      </button>
+      <div className="shrink-0 grid [grid-template-areas:'slot'] items-center justify-items-center">
+        <span
+          className="[grid-area:slot] flex size-7 items-center justify-center group-hover/row:invisible"
+          aria-label={config.label}
+        >
+          <StatusIcon
+            size={14}
+            className={cn(
+              config.iconClassName,
+              task.status === "in_progress" && "animate-spin",
+            )}
+          />
+        </span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label="Archive task"
+              onClick={(e) => {
+                e.stopPropagation();
+                onArchive();
+              }}
+              className="[grid-area:slot] invisible group-hover/row:visible flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
+            >
+              <Archive size={14} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right">Archive</TooltipContent>
+        </Tooltip>
+      </div>
     </div>
   );
 }
