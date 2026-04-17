@@ -34,6 +34,7 @@ import { InstructionsTab } from "./instructions-tab";
 import { ConnectionsTab } from "./connections-tab";
 import { LayoutTab } from "./layout-tab";
 import { PreviewTab } from "./preview-tab";
+import { EnvTab } from "./env-tab";
 import { AutomationTab } from "./automation-tab";
 
 const AppViewContent = lazy(() =>
@@ -137,6 +138,7 @@ export function MainPanelWithTabs({
     { id: "layout", title: "Layout" },
   ];
   if (hasActiveGithubRepo) {
+    systemTabs.push({ id: "env", title: "Terminal" });
     systemTabs.push({ id: "preview", title: "Preview" });
   }
 
@@ -149,6 +151,9 @@ export function MainPanelWithTabs({
     }
     if (activeTab === "layout") {
       return <LayoutTab virtualMcpId={virtualMcpId} />;
+    }
+    if (activeTab === "env") {
+      return <EnvTab virtualMcpId={virtualMcpId} />;
     }
     if (activeTab === "preview") {
       return <PreviewTab virtualMcpId={virtualMcpId} />;
@@ -208,7 +213,7 @@ export function MainPanelWithTabs({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="shrink-0 flex items-center gap-1 border-b border-border px-2 h-9 overflow-x-auto">
+      <div className="shrink-0 flex items-center border-b border-border px-2 overflow-x-auto">
         {systemTabs.map((t) => (
           <TabButton
             key={t.id}
@@ -270,10 +275,10 @@ function TabButton({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "shrink-0 h-7 px-2.5 rounded-md text-xs transition-colors",
+        "shrink-0 px-3 py-1.5 text-xs font-medium capitalize transition-colors",
         active
-          ? "bg-muted text-foreground"
-          : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+          ? "text-foreground border-b-2 border-primary"
+          : "text-muted-foreground hover:text-foreground",
         ephemeral && "ml-auto italic",
       )}
     >
