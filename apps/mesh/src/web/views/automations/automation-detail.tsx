@@ -13,10 +13,14 @@ import { User } from "@/web/components/user/user.tsx";
 import {
   useAutomationDetail,
   useAutomationUpdate,
+  useAutomationCreate,
   useAutomationTriggerAdd,
   useTriggerList,
+  buildDefaultAutomationInput,
   type TriggerDefinition,
 } from "@/web/hooks/use-automations";
+import { VirtualMCPSelector } from "@/web/components/chat/select-virtual-mcp";
+import { useNavigate } from "@tanstack/react-router";
 import { useChatTask, useChatPrefs } from "@/web/components/chat/context";
 import { usePreferences } from "@/web/hooks/use-preferences";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -275,18 +279,21 @@ function EventTriggerForm({
 export function SettingsTab({
   automationId,
   automation,
-  fixedAgentId,
   onBack,
   onDelete,
 }: {
   automationId: string;
-  automation: NonNullable<ReturnType<typeof useAutomationDetail>["data"]>;
-  fixedAgentId?: string;
+  automation: NonNullable<
+    ReturnType<typeof useAutomationDetail>["data"]
+  > | null;
   onBack?: () => void;
   onDelete?: () => void;
 }) {
+  const isDraft = automationId === "new";
   const { org } = useProjectContext();
   const updateMutation = useAutomationUpdate();
+  const createMutation = useAutomationCreate();
+  const navigate = useNavigate();
   const allConnections = useConnections();
   const connectionNameMap = new Map(allConnections.map((c) => [c.id, c.title]));
 
@@ -301,7 +308,7 @@ export function SettingsTab({
   } = useChatPrefs();
   const [preferences, setPreferences] = usePreferences();
   const initialTiptapDoc =
-    (automation.messages?.[0] as { metadata?: Metadata } | undefined)?.metadata
+    (automation?.messages?.[0] as { metadata?: Metadata } | undefined)?.metadata
       ?.tiptapDoc ?? undefined;
   const [tiptapDoc, setTiptapDocRaw] =
     useState<Metadata["tiptapDoc"]>(initialTiptapDoc);
@@ -338,15 +345,15 @@ export function SettingsTab({
   };
 
   const defaultCredentialId =
-    automation.models?.credentialId || chatCredentialId || "";
+    automation?.models?.credentialId || chatCredentialId || "";
   const defaultModelId =
-    automation.models?.thinking?.id || chatModel?.modelId || "";
+    automation?.models?.thinking?.id || chatModel?.modelId || "";
 
   const form = useForm<SettingsFormData>({
     defaultValues: {
-      name: automation.name,
-      active: automation.active,
-      agent_id: fixedAgentId ?? automation.agent?.id ?? "",
+      name: automation?.name ?? "New Automation",
+      active: automation?.active ?? true,
+      agent_id: automation?.agent?.id ?? "",
       credential_id: defaultCredentialId,
       model_id: defaultModelId,
     },
@@ -364,6 +371,43 @@ export function SettingsTab({
     models.find((m) => m.modelId === watchModelId) ?? null;
 
   const saveForm = async (): Promise<boolean> => {
+    if (isDraft) {
+      const values = form.getValues();
+      if (!values.agent_id) return false;
+      if (createMutation.isPending) return false;
+      try {
+        const coercedCredentialId =
+          values.credential_id && values.model_id ? values.credential_id : "";
+        const coercedModelId =
+          values.credential_id && values.model_id ? values.model_id : "";
+        const created = await createMutation.mutateAsync({
+          ...buildDefaultAutomationInput(values.agent_id),
+          name: values.name,
+          active: values.active,
+          agent: { id: values.agent_id },
+          models: {
+            credentialId: coercedCredentialId,
+            thinking: { id: coercedModelId },
+          },
+          messages: tiptapDocToMessages(tiptapDoc),
+          temperature: 0,
+        });
+        tiptapDirtyRef.current = false;
+        navigate({
+          to: ".",
+          search: (prev: Record<string, unknown>) => ({
+            ...prev,
+            main: "automation:" + created.id,
+          }),
+          replace: true,
+        });
+        return true;
+      } catch {
+        toast.error("Failed to create automation");
+        return false;
+      }
+    }
+
     const hasDirtyFields = Object.keys(form.formState.dirtyFields).length > 0;
     if (!hasDirtyFields && !tiptapDirtyRef.current) return true;
     tiptapDirtyRef.current = false;
@@ -380,7 +424,7 @@ export function SettingsTab({
         name: values.name,
         active: values.active,
         agent: {
-          id: fixedAgentId ?? values.agent_id,
+          id: values.agent_id,
         },
         models: {
           credentialId: coercedCredentialId,
@@ -446,7 +490,7 @@ export function SettingsTab({
 
     const values = form.getValues();
 
-    setVirtualMcpId((fixedAgentId ?? values.agent_id) || null);
+    setVirtualMcpId(values.agent_id || null);
     if (selectedModel && watchConnectionId) {
       setModel({ ...selectedModel, keyId: watchConnectionId });
     }
@@ -471,6 +515,24 @@ export function SettingsTab({
       )}
 
       <div className="flex flex-col gap-8">
+        {/* Agent picker */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-foreground">Agent</label>
+          <Controller
+            name="agent_id"
+            control={form.control}
+            rules={{ required: "Agent is required" }}
+            render={({ field }) => (
+              <VirtualMCPSelector
+                selectedVirtualMcpId={field.value || null}
+                onVirtualMcpChange={(id) => field.onChange(id ?? "")}
+                placeholder="Select agent"
+                variant="bordered"
+              />
+            )}
+          />
+        </div>
+
         {/* Header: Name + Status + Creator */}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between gap-4">
@@ -509,150 +571,156 @@ export function SettingsTab({
             <span className="text-sm text-muted-foreground">
               {watchActive ? "Active" : "Inactive"}
             </span>
-            <span className="text-muted-foreground/50 text-sm">·</span>
-            <User
-              id={automation.created_by}
-              size="2xs"
-              className="text-sm text-muted-foreground"
-            />
+            {automation && (
+              <>
+                <span className="text-muted-foreground/50 text-sm">·</span>
+                <User
+                  id={automation.created_by}
+                  size="2xs"
+                  className="text-sm text-muted-foreground"
+                />
+              </>
+            )}
           </div>
         </div>
 
         {/* Section: Starter (was Triggers) */}
-        <div className="flex flex-col gap-2.5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground/60">
-              Starter
-            </span>
-            <AddStarterPopover
-              automationId={automationId}
-              open={starterOpen}
-              onOpenChange={setStarterOpen}
-              onCustomSelect={() => {
-                setShowCustomCron(true);
-                setShowEventForm(false);
-                setCronInput("");
-              }}
-              onEventSelect={() => {
-                setShowEventForm(true);
-                setShowCustomCron(false);
-              }}
-            />
-          </div>
-
-          {automation.triggers.length === 0 && !showCustomCron ? (
-            <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center">
-              <p className="text-sm text-muted-foreground">
-                When should this automation run?{" "}
-                <button
-                  type="button"
-                  className="text-foreground underline underline-offset-2 cursor-pointer hover:text-foreground/80 transition-colors"
-                  onClick={() => setStarterOpen(true)}
-                >
-                  Add a starter
-                </button>{" "}
-                to get going.
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {automation.triggers.map((trigger) => (
-                <TriggerCard
-                  key={trigger.id}
-                  trigger={trigger}
-                  automationId={automationId}
-                  connectionName={
-                    trigger.connection_id
-                      ? connectionNameMap.get(trigger.connection_id)
-                      : undefined
-                  }
-                />
-              ))}
-            </div>
-          )}
-
-          {showCustomCron && (
-            <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-border bg-background group">
-              <Clock size={14} className="text-muted-foreground shrink-0" />
-              <input
-                type="text"
-                value={cronInput}
-                onChange={(e) => setCronInput(e.target.value)}
-                onBlur={async () => {
-                  const val = cronInput.trim();
-                  if (!val || !isValidCron(val)) return;
-                  try {
-                    await addTrigger.mutateAsync({
-                      automation_id: automationId,
-                      type: "cron",
-                      cron_expression: val,
-                    });
-                    toast.success("Starter added");
-                    setShowCustomCron(false);
-                    setCronInput("");
-                  } catch {
-                    toast.error("Failed to add starter");
-                  }
-                }}
-                onKeyDown={async (e) => {
-                  const val = cronInput.trim();
-                  if (e.key === "Enter" && val && isValidCron(val)) {
-                    (e.target as HTMLInputElement).blur();
-                  }
-                  if (e.key === "Escape") {
-                    setShowCustomCron(false);
-                    setCronInput("");
-                  }
-                }}
-                placeholder="0 9 * * 1-5"
-                className="flex-1 text-sm font-mono bg-transparent outline-none placeholder:text-muted-foreground/40"
-                autoFocus
-              />
-              {cronInput && !isValidCron(cronInput) && (
-                <span className="text-xs text-muted-foreground/60 shrink-0">
-                  invalid
-                </span>
-              )}
-              {addTrigger.isPending && (
-                <Loading01
-                  size={13}
-                  className="animate-spin text-muted-foreground shrink-0"
-                />
-              )}
-              <button
-                type="button"
-                className="shrink-0 p-0.5 rounded text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground transition-opacity"
-                onClick={() => {
-                  setShowCustomCron(false);
+        {!isDraft && automation && (
+          <div className="flex flex-col gap-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground/60">
+                Starter
+              </span>
+              <AddStarterPopover
+                automationId={automationId}
+                open={starterOpen}
+                onOpenChange={setStarterOpen}
+                onCustomSelect={() => {
+                  setShowCustomCron(true);
+                  setShowEventForm(false);
                   setCronInput("");
                 }}
-              >
-                <XClose size={13} />
-              </button>
+                onEventSelect={() => {
+                  setShowEventForm(true);
+                  setShowCustomCron(false);
+                }}
+              />
             </div>
-          )}
 
-          {showEventForm && (
-            <Suspense
-              fallback={
-                <div className="flex items-center gap-2 px-3 py-3 rounded-lg border border-border bg-background">
+            {automation.triggers.length === 0 && !showCustomCron ? (
+              <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center">
+                <p className="text-sm text-muted-foreground">
+                  When should this automation run?{" "}
+                  <button
+                    type="button"
+                    className="text-foreground underline underline-offset-2 cursor-pointer hover:text-foreground/80 transition-colors"
+                    onClick={() => setStarterOpen(true)}
+                  >
+                    Add a starter
+                  </button>{" "}
+                  to get going.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {automation.triggers.map((trigger) => (
+                  <TriggerCard
+                    key={trigger.id}
+                    trigger={trigger}
+                    automationId={automationId}
+                    connectionName={
+                      trigger.connection_id
+                        ? connectionNameMap.get(trigger.connection_id)
+                        : undefined
+                    }
+                  />
+                ))}
+              </div>
+            )}
+
+            {showCustomCron && (
+              <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-border bg-background group">
+                <Clock size={14} className="text-muted-foreground shrink-0" />
+                <input
+                  type="text"
+                  value={cronInput}
+                  onChange={(e) => setCronInput(e.target.value)}
+                  onBlur={async () => {
+                    const val = cronInput.trim();
+                    if (!val || !isValidCron(val)) return;
+                    try {
+                      await addTrigger.mutateAsync({
+                        automation_id: automationId,
+                        type: "cron",
+                        cron_expression: val,
+                      });
+                      toast.success("Starter added");
+                      setShowCustomCron(false);
+                      setCronInput("");
+                    } catch {
+                      toast.error("Failed to add starter");
+                    }
+                  }}
+                  onKeyDown={async (e) => {
+                    const val = cronInput.trim();
+                    if (e.key === "Enter" && val && isValidCron(val)) {
+                      (e.target as HTMLInputElement).blur();
+                    }
+                    if (e.key === "Escape") {
+                      setShowCustomCron(false);
+                      setCronInput("");
+                    }
+                  }}
+                  placeholder="0 9 * * 1-5"
+                  className="flex-1 text-sm font-mono bg-transparent outline-none placeholder:text-muted-foreground/40"
+                  autoFocus
+                />
+                {cronInput && !isValidCron(cronInput) && (
+                  <span className="text-xs text-muted-foreground/60 shrink-0">
+                    invalid
+                  </span>
+                )}
+                {addTrigger.isPending && (
                   <Loading01
                     size={13}
-                    className="animate-spin text-muted-foreground"
+                    className="animate-spin text-muted-foreground shrink-0"
                   />
-                  <span className="text-sm text-muted-foreground">
-                    Loading connections...
-                  </span>
-                </div>
-              }
-            >
-              <EventTriggerForm
-                automationId={automationId}
-                onDone={() => setShowEventForm(false)}
-              />
-            </Suspense>
-          )}
-        </div>
+                )}
+                <button
+                  type="button"
+                  className="shrink-0 p-0.5 rounded text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground transition-opacity"
+                  onClick={() => {
+                    setShowCustomCron(false);
+                    setCronInput("");
+                  }}
+                >
+                  <XClose size={13} />
+                </button>
+              </div>
+            )}
+
+            {showEventForm && (
+              <Suspense
+                fallback={
+                  <div className="flex items-center gap-2 px-3 py-3 rounded-lg border border-border bg-background">
+                    <Loading01
+                      size={13}
+                      className="animate-spin text-muted-foreground"
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      Loading connections...
+                    </span>
+                  </div>
+                }
+              >
+                <EventTriggerForm
+                  automationId={automationId}
+                  onDone={() => setShowEventForm(false)}
+                />
+              </Suspense>
+            )}
+          </div>
+        )}
 
         {/* Section: Instructions */}
         <div className="flex flex-col gap-2.5">
@@ -678,7 +746,7 @@ export function SettingsTab({
           >
             <div className="rounded-xl border border-border min-h-[120px] flex flex-col">
               <TiptapInput
-                virtualMcpId={(fixedAgentId ?? watchAgentId) || null}
+                virtualMcpId={watchAgentId || null}
                 className="max-h-[45vh]"
               />
 
@@ -707,6 +775,7 @@ export function SettingsTab({
                       variant="default"
                       className="h-8 gap-1.5 rounded-md px-3 text-sm font-medium"
                       onClick={handleRunClick}
+                      disabled={!watchAgentId || isDraft}
                     >
                       <ArrowUp size={16} />
                       Test

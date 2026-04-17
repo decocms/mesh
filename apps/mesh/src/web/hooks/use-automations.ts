@@ -209,10 +209,10 @@ export function useAutomationDetail(id: string) {
 // Helpers
 // ============================================================================
 
-export function buildDefaultAutomationInput(virtualMcpId: string) {
+export function buildDefaultAutomationInput(virtualMcpId?: string) {
   return {
     name: "New Automation",
-    agent: { id: virtualMcpId },
+    agent: virtualMcpId ? { id: virtualMcpId } : undefined,
     messages: [],
     models: { credentialId: "", thinking: { id: "" } },
     temperature: 0.5,
