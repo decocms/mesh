@@ -1,18 +1,19 @@
 /**
  * MainPanelWithTabs — right-panel container with a tab bar.
  *
- * Tabs come from three sources:
- *   1. "Main" — the default tab, renders the current route Outlet
- *      (settings page, automation detail, ext-app, workflows, plugins).
+ * Tab sources (left to right):
+ *   1. Fixed system tabs: Instructions, Connections, Layout, Preview
+ *      (Preview only shown when the virtualMCP has an active GitHub repo.)
  *   2. Agent-declared tabs from `virtualMcp.metadata.ui.layout.tabs`.
  *   3. Task-scoped expanded tools from `task.metadata.expanded_tools`.
+ *   4. Ephemeral automation tab (only when `?main=automation:<id>` is active).
  *
- * Active tab is URL-driven via `?tab=<id>`. When unset, the first tab
- * (always "main") is active.
+ * Active tab is URL-driven via `?main=<tabId>`. `?main=0` closes the panel.
+ * Absent `?main` falls back to the agent's `defaultMainView` or "instructions".
  */
 
 import { Suspense, lazy } from "react";
-import { Outlet, useNavigate, useSearch } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { cn } from "@deco/ui/lib/utils.js";
 import {
   SELF_MCP_ALIAS_ID,
@@ -27,15 +28,19 @@ import type {
   ThreadExpandedTool,
   ThreadMetadata,
 } from "../../../storage/types";
-import { resolveDefaultTabId } from "./tab-id";
+import { getActiveGithubRepo } from "@/web/lib/github-repo";
+import { parseAutomationTabId, resolveActiveTabAndOpen } from "./tab-id";
+import { InstructionsTab } from "./instructions-tab";
+import { ConnectionsTab } from "./connections-tab";
+import { LayoutTab } from "./layout-tab";
+import { PreviewTab } from "./preview-tab";
+import { AutomationTab } from "./automation-tab";
 
 const AppViewContent = lazy(() =>
   import("@/web/routes/project-app-view").then((m) => ({
     default: m.AppViewContent,
   })),
 );
-
-const MAIN_TAB_ID = "main";
 
 type AgentTabDef = {
   id: string;
@@ -53,7 +58,6 @@ function useTaskMetadata(taskId: string) {
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
-
   const { data } = useSuspenseQuery({
     queryKey: KEYS.threadMetadata(taskId),
     queryFn: async () => {
@@ -73,7 +77,6 @@ function useTaskMetadata(taskId: string) {
     },
     staleTime: 30_000,
   });
-
   return data;
 }
 
@@ -85,7 +88,7 @@ export function MainPanelWithTabs({
   virtualMcpId: string;
 }) {
   const navigate = useNavigate();
-  const search = useSearch({ strict: false }) as { tab?: string };
+  const search = useSearch({ strict: false }) as { main?: string };
   const entity = useVirtualMCP(virtualMcpId);
   const metadata = useTaskMetadata(taskId);
 
@@ -98,9 +101,7 @@ export function MainPanelWithTabs({
             defaultMainView?: {
               type: string;
               id?: string;
-              toolName?: string;
             } | null;
-            chatDefaultOpen?: boolean | null;
           };
         };
       } | null
@@ -108,49 +109,52 @@ export function MainPanelWithTabs({
 
   const layoutTabs = (entityLayout?.tabs ?? []) as AgentTabDef[];
   const expandedTools: ThreadExpandedTool[] = metadata?.expanded_tools ?? [];
+  const hasActiveGithubRepo = !!(entity && getActiveGithubRepo(entity));
 
-  const defaultTabId =
-    resolveDefaultTabId(
-      entityLayout
-        ? {
-            defaultMainView: entityLayout.defaultMainView ?? null,
-            chatDefaultOpen: entityLayout.chatDefaultOpen ?? null,
-            tabs: layoutTabs.map((t) => ({ id: t.id })),
-          }
-        : null,
-    ) ?? MAIN_TAB_ID;
-
-  const activeTab = search.tab ?? defaultTabId;
+  const { activeTab } = resolveActiveTabAndOpen({
+    mainParam: search.main,
+    metadata: entityLayout
+      ? {
+          defaultMainView: entityLayout.defaultMainView ?? null,
+          tabs: layoutTabs.map((t) => ({ id: t.id })),
+        }
+      : null,
+  });
 
   const setActiveTab = (id: string) => {
     navigate({
       to: ".",
-      search: (prev: Record<string, unknown>) => ({
-        ...prev,
-        tab: id === MAIN_TAB_ID ? undefined : id,
-      }),
+      search: (prev: Record<string, unknown>) => ({ ...prev, main: id }),
       replace: true,
     });
   };
 
+  const automationTabParsed = parseAutomationTabId(activeTab);
+
+  const systemTabs: Array<{ id: string; title: string }> = [
+    { id: "instructions", title: "Instructions" },
+    { id: "connections", title: "Connections" },
+    { id: "layout", title: "Layout" },
+  ];
+  if (hasActiveGithubRepo) {
+    systemTabs.push({ id: "preview", title: "Preview" });
+  }
+
   const renderActive = () => {
-    if (activeTab === MAIN_TAB_ID) {
-      return (
-        <Suspense
-          fallback={
-            <div className="flex-1 flex items-center justify-center">
-              <Loading01
-                size={20}
-                className="animate-spin text-muted-foreground"
-              />
-            </div>
-          }
-        >
-          <div className="flex flex-1 items-center overflow-hidden h-full">
-            <Outlet />
-          </div>
-        </Suspense>
-      );
+    if (activeTab === "instructions") {
+      return <InstructionsTab virtualMcpId={virtualMcpId} />;
+    }
+    if (activeTab === "connections") {
+      return <ConnectionsTab virtualMcpId={virtualMcpId} />;
+    }
+    if (activeTab === "layout") {
+      return <LayoutTab virtualMcpId={virtualMcpId} />;
+    }
+    if (activeTab === "preview") {
+      return <PreviewTab virtualMcpId={virtualMcpId} />;
+    }
+    if (automationTabParsed) {
+      return <AutomationTab tabId={activeTab} />;
     }
 
     const agentTab = layoutTabs.find((t) => t.id === activeTab);
@@ -202,38 +206,48 @@ export function MainPanelWithTabs({
     );
   };
 
-  const hasExtraTabs = layoutTabs.length > 0 || expandedTools.length > 0;
-
   return (
     <div className="flex flex-col h-full min-h-0">
-      {hasExtraTabs && (
-        <div className="shrink-0 flex items-center gap-1 border-b border-border px-2 h-9 overflow-x-auto">
+      <div className="shrink-0 flex items-center gap-1 border-b border-border px-2 h-9 overflow-x-auto">
+        {systemTabs.map((t) => (
           <TabButton
-            id={MAIN_TAB_ID}
-            title="Main"
-            active={activeTab === MAIN_TAB_ID}
-            onClick={() => setActiveTab(MAIN_TAB_ID)}
+            key={t.id}
+            title={t.title}
+            active={activeTab === t.id}
+            onClick={() => setActiveTab(t.id)}
           />
-          {layoutTabs.map((t) => (
-            <TabButton
-              key={t.id}
-              id={t.id}
-              title={t.title}
-              active={activeTab === t.id}
-              onClick={() => setActiveTab(t.id)}
-            />
-          ))}
-          {expandedTools.map((t) => (
-            <TabButton
-              key={t.toolName}
-              id={t.toolName}
-              title={t.toolName}
-              active={activeTab === t.toolName}
-              onClick={() => setActiveTab(t.toolName)}
-            />
-          ))}
-        </div>
-      )}
+        ))}
+        {layoutTabs.map((t) => (
+          <TabButton
+            key={t.id}
+            title={t.title}
+            active={activeTab === t.id}
+            onClick={() => setActiveTab(t.id)}
+          />
+        ))}
+        {expandedTools.map((t) => (
+          <TabButton
+            key={t.toolName}
+            title={t.toolName}
+            active={activeTab === t.toolName}
+            onClick={() => setActiveTab(t.toolName)}
+          />
+        ))}
+        {automationTabParsed && (
+          <TabButton
+            title={
+              automationTabParsed.kind === "new"
+                ? "New automation"
+                : `Automation`
+            }
+            active
+            onClick={() => {
+              /* already active */
+            }}
+            ephemeral
+          />
+        )}
+      </div>
       <div className="flex-1 min-h-0 overflow-hidden">{renderActive()}</div>
     </div>
   );
@@ -243,11 +257,12 @@ function TabButton({
   title,
   active,
   onClick,
+  ephemeral,
 }: {
-  id: string;
   title: string;
   active: boolean;
   onClick: () => void;
+  ephemeral?: boolean;
 }) {
   return (
     <button
@@ -259,6 +274,7 @@ function TabButton({
         active
           ? "bg-muted text-foreground"
           : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+        ephemeral && "ml-auto italic",
       )}
     >
       {title}
