@@ -11,146 +11,90 @@ import {
 // ---------------------------------------------------------------------------
 
 describe("resolveDefaultPanelState", () => {
-  const orgId = "org_123";
-  const decopilotId = `decopilot_${orgId}`;
-  const agentId = "agent_abc";
-
-  test("decopilot ID, no params → tasks closed, main closed, chat open", () => {
-    const result = resolveDefaultPanelState({
-      virtualMcpId: decopilotId,
-      orgId,
-      entityMetadata: null,
-      hasMainParam: false,
-      isAgentHomeRoute: true,
-    });
-    expect(result).toEqual({
-      tasksOpen: false,
-      mainOpen: false,
-      chatOpen: true,
-    });
+  test("no tasks, no metadata → tasks closed, main closed, chat open", () => {
+    expect(
+      resolveDefaultPanelState({
+        entityMetadata: null,
+        hasMainParam: false,
+        taskCount: 0,
+      }),
+    ).toEqual({ tasksOpen: false, mainOpen: false, chatOpen: true });
   });
 
-  test("agent ID, entity default = null → tasks open, main closed, chat open", () => {
-    const result = resolveDefaultPanelState({
-      virtualMcpId: agentId,
-      orgId,
-      entityMetadata: null,
-      hasMainParam: false,
-      isAgentHomeRoute: true,
-    });
-    expect(result).toEqual({
-      tasksOpen: true,
-      mainOpen: false,
-      chatOpen: true,
-    });
+  test("has tasks → tasks open", () => {
+    expect(
+      resolveDefaultPanelState({
+        entityMetadata: null,
+        hasMainParam: false,
+        taskCount: 3,
+      }),
+    ).toEqual({ tasksOpen: true, mainOpen: false, chatOpen: true });
   });
 
-  test("agent ID, entity default = automation → tasks open, main open, chat closed", () => {
-    const result = resolveDefaultPanelState({
-      virtualMcpId: agentId,
-      orgId,
-      entityMetadata: { defaultMainView: { type: "automation" } },
-      hasMainParam: false,
-      isAgentHomeRoute: true,
-    });
-    expect(result).toEqual({
-      tasksOpen: true,
-      mainOpen: true,
-      chatOpen: false,
-    });
+  test("entity declares defaultMainView → main open", () => {
+    expect(
+      resolveDefaultPanelState({
+        entityMetadata: { defaultMainView: { type: "automation" } },
+        hasMainParam: false,
+        taskCount: 0,
+      }),
+    ).toEqual({ tasksOpen: false, mainOpen: true, chatOpen: true });
   });
 
-  test("agent ID, entity default = automation, chatDefaultOpen = true → all open", () => {
-    const result = resolveDefaultPanelState({
-      virtualMcpId: agentId,
-      orgId,
-      entityMetadata: {
-        defaultMainView: { type: "automation" },
-        chatDefaultOpen: true,
-      },
-      hasMainParam: false,
-      isAgentHomeRoute: true,
-    });
-    expect(result).toEqual({
-      tasksOpen: true,
-      mainOpen: true,
-      chatOpen: true,
-    });
+  test("?main param present → main open even without metadata", () => {
+    expect(
+      resolveDefaultPanelState({
+        entityMetadata: null,
+        hasMainParam: true,
+        taskCount: 0,
+      }),
+    ).toEqual({ tasksOpen: false, mainOpen: true, chatOpen: true });
   });
 
-  test("agent ID, ?main param present → all open", () => {
-    const result = resolveDefaultPanelState({
-      virtualMcpId: agentId,
-      orgId,
-      entityMetadata: { defaultMainView: { type: "automation" } },
-      hasMainParam: true,
-      isAgentHomeRoute: true,
-    });
-    expect(result).toEqual({
-      tasksOpen: true,
-      mainOpen: true,
-      chatOpen: true,
-    });
+  test("chatDefaultOpen = false → chat closed", () => {
+    expect(
+      resolveDefaultPanelState({
+        entityMetadata: {
+          defaultMainView: { type: "automation" },
+          chatDefaultOpen: false,
+        },
+        hasMainParam: false,
+        taskCount: 0,
+      }),
+    ).toEqual({ tasksOpen: false, mainOpen: true, chatOpen: false });
   });
 
-  test("non-agent route → all open", () => {
-    const result = resolveDefaultPanelState({
-      virtualMcpId: agentId,
-      orgId,
-      entityMetadata: null,
-      hasMainParam: false,
-      isAgentHomeRoute: false,
-    });
-    expect(result).toEqual({
-      tasksOpen: true,
-      mainOpen: true,
-      chatOpen: true,
-    });
+  test("chatDefaultOpen = true (explicit) → chat open", () => {
+    expect(
+      resolveDefaultPanelState({
+        entityMetadata: {
+          defaultMainView: { type: "automation" },
+          chatDefaultOpen: true,
+        },
+        hasMainParam: false,
+        taskCount: 0,
+      }),
+    ).toEqual({ tasksOpen: false, mainOpen: true, chatOpen: true });
   });
 
-  test("agent ID, entity metadata = null (loading) → tasks open, main closed, chat open", () => {
-    const result = resolveDefaultPanelState({
-      virtualMcpId: agentId,
-      orgId,
-      entityMetadata: null,
-      hasMainParam: false,
-      isAgentHomeRoute: true,
-    });
-    expect(result).toEqual({
-      tasksOpen: true,
-      mainOpen: false,
-      chatOpen: true,
-    });
+  test("has tasks + defaultMainView → all three open", () => {
+    expect(
+      resolveDefaultPanelState({
+        entityMetadata: { defaultMainView: { type: "settings" } },
+        hasMainParam: false,
+        taskCount: 2,
+      }),
+    ).toEqual({ tasksOpen: true, mainOpen: true, chatOpen: true });
   });
 
-  test("agent ID, entity default = ext-apps → tasks open, main open, chat closed", () => {
-    const result = resolveDefaultPanelState({
-      virtualMcpId: agentId,
-      orgId,
-      entityMetadata: { defaultMainView: { type: "ext-apps" } },
-      hasMainParam: false,
-      isAgentHomeRoute: true,
-    });
-    expect(result).toEqual({
-      tasksOpen: true,
-      mainOpen: true,
-      chatOpen: false,
-    });
-  });
-
-  test("agent ID, entity default = settings → tasks open, main open, chat closed", () => {
-    const result = resolveDefaultPanelState({
-      virtualMcpId: agentId,
-      orgId,
-      entityMetadata: { defaultMainView: { type: "settings" } },
-      hasMainParam: false,
-      isAgentHomeRoute: true,
-    });
-    expect(result).toEqual({
-      tasksOpen: true,
-      mainOpen: true,
-      chatOpen: false,
-    });
+  test("defaultMainView = null explicitly → main closed", () => {
+    expect(
+      resolveDefaultPanelState({
+        entityMetadata: { defaultMainView: null },
+        hasMainParam: false,
+        taskCount: 0,
+      }),
+    ).toEqual({ tasksOpen: false, mainOpen: false, chatOpen: true });
   });
 });
 

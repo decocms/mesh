@@ -8,6 +8,7 @@
 
 import { createContext, use, useEffect, useLayoutEffect, useRef } from "react";
 import { Chat, useChatTask } from "@/web/components/chat/index";
+import { useTasks } from "@/web/components/chat/task/use-task-manager";
 import { ChatCenterPanel } from "@/web/layouts/chat-center-panel";
 import { TasksPanel } from "@/web/layouts/tasks-panel";
 import { ErrorBoundary } from "@/web/components/error-boundary";
@@ -37,13 +38,13 @@ import { cn } from "@deco/ui/lib/utils.js";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import {
   AlertCircle,
+  Browser,
   ChevronLeft,
   ChevronRight,
   LayoutLeft,
   Edit05,
   Loading01,
   Menu01,
-  MessageChatCircle,
   LayoutRight,
 } from "@untitledui/icons";
 import {
@@ -362,7 +363,6 @@ function AgentInsetProvider() {
     pluginId?: string;
   };
   const orgSlug = params.org ?? "";
-  const hasPlugin = !!params.pluginId;
 
   // Derive virtualMcpId from `?virtualmcpid=` or fall back to decopilot.
   // (When a task is loaded, its `virtual_mcp_id` field is authoritative, but
@@ -378,7 +378,6 @@ function AgentInsetProvider() {
   const isDecopilot = virtualMcpId === getDecopilotId(org.id);
   const isAgentRoute = !isDecopilot;
   const showThreePanels = true;
-  const isAgentHomeRoute = !hasPlugin;
 
   // Fetch entity (Suspense-based — resolved before render)
   const entity = useVirtualMCP(virtualMcpId);
@@ -409,15 +408,21 @@ function AgentInsetProvider() {
       }
     : null;
 
+  // Fetch task count for default panel state (deduped with TaskListContent's fetch).
+  const { tasks } = useTasks({
+    owner: "all",
+    status: "open",
+    virtualMcpId,
+  });
+
   // Layout state from URL querystring.
   // Route context is passed explicitly because usePanelState runs inside a pathless
   // layout that cannot see child route params via useMatch.
-  const layout = usePanelState(entityMetadata, {
-    virtualMcpId,
-    orgSlug,
-    isAgentRoute,
-    isAgentHomeRoute,
-  });
+  const layout = usePanelState(
+    entityMetadata,
+    { virtualMcpId, orgSlug, isAgentRoute },
+    tasks.length,
+  );
 
   // Tasks panel virtualMcpId
   const tasksVirtualMcpId = virtualMcpId;
@@ -631,6 +636,20 @@ function AgentInsetProvider() {
               </button>
               <button
                 type="button"
+                onClick={layout.toggleMain}
+                aria-pressed={layout.mainOpen}
+                className={cn(
+                  "flex size-7 items-center justify-center rounded-md transition-colors",
+                  layout.mainOpen
+                    ? "bg-sidebar-accent text-sidebar-foreground"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                )}
+                title="Toggle content"
+              >
+                <Browser size={16} />
+              </button>
+              <button
+                type="button"
                 onClick={layout.toggleChat}
                 aria-pressed={layout.chatOpen}
                 className={cn(
@@ -640,20 +659,6 @@ function AgentInsetProvider() {
                     : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                 )}
                 title="Toggle chat"
-              >
-                <MessageChatCircle size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={layout.toggleMain}
-                aria-pressed={layout.mainOpen}
-                className={cn(
-                  "flex size-7 items-center justify-center rounded-md transition-colors",
-                  layout.mainOpen
-                    ? "bg-sidebar-accent text-sidebar-foreground"
-                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                )}
-                title="Toggle main"
               >
                 <LayoutRight size={16} />
               </button>

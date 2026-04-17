@@ -11,7 +11,6 @@
 
 import { useRef } from "react";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { getDecopilotId, useProjectContext } from "@decocms/mesh-sdk";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -70,47 +69,20 @@ export function canToggle(
 /**
  * Resolves default panel open/closed state when URL params are absent.
  *
- * Rules:
- * 1. Non-agent-home routes: all panels expanded
- * 2. Agent home with ?main param: all panels expanded
- * 3. Agent home, decopilot ID: tasks closed, main closed, chat open
- * 4. Agent home, entity defaultMainView null/absent: main collapsed, chat open
- * 5. Agent home, entity defaultMainView present: main open, chat uses chatDefaultOpen
+ * - tasks: open iff the user has tasks
+ * - main: open iff the route has a `?main=` param or the agent declares a defaultMainView
+ * - chat: open unless the agent explicitly sets `chatDefaultOpen: false`
  */
 export function resolveDefaultPanelState(ctx: {
-  virtualMcpId: string;
-  orgId: string;
   entityMetadata: EntityLayoutMetadata | null;
   hasMainParam: boolean;
-  isAgentHomeRoute: boolean;
+  taskCount: number;
 }): { tasksOpen: boolean; mainOpen: boolean; chatOpen: boolean } {
-  const allOpen = { tasksOpen: true, mainOpen: true, chatOpen: true };
-
-  // Non-agent-home routes: all expanded
-  if (!ctx.isAgentHomeRoute) {
-    return allOpen;
-  }
-
-  // ?main param present: all expanded
-  if (ctx.hasMainParam) {
-    return allOpen;
-  }
-
-  // Decopilot ID: tasks closed, main closed, chat open
-  const isDecopilot = ctx.virtualMcpId === getDecopilotId(ctx.orgId);
-  if (isDecopilot) {
-    return { tasksOpen: false, mainOpen: false, chatOpen: true };
-  }
-
-  // Main panel opens whenever the agent declares a defaultMainView.
-  const hasDefault = ctx.entityMetadata?.defaultMainView != null;
-
-  if (!hasDefault) {
-    return { tasksOpen: true, mainOpen: false, chatOpen: true };
-  }
-
-  const chatDefaultOpen = ctx.entityMetadata?.chatDefaultOpen ?? false;
-  return { tasksOpen: true, mainOpen: true, chatOpen: chatDefaultOpen };
+  return {
+    tasksOpen: ctx.taskCount > 0,
+    mainOpen: ctx.hasMainParam || ctx.entityMetadata?.defaultMainView != null,
+    chatOpen: ctx.entityMetadata?.chatDefaultOpen ?? true,
+  };
 }
 
 /**
@@ -204,15 +176,14 @@ export interface PanelStateRouteCtx {
   virtualMcpId: string;
   orgSlug: string;
   isAgentRoute: boolean;
-  isAgentHomeRoute: boolean;
 }
 
 export function usePanelState(
   entityMetadata: EntityLayoutMetadata | null,
   routeCtx: PanelStateRouteCtx,
+  taskCount: number,
 ): LayoutState & LayoutActions {
   const navigate = useNavigate();
-  const { org } = useProjectContext();
 
   const search = useSearch({ strict: false }) as PanelSearchParams;
   const routeParamsRaw = useParams({ strict: false }) as {
@@ -220,16 +191,13 @@ export function usePanelState(
     taskId?: string;
   };
 
-  const { virtualMcpId, orgSlug, isAgentRoute, isAgentHomeRoute } = routeCtx;
+  const { virtualMcpId, orgSlug, isAgentRoute } = routeCtx;
 
-  const resolveCtx = {
-    virtualMcpId,
-    orgId: org.id,
+  const defaults = resolveDefaultPanelState({
     entityMetadata,
     hasMainParam: !!search.main,
-    isAgentHomeRoute,
-  };
-  const defaults = resolveDefaultPanelState(resolveCtx);
+    taskCount,
+  });
 
   // Parse panel state from URL, falling back to defaults
   const tasksOpen = parsePanelParam(search.tasks, defaults.tasksOpen);
