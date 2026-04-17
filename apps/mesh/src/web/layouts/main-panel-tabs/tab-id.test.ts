@@ -81,9 +81,9 @@ describe("resolveDefaultTabId", () => {
   });
 
   test("legacy settings → 'layout'", () => {
-    expect(
-      resolveDefaultTabId({ defaultMainView: { type: "settings" } }),
-    ).toBe("layout");
+    expect(resolveDefaultTabId({ defaultMainView: { type: "settings" } })).toBe(
+      "layout",
+    );
   });
 
   test("preview → 'preview'", () => {
