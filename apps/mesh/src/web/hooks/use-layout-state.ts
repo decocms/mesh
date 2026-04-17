@@ -71,28 +71,14 @@ export function resolveDefaultPanelState(ctx: {
   };
 }
 
-export function computeDefaultSizes(state: {
-  tasksOpen: boolean;
-  mainOpen: boolean;
-  chatOpen: boolean;
-}): { tasks: number; main: number; chat: number } {
-  const { tasksOpen, mainOpen, chatOpen } = state;
-
-  if (tasksOpen && mainOpen && chatOpen)
-    return { tasks: 22, main: 43, chat: 35 };
-  if (!tasksOpen && mainOpen && chatOpen)
-    return { tasks: 0, main: 65, chat: 35 };
-  if (tasksOpen && !mainOpen && chatOpen)
-    return { tasks: 22, main: 0, chat: 78 };
-  if (tasksOpen && mainOpen && !chatOpen)
-    return { tasks: 22, main: 78, chat: 0 };
-  if (!tasksOpen && !mainOpen && chatOpen)
-    return { tasks: 0, main: 0, chat: 100 };
-  if (!tasksOpen && mainOpen && !chatOpen)
-    return { tasks: 0, main: 100, chat: 0 };
-  if (tasksOpen && !mainOpen && !chatOpen)
-    return { tasks: 100, main: 0, chat: 0 };
-  return { tasks: 0, main: 0, chat: 100 };
+export function computeChatMainSizes(
+  chatOpen: boolean,
+  mainOpen: boolean,
+): { chat: number; main: number } {
+  if (chatOpen && mainOpen) return { chat: 45, main: 55 };
+  if (chatOpen && !mainOpen) return { chat: 100, main: 0 };
+  if (!chatOpen && mainOpen) return { chat: 0, main: 100 };
+  return { chat: 0, main: 0 };
 }
 
 // ---------------------------------------------------------------------------

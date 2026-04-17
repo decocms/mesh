@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   canToggle,
-  computeDefaultSizes,
+  computeChatMainSizes,
   resolveDefaultPanelState,
 } from "./use-layout-state";
 
@@ -70,20 +70,20 @@ describe("canToggle", () => {
   });
 });
 
-describe("computeDefaultSizes", () => {
-  test("all open → 22/43/35", () => {
-    expect(
-      computeDefaultSizes({ tasksOpen: true, mainOpen: true, chatOpen: true }),
-    ).toEqual({ tasks: 22, main: 43, chat: 35 });
+describe("computeChatMainSizes", () => {
+  test("both open → 45/55", () => {
+    expect(computeChatMainSizes(true, true)).toEqual({ chat: 45, main: 55 });
   });
 
-  test("only chat → 0/0/100", () => {
-    expect(
-      computeDefaultSizes({
-        tasksOpen: false,
-        mainOpen: false,
-        chatOpen: true,
-      }),
-    ).toEqual({ tasks: 0, main: 0, chat: 100 });
+  test("only chat → 100/0", () => {
+    expect(computeChatMainSizes(true, false)).toEqual({ chat: 100, main: 0 });
+  });
+
+  test("only main → 0/100", () => {
+    expect(computeChatMainSizes(false, true)).toEqual({ chat: 0, main: 100 });
+  });
+
+  test("neither → 0/0 (chat panel is collapsible to 0)", () => {
+    expect(computeChatMainSizes(false, false)).toEqual({ chat: 0, main: 0 });
   });
 });
