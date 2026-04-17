@@ -27,7 +27,7 @@ import type {
   ThreadExpandedTool,
   ThreadMetadata,
 } from "../../../storage/types";
-import { resolveDefaultTabId } from "@/web/hooks/use-layout-state";
+import { resolveDefaultTabId } from "./tab-id";
 
 const AppViewContent = lazy(() =>
   import("@/web/routes/project-app-view").then((m) => ({

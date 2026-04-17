@@ -12,6 +12,7 @@
 export interface EntityLayoutMetadata {
   defaultMainView?: { type: string; id?: string } | null;
   tabs?: Array<{ id: string }>;
+  chatDefaultOpen?: boolean | null;
 }
 
 export type AutomationTabParsed =

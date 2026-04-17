@@ -1,12 +1,13 @@
 /**
  * usePanelState — Querystring-driven panel layout state.
  *
- * Panel open/closed state lives in URL search params.
- * Panel widths stay in localStorage.
- * Runtime toggles use imperative panel group ref for smooth animation.
- * ResizablePanelGroup key changes only on agent/task switch.
- *
- * All panel-state writes use navigate({ replace: true }) to avoid history pollution.
+ * URL model:
+ *   ?main=<tabId>    main panel open, tab active
+ *   ?main=0          main panel closed
+ *   ?main absent     default (open iff defaultMainView != null)
+ *   ?tasks=0|1       tasks panel open state
+ *   ?chat=0|1        chat panel open state
+ *   ?virtualmcpid    which MCP the chat + right panel are scoped to
  */
 
 import { useRef } from "react";
@@ -17,7 +18,7 @@ import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 // ---------------------------------------------------------------------------
 
 export interface EntityLayoutMetadata {
-  defaultMainView?: { type: string; id?: string; toolName?: string } | null;
+  defaultMainView?: { type: string; id?: string } | null;
   chatDefaultOpen?: boolean | null;
   tabs?: Array<{ id: string }>;
 }
@@ -27,37 +28,24 @@ export interface LayoutState {
   tasksOpen: boolean;
   mainOpen: boolean;
   chatOpen: boolean;
-  envOpen: boolean;
-  daemonOpen: boolean;
-  mainView: string | undefined;
-  mainViewId: string | undefined;
-  toolName: string | undefined;
+  /** Current ?main value (undefined when param absent). "0" = closed. */
+  mainParam: string | undefined;
 }
 
 export interface LayoutActions {
-  setTaskId: (id: string) => void;
+  setTaskId: (id: string, virtualMcpId?: string) => void;
   toggleTasks: () => void;
   toggleMain: () => void;
   toggleChat: () => void;
   openChat: () => void;
   createNewTask: () => void;
-  openMainView: (
-    view: string,
-    opts?: { id?: string; toolName?: string },
-  ) => void;
-  closeMainView: () => void;
-  toggleEnv: () => void;
-  toggleDaemon: () => void;
+  openTab: (id: string) => void;
 }
 
 // ---------------------------------------------------------------------------
-// Pure functions (exported for testing)
+// Pure helpers (exported for testing)
 // ---------------------------------------------------------------------------
 
-/**
- * Determines whether a toggle action is allowed.
- * Returns false if toggling the panel off would leave zero panels open.
- */
 export function canToggle(
   panelIsOpen: boolean,
   expandedCount: number,
@@ -66,54 +54,23 @@ export function canToggle(
   return true;
 }
 
-/**
- * Resolves default panel open/closed state when URL params are absent.
- *
- * - tasks: open iff the user has tasks
- * - main: open iff the route has a `?main=` param or the agent declares a defaultMainView
- * - chat: open unless the agent explicitly sets `chatDefaultOpen: false`
- */
 export function resolveDefaultPanelState(ctx: {
   entityMetadata: EntityLayoutMetadata | null;
-  hasMainParam: boolean;
+  mainParamPresent: boolean;
+  mainParamValue?: string;
   taskCount: number;
 }): { tasksOpen: boolean; mainOpen: boolean; chatOpen: boolean } {
+  const mainOpen = ctx.mainParamPresent
+    ? ctx.mainParamValue !== "0"
+    : ctx.entityMetadata?.defaultMainView != null;
+
   return {
     tasksOpen: ctx.taskCount > 0,
-    mainOpen: ctx.hasMainParam || ctx.entityMetadata?.defaultMainView != null,
+    mainOpen,
     chatOpen: ctx.entityMetadata?.chatDefaultOpen ?? true,
   };
 }
 
-/**
- * Resolves the default tab id in the right panel when `?tab` is absent.
- *
- * - `defaultMainView === null/undefined` → `null` (no preselected tab; "Main" tab wins)
- * - `defaultMainView.type === "ext-app"` → `defaultMainView.id` (agent tab id)
- * - `defaultMainView.type === "settings"` → `defaultMainView.id` if provided, otherwise "instructions"
- * - Fallback: first agent-declared tab id when available.
- */
-export function resolveDefaultTabId(
-  metadata: EntityLayoutMetadata | null,
-): string | null {
-  const def = metadata?.defaultMainView ?? null;
-  if (!def) return null;
-
-  if (def.type === "ext-app" || def.type === "ext-apps") {
-    return def.id ?? metadata?.tabs?.[0]?.id ?? null;
-  }
-
-  if (def.type === "settings") {
-    return def.id ?? "instructions";
-  }
-
-  return metadata?.tabs?.[0]?.id ?? null;
-}
-
-/**
- * Maps panel open/closed booleans to default size percentages.
- * Note: tasks minSize is 22, so open sizes must be >= 22.
- */
 export function computeDefaultSizes(state: {
   tasksOpen: boolean;
   mainOpen: boolean;
@@ -135,8 +92,6 @@ export function computeDefaultSizes(state: {
     return { tasks: 0, main: 100, chat: 0 };
   if (tasksOpen && !mainOpen && !chatOpen)
     return { tasks: 100, main: 0, chat: 0 };
-
-  // Fallback (all closed — shouldn't happen due to toggle guard)
   return { tasks: 0, main: 0, chat: 100 };
 }
 
@@ -146,11 +101,8 @@ export function computeDefaultSizes(state: {
 
 type PanelSearchParams = {
   tasks?: number;
-  mainOpen?: number;
   chat?: number;
   main?: string;
-  id?: string;
-  toolName?: string;
   virtualmcpid?: string;
 };
 
@@ -167,11 +119,6 @@ function parsePanelParam(
 // Hook
 // ---------------------------------------------------------------------------
 
-/**
- * Route context required by usePanelState.
- * Must be provided by the caller because usePanelState runs inside a pathless
- * layout that cannot see child route params via useMatch.
- */
 export interface PanelStateRouteCtx {
   virtualMcpId: string;
   orgSlug: string;
@@ -184,7 +131,6 @@ export function usePanelState(
   taskCount: number,
 ): LayoutState & LayoutActions {
   const navigate = useNavigate();
-
   const search = useSearch({ strict: false }) as PanelSearchParams;
   const routeParamsRaw = useParams({ strict: false }) as {
     org?: string;
@@ -195,32 +141,24 @@ export function usePanelState(
 
   const defaults = resolveDefaultPanelState({
     entityMetadata,
-    hasMainParam: !!search.main,
+    mainParamPresent: search.main !== undefined,
+    mainParamValue: search.main,
     taskCount,
   });
 
-  // Parse panel state from URL, falling back to defaults
   const tasksOpen = parsePanelParam(search.tasks, defaults.tasksOpen);
-  const mainOpen = parsePanelParam(search.mainOpen, defaults.mainOpen);
   const chatOpen = parsePanelParam(search.chat, defaults.chatOpen);
-  const envOpen = false;
-  const daemonOpen = false;
+  const mainOpen = defaults.mainOpen;
 
-  // taskId comes from path params; fall back to a stable UUID.
   const fallbackRef = useRef(crypto.randomUUID());
   const taskId = routeParamsRaw.taskId ?? fallbackRef.current;
 
-  // Expanded count for toggle guard
   const expandedCount = [tasksOpen, mainOpen, chatOpen].filter(Boolean).length;
 
-  // --- Route params for navigation ---
-  // Note: `isAgentRoute` is derived by the caller from virtualMcpId vs decopilot.
-  // Panel navigation preserves the current taskId; virtualmcpid goes in search.
   const routeBase = "/$org/$taskId" as const;
   const makeParams = (tid: string) => ({ org: orgSlug, taskId: tid });
   const preserveVirtualMcp = isAgentRoute ? { virtualmcpid: virtualMcpId } : {};
 
-  // Helper: navigate with search params (replace for panel state)
   const navigateSearch = (
     updates: Record<string, unknown>,
     options?: { replace?: boolean },
@@ -233,12 +171,14 @@ export function usePanelState(
     });
   };
 
-  const setTaskId = (id: string) => {
+  const setTaskId = (id: string, targetVirtualMcpId?: string) => {
     navigate({
       to: routeBase,
       params: makeParams(id),
       search: (prev: Record<string, unknown>) => {
-        const next: Record<string, unknown> = { ...preserveVirtualMcp };
+        const next: Record<string, unknown> = {};
+        if (targetVirtualMcpId) next.virtualmcpid = targetVirtualMcpId;
+        else if (isAgentRoute) next.virtualmcpid = virtualMcpId;
         if (prev.tasks) next.tasks = prev.tasks;
         return next;
       },
@@ -252,9 +192,20 @@ export function usePanelState(
 
   const toggleMain = () => {
     if (!canToggle(mainOpen, expandedCount)) return;
-    navigateSearch(mainOpen ? { mainOpen: 0 } : { mainOpen: 1 }, {
-      replace: true,
-    });
+    if (mainOpen) {
+      navigateSearch({ main: "0" }, { replace: true });
+    } else {
+      navigate({
+        to: routeBase,
+        params: makeParams(taskId),
+        search: (prev: Record<string, unknown>) => {
+          const next: Record<string, unknown> = { ...prev };
+          delete next.main;
+          return next;
+        },
+        replace: true,
+      });
+    }
   };
 
   const toggleChat = () => {
@@ -283,69 +234,22 @@ export function usePanelState(
     });
   };
 
-  const openMainView = (
-    view: string,
-    opts?: { id?: string; toolName?: string },
-  ) => {
-    if (view === "default") {
-      navigate({
-        to: routeBase,
-        params: makeParams(taskId),
-        search: (prev: Record<string, unknown>) => {
-          const next: Record<string, unknown> = { ...preserveVirtualMcp };
-          if (prev.tasks) next.tasks = prev.tasks;
-          if (prev.chat) next.chat = prev.chat;
-          next.mainOpen = 0;
-          return next;
-        },
-        replace: true,
-      });
-      return;
-    }
-
-    const updates: Record<string, unknown> = { main: view, mainOpen: 1 };
-    if (opts?.id) updates.id = opts.id;
-    if (opts?.toolName) updates.toolName = opts.toolName;
-    navigateSearch(updates, { replace: true });
+  const openTab = (id: string) => {
+    navigateSearch({ main: id }, { replace: true });
   };
-
-  const closeMainView = () => {
-    navigate({
-      to: routeBase,
-      params: makeParams(taskId),
-      search: (prev: Record<string, unknown>) => {
-        const next: Record<string, unknown> = { ...preserveVirtualMcp };
-        if (prev.tasks) next.tasks = prev.tasks;
-        if (prev.chat) next.chat = prev.chat;
-        next.mainOpen = 0;
-        return next;
-      },
-      replace: true,
-    });
-  };
-
-  const toggleEnv = () => {};
-  const toggleDaemon = () => {};
 
   return {
     taskId,
     tasksOpen,
     mainOpen,
     chatOpen,
-    envOpen,
-    daemonOpen,
-    mainView: search.main,
-    mainViewId: search.id,
-    toolName: search.toolName,
+    mainParam: search.main,
     setTaskId,
     toggleTasks,
     toggleMain,
     toggleChat,
     openChat,
     createNewTask,
-    openMainView,
-    closeMainView,
-    toggleEnv,
-    toggleDaemon,
+    openTab,
   };
 }
