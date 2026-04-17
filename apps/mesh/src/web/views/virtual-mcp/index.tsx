@@ -80,6 +80,7 @@ import { ALL_ITEMS_SELECTED } from "./selection-utils";
 import { VirtualMcpFormSchema, type VirtualMcpFormData } from "./types";
 import { VirtualMCPShareModal } from "./virtual-mcp-share-modal";
 import { getActiveGithubRepo } from "@/web/lib/github-repo";
+import { FIXED_SYSTEM_TABS } from "@/web/layouts/main-panel-tabs/tab-id";
 
 type DialogState = {
   shareDialogOpen: boolean;
@@ -579,6 +580,8 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
     connectionsWithTools ?? []
   ).filter((c) => c.uiTools.length > 0);
 
+  const fixedTabTypeSet = new Set<string>(FIXED_SYSTEM_TABS);
+
   // Current pinned views from virtual MCP metadata
   const uiMeta = virtualMcp?.metadata?.ui as
     | {
@@ -599,8 +602,11 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
 
   const serverDefaultMainKey = (() => {
     if (!serverDefaultMain || serverDefaultMain.type === "chat") return "chat";
-    if (serverDefaultMain.type === "settings") return "settings";
-    if (serverDefaultMain.type === "preview") return "preview";
+    // Legacy: "settings" used to be its own tab; map onto Layout.
+    if (serverDefaultMain.type === "settings") return "layout";
+    if (fixedTabTypeSet.has(serverDefaultMain.type)) {
+      return serverDefaultMain.type;
+    }
     return `${serverDefaultMain.type}:${serverDefaultMain.id ?? ""}:${serverDefaultMain.toolName ?? ""}`;
   })();
 
@@ -609,12 +615,16 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
     useState<string>(serverDefaultMainKey);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Parse default main view from composite key
+  // Parse default main view from composite key.
+  // Plain fixed-system tab ids round-trip as { type: "<id>" }.
+  // ext-apps uses "ext-apps:<connectionId>:<toolName>".
   const parseDefaultMainView = (value: string) => {
     const [type, id, toolName] = value.split(":");
-    if (type === "chat") return { type: "chat" as const };
-    if (type === "settings") return { type: "settings" as const };
-    if (type === "preview") return { type: "preview" as const };
+    if (!type) return null;
+    if (type === "chat") return { type };
+    if (fixedTabTypeSet.has(type)) {
+      return { type };
+    }
     if (type === "ext-apps" && id)
       return { type: "ext-apps" as const, id, toolName: toolName || undefined };
     return null;
