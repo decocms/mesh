@@ -68,17 +68,17 @@ export function resolveDefaultPanelState(ctx: {
   entityMetadata: EntityLayoutMetadata | null;
   mainParamPresent: boolean;
   mainParamValue?: string;
-}): { tasksOpen: boolean; mainOpen: boolean; chatOpen: boolean } {
+}): { mainOpen: boolean; chatOpen: boolean } {
   const def = ctx.entityMetadata?.defaultMainView ?? null;
-  const defaultOpensMain = def != null && def.type !== "chat";
+  const defaultIsChat = def == null || def.type === "chat";
+
   const mainOpen = ctx.mainParamPresent
     ? ctx.mainParamValue !== "0"
-    : defaultOpensMain;
+    : !defaultIsChat;
 
   return {
-    tasksOpen: true,
     mainOpen,
-    chatOpen: ctx.entityMetadata?.chatDefaultOpen ?? true,
+    chatOpen: defaultIsChat,
   };
 }
 

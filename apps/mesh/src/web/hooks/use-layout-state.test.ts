@@ -7,54 +7,51 @@ import {
 } from "./use-layout-state";
 
 describe("resolveDefaultPanelState", () => {
-  test("no metadata → tasks open, main closed, chat open", () => {
+  test("no metadata → main closed, chat open", () => {
     expect(
       resolveDefaultPanelState({
         entityMetadata: null,
         mainParamPresent: false,
       }),
-    ).toEqual({ tasksOpen: true, mainOpen: false, chatOpen: true });
+    ).toEqual({ mainOpen: false, chatOpen: true });
   });
 
-  test("entity declares defaultMainView → main open", () => {
+  test("defaultMainView.type='chat' → main closed, chat open", () => {
+    expect(
+      resolveDefaultPanelState({
+        entityMetadata: { defaultMainView: { type: "chat" } },
+        mainParamPresent: false,
+      }),
+    ).toEqual({ mainOpen: false, chatOpen: true });
+  });
+
+  test("defaultMainView.type non-chat → main open, chat closed", () => {
     expect(
       resolveDefaultPanelState({
         entityMetadata: { defaultMainView: { type: "ext-app", id: "x" } },
         mainParamPresent: false,
       }),
-    ).toEqual({ tasksOpen: true, mainOpen: true, chatOpen: true });
+    ).toEqual({ mainOpen: true, chatOpen: false });
   });
 
-  test("?main=0 → main closed regardless of default", () => {
+  test("?main=0 overrides default → main closed", () => {
     expect(
       resolveDefaultPanelState({
         entityMetadata: { defaultMainView: { type: "settings" } },
         mainParamPresent: true,
         mainParamValue: "0",
       }),
-    ).toEqual({ tasksOpen: true, mainOpen: false, chatOpen: true });
+    ).toEqual({ mainOpen: false, chatOpen: false });
   });
 
-  test("?main=<tabId> → main open", () => {
+  test("?main=<tabId> opens main even when default is chat", () => {
     expect(
       resolveDefaultPanelState({
-        entityMetadata: null,
+        entityMetadata: { defaultMainView: { type: "chat" } },
         mainParamPresent: true,
         mainParamValue: "layout",
       }),
-    ).toEqual({ tasksOpen: true, mainOpen: true, chatOpen: true });
-  });
-
-  test("chatDefaultOpen = false → chat closed", () => {
-    expect(
-      resolveDefaultPanelState({
-        entityMetadata: {
-          defaultMainView: { type: "settings" },
-          chatDefaultOpen: false,
-        },
-        mainParamPresent: false,
-      }),
-    ).toEqual({ tasksOpen: true, mainOpen: true, chatOpen: false });
+    ).toEqual({ mainOpen: true, chatOpen: true });
   });
 });
 
