@@ -45,6 +45,7 @@ import {
   Loading01,
   Menu01,
   LayoutRight,
+  Server01,
 } from "@untitledui/icons";
 import {
   getDecopilotId,
@@ -68,18 +69,29 @@ import {
   computeDefaultSizes,
   usePanelState,
 } from "@/web/hooks/use-layout-state";
+import { getActiveGithubRepo } from "@/web/lib/github-repo";
+import { EnvContent } from "@/web/components/vm/env/env";
+import { useToggleEnvPanel } from "@/web/hooks/use-toggle-env-panel";
+
+import { GitHubIcon } from "@/web/components/icons/github-icon";
 
 // ---------------------------------------------------------------------------
 // Types & Context
 // ---------------------------------------------------------------------------
 
-export type MainViewType = "chat" | "settings" | "automation" | "ext-apps";
+export type MainViewType =
+  | "chat"
+  | "settings"
+  | "automation"
+  | "ext-apps"
+  | "preview";
 
 export type MainView =
   | { type: "chat" }
   | { type: "settings" }
   | { type: "automation"; id: string }
   | { type: "ext-apps"; id: string; toolName?: string; [key: string]: unknown }
+  | { type: "preview" }
   | null;
 
 export interface InsetContextValue {
@@ -223,6 +235,8 @@ function UnifiedPanelGroup({
   tasksOpen,
   mainOpen,
   chatOpen,
+  envOpen,
+  daemonOpen,
 }: {
   virtualMcpId: string;
   taskId: string;
@@ -231,6 +245,8 @@ function UnifiedPanelGroup({
   tasksOpen: boolean;
   mainOpen: boolean;
   chatOpen: boolean;
+  envOpen: boolean;
+  daemonOpen: boolean;
 }) {
   const sizes = computeDefaultSizes({ tasksOpen, mainOpen, chatOpen });
   const panelGroupRef = useRef<ImperativePanelGroupHandle>(null);
@@ -282,20 +298,36 @@ function UnifiedPanelGroup({
               "rounded-[0.75rem]",
             )}
           >
-            <Suspense
-              fallback={
-                <div className="flex-1 flex items-center justify-center">
-                  <Loading01
-                    size={20}
-                    className="animate-spin text-muted-foreground"
-                  />
-                </div>
-              }
-            >
-              <div className="flex flex-1 items-center overflow-hidden rounded-[inherit]">
-                <Outlet />
-              </div>
-            </Suspense>
+            <ResizablePanelGroup direction="vertical">
+              <ResizablePanel
+                defaultSize={envOpen ? 60 : 100}
+                minSize={20}
+                order={1}
+              >
+                <Suspense
+                  fallback={
+                    <div className="flex-1 flex items-center justify-center">
+                      <Loading01
+                        size={20}
+                        className="animate-spin text-muted-foreground"
+                      />
+                    </div>
+                  }
+                >
+                  <div className="flex flex-1 items-center overflow-hidden h-full">
+                    <Outlet />
+                  </div>
+                </Suspense>
+              </ResizablePanel>
+              {envOpen && (
+                <>
+                  <ResizableHandle />
+                  <ResizablePanel defaultSize={40} minSize={15} order={2}>
+                    <EnvContent daemonOpen={daemonOpen} />
+                  </ResizablePanel>
+                </>
+              )}
+            </ResizablePanelGroup>
           </div>
         </div>
       </ResizablePanel>
@@ -409,6 +441,8 @@ function AgentInsetProvider() {
     mainView = id
       ? { type: "ext-apps", id, toolName: search.toolName }
       : { type: "settings" };
+  } else if (search.main === "preview") {
+    mainView = { type: "preview" };
   } else {
     mainView = null;
   }
@@ -451,6 +485,20 @@ function AgentInsetProvider() {
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, []);
+
+  const { envOpen, toggleEnv } = useToggleEnvPanel();
+  const { toggleDaemon } = layout;
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — subscribes to document keydown for ⌘D toggle-daemon shortcut; DOM event listener has no React 19 alternative
+  useEffect(() => {
+    const handler = (e: globalThis.KeyboardEvent) => {
+      if (isModKey(e) && !e.shiftKey && e.code === "KeyD" && !e.repeat) {
+        e.preventDefault();
+        toggleDaemon();
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [toggleDaemon]);
 
   // Chat.Provider virtualMcpId
   const chatVirtualMcpId = virtualMcpId;
@@ -563,6 +611,54 @@ function AgentInsetProvider() {
           >
             <ChevronRight size={16} />
           </button>
+          {isAgentRoute &&
+            (() => {
+              const activeRepo = getActiveGithubRepo(entity);
+              return (
+                <>
+                  {activeRepo && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <a
+                          href={`https://github.com/${activeRepo.owner}/${activeRepo.name}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 h-7 px-2 rounded-md text-xs text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                        >
+                          <GitHubIcon size={14} />
+                          <span className="max-w-32 truncate">
+                            {activeRepo.owner}/{activeRepo.name}
+                          </span>
+                        </a>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        Open {activeRepo.owner}/{activeRepo.name} on GitHub
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                  {activeRepo && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={toggleEnv}
+                          aria-pressed={envOpen}
+                          className={cn(
+                            "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                            envOpen
+                              ? "bg-sidebar-accent text-sidebar-foreground"
+                              : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                          )}
+                        >
+                          <Server01 size={16} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">Server</TooltipContent>
+                    </Tooltip>
+                  )}
+                </>
+              );
+            })()}
         </div>
         <div className="flex items-center gap-0.5">
           {showThreePanels && (
@@ -660,6 +756,8 @@ function AgentInsetProvider() {
           tasksOpen={layout.tasksOpen}
           mainOpen={layout.mainOpen}
           chatOpen={layout.chatOpen}
+          envOpen={envOpen}
+          daemonOpen={layout.daemonOpen}
         />
       </Chat.Provider>
     </InsetContext>

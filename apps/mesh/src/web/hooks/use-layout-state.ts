@@ -27,6 +27,8 @@ export interface LayoutState {
   tasksOpen: boolean;
   mainOpen: boolean;
   chatOpen: boolean;
+  envOpen: boolean;
+  daemonOpen: boolean;
   mainView: string | undefined;
   mainViewId: string | undefined;
   toolName: string | undefined;
@@ -44,6 +46,8 @@ export interface LayoutActions {
     opts?: { id?: string; toolName?: string },
   ) => void;
   closeMainView: () => void;
+  toggleEnv: () => void;
+  toggleDaemon: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -102,7 +106,8 @@ export function resolveDefaultPanelState(ctx: {
   const showMain =
     defaultViewType === "automation" ||
     defaultViewType === "ext-apps" ||
-    defaultViewType === "settings";
+    defaultViewType === "settings" ||
+    defaultViewType === "preview";
 
   if (!showMain) {
     // Default view is chat or unset — chat visible, main collapsed
@@ -156,6 +161,8 @@ type PanelSearchParams = {
   main?: string;
   id?: string;
   toolName?: string;
+  env?: number;
+  daemon?: number;
 };
 
 function parsePanelParam(
@@ -207,6 +214,8 @@ export function usePanelState(
   const tasksOpen = parsePanelParam(search.tasks, defaults.tasksOpen);
   const mainOpen = parsePanelParam(search.mainOpen, defaults.mainOpen);
   const chatOpen = parsePanelParam(search.chat, defaults.chatOpen);
+  const envOpen = parsePanelParam(search.env, false);
+  const daemonOpen = parsePanelParam(search.daemon, false);
 
   // taskId fallback for non-validated routes
   const fallbackRef = useRef(crypto.randomUUID());
@@ -262,7 +271,9 @@ export function usePanelState(
 
   const toggleMain = () => {
     if (!canToggle(mainOpen, expandedCount)) return;
-    navigateSearch({ mainOpen: !mainOpen ? 1 : 0 }, { replace: true });
+    navigateSearch(mainOpen ? { mainOpen: 0, env: 0 } : { mainOpen: 1 }, {
+      replace: true,
+    });
   };
 
   const toggleChat = () => {
@@ -340,11 +351,23 @@ export function usePanelState(
     });
   };
 
+  const toggleEnv = () => {
+    navigateSearch(envOpen ? { env: 0 } : { env: 1, mainOpen: 1 }, {
+      replace: true,
+    });
+  };
+
+  const toggleDaemon = () => {
+    navigateSearch({ daemon: daemonOpen ? 0 : 1 }, { replace: true });
+  };
+
   return {
     taskId,
     tasksOpen,
     mainOpen,
     chatOpen,
+    envOpen,
+    daemonOpen,
     mainView: search.main,
     mainViewId: search.id,
     toolName: search.toolName,
@@ -356,5 +379,7 @@ export function usePanelState(
     createNewTask,
     openMainView,
     closeMainView,
+    toggleEnv,
+    toggleDaemon,
   };
 }

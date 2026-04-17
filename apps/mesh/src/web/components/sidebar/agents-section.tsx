@@ -1,4 +1,5 @@
 import { Suspense, useState, useRef } from "react";
+import { CreateAgentDropdownContent } from "@/web/components/create-agent-dropdown";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
@@ -39,7 +40,7 @@ import {
 } from "@deco/ui/components/drawer.tsx";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { CollectionSearch } from "@deco/ui/components/collection-search.tsx";
-import { Plus, Settings02, X } from "@untitledui/icons";
+import { FolderPlus, Plus, Settings02, X } from "@untitledui/icons";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -60,8 +61,13 @@ import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useCreateTaskAndNavigate } from "@/web/hooks/use-create-task-and-navigate";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { AgentAvatar } from "@/web/components/agent-icon";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+} from "@deco/ui/components/dropdown-menu.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
+import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.tsx";
+import { GitHubRepoPicker } from "@/web/components/github-repo-picker.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
 import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
@@ -291,13 +297,15 @@ function AgentGridItem({
 
 function PinAgentPopoverContent({
   onClose,
-  onOpenSiteEditorModal,
+  onOpenImportDeco,
+  onOpenGithubImport,
   onOpenDiagnosticsModal,
   onOpenLeanCanvasModal,
   onOpenStudioPackModal,
 }: {
   onClose: () => void;
-  onOpenSiteEditorModal: () => void;
+  onOpenImportDeco: () => void;
+  onOpenGithubImport: () => void;
   onOpenDiagnosticsModal: () => void;
   onOpenLeanCanvasModal: () => void;
   onOpenStudioPackModal: () => void;
@@ -363,7 +371,7 @@ function PinAgentPopoverContent({
     onClose();
     setSearch("");
     if (templateId === "site-editor") {
-      onOpenSiteEditorModal();
+      onOpenImportDeco();
     } else if (templateId === "site-diagnostics") {
       if (existingDiagnostics) {
         navigateToAgent(existingDiagnostics.id);
@@ -395,10 +403,31 @@ function PinAgentPopoverContent({
       {/* Scrollable content */}
       <div className="overflow-y-auto flex-1 min-h-0 px-3 pb-3">
         {/* Agents section */}
-        <div className="px-1 pt-3 pb-2">
+        <div className="px-1 pt-3 pb-2 flex items-center justify-between">
           <span className="text-xs font-medium text-muted-foreground">
             Agents
           </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center justify-center size-5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              >
+                <FolderPlus size={14} />
+              </button>
+            </DropdownMenuTrigger>
+            <CreateAgentDropdownContent
+              onCreateFromScratch={async () => {
+                await createVirtualMCP();
+                onClose();
+              }}
+              onImportGitHub={onOpenGithubImport}
+              onImportDeco={onOpenImportDeco}
+              isCreating={isCreating}
+              side="right"
+              align="start"
+            />
+          </DropdownMenu>
         </div>
         <div className="grid grid-cols-3 gap-1">
           {/* Create new button */}
@@ -485,7 +514,8 @@ function PinAgentPopoverContent({
 
 function PinAgentPopover() {
   const [open, setOpen] = useState(false);
-  const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
+  const [importDecoOpen, setImportDecoOpen] = useState(false);
+  const [githubPickerOpen, setGithubPickerOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
   const [leanCanvasModalOpen, setLeanCanvasModalOpen] = useState(false);
   const [studioPackModalOpen, setStudioPackModalOpen] = useState(false);
@@ -507,7 +537,11 @@ function PinAgentPopover() {
     >
       <PinAgentPopoverContent
         onClose={handleClose}
-        onOpenSiteEditorModal={() => setSiteEditorModalOpen(true)}
+        onOpenImportDeco={() => setImportDecoOpen(true)}
+        onOpenGithubImport={() => {
+          setGithubPickerOpen(true);
+          handleClose();
+        }}
         onOpenDiagnosticsModal={() => setDiagnosticsModalOpen(true)}
         onOpenLeanCanvasModal={() => setLeanCanvasModalOpen(true)}
         onOpenStudioPackModal={() => setStudioPackModalOpen(true)}
@@ -556,9 +590,13 @@ function PinAgentPopover() {
           </PopoverContent>
         </Popover>
       )}
-      <SiteEditorOnboardingModal
-        open={siteEditorModalOpen}
-        onOpenChange={setSiteEditorModalOpen}
+      <ImportFromDecoDialog
+        open={importDecoOpen}
+        onOpenChange={setImportDecoOpen}
+      />
+      <GitHubRepoPicker
+        open={githubPickerOpen}
+        onOpenChange={setGithubPickerOpen}
       />
       <SiteDiagnosticsRecruitModal
         open={diagnosticsModalOpen}

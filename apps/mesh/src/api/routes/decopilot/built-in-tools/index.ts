@@ -13,6 +13,7 @@ import { createReadToolOutputTool } from "./read-tool-output";
 import { createReadPromptTool } from "./prompts";
 import { createReadResourceTool } from "./resources";
 import { createSandboxTool, type VirtualClient } from "./sandbox";
+import { createVmTools } from "./vm-tools";
 import { createOpenInAgentTool } from "./open-in-agent";
 import { createSubtaskTool } from "./subtask";
 import { userAskTool } from "./user-ask";
@@ -33,6 +34,8 @@ export interface BuiltinToolParams {
   isPlanMode?: boolean;
   toolOutputMap: Map<string, string>;
   passthroughClient: VirtualClient;
+  /** When set, VM file tools replace the sandbox tool */
+  activeVm?: { vmBaseUrl: string } | null;
 }
 
 /**
@@ -56,6 +59,7 @@ function buildAllTools(
     isPlanMode = false,
     toolOutputMap,
     passthroughClient,
+    activeVm,
   } = params;
   const approvalOpts = { isPlanMode };
   const tools: Record<string, unknown> = {
@@ -72,12 +76,6 @@ function buildAllTools(
     ),
     read_tool_output: createReadToolOutputTool({
       toolOutputMap,
-    }),
-    sandbox: createSandboxTool({
-      passthroughClient,
-      toolOutputMap,
-      needsApproval:
-        toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false,
     }),
     read_resource: createReadResourceTool({
       passthroughClient,
@@ -99,6 +97,23 @@ function buildAllTools(
       ctx,
     ),
   };
+  // VM tools replace sandbox when a VM is active
+  if (activeVm) {
+    const vmTools = createVmTools({
+      vmBaseUrl: activeVm.vmBaseUrl,
+      toolOutputMap,
+      needsApproval:
+        toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false,
+    });
+    Object.assign(tools, vmTools);
+  } else {
+    tools.sandbox = createSandboxTool({
+      passthroughClient,
+      toolOutputMap,
+      needsApproval:
+        toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false,
+    });
+  }
   // subtask requires a provider (LLM calls) — skip when provider is null (Claude Code)
   if (provider) {
     tools.subtask = createSubtaskTool(

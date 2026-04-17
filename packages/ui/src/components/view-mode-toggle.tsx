@@ -1,11 +1,17 @@
 import { cn } from "@deco/ui/lib/utils.ts";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 
 export interface ViewModeOption<T extends string = string> {
   value: T;
   icon: ReactNode;
   label?: string;
+  tooltip?: string;
 }
 
 type ViewModeSize = "sm" | "md" | "lg";
@@ -71,74 +77,53 @@ export function ViewModeToggle<T extends string = string>({
 
   return (
     <div className={cn("relative flex gap-0 bg-muted rounded-lg", className)}>
-      <button
-        ref={firstRef}
-        type="button"
-        onClick={() => onValueChange(options[0].value)}
-        className={cn(
-          "relative z-10 flex items-center justify-center gap-2 rounded-lg transition-colors [transition-timing-function:var(--ease-out-cubic)] duration-200",
-          fullWidth ? "flex-1 h-12 px-4" : config.button,
-          !fullWidth && options[0].label ? "px-3" : "",
-        )}
-      >
-        <span
-          className={cn(
-            "transition-colors ease-out duration-200 flex items-center justify-center [&>svg]:size-[1em]",
-            config.icon,
-            value === options[0].value
-              ? "text-foreground"
-              : "text-muted-foreground",
-          )}
-        >
-          {options[0].icon}
-        </span>
-        {options[0].label && (
-          <span
+      {options.map((option, i) => {
+        const ref = i === 0 ? firstRef : secondRef;
+        const btn = (
+          <button
+            ref={ref}
+            key={option.value}
+            type="button"
+            onClick={() => onValueChange(option.value)}
             className={cn(
-              "text-xs transition-colors ease-out duration-200 whitespace-nowrap",
-              value === options[0].value
-                ? "text-foreground"
-                : "text-muted-foreground",
+              "relative z-10 flex items-center justify-center gap-2 rounded-lg transition-colors [transition-timing-function:var(--ease-out-cubic)] duration-200",
+              fullWidth ? "flex-1 h-12 px-4" : config.button,
+              !fullWidth && option.label ? "px-3" : "",
             )}
           >
-            {options[0].label}
-          </span>
-        )}
-      </button>
-      <button
-        ref={secondRef}
-        type="button"
-        onClick={() => onValueChange(options[1].value)}
-        className={cn(
-          "relative z-10 flex items-center justify-center gap-2 rounded-lg transition-colors [transition-timing-function:var(--ease-out-cubic)] duration-200",
-          fullWidth ? "flex-1 h-12 px-4" : config.button,
-          !fullWidth && options[1].label ? "px-3" : "",
-        )}
-      >
-        <span
-          className={cn(
-            "transition-colors ease-out duration-200 flex items-center justify-center [&>svg]:size-[1em]",
-            config.icon,
-            value === options[1].value
-              ? "text-foreground"
-              : "text-muted-foreground",
-          )}
-        >
-          {options[1].icon}
-        </span>
-        {options[1].label && (
-          <span
-            className={cn(
-              "text-xs transition-colors ease-out duration-200 whitespace-nowrap",
-              value === options[1].value
-                ? "text-foreground"
-                : "text-muted-foreground",
+            <span
+              className={cn(
+                "transition-colors ease-out duration-200 flex items-center justify-center [&>svg]:size-[1em]",
+                config.icon,
+                value === option.value
+                  ? "text-foreground"
+                  : "text-muted-foreground",
+              )}
+            >
+              {option.icon}
+            </span>
+            {option.label && (
+              <span
+                className={cn(
+                  "text-xs transition-colors ease-out duration-200 whitespace-nowrap",
+                  value === option.value
+                    ? "text-foreground"
+                    : "text-muted-foreground",
+                )}
+              >
+                {option.label}
+              </span>
             )}
-          >
-            {options[1].label}
-          </span>
-        )}
-      </button>
+          </button>
+        );
+        if (!option.tooltip) return btn;
+        return (
+          <Tooltip key={option.value}>
+            <TooltipTrigger asChild>{btn}</TooltipTrigger>
+            <TooltipContent side="bottom">{option.tooltip}</TooltipContent>
+          </Tooltip>
+        );
+      })}
       {/* Sliding indicator */}
       <div
         className={cn(

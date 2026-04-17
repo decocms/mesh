@@ -85,6 +85,22 @@ const VirtualMcpUISchema = z.object({
 export type VirtualMcpUI = z.infer<typeof VirtualMcpUISchema>;
 
 /**
+ * GitHub repository linked to a virtual MCP
+ */
+const GithubRepoSchema = z.object({
+  url: z.string().describe("GitHub repository URL"),
+  owner: z.string().describe("Repository owner"),
+  name: z.string().describe("Repository name"),
+  installationId: z.number().describe("GitHub App installation ID"),
+  connectionId: z
+    .string()
+    .optional()
+    .describe("ID of the mcp-github connection used for authentication"),
+});
+
+export type GithubRepo = z.infer<typeof GithubRepoSchema>;
+
+/**
  * Virtual MCP entity schema - single source of truth
  * Compliant with collections binding pattern
  */
@@ -122,6 +138,9 @@ export const VirtualMCPEntitySchema = z.object({
       ui: VirtualMcpUISchema.nullable()
         .optional()
         .describe("UI customization settings"),
+      githubRepo: GithubRepoSchema.nullable()
+        .optional()
+        .describe("Linked GitHub repository"),
     })
     .loose()
     .describe("Metadata"),
@@ -168,6 +187,9 @@ export const VirtualMCPCreateDataSchema = z.object({
       ui: VirtualMcpUISchema.nullable()
         .optional()
         .describe("UI customization settings"),
+      githubRepo: GithubRepoSchema.nullable()
+        .optional()
+        .describe("Linked GitHub repository"),
     })
     .loose()
     .nullable()
@@ -210,6 +232,9 @@ export const VirtualMCPUpdateDataSchema = z.object({
       ui: VirtualMcpUISchema.nullable()
         .optional()
         .describe("UI customization settings"),
+      githubRepo: GithubRepoSchema.nullable()
+        .optional()
+        .describe("Linked GitHub repository"),
     })
     .loose()
     .nullable()

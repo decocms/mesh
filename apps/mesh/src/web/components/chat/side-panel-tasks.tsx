@@ -11,7 +11,13 @@ import { Page } from "@/web/components/page";
 import { getIconComponent, parseIconString } from "../agent-icon";
 
 import { usePanelActions } from "@/web/layouts/shell-layout";
-import { Edit05, LayoutLeft, Loading01, Settings02 } from "@untitledui/icons";
+import {
+  Edit05,
+  LayoutLeft,
+  Loading01,
+  Monitor04,
+  Settings02,
+} from "@untitledui/icons";
 import { useVirtualMCPActions, useVirtualMCP } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { Suspense, useEffect, useRef, useState, useTransition } from "react";
@@ -28,6 +34,7 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { IconPicker } from "@/web/components/icon-picker.tsx";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
+import { useActiveGithubRepo } from "@/web/hooks/use-active-github-repo";
 
 // ────────────────────────────────────────
 // Shared nav item style — used by New session and view buttons
@@ -280,6 +287,10 @@ function TasksPanelContent({
   };
 
   const isSettingsActive = virtualMcpCtx?.mainView?.type === "settings";
+  const isPreviewActive = virtualMcpCtx?.mainView?.type === "preview";
+
+  const activeGithubRepo = useActiveGithubRepo();
+  const hasGithubRepo = !!activeGithubRepo;
 
   return (
     <div className="flex flex-col h-full">
@@ -322,6 +333,23 @@ function TasksPanelContent({
           >
             <Settings02 size={16} className="shrink-0" />
             <span className="text-foreground">Settings</span>
+          </button>
+        )}
+        {virtualMcp && virtualMcpCtx && !hideProjectHeader && hasGithubRepo && (
+          <button
+            type="button"
+            onClick={() =>
+              isPreviewActive
+                ? openMainView("default")
+                : openMainView("preview")
+            }
+            className={cn(
+              navItemClass,
+              isPreviewActive && "bg-accent text-foreground",
+            )}
+          >
+            <Monitor04 size={16} className="shrink-0" />
+            <span className="text-foreground">Preview</span>
           </button>
         )}
         {virtualMcp && !hideProjectHeader && (

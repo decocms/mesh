@@ -8,6 +8,7 @@ import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
+
 import {
   authenticateMcp,
   isConnectionAuthenticated,
@@ -15,7 +16,6 @@ import {
 import { KEYS } from "@/web/lib/query-keys";
 import { unwrapToolResult } from "@/web/lib/unwrap-tool-result";
 import { getConnectionSlug } from "@/shared/utils/connection-slug";
-
 import {
   AlertDialog,
   AlertDialogAction,
@@ -79,6 +79,7 @@ import { DependencySelectionDialog } from "./dependency-selection-dialog";
 import { ALL_ITEMS_SELECTED } from "./selection-utils";
 import { VirtualMcpFormSchema, type VirtualMcpFormData } from "./types";
 import { VirtualMCPShareModal } from "./virtual-mcp-share-modal";
+import { getActiveGithubRepo } from "@/web/lib/github-repo";
 
 type DialogState = {
   shareDialogOpen: boolean;
@@ -600,6 +601,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   const serverDefaultMainKey = (() => {
     if (!serverDefaultMain || serverDefaultMain.type === "chat") return "chat";
     if (serverDefaultMain.type === "settings") return "settings";
+    if (serverDefaultMain.type === "preview") return "preview";
     return `${serverDefaultMain.type}:${serverDefaultMain.id ?? ""}:${serverDefaultMain.toolName ?? ""}`;
   })();
 
@@ -616,6 +618,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
     const [type, id, toolName] = value.split(":");
     if (type === "chat") return { type: "chat" as const };
     if (type === "settings") return { type: "settings" as const };
+    if (type === "preview") return { type: "preview" as const };
     if (type === "ext-apps" && id)
       return { type: "ext-apps" as const, id, toolName: toolName || undefined };
     return null;
@@ -814,11 +817,17 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   const noInteractiveTools =
     connectionsWithTools && connectionsData.length === 0;
 
+  // Check if virtual MCP has an active GitHub repo (enables preview)
+  const hasGithubRepo = !!getActiveGithubRepo(virtualMcp);
+
   // Build options for default main view selector
   const defaultMainOptions: { value: string; label: string }[] = [
     { value: "chat", label: "Chat" },
     { value: "settings", label: "Settings" },
   ];
+  if (hasGithubRepo) {
+    defaultMainOptions.push({ value: "preview", label: "Preview" });
+  }
   for (const pv of pinnedViews) {
     defaultMainOptions.push({
       value: `ext-apps:${pv.connectionId}:${pv.toolName}`,
@@ -1043,6 +1052,9 @@ function VirtualMcpDetailViewWithData({
   // Watch connections for reactive UI
   const connections = form.watch("connections");
 
+  // GitHub repo connected — instructions become read-only
+  const hasGithubRepo = !!getActiveGithubRepo(virtualMcp);
+
   // Dialog states
   const [dialogState, dispatch] = useReducer(dialogReducer, {
     shareDialogOpen: false,
@@ -1059,8 +1071,6 @@ function VirtualMcpDetailViewWithData({
     const effective = stored === "sidebar" ? "layout" : stored;
     return validTabIds.includes(effective) ? effective : "instructions";
   });
-
-  // Chat hooks
   const { createTaskWithMessage } = useChatTask();
   const { setChatMode } = useChatPrefs();
   const { createNewTask } = usePanelActions();
@@ -1430,7 +1440,7 @@ Define step-by-step how the agent should handle requests.
                 </div>
               }
             >
-              {virtualMcp.title}&apos;s Settings
+              Settings
             </Page.Title>
 
             {/* Tabs */}
@@ -1453,7 +1463,7 @@ Define step-by-step how the agent should handle requests.
                   Add
                 </Button>
               )}
-              {activeTab === "instructions" && (
+              {activeTab === "instructions" && !hasGithubRepo && (
                 <div className="flex items-center gap-2">
                   {!form.watch("metadata.instructions")?.trim() && (
                     <Button
@@ -1487,6 +1497,7 @@ Define step-by-step how the agent should handle requests.
                     {...field}
                     value={field.value ?? ""}
                     onBlur={field.onBlur}
+                    disabled={hasGithubRepo}
                     placeholder="Define how this agent should behave, what tone to use, any constraints or guidelines..."
                     className="min-h-[300px] flex-1 resize-none text-[15px] placeholder:text-muted-foreground/40 leading-relaxed border-0 rounded-none shadow-none px-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-0 bg-transparent"
                     style={{ boxShadow: "none" }}
@@ -1641,5 +1652,10 @@ export function VirtualMcpDetailView({
     );
   }
 
-  return <VirtualMcpDetailViewWithData virtualMcp={virtualMcp} />;
+  return (
+    <VirtualMcpDetailViewWithData
+      key={getActiveGithubRepo(virtualMcp)?.connectionId ?? ""}
+      virtualMcp={virtualMcp}
+    />
+  );
 }

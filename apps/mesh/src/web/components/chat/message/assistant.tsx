@@ -29,6 +29,7 @@ import {
 } from "./use-filter-parts.ts";
 import { addUsage, emptyUsageStats } from "@decocms/mesh-sdk";
 import { useOptionalChatStream } from "../context.tsx";
+import { LiveTimer } from "../../live-timer.tsx";
 import { formatDuration } from "../../../lib/format-time.ts";
 
 type ThinkingStage = "planning" | "thinking";
@@ -86,22 +87,6 @@ function TypingIndicator() {
         </span>
       </span>
     </div>
-  );
-}
-
-function LiveTimer({ since }: { since: number }) {
-  const [elapsed, setElapsed] = useState(() => Date.now() - since);
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect -- interval required for live elapsed timer
-  useEffect(() => {
-    const id = setInterval(() => setElapsed(Date.now() - since), 100);
-    return () => clearInterval(id);
-  }, [since]);
-
-  return (
-    <span className="tabular-nums text-sm font-mono text-muted-foreground/50">
-      {formatDuration(elapsed / 1000)}
-    </span>
   );
 }
 

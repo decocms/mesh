@@ -322,4 +322,37 @@ export const KEYS = {
 
   // Web search blob content (fetched from object storage)
   webSearchBlob: (url: string) => ["web-search-blob", url] as const,
+
+  // GitHub integration
+  githubUserOrgs: (orgId: string, connectionId: string) =>
+    ["github-user-orgs", orgId, connectionId] as const,
+  githubOrgRepos: (
+    orgId: string,
+    connectionId: string,
+    installationLogin: string,
+    query: string,
+  ) =>
+    [
+      "github-org-repos",
+      orgId,
+      connectionId,
+      installationLogin,
+      query,
+    ] as const,
 } as const;
+
+export function invalidateVirtualMcpQueries(
+  queryClient: import("@tanstack/react-query").QueryClient,
+  orgId?: string,
+) {
+  queryClient.invalidateQueries({
+    predicate: (query) => {
+      const key = query.queryKey;
+      return (
+        (!orgId || key[1] === orgId) &&
+        key[3] === "collection" &&
+        key[4] === "VIRTUAL_MCP"
+      );
+    },
+  });
+}

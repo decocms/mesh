@@ -305,6 +305,41 @@ function PreferencesSection() {
   );
 }
 
+function ExperimentalSection() {
+  const [preferences, setPreferences] = usePreferences();
+
+  return (
+    <Card className="p-6">
+      <CardHeader className="p-0">
+        <CardTitle className="text-sm">Experimental</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col p-0">
+        <PreferenceRow
+          label="Import from GitHub"
+          description="Enable importing agents from GitHub repositories."
+          onClick={() =>
+            setPreferences((prev) => ({
+              ...prev,
+              experimental_vibecode: !prev.experimental_vibecode,
+            }))
+          }
+          control={
+            <Switch
+              checked={preferences.experimental_vibecode}
+              onCheckedChange={(checked) =>
+                setPreferences((prev) => ({
+                  ...prev,
+                  experimental_vibecode: checked,
+                }))
+              }
+            />
+          }
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
 export function ProfilePreferencesPage() {
   return (
     <Page>
@@ -315,6 +350,7 @@ export function ProfilePreferencesPage() {
             <div className="flex flex-col gap-10">
               <ProfileSection />
               <PreferencesSection />
+              <ExperimentalSection />
             </div>
           </div>
         </Page.Body>

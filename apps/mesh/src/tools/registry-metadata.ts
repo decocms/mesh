@@ -31,7 +31,9 @@ export type ToolCategory =
   | "AI Providers"
   | "Automations"
   | "Object Storage"
-  | "Registry";
+  | "Registry"
+  | "GitHub"
+  | "VM";
 
 /**
  * All tool names - keep in sync with ALL_TOOLS in index.ts
@@ -177,6 +179,13 @@ const ALL_TOOL_NAMES = [
   "REGISTRY_MONITOR_CONNECTION_UPDATE_AUTH",
   "REGISTRY_MONITOR_SCHEDULE_SET",
   "REGISTRY_MONITOR_SCHEDULE_CANCEL",
+
+  // VM tools (app-only)
+  "VM_START",
+  "VM_DELETE",
+
+  // GitHub tools (app-only)
+  "GITHUB_LIST_USER_ORGS",
 ] as const;
 
 /**
@@ -856,6 +865,21 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "Cancel monitor schedule",
     category: "Registry",
   },
+  {
+    name: "VM_START",
+    description: "Start a Freestyle VM with dev server preview",
+    category: "VM",
+  },
+  {
+    name: "VM_DELETE",
+    description: "Stop and delete a Freestyle VM",
+    category: "VM",
+  },
+  {
+    name: "GITHUB_LIST_USER_ORGS",
+    description: "List GitHub user's personal account and organizations",
+    category: "GitHub",
+  },
 ];
 
 /**
@@ -990,6 +1014,13 @@ const TOOL_LABELS: Record<ToolName, string> = {
   REGISTRY_MONITOR_CONNECTION_UPDATE_AUTH: "Update connection auth",
   REGISTRY_MONITOR_SCHEDULE_SET: "Set monitor schedule",
   REGISTRY_MONITOR_SCHEDULE_CANCEL: "Cancel monitor schedule",
+
+  // GitHub
+
+  // VM
+  VM_START: "Start VM preview",
+  VM_DELETE: "Delete VM preview",
+  GITHUB_LIST_USER_ORGS: "List GitHub user orgs",
 };
 
 // ============================================================================
@@ -1014,6 +1045,8 @@ export function getToolsByCategory() {
     Automations: [],
     "Object Storage": [],
     Registry: [],
+    GitHub: [],
+    VM: [],
   };
 
   for (const tool of MANAGEMENT_TOOLS) {

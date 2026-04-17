@@ -26,7 +26,7 @@ function readRecentAgentIds(locator: ProjectLocator): string[] {
 }
 import { useNavigate } from "@tanstack/react-router";
 import { ChevronRight, Plus, Users03 } from "@untitledui/icons";
-import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
+import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
@@ -156,7 +156,7 @@ function CreateAgentButton() {
 function AgentsListContent() {
   const virtualMcps = useVirtualMCPs();
   const { locator } = useProjectContext();
-  const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
+  const [importDecoOpen, setImportDecoOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
   const [leanCanvasModalOpen, setLeanCanvasModalOpen] = useState(false);
   const navigateToAgent = useNavigateToAgent();
@@ -218,7 +218,7 @@ function AgentsListContent() {
           <AgentPreview
             key={siteEditorAgent.id}
             agent={siteEditorAgent}
-            onSpecialClick={() => setSiteEditorModalOpen(true)}
+            onSpecialClick={() => setImportDecoOpen(true)}
           />
           <AgentPreview
             key={siteDiagnosticsAgent.id}
@@ -256,9 +256,9 @@ function AgentsListContent() {
         </div>
       </div>
 
-      <SiteEditorOnboardingModal
-        open={siteEditorModalOpen}
-        onOpenChange={setSiteEditorModalOpen}
+      <ImportFromDecoDialog
+        open={importDecoOpen}
+        onOpenChange={setImportDecoOpen}
       />
 
       <SiteDiagnosticsRecruitModal
