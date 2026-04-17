@@ -12,6 +12,7 @@
 
 import { useRef } from "react";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { resolveDefaultTabId } from "@/web/layouts/main-panel-tabs/tab-id";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -195,16 +196,10 @@ export function usePanelState(
     if (mainOpen) {
       navigateSearch({ main: "0" }, { replace: true });
     } else {
-      navigate({
-        to: routeBase,
-        params: makeParams(taskId),
-        search: (prev: Record<string, unknown>) => {
-          const next: Record<string, unknown> = { ...prev };
-          delete next.main;
-          return next;
-        },
-        replace: true,
-      });
+      navigateSearch(
+        { main: resolveDefaultTabId(entityMetadata) },
+        { replace: true },
+      );
     }
   };
 
