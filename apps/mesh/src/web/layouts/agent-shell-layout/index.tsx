@@ -26,6 +26,8 @@ import {
   Suspense,
 } from "react";
 import { Chat, useChatTask } from "@/web/components/chat/index";
+import { useTasks } from "@/web/components/chat/task/use-task-manager";
+import { useAutomationsList } from "@/web/hooks/use-automations";
 import { ChatCenterPanel } from "@/web/layouts/chat-center-panel";
 import { TasksPanel } from "@/web/layouts/tasks-panel";
 import { ErrorBoundary } from "@/web/components/error-boundary";
@@ -164,15 +166,18 @@ function AgentInsetProvider() {
   const entityMetadata = layoutMetadata
     ? {
         defaultMainView: layoutMetadata.defaultMainView ?? null,
-        chatDefaultOpen: layoutMetadata.chatDefaultOpen ?? null,
       }
     : null;
 
-  const layout = usePanelState(entityMetadata, {
-    virtualMcpId,
-    orgSlug,
-    isAgentRoute,
-  });
+  const { tasks } = useTasks({ owner: "all", status: "open" });
+  const { data: automations = [] } = useAutomationsList(undefined);
+  const tasksHasItems = tasks.length > 0 || automations.length > 0;
+
+  const layout = usePanelState(
+    entityMetadata,
+    { virtualMcpId, orgSlug, isAgentRoute },
+    tasksHasItems,
+  );
 
   const { setOpenMobile, openMobile: mobileSidebarOpen } = useSidebar();
   const setMobileSidebarOpen = setOpenMobile;
