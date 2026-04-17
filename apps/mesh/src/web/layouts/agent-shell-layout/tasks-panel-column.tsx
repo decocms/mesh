@@ -8,7 +8,7 @@
 import { useSearch } from "@tanstack/react-router";
 import { TasksPanel } from "@/web/layouts/tasks-panel";
 
-const TASKS_COLUMN_WIDTH_PX = 240;
+const TASKS_COLUMN_WIDTH_PX = 280;
 
 export function TasksPanelColumn() {
   const search = useSearch({ strict: false }) as { tasks?: number };
