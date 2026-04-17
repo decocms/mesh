@@ -1031,8 +1031,14 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
 
 function VirtualMcpDetailViewWithData({
   virtualMcp,
+  forceTab,
+  hideOwnTabBar,
+  hideOwnTitle,
 }: {
   virtualMcp: VirtualMCPEntity;
+  forceTab?: "instructions" | "connections" | "layout";
+  hideOwnTabBar?: boolean;
+  hideOwnTitle?: boolean;
 }) {
   const { org } = useProjectContext();
   const actions = useVirtualMCPActions();
@@ -1063,14 +1069,19 @@ function VirtualMcpDetailViewWithData({
     settingsConnectionId: null,
   });
 
-  // Tab state
+  // Tab state — internal unless forced externally (e.g. by MainPanelWithTabs)
   const validTabIds = ["instructions", "connections", "layout"];
-  const [activeTab, setActiveTab] = useState(() => {
+  const [internalTab, setInternalTab] = useState(() => {
     const stored = localStorage.getItem("agent-detail-tab") || "instructions";
     // Migrate old "sidebar" tab to "layout"
     const effective = stored === "sidebar" ? "layout" : stored;
     return validTabIds.includes(effective) ? effective : "instructions";
   });
+  const activeTab = forceTab ?? internalTab;
+  const setActiveTab = (id: string) => {
+    if (forceTab) return;
+    setInternalTab(id);
+  };
   const { createTaskWithMessage } = useChatTask();
   const { setChatMode } = useChatPrefs();
   const { createNewTask } = usePanelActions();
@@ -1389,103 +1400,111 @@ Define step-by-step how the agent should handle requests.
       <Page.Content>
         <Page.Body className="pt-6 md:pt-8">
           <div className="flex flex-col gap-6">
-            <Page.Title
-              actions={
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={handleTestAgent}>
-                    <Play size={14} className="!size-[14px]" />
-                    Test Agent
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      dispatch({
-                        type: "SET_SHARE_DIALOG_OPEN",
-                        payload: true,
-                      })
-                    }
-                  >
-                    <span className="flex items-center -space-x-1.5 mr-0.5">
-                      {/* Cursor — behind */}
-                      <span className="inline-flex items-center justify-center size-4 rounded-full bg-black ring-1 ring-white/20 shrink-0">
-                        <img
-                          src="/logos/cursor.svg"
-                          alt="Cursor"
-                          className="size-2.5 brightness-0 invert"
-                        />
-                      </span>
-                      {/* Claude — on top */}
-                      <span
-                        className="relative z-10 inline-flex items-center justify-center size-4 rounded-full ring-1 ring-background shrink-0"
-                        style={{ backgroundColor: "#D97757" }}
-                      >
-                        <img
-                          src="/logos/Claude Code.svg"
-                          alt="Claude"
-                          className="size-2.5 brightness-0 invert"
-                        />
-                      </span>
-                    </span>
-                    Connect
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground hover:text-destructive"
-                    onClick={() => setDeleteDialogOpen(true)}
-                  >
-                    <Trash01 size={14} />
-                  </Button>
-                </div>
-              }
-            >
-              Settings
-            </Page.Title>
-
-            {/* Tabs */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <CollectionTabs
-                tabs={tabs}
-                activeTab={activeTab}
-                onTabChange={(id) => {
-                  setActiveTab(id);
-                  localStorage.setItem("agent-detail-tab", id);
-                }}
-              />
-              {activeTab === "connections" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleOpenAddDialog}
-                >
-                  <Plus size={13} />
-                  Add
-                </Button>
-              )}
-              {activeTab === "instructions" && !hasGithubRepo && (
-                <div className="flex items-center gap-2">
-                  {!form.watch("metadata.instructions")?.trim() && (
+            {!hideOwnTitle && (
+              <Page.Title
+                actions={
+                  <div className="flex items-center gap-2">
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={handleInsertTemplate}
+                      onClick={handleTestAgent}
                     >
-                      + Prompt template
+                      <Play size={14} className="!size-[14px]" />
+                      Test Agent
                     </Button>
-                  )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        dispatch({
+                          type: "SET_SHARE_DIALOG_OPEN",
+                          payload: true,
+                        })
+                      }
+                    >
+                      <span className="flex items-center -space-x-1.5 mr-0.5">
+                        {/* Cursor — behind */}
+                        <span className="inline-flex items-center justify-center size-4 rounded-full bg-black ring-1 ring-white/20 shrink-0">
+                          <img
+                            src="/logos/cursor.svg"
+                            alt="Cursor"
+                            className="size-2.5 brightness-0 invert"
+                          />
+                        </span>
+                        {/* Claude — on top */}
+                        <span
+                          className="relative z-10 inline-flex items-center justify-center size-4 rounded-full ring-1 ring-background shrink-0"
+                          style={{ backgroundColor: "#D97757" }}
+                        >
+                          <img
+                            src="/logos/Claude Code.svg"
+                            alt="Claude"
+                            className="size-2.5 brightness-0 invert"
+                          />
+                        </span>
+                      </span>
+                      Connect
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => setDeleteDialogOpen(true)}
+                    >
+                      <Trash01 size={14} />
+                    </Button>
+                  </div>
+                }
+              >
+                Settings
+              </Page.Title>
+            )}
+
+            {/* Tabs */}
+            {!hideOwnTabBar && (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CollectionTabs
+                  tabs={tabs}
+                  activeTab={activeTab}
+                  onTabChange={(id) => {
+                    setActiveTab(id);
+                    localStorage.setItem("agent-detail-tab", id);
+                  }}
+                />
+                {activeTab === "connections" && (
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={!form.watch("metadata.instructions")?.trim()}
-                    onClick={handleImprovePrompt}
+                    onClick={handleOpenAddDialog}
                   >
-                    <Stars01 size={13} />
-                    Improve
+                    <Plus size={13} />
+                    Add
                   </Button>
-                </div>
-              )}
-            </div>
+                )}
+                {activeTab === "instructions" && !hasGithubRepo && (
+                  <div className="flex items-center gap-2">
+                    {!form.watch("metadata.instructions")?.trim() && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleInsertTemplate}
+                      >
+                        + Prompt template
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!form.watch("metadata.instructions")?.trim()}
+                      onClick={handleImprovePrompt}
+                    >
+                      <Stars01 size={13} />
+                      Improve
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Tab content */}
             {activeTab === "instructions" && (
@@ -1621,8 +1640,14 @@ Define step-by-step how the agent should handle requests.
 
 export function VirtualMcpDetailView({
   virtualMcpId,
+  forceTab,
+  hideOwnTabBar,
+  hideOwnTitle,
 }: {
   virtualMcpId: string;
+  forceTab?: "instructions" | "connections" | "layout";
+  hideOwnTabBar?: boolean;
+  hideOwnTitle?: boolean;
 }) {
   const navigate = useNavigate();
   const { org } = useProjectContext();
@@ -1656,6 +1681,9 @@ export function VirtualMcpDetailView({
     <VirtualMcpDetailViewWithData
       key={getActiveGithubRepo(virtualMcp)?.connectionId ?? ""}
       virtualMcp={virtualMcp}
+      forceTab={forceTab}
+      hideOwnTabBar={hideOwnTabBar}
+      hideOwnTitle={hideOwnTitle}
     />
   );
 }
