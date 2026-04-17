@@ -562,20 +562,6 @@ function AgentInsetProvider() {
               </button>
               <button
                 type="button"
-                onClick={layout.toggleMain}
-                aria-pressed={layout.mainOpen}
-                className={cn(
-                  "flex size-7 items-center justify-center rounded-md transition-colors",
-                  layout.mainOpen
-                    ? "bg-sidebar-accent text-sidebar-foreground"
-                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                )}
-                title="Toggle content"
-              >
-                <Browser size={16} />
-              </button>
-              <button
-                type="button"
                 onClick={layout.toggleChat}
                 aria-pressed={layout.chatOpen}
                 className={cn(
@@ -585,6 +571,20 @@ function AgentInsetProvider() {
                     : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                 )}
                 title="Toggle chat"
+              >
+                <Browser size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={layout.toggleMain}
+                aria-pressed={layout.mainOpen}
+                className={cn(
+                  "flex size-7 items-center justify-center rounded-md transition-colors",
+                  layout.mainOpen
+                    ? "bg-sidebar-accent text-sidebar-foreground"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                )}
+                title="Toggle content"
               >
                 <LayoutRight size={16} />
               </button>

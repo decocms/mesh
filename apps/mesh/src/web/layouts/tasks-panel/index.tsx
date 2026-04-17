@@ -66,7 +66,7 @@ function TasksPanelContent() {
 
   if (tasks.length === 0 && automations.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center p-4">
+      <div className="h-full flex items-center justify-center p-4">
         <EmptyState
           image={<ClipboardCheck size={48} className="text-muted-foreground" />}
           title="No tasks yet"
