@@ -55,14 +55,25 @@ export function canToggle(
   return true;
 }
 
+export function resolveTasksOpen(
+  urlParam: number | undefined,
+  hasItems: boolean,
+): boolean {
+  if (urlParam === 1) return true;
+  if (urlParam === 0) return false;
+  return hasItems;
+}
+
 export function resolveDefaultPanelState(ctx: {
   entityMetadata: EntityLayoutMetadata | null;
   mainParamPresent: boolean;
   mainParamValue?: string;
 }): { tasksOpen: boolean; mainOpen: boolean; chatOpen: boolean } {
+  const def = ctx.entityMetadata?.defaultMainView ?? null;
+  const defaultOpensMain = def != null && def.type !== "chat";
   const mainOpen = ctx.mainParamPresent
     ? ctx.mainParamValue !== "0"
-    : ctx.entityMetadata?.defaultMainView != null;
+    : defaultOpensMain;
 
   return {
     tasksOpen: true,
