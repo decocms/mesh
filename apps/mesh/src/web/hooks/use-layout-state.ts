@@ -20,7 +20,6 @@ import { resolveDefaultTabId } from "@/web/layouts/main-panel-tabs/tab-id";
 
 export interface EntityLayoutMetadata {
   defaultMainView?: { type: string; id?: string } | null;
-  chatDefaultOpen?: boolean | null;
   tabs?: Array<{ id: string }>;
 }
 

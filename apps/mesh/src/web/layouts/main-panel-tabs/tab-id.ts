@@ -12,7 +12,6 @@
 export interface EntityLayoutMetadata {
   defaultMainView?: { type: string; id?: string } | null;
   tabs?: Array<{ id: string }>;
-  chatDefaultOpen?: boolean | null;
 }
 
 export type AutomationTabParsed =
@@ -41,6 +40,8 @@ export function resolveDefaultTabId(
 ): string {
   const def = metadata?.defaultMainView ?? null;
   if (!def) return "instructions";
+
+  if (def.type === "preview") return "preview";
 
   if (def.type === "ext-app" || def.type === "ext-apps") {
     return def.id ?? metadata?.tabs?.[0]?.id ?? "instructions";
