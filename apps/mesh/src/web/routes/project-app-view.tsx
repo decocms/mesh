@@ -3,8 +3,6 @@ import {
   stripToolNamespace,
 } from "@decocms/mcp-utils/aggregate";
 import { stripMcpServerPrefix } from "@/web/lib/tool-namespace";
-import { Suspense } from "react";
-import { useParams } from "@tanstack/react-router";
 import {
   useProjectContext,
   useMCPClient,
@@ -17,9 +15,7 @@ import { contentBlocksToTiptapDoc } from "@/mcp-apps/content-blocks.ts";
 import { MCPAppRenderer } from "@/mcp-apps/mcp-app-renderer.tsx";
 import { getUIResourceUri, MCP_APP_DISPLAY_MODES } from "@/mcp-apps/types.ts";
 import { useChatBridge, useChatPrefs } from "@/web/components/chat/context.tsx";
-import { ErrorBoundary } from "@/web/components/error-boundary.tsx";
 import { usePanelActions } from "@/web/layouts/shell-layout";
-import { Page } from "@/web/components/page/index.tsx";
 
 const EMPTY_TOOL_INPUT: Record<string, unknown> = {};
 
@@ -119,32 +115,5 @@ export function AppViewContent({
       tool={tool}
       connectionId={connectionId}
     />
-  );
-}
-
-export default function ProjectAppView() {
-  const { connectionId, toolName } = useParams({
-    from: "/shell/$org/$virtualMcpId/apps/$connectionId/$toolName",
-  });
-
-  return (
-    <Page>
-      <Page.Content>
-        <ErrorBoundary key={`${connectionId}:${toolName}`} fallback={undefined}>
-          <Suspense
-            fallback={
-              <div className="flex items-center justify-center h-full">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <div className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  <span className="text-sm">Loading app...</span>
-                </div>
-              </div>
-            }
-          >
-            <AppViewContent connectionId={connectionId} toolName={toolName} />
-          </Suspense>
-        </ErrorBoundary>
-      </Page.Content>
-    </Page>
   );
 }

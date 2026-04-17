@@ -8,8 +8,8 @@
 
 import { createContext, use, useEffect, useLayoutEffect, useRef } from "react";
 import { Chat, useChatTask } from "@/web/components/chat/index";
-import { ChatPanel } from "@/web/components/chat/side-panel-chat";
-import { TasksSidePanel } from "@/web/components/chat/side-panel-tasks";
+import { ChatCenterPanel } from "@/web/layouts/chat-center-panel";
+import { TasksPanel } from "@/web/layouts/tasks-panel";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { isMac, isModKey } from "@/web/lib/keyboard-shortcuts";
 import { StudioSidebar, StudioSidebarMobile } from "@/web/components/sidebar";
@@ -57,7 +57,6 @@ import {
   Outlet,
   useNavigate,
   useParams,
-  useRouterState,
   useSearch,
 } from "@tanstack/react-router";
 import { PropsWithChildren, Suspense, useTransition } from "react";
@@ -193,7 +192,7 @@ function ActiveTaskBoundary({
     >
       <Suspense fallback={<Chat.Skeleton />}>
         <Chat.ActiveTaskProvider taskId={taskId}>
-          {children ?? <ChatPanel variant={variant} />}
+          {children ?? <ChatCenterPanel variant={variant} />}
         </Chat.ActiveTaskProvider>
       </Suspense>
     </ErrorBoundary>
@@ -264,7 +263,7 @@ function UnifiedPanelGroup({
       <TasksResizablePanel defaultSize={sizes.tasks}>
         <div className="h-full p-0.5">
           <div className="h-full bg-background rounded-[0.75rem] overflow-hidden card-shadow">
-            <TasksSidePanel
+            <TasksPanel
               virtualMcpId={tasksVirtualMcpId}
               hideProjectHeader={isDecopilot}
               showAutomations={!isDecopilot}
@@ -356,45 +355,33 @@ function AgentInsetProvider() {
   // Org-wide SSE sound notifications
   useStatusSounds(org.id);
 
-  // Extract virtualMcpId from route params.
-  // useMatch doesn't work here because the pathless agent-shell layout changes
-  // the route ID hierarchy. useParams is safe — it reads from the resolved route.
+  // Route params: `/$org/$taskId[/$pluginId]`
   const params = useParams({ strict: false }) as {
     org?: string;
-    virtualMcpId?: string;
+    taskId?: string;
+    pluginId?: string;
   };
-  const agentVirtualMcpId = params.virtualMcpId;
-  const isAgentRoute = !!agentVirtualMcpId;
   const orgSlug = params.org ?? "";
+  const hasPlugin = !!params.pluginId;
 
-  // Determine the effective virtualMcpId (agent or decopilot)
-  const virtualMcpId =
-    agentVirtualMcpId ?? getWellKnownDecopilotVirtualMCP(org.id).id;
-  const isDecopilot = virtualMcpId === getDecopilotId(org.id);
-
-  // Org home or agent route → always show 3-panel layout in agent shell
-  const isOrgHome = !agentVirtualMcpId;
-  const showThreePanels = isAgentRoute || isOrgHome;
-
-  // Determine if we're on the agent/org "home" tab (no sub-route like /workflows).
-  // URL structure: /shell/$org[/$virtualMcpId[/sub-route]]
-  // pathSegments after split("/") and filtering: ["shell", org, virtualMcpId?, ...]
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const pathSegments = pathname.split("/").filter(Boolean);
-  // "shell", org = 2 segments for org home; + virtualMcpId = 3 for agent home
-  const isAgentHomeRoute =
-    isOrgHome || (isAgentRoute && pathSegments.length <= 3);
-
-  // Fetch entity (Suspense-based — resolved before render)
-  const entity = useVirtualMCP(virtualMcpId);
-
-  // Derive mainView from URL search params
-  // NOTE: All hooks must be called before conditional returns (Rules of Hooks)
+  // Derive virtualMcpId from `?virtualmcpid=` or fall back to decopilot.
+  // (When a task is loaded, its `virtual_mcp_id` field is authoritative, but
+  // that resolution happens inside Chat.Provider via the task fetch.)
   const search = useSearch({ strict: false }) as {
+    virtualmcpid?: string;
     main?: string;
     id?: string;
     toolName?: string;
   };
+  const virtualMcpId =
+    search.virtualmcpid ?? getWellKnownDecopilotVirtualMCP(org.id).id;
+  const isDecopilot = virtualMcpId === getDecopilotId(org.id);
+  const isAgentRoute = !isDecopilot;
+  const showThreePanels = true;
+  const isAgentHomeRoute = !hasPlugin;
+
+  // Fetch entity (Suspense-based — resolved before render)
+  const entity = useVirtualMCP(virtualMcpId);
 
   let mainView: MainView;
   if (search.main === "settings") {
@@ -511,7 +498,7 @@ function AgentInsetProvider() {
             </div>
             {/* Tasks / agent panel */}
             <div className="flex-1 min-w-0 overflow-hidden">
-              <TasksSidePanel
+              <TasksPanel
                 virtualMcpId={showThreePanels ? tasksVirtualMcpId : undefined}
                 hideProjectHeader={isDecopilot}
                 showAutomations={!isDecopilot}

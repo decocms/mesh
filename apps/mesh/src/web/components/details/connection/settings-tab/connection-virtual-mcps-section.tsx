@@ -1,6 +1,6 @@
 import { type VirtualMCPEntity } from "@decocms/mesh-sdk";
 import { Users03, ChevronRight } from "@untitledui/icons";
-import { Link } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { IntegrationIcon } from "@/web/components/integration-icon";
 
 interface ConnectionVirtualMCPsSectionProps {
@@ -15,11 +15,19 @@ function VirtualMCPListItem({
   virtualMcp: VirtualMCPEntity;
   org: string;
 }) {
+  const navigate = useNavigate();
   return (
-    <Link
-      to="/$org/$virtualMcpId/"
-      params={{ org, virtualMcpId: virtualMcp.id }}
-      className="flex items-center gap-3 rounded-lg hover:bg-muted/50 transition-colors group"
+    <button
+      type="button"
+      onClick={() => {
+        const taskId = crypto.randomUUID();
+        navigate({
+          to: "/$org/$taskId",
+          params: { org, taskId },
+          search: { virtualmcpid: virtualMcp.id },
+        });
+      }}
+      className="flex items-center gap-3 rounded-lg hover:bg-muted/50 transition-colors group text-left w-full"
     >
       <IntegrationIcon
         icon={virtualMcp.icon}
@@ -34,7 +42,7 @@ function VirtualMCPListItem({
         size={16}
         className="text-muted-foreground group-hover:text-foreground transition-colors shrink-0"
       />
-    </Link>
+    </button>
   );
 }
 

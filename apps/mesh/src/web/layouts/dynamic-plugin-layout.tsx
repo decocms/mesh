@@ -11,7 +11,7 @@ import { PluginLayout } from "./plugin-layout";
 
 export default function DynamicPluginLayout() {
   const { pluginId } = useParams({
-    from: "/shell/$org/$virtualMcpId/$pluginId",
+    from: "/shell/$org/$taskId/$pluginId",
   });
 
   // Find the plugin by ID

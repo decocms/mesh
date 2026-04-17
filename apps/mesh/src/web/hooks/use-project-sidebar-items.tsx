@@ -3,7 +3,12 @@ import type {
   NavigationSidebarItem,
   SidebarSection,
 } from "@/web/components/sidebar/types";
-import { useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  useNavigate,
+  useParams,
+  useRouterState,
+  useSearch,
+} from "@tanstack/react-router";
 import { Dataflow03, Home01, LayoutLeft } from "@untitledui/icons";
 import { getIconComponent, parseIconString } from "../components/agent-icon";
 import { usePanelActions } from "@/web/layouts/shell-layout";
@@ -14,12 +19,17 @@ export function useProjectSidebarItems(): SidebarSection[] {
   const { org: orgContext } = useProjectContext();
   const navigate = useNavigate();
   const routerState = useRouterState();
-  const { setTasksOpen } = usePanelActions();
+  const { setTasksOpen, openMainView } = usePanelActions();
   const org = orgContext.slug;
   const currentProject = useProjectContext().project;
 
-  // The virtual MCP ID for this project
-  const virtualMcpId = currentProject.id;
+  const routeParams = useParams({ strict: false }) as {
+    taskId?: string;
+    pluginId?: string;
+  };
+  const searchParams = useSearch({ strict: false }) as {
+    virtualmcpid?: string;
+  };
 
   const pathname = routerState.location.pathname;
 
@@ -47,42 +57,33 @@ export function useProjectSidebarItems(): SidebarSection[] {
     enabledPlugins.includes(item.pluginId),
   );
 
-  // Extract the virtualMcpId from the URL when inside an agent route.
-  // The sidebar is rendered outside VirtualMCPProvider, so useProjectContext
-  // always returns the org-level project. We parse the URL to detect agent context.
-  const orgPrefix = `/${org}/`;
-  const afterOrg = pathname.startsWith(orgPrefix)
-    ? pathname.slice(orgPrefix.length)
-    : "";
-  const urlSegments = afterOrg.split("/").filter(Boolean);
-  const knownOrgRoutes = new Set(["settings", "agents", "store", "plugins"]);
-  const firstSegment = urlSegments[0] ?? "";
-  const isInsideAgent =
-    firstSegment !== "" && !knownOrgRoutes.has(firstSegment);
-  const agentVirtualMcpId = isInsideAgent ? firstSegment : virtualMcpId;
+  // Detect agent context from the virtualmcpid search param.
+  // Sidebar is rendered outside VirtualMCPProvider, so useProjectContext
+  // always returns the org-level project.
+  const virtualMcpId = searchParams.virtualmcpid ?? currentProject.id;
+  const isInsideAgent = !!searchParams.virtualmcpid;
+  const currentTaskId = routeParams.taskId ?? "";
 
-  const basePath = `/${org}/${agentVirtualMcpId}`;
+  const activePluginId = routeParams.pluginId;
+  const isActivePlugin = (pluginId: string) => activePluginId === pluginId;
 
-  const isActiveRoute = (path: string) =>
-    pathname.startsWith(`${basePath}/${path}`);
+  const navigateToPlugin = (pluginId: string) => {
+    const taskId = currentTaskId || crypto.randomUUID();
+    navigate({
+      to: "/$org/$taskId/$pluginId",
+      params: { org, taskId, pluginId },
+      search: { virtualmcpid: virtualMcpId },
+    });
+  };
 
   // Plugin items mapped to navigation items (flat items)
-  // Plugins are scoped to the virtual MCP
   const pluginItems: NavigationSidebarItem[] = enabledPluginItems.map(
     (item) => ({
       key: item.pluginId,
       label: item.label,
       icon: item.icon,
-      isActive: isActiveRoute(item.pluginId),
-      onClick: () =>
-        navigate({
-          to: "/$org/$virtualMcpId/$pluginId",
-          params: {
-            org,
-            virtualMcpId,
-            pluginId: item.pluginId,
-          },
-        }),
+      isActive: isActivePlugin(item.pluginId),
+      onClick: () => navigateToPlugin(item.pluginId),
     }),
   );
 
@@ -102,24 +103,16 @@ export function useProjectSidebarItems(): SidebarSection[] {
           key: `${group.pluginId}-${group.id}-${index}`,
           label: item.label,
           icon: item.icon,
-          isActive: isActiveRoute(group.pluginId),
-          onClick: () =>
-            navigate({
-              to: "/$org/$virtualMcpId/$pluginId",
-              params: {
-                org,
-                virtualMcpId,
-                pluginId: group.pluginId,
-              },
-            }),
+          isActive: isActivePlugin(group.pluginId),
+          onClick: () => navigateToPlugin(group.pluginId),
         })),
         defaultExpanded: group.defaultExpanded ?? true,
       },
     }),
   );
 
-  // Build pinned views sidebar items
-  // Pinned views are scoped to the virtual MCP
+  // Build pinned views sidebar items.
+  // Pinned views open the app-view in the current main panel tab.
   const pinnedViewItems: NavigationSidebarItem[] = pinnedViews.map((view) => {
     const parsed = parseIconString(view.icon);
     const IconComp =
@@ -134,18 +127,11 @@ export function useProjectSidebarItems(): SidebarSection[] {
       ) : (
         <LayoutLeft size={16} className="text-muted-foreground" />
       ),
-      isActive: isActiveRoute(
-        `apps/${view.connectionId}/${encodeURIComponent(view.toolName)}`,
-      ),
+      isActive: false,
       onClick: () =>
-        navigate({
-          to: "/$org/$virtualMcpId/apps/$connectionId/$toolName",
-          params: {
-            org,
-            virtualMcpId,
-            connectionId: view.connectionId,
-            toolName: view.toolName,
-          },
+        openMainView("app-view", {
+          id: view.connectionId,
+          toolName: view.toolName,
         }),
     };
   });

@@ -169,6 +169,8 @@ export const KEYS = {
     ["threads", "messages", locator, threadId] as const,
   threadModelLogs: (locator: string, dateKey: string) =>
     ["threads", "model-logs", locator, dateKey] as const,
+  threadMetadata: (threadId: string) =>
+    ["threads", "metadata", threadId] as const,
 
   // Virtual MCP tools (for tool definition lookup in chat)
   // null virtualMcpId means default virtual MCP

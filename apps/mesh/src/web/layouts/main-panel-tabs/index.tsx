@@ -21,11 +21,13 @@ import {
   useVirtualMCP,
 } from "@decocms/mesh-sdk";
 import { useSuspenseQuery } from "@tanstack/react-query";
+import { KEYS } from "@/web/lib/query-keys";
 import { Loading01 } from "@untitledui/icons";
 import type {
   ThreadExpandedTool,
   ThreadMetadata,
 } from "../../../storage/types";
+import { resolveDefaultTabId } from "@/web/hooks/use-layout-state";
 
 const AppViewContent = lazy(() =>
   import("@/web/routes/project-app-view").then((m) => ({
@@ -53,7 +55,7 @@ function useTaskMetadata(taskId: string) {
   });
 
   const { data } = useSuspenseQuery({
-    queryKey: ["thread", taskId, "metadata"],
+    queryKey: KEYS.threadMetadata(taskId),
     queryFn: async () => {
       if (!client || !taskId) return null;
       try {
@@ -87,13 +89,38 @@ export function MainPanelWithTabs({
   const entity = useVirtualMCP(virtualMcpId);
   const metadata = useTaskMetadata(taskId);
 
-  const layoutTabs = ((
-    entity?.metadata as { ui?: { layout?: { tabs?: AgentTabDef[] } } } | null
-  )?.ui?.layout?.tabs ?? []) as AgentTabDef[];
+  const entityLayout =
+    (
+      entity?.metadata as {
+        ui?: {
+          layout?: {
+            tabs?: AgentTabDef[];
+            defaultMainView?: {
+              type: string;
+              id?: string;
+              toolName?: string;
+            } | null;
+            chatDefaultOpen?: boolean | null;
+          };
+        };
+      } | null
+    )?.ui?.layout ?? null;
 
+  const layoutTabs = (entityLayout?.tabs ?? []) as AgentTabDef[];
   const expandedTools: ThreadExpandedTool[] = metadata?.expanded_tools ?? [];
 
-  const activeTab = search.tab ?? MAIN_TAB_ID;
+  const defaultTabId =
+    resolveDefaultTabId(
+      entityLayout
+        ? {
+            defaultMainView: entityLayout.defaultMainView ?? null,
+            chatDefaultOpen: entityLayout.chatDefaultOpen ?? null,
+            tabs: layoutTabs.map((t) => ({ id: t.id })),
+          }
+        : null,
+    ) ?? MAIN_TAB_ID;
+
+  const activeTab = search.tab ?? defaultTabId;
 
   const setActiveTab = (id: string) => {
     navigate({

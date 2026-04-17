@@ -165,9 +165,11 @@ function AgentListItem({
           <ContextMenuItem
             onClick={() => {
               onMarkSeen?.();
+              const taskId = crypto.randomUUID();
               navigate({
-                to: "/$org/$virtualMcpId",
-                params: { org, virtualMcpId: agent.id },
+                to: "/$org/$taskId",
+                params: { org, taskId },
+                search: { virtualmcpid: agent.id },
               });
             }}
           >

@@ -22,10 +22,11 @@ export function useNavigateToAgent() {
 
   return (virtualMcpId: string, options?: NavigateToAgentOptions) => {
     pin(virtualMcpId);
+    const taskId = crypto.randomUUID();
     navigate({
-      to: "/$org/$virtualMcpId/",
-      params: { org: org.slug, virtualMcpId },
-      search: options?.search,
+      to: "/$org/$taskId",
+      params: { org: org.slug, taskId },
+      search: { ...(options?.search ?? {}), virtualmcpid: virtualMcpId },
     });
   };
 }

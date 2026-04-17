@@ -3,6 +3,7 @@ import {
   canToggle,
   computeDefaultSizes,
   resolveDefaultPanelState,
+  resolveDefaultTabId,
 } from "./use-layout-state";
 
 // ---------------------------------------------------------------------------
@@ -150,6 +151,65 @@ describe("resolveDefaultPanelState", () => {
       mainOpen: true,
       chatOpen: false,
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveDefaultTabId
+// ---------------------------------------------------------------------------
+
+describe("resolveDefaultTabId", () => {
+  test("null metadata → null", () => {
+    expect(resolveDefaultTabId(null)).toBeNull();
+  });
+
+  test("defaultMainView null → null", () => {
+    expect(resolveDefaultTabId({ defaultMainView: null })).toBeNull();
+  });
+
+  test("ext-app with id → tab = id", () => {
+    expect(
+      resolveDefaultTabId({
+        defaultMainView: { type: "ext-app", id: "analytics" },
+      }),
+    ).toBe("analytics");
+  });
+
+  test("ext-apps (plural legacy) with id → tab = id", () => {
+    expect(
+      resolveDefaultTabId({
+        defaultMainView: { type: "ext-apps", id: "analytics" },
+      }),
+    ).toBe("analytics");
+  });
+
+  test("settings without id → 'instructions'", () => {
+    expect(resolveDefaultTabId({ defaultMainView: { type: "settings" } })).toBe(
+      "instructions",
+    );
+  });
+
+  test("settings with id → uses id", () => {
+    expect(
+      resolveDefaultTabId({
+        defaultMainView: { type: "settings", id: "connections" },
+      }),
+    ).toBe("connections");
+  });
+
+  test("unknown type falls back to first declared tab", () => {
+    expect(
+      resolveDefaultTabId({
+        defaultMainView: { type: "automation" },
+        tabs: [{ id: "tab-1" }, { id: "tab-2" }],
+      }),
+    ).toBe("tab-1");
+  });
+
+  test("unknown type with no tabs → null", () => {
+    expect(
+      resolveDefaultTabId({ defaultMainView: { type: "automation" } }),
+    ).toBeNull();
   });
 });
 
