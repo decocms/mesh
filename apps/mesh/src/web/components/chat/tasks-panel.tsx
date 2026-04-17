@@ -7,7 +7,6 @@
 
 import { useChatTask } from "@/web/components/chat/context";
 import { usePanelActions } from "@/web/layouts/shell-layout";
-import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import { formatTimeAgo, formatTimeUntil } from "@/web/lib/format-time";
 import {
   getStatusConfig,
@@ -305,8 +304,8 @@ function AutomationRow({
 // ────────────────────────────────────────
 
 function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
-  const virtualMcpCtx = useInsetContext();
-  const { openMainView } = usePanelActions();
+  const { openTab, toggleMain } = usePanelActions();
+  const search = useSearch({ strict: false }) as { main?: string };
   const { data: allAutomations } = useAutomationsList(virtualMcpId);
   const createMutation = useAutomationCreate();
   const deleteMutation = useAutomationDelete();
@@ -322,11 +321,15 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     );
 
+  const activeAutomationId = search.main?.startsWith("automation:")
+    ? search.main.slice("automation:".length)
+    : null;
+
   const navigateToAutomation = (automationId?: string) => {
     if (automationId) {
-      openMainView("automation", { id: automationId });
+      openTab("automation:" + automationId);
     } else {
-      openMainView("default");
+      toggleMain();
     }
   };
 
@@ -345,12 +348,8 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
     if (!deleteTarget) return;
     try {
       await deleteMutation.mutateAsync(deleteTarget.id);
-      const currentView = virtualMcpCtx?.mainView;
-      if (
-        currentView?.type === "automation" &&
-        currentView.id === deleteTarget.id
-      ) {
-        openMainView("default");
+      if (activeAutomationId === deleteTarget.id) {
+        toggleMain();
       }
     } catch {
       // silently fail

@@ -11,6 +11,7 @@ import { Page } from "@/web/components/page";
 import { getIconComponent, parseIconString } from "../agent-icon";
 
 import { usePanelActions } from "@/web/layouts/shell-layout";
+import { useSearch } from "@tanstack/react-router";
 import {
   Edit05,
   LayoutLeft,
@@ -112,8 +113,8 @@ function PinnedViewIcon({ icon }: { icon: string | null | undefined }) {
 // ────────────────────────────────────────
 
 function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
-  const virtualMcpCtx = useInsetContext();
-  const { openMainView } = usePanelActions();
+  const { openTab, toggleMain } = usePanelActions();
+  const search = useSearch({ strict: false }) as { main?: string };
 
   const pinnedViews =
     ((project.metadata?.ui as Record<string, unknown> | null | undefined)
@@ -126,12 +127,8 @@ function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
 
   if (pinnedViews.length === 0) return null;
 
-  // Determine which pinned view is currently active
-  const currentMain = virtualMcpCtx?.mainView;
-  const isExtAppActive = (view: { connectionId: string; toolName: string }) =>
-    currentMain?.type === "ext-apps" &&
-    currentMain.id === view.connectionId &&
-    currentMain.toolName === view.toolName;
+  const isExtAppActive = (view: { toolName: string }) =>
+    search.main === view.toolName;
 
   return (
     <>
@@ -140,12 +137,7 @@ function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
           key={`${view.connectionId}-${view.toolName}`}
           type="button"
           onClick={() =>
-            isExtAppActive(view)
-              ? openMainView("default")
-              : openMainView("ext-apps", {
-                  id: view.connectionId,
-                  toolName: view.toolName,
-                })
+            isExtAppActive(view) ? toggleMain() : openTab(view.toolName)
           }
           className={cn(
             navItemClass,
@@ -273,8 +265,8 @@ function TasksPanelContent({
   showAutomations?: boolean;
 }) {
   const virtualMcpCtx = useInsetContext();
-  const { openMainView } = usePanelActions();
-  const { createNewTask, setTaskId } = usePanelActions();
+  const { openTab, toggleMain, createNewTask, setTaskId } = usePanelActions();
+  const search = useSearch({ strict: false }) as { main?: string };
   const [isPending, startTransition] = useTransition();
   const virtualMcpId = virtualMcpIdProp ?? null;
 
@@ -286,8 +278,8 @@ function TasksPanelContent({
     });
   };
 
-  const isSettingsActive = virtualMcpCtx?.mainView?.type === "settings";
-  const isPreviewActive = virtualMcpCtx?.mainView?.type === "preview";
+  const isSettingsActive = search.main === "instructions";
+  const isPreviewActive = search.main === "preview";
 
   const activeGithubRepo = useActiveGithubRepo();
   const hasGithubRepo = !!activeGithubRepo;
@@ -322,9 +314,7 @@ function TasksPanelContent({
           <button
             type="button"
             onClick={() =>
-              isSettingsActive
-                ? openMainView("default")
-                : openMainView("settings")
+              isSettingsActive ? toggleMain() : openTab("instructions")
             }
             className={cn(
               navItemClass,
@@ -339,9 +329,7 @@ function TasksPanelContent({
           <button
             type="button"
             onClick={() =>
-              isPreviewActive
-                ? openMainView("default")
-                : openMainView("preview")
+              isPreviewActive ? toggleMain() : openTab("preview")
             }
             className={cn(
               navItemClass,

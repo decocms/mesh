@@ -117,12 +117,13 @@ export function usePanelActions() {
   const setTasksOpen = (open: boolean) =>
     nav((prev) => ({ ...prev, tasks: open ? 1 : 0 }));
 
-  const setTaskId = (id: string) =>
+  const setTaskId = (id: string, virtualMcpId?: string) =>
     navWith(
       id,
       (prev) => {
         const next: Record<string, unknown> = { chat: 1 };
-        if (prev.virtualmcpid) next.virtualmcpid = prev.virtualmcpid;
+        if (virtualMcpId) next.virtualmcpid = virtualMcpId;
+        else if (prev.virtualmcpid) next.virtualmcpid = prev.virtualmcpid;
         if (prev.tasks) next.tasks = prev.tasks;
         return next;
       },
@@ -131,41 +132,16 @@ export function usePanelActions() {
 
   const createNewTask = () => setTaskId(crypto.randomUUID());
 
-  const openMainView = (
-    view: string,
-    opts?: { id?: string; toolName?: string },
-  ) => {
-    if (view === "default") {
-      nav((prev) => {
-        const next: Record<string, unknown> = {};
-        if (prev.virtualmcpid) next.virtualmcpid = prev.virtualmcpid;
-        if (prev.tasks) next.tasks = prev.tasks;
-        if (prev.chat) next.chat = prev.chat;
-        next.mainOpen = 0;
-        return next;
-      });
-      return;
-    }
+  const openTab = (tabId: string) => nav((prev) => ({ ...prev, main: tabId }));
 
+  const toggleMain = () =>
     nav((prev) => {
-      const next: Record<string, unknown> = {
-        ...prev,
-        main: view,
-        mainOpen: 1,
-      };
-      if (opts?.id) next.id = opts.id;
-      if (opts?.toolName) next.toolName = opts.toolName;
-      return next;
-    });
-  };
-
-  const closeMainView = () =>
-    nav((prev) => {
-      const next: Record<string, unknown> = {};
-      if (prev.virtualmcpid) next.virtualmcpid = prev.virtualmcpid;
-      if (prev.tasks) next.tasks = prev.tasks;
-      if (prev.chat) next.chat = prev.chat;
-      next.mainOpen = 0;
+      const isOpen = prev.main !== undefined && prev.main !== "0";
+      if (isOpen) {
+        return { ...prev, main: "0" };
+      }
+      const next: Record<string, unknown> = { ...prev };
+      delete next.main;
       return next;
     });
 
@@ -174,8 +150,8 @@ export function usePanelActions() {
     setTasksOpen,
     setTaskId,
     createNewTask,
-    openMainView,
-    closeMainView,
+    openTab,
+    toggleMain,
   };
 }
 

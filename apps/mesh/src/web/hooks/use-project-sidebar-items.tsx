@@ -19,7 +19,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
   const { org: orgContext } = useProjectContext();
   const navigate = useNavigate();
   const routerState = useRouterState();
-  const { setTasksOpen, openMainView } = usePanelActions();
+  const { setTasksOpen, openTab } = usePanelActions();
   const org = orgContext.slug;
   const currentProject = useProjectContext().project;
 
@@ -128,11 +128,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
         <LayoutLeft size={16} className="text-muted-foreground" />
       ),
       isActive: false,
-      onClick: () =>
-        openMainView("app-view", {
-          id: view.connectionId,
-          toolName: view.toolName,
-        }),
+      onClick: () => openTab(view.toolName),
     };
   });
 

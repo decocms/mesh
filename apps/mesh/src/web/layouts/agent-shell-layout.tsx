@@ -72,24 +72,8 @@ import { GitHubIcon } from "@/web/components/icons/github-icon";
 // Types & Context
 // ---------------------------------------------------------------------------
 
-export type MainViewType =
-  | "chat"
-  | "settings"
-  | "automation"
-  | "ext-apps"
-  | "preview";
-
-export type MainView =
-  | { type: "chat" }
-  | { type: "settings" }
-  | { type: "automation"; id: string }
-  | { type: "ext-apps"; id: string; toolName?: string; [key: string]: unknown }
-  | { type: "preview" }
-  | null;
-
 export interface InsetContextValue {
   virtualMcpId: string;
-  mainView: MainView;
   entity: VirtualMCPEntity | null;
 }
 
@@ -346,9 +330,6 @@ function AgentInsetProvider() {
   // that resolution happens inside Chat.Provider via the task fetch.)
   const search = useSearch({ strict: false }) as {
     virtualmcpid?: string;
-    main?: string;
-    id?: string;
-    toolName?: string;
   };
   const virtualMcpId =
     search.virtualmcpid ?? getWellKnownDecopilotVirtualMCP(org.id).id;
@@ -358,23 +339,6 @@ function AgentInsetProvider() {
 
   // Fetch entity (Suspense-based — resolved before render)
   const entity = useVirtualMCP(virtualMcpId);
-
-  let mainView: MainView;
-  if (search.main === "settings") {
-    mainView = { type: "settings" };
-  } else if (search.main === "automation") {
-    const id = search.id ?? "";
-    mainView = id ? { type: "automation", id } : { type: "settings" };
-  } else if (search.main === "ext-apps") {
-    const id = search.id ?? "";
-    mainView = id
-      ? { type: "ext-apps", id, toolName: search.toolName }
-      : { type: "settings" };
-  } else if (search.main === "preview") {
-    mainView = { type: "preview" };
-  } else {
-    mainView = null;
-  }
 
   // Derive entity layout metadata for usePanelState
   const layoutMetadata = (entity?.metadata as any)?.ui?.layout ?? null;
@@ -454,7 +418,6 @@ function AgentInsetProvider() {
 
   const insetContextValue: InsetContextValue = {
     virtualMcpId,
-    mainView,
     entity,
   };
 
