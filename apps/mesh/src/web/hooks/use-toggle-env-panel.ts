@@ -3,7 +3,7 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 /**
  * Standalone hook to toggle the env (VM/server) panel via URL search params.
  * Opens the main panel when opening env. Can be used from any component
- * without needing the full usePanelState context.
+ * without needing the full useChatMainPanelState context.
  */
 export function useToggleEnvPanel() {
   const navigate = useNavigate();
