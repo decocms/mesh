@@ -285,13 +285,10 @@ function AgentInsetProvider() {
     <InsetContext value={insetContextValue}>
       <Toolbar.Toggles>
         <ToggleButtons
-          tasksOpen={layout.tasksOpen}
           chatOpen={layout.chatOpen}
           mainOpen={layout.mainOpen}
-          toggleTasks={layout.toggleTasks}
           toggleChat={layout.toggleChat}
           toggleMain={layout.toggleMain}
-          onNewTaskRef={onNewTask}
         />
       </Toolbar.Toggles>
 
