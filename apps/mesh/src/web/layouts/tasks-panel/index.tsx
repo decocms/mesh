@@ -30,7 +30,7 @@ function TasksPanelContent() {
   useTasksAutoRefresh();
   const { tasks } = useTasks({ owner: "all", status: "open" });
   const { data: automations = [] } = useAutomationsList(undefined);
-  const { setTaskId, openTab } = usePanelActions();
+  const { setTaskId, openTab, createNewTask } = usePanelActions();
   const search = useSearch({ strict: false }) as { main?: string };
   const params = useParams({ strict: false }) as { taskId?: string };
   const { locator, org } = useProjectContext();
@@ -89,6 +89,7 @@ function TasksPanelContent() {
         activeTaskId={activeTaskId}
         onSelect={(t) => setTaskId(t.id, t.virtual_mcp_id)}
         onArchive={handleArchive}
+        onNew={createNewTask}
       />
     </div>
   );
