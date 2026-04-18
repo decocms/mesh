@@ -26,8 +26,6 @@ import {
   Suspense,
 } from "react";
 import { Chat, useChatTask } from "@/web/components/chat/index";
-import { useTasks } from "@/web/components/chat/task/use-task-manager";
-import { useAutomationsList } from "@/web/hooks/use-automations";
 import { ChatCenterPanel } from "@/web/layouts/chat-center-panel";
 import { TasksPanel } from "@/web/layouts/tasks-panel";
 import { ErrorBoundary } from "@/web/components/error-boundary";
@@ -53,7 +51,7 @@ import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useStatusSounds } from "../../hooks/use-status-sounds";
 import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "@/web/components/empty-state";
-import { usePanelState } from "@/web/hooks/use-layout-state";
+import { useChatMainPanelState } from "@/web/hooks/use-layout-state";
 import { Toolbar } from "./toolbar";
 import { TasksPanelColumn } from "./tasks-panel-column";
 import { ChatMainPanelGroup } from "./chat-main-panel-group";
@@ -169,15 +167,11 @@ function AgentInsetProvider() {
       }
     : null;
 
-  const { tasks } = useTasks({ owner: "all", status: "open" });
-  const { data: automations = [] } = useAutomationsList(undefined);
-  const tasksHasItems = tasks.length > 0 || automations.length > 0;
-
-  const layout = usePanelState(
-    entityMetadata,
-    { virtualMcpId, orgSlug, isAgentRoute },
-    tasksHasItems,
-  );
+  const layout = useChatMainPanelState(entityMetadata, {
+    virtualMcpId,
+    orgSlug,
+    isAgentRoute,
+  });
 
   const { setOpenMobile, openMobile: mobileSidebarOpen } = useSidebar();
   const setMobileSidebarOpen = setOpenMobile;

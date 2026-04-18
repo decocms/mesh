@@ -1,13 +1,15 @@
 /**
- * usePanelState — Querystring-driven panel layout state.
+ * useChatMainPanelState — Querystring-driven panel layout state for the
+ * chat + main panels.
  *
  * URL model:
  *   ?main=<tabId>    main panel open, tab active
  *   ?main=0          main panel closed
  *   ?main absent     default (open iff defaultMainView != null)
- *   ?tasks=0|1       tasks panel open state
  *   ?chat=0|1        chat panel open state
  *   ?virtualmcpid    which MCP the chat + right panel are scoped to
+ *
+ * Tasks-panel state is owned by useTasksPanelState (separate hook).
  */
 
 import { useRef } from "react";
@@ -23,18 +25,16 @@ export interface EntityLayoutMetadata {
   tabs?: Array<{ id: string }>;
 }
 
-export interface LayoutState {
+export interface ChatMainLayoutState {
   taskId: string;
-  tasksOpen: boolean;
   mainOpen: boolean;
   chatOpen: boolean;
   /** Current ?main value (undefined when param absent). "0" = closed. */
   mainParam: string | undefined;
 }
 
-export interface LayoutActions {
+export interface ChatMainLayoutActions {
   setTaskId: (id: string, virtualMcpId?: string) => void;
-  toggleTasks: () => void;
   toggleMain: () => void;
   toggleChat: () => void;
   openChat: () => void;
@@ -107,17 +107,16 @@ function parsePanelParam(
 // Hook
 // ---------------------------------------------------------------------------
 
-export interface PanelStateRouteCtx {
+export interface ChatMainPanelStateRouteCtx {
   virtualMcpId: string;
   orgSlug: string;
   isAgentRoute: boolean;
 }
 
-export function usePanelState(
+export function useChatMainPanelState(
   entityMetadata: EntityLayoutMetadata | null,
-  routeCtx: PanelStateRouteCtx,
-  tasksHasItems: boolean,
-): LayoutState & LayoutActions {
+  routeCtx: ChatMainPanelStateRouteCtx,
+): ChatMainLayoutState & ChatMainLayoutActions {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as PanelSearchParams;
   const routeParamsRaw = useParams({ strict: false }) as {
@@ -133,7 +132,6 @@ export function usePanelState(
     mainParamValue: search.main,
   });
 
-  const tasksOpen = resolveTasksOpen(search.tasks, tasksHasItems);
   const chatOpen = parsePanelParam(search.chat, defaults.chatOpen);
   const mainOpen = defaults.mainOpen;
 
@@ -168,10 +166,6 @@ export function usePanelState(
         return next;
       },
     });
-  };
-
-  const toggleTasks = () => {
-    navigateSearch({ tasks: tasksOpen ? 0 : 1 }, { replace: true });
   };
 
   const toggleMain = () => {
@@ -216,12 +210,10 @@ export function usePanelState(
 
   return {
     taskId,
-    tasksOpen,
     mainOpen,
     chatOpen,
     mainParam: search.main,
     setTaskId,
-    toggleTasks,
     toggleMain,
     toggleChat,
     openChat,
