@@ -7,23 +7,15 @@
  */
 
 import { Suspense } from "react";
-import { useSearch } from "@tanstack/react-router";
-import { useTasks } from "@/web/components/chat/task/use-task-manager";
-import { useAutomationsList } from "@/web/hooks/use-automations";
-import { resolveTasksOpen } from "@/web/hooks/use-layout-state";
+import { useTasksPanelState } from "@/web/hooks/use-tasks-panel-state";
 import { TasksPanel } from "@/web/layouts/tasks-panel";
 
 const TASKS_COLUMN_WIDTH_PX = 280;
 
 function TasksPanelColumnInner() {
-  const search = useSearch({ strict: false }) as { tasks?: number };
-  const { tasks } = useTasks({ owner: "all", status: "open" });
-  const { data: automations = [] } = useAutomationsList(undefined);
+  const { tasksOpen } = useTasksPanelState();
 
-  const hasItems = tasks.length > 0 || automations.length > 0;
-  const open = resolveTasksOpen(search.tasks, hasItems);
-
-  if (!open) return null;
+  if (!tasksOpen) return null;
 
   return (
     <aside
