@@ -2,6 +2,7 @@ export {
   GatewayClient,
   getGatewayClientId,
   slugify,
+  capSlug,
   stripToolNamespace,
   displayToolName,
   type ClientOrFactory,

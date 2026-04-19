@@ -64,6 +64,24 @@ export function slugify(input: string): string {
 }
 
 /**
+ * Maximum length for the slug portion of a namespaced tool/prompt name.
+ *
+ * MCP clients such as Claude Code prepend their own prefix to tool names
+ * (e.g. `mcp__<server>__`) and AI providers enforce a 128-character limit.
+ * Capping the slug at 32 characters keeps the full namespaced name short
+ * enough to stay within 128 even after client-side prefixing.
+ */
+const MAX_SLUG_LENGTH = 32;
+
+/**
+ * Truncate a slug to {@link MAX_SLUG_LENGTH}, removing any trailing hyphen.
+ */
+export function capSlug(slug: string): string {
+  if (slug.length <= MAX_SLUG_LENGTH) return slug;
+  return slug.slice(0, MAX_SLUG_LENGTH).replace(/-$/, "");
+}
+
+/**
  * Extract `gatewayClientId` from an item's `_meta` object.
  * Returns `undefined` when the field is absent or not a string.
  */
@@ -89,7 +107,7 @@ export function stripToolNamespace(
   clientId?: string,
 ): string {
   if (!clientId) return namespacedName;
-  const prefix = `${slugify(clientId)}_`;
+  const prefix = `${capSlug(slugify(clientId))}_`;
   return namespacedName.startsWith(prefix)
     ? namespacedName.slice(prefix.length)
     : namespacedName;
@@ -117,6 +135,7 @@ export interface GatewayClientOptions {
 export class GatewayClient extends Client {
   private readonly clients: Record<string, ClientEntry>;
   private readonly slugToKey = new Map<string, string>();
+  private readonly keyToSlug = new Map<string, string>();
 
   /** Cache of resolved client promises keyed by client key. */
   private readonly resolvedClients = new Map<string, Promise<IClient>>();
@@ -140,13 +159,14 @@ export class GatewayClient extends Client {
     });
     this.clients = clients;
     for (const key of Object.keys(clients)) {
-      const slug = slugify(key);
+      const slug = capSlug(slugify(key));
       if (this.slugToKey.has(slug)) {
         throw new Error(
           `GatewayClient: duplicate slug "${slug}" from keys "${this.slugToKey.get(slug)}" and "${key}"`,
         );
       }
       this.slugToKey.set(slug, key);
+      this.keyToSlug.set(key, slug);
     }
   }
 
@@ -155,7 +175,8 @@ export class GatewayClient extends Client {
   // ---------------------------------------------------------------------------
 
   private namespace(clientKey: string, name: string): string {
-    return `${slugify(clientKey)}_${name}`;
+    const slug = this.keyToSlug.get(clientKey) ?? capSlug(slugify(clientKey));
+    return `${slug}_${name}`;
   }
 
   /**
