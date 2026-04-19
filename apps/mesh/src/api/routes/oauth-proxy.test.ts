@@ -238,7 +238,7 @@ describe("OAuth Proxy Routes", () => {
       expect(res.status).toBe(200);
     });
 
-    test("returns 502 when origin fetch fails", async () => {
+    test("returns 404 when origin fetch fails to prevent connection enumeration", async () => {
       mockConnectionStorage({
         connection_url: "https://origin.example.com/mcp",
       });
@@ -251,9 +251,10 @@ describe("OAuth Proxy Routes", () => {
         "/.well-known/oauth-protected-resource/mcp/conn_123",
       );
 
-      expect(res.status).toBe(502);
+      // Returns 404 (same as "not found") to avoid leaking connection existence
+      expect(res.status).toBe(404);
       const body = await res.json();
-      expect(body.error).toBe("Failed to proxy OAuth metadata");
+      expect(body.error).toBe("Connection not found");
     });
 
     test("passes through error responses from origin", async () => {
@@ -441,6 +442,33 @@ describe("OAuth Proxy Routes", () => {
       // Should NOT have auth server metadata fields that would confuse MCP SDK
       expect(body.issuer).toBeUndefined();
       expect(body.authorization_endpoint).toBeUndefined();
+    });
+
+    test("returns same 404 for non-existent and unreachable connections (no enumeration oracle)", async () => {
+      // Non-existent connection
+      mockConnectionStorage(null);
+      const res404 = await app.request(
+        "/.well-known/oauth-protected-resource/mcp/conn_nonexistent",
+      );
+
+      // Existing connection with unreachable upstream
+      mockConnectionStorage({
+        connection_url: "https://origin.example.com/mcp",
+      });
+      global.fetch = mock(() =>
+        Promise.reject(new Error("Connection refused")),
+      ) as unknown as typeof fetch;
+      const res502 = await app.request(
+        "/.well-known/oauth-protected-resource/mcp/conn_existing",
+      );
+
+      // Both should return identical 404 responses
+      expect(res404.status).toBe(404);
+      expect(res502.status).toBe(404);
+      const body404 = await res404.json();
+      const body502 = await res502.json();
+      expect(body404.error).toBe("Connection not found");
+      expect(body502.error).toBe("Connection not found");
     });
   });
 
