@@ -8,7 +8,11 @@
  *     replaces it).
  */
 
-import { Browser, LayoutLeft, LayoutRight } from "@untitledui/icons";
+import {
+  ClipboardCheck,
+  LayoutRight,
+  MessageChatCircle,
+} from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.js";
 import { useTasksPanelState } from "@/web/hooks/use-tasks-panel-state";
 
@@ -44,7 +48,7 @@ export function ToggleButtons({
         className={cn(TOGGLE_BASE, tasksOpen ? TOGGLE_ACTIVE : TOGGLE_INACTIVE)}
         title="Toggle tasks"
       >
-        <LayoutLeft size={16} />
+        <ClipboardCheck size={16} />
       </button>
       {isDecopilot ? (
         <button
@@ -70,7 +74,7 @@ export function ToggleButtons({
           )}
           title="Toggle chat"
         >
-          <Browser size={16} />
+          <MessageChatCircle size={16} />
         </button>
       )}
     </>
