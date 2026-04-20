@@ -1510,6 +1510,7 @@ Define step-by-step how the agent should handle requests.
                         size="sm+"
                         className="shrink-0 self-start"
                         avatarClassName="[&_svg]:w-1/2 [&_svg]:h-1/2"
+                        disabled={hasGithubRepo}
                       />
                     )}
                   />
@@ -1526,8 +1527,9 @@ Define step-by-step how the agent should handle requests.
                             field.onBlur();
                             saveForm();
                           }}
+                          disabled={hasGithubRepo}
                           placeholder="Agent name"
-                          className="text-sm font-medium text-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate"
+                          className="text-sm font-medium text-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate disabled:hover:bg-transparent disabled:focus:bg-transparent disabled:opacity-50"
                         />
                       )}
                     />
@@ -1543,8 +1545,9 @@ Define step-by-step how the agent should handle requests.
                             field.onBlur();
                             saveForm();
                           }}
+                          disabled={hasGithubRepo}
                           placeholder="Add a description..."
-                          className="text-sm text-muted-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate"
+                          className="text-sm text-muted-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate disabled:hover:bg-transparent disabled:focus:bg-transparent disabled:opacity-50"
                         />
                       )}
                     />
