@@ -60,6 +60,7 @@ function buildHostContext(
   displayMode: McpUiDisplayMode,
   toolInfo?: McpUiHostContext["toolInfo"],
   maxHeight?: number,
+  workspaceId?: string,
 ): McpUiHostContext {
   return {
     theme: getDocumentTheme(),
@@ -73,6 +74,7 @@ function buildHostContext(
     ...(maxHeight != null && {
       containerDimensions: { maxHeight },
     }),
+    ...(workspaceId != null && { workspaceId }),
   };
 }
 
@@ -127,6 +129,7 @@ interface BridgeStoreConfig {
   displayMode: McpUiDisplayMode;
   minHeight: number;
   maxHeight: number;
+  workspaceId?: string;
   toolInfo?: McpUiHostContext["toolInfo"];
   toolInput?: Record<string, unknown>;
   toolResult?: CallToolResult;
@@ -194,9 +197,9 @@ class BridgeStore {
   /** Rebuild and push full host context to the bridge (e.g. on theme change). */
   private pushHostContext() {
     if (!this.bridge || this.disposed) return;
-    const { displayMode, maxHeight, toolInfo } = this.config;
+    const { displayMode, maxHeight, toolInfo, workspaceId } = this.config;
     this.bridge.setHostContext(
-      buildHostContext(displayMode, toolInfo, maxHeight),
+      buildHostContext(displayMode, toolInfo, maxHeight, workspaceId),
     );
   }
 
@@ -261,8 +264,14 @@ class BridgeStore {
     };
 
     try {
-      const { client, displayMode, maxHeight, toolInfo } = this.config;
-      const hostContext = buildHostContext(displayMode, toolInfo, maxHeight);
+      const { client, displayMode, maxHeight, toolInfo, workspaceId } =
+        this.config;
+      const hostContext = buildHostContext(
+        displayMode,
+        toolInfo,
+        maxHeight,
+        workspaceId,
+      );
 
       // Pass the MCP client directly — AppBridge auto-wires oncalltool,
       // onreadresource, onlistresources, etc. via the client's capabilities.
@@ -416,6 +425,7 @@ interface UseAppBridgeOptions {
   displayMode: McpUiDisplayMode;
   minHeight: number;
   maxHeight: number;
+  workspaceId?: string;
   toolInfo?: McpUiHostContext["toolInfo"];
   toolInput?: Record<string, unknown>;
   toolResult?: CallToolResult;
