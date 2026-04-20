@@ -31,10 +31,10 @@ export function selectTabSlots<T extends { id: string }>(
     return { visible, overflow };
   }
 
-  const displaced = visible[visible.length - 1];
-  const promoted = overflow[activeIndexInOverflow];
-  const newVisible = [...visible.slice(0, -1), promoted];
-  const newOverflow = [
+  const displaced = visible[visible.length - 1] as T;
+  const promoted = overflow[activeIndexInOverflow] as T;
+  const newVisible: T[] = [...visible.slice(0, -1), promoted];
+  const newOverflow: T[] = [
     displaced,
     ...overflow.slice(0, activeIndexInOverflow),
     ...overflow.slice(activeIndexInOverflow + 1),
