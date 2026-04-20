@@ -28,7 +28,7 @@ function AppRenderer({
   resourceURI,
   tool,
   connectionId,
-  workspaceId,
+  orgId,
 }: {
   client: ReturnType<typeof useMCPClient>;
   resourceURI: string;
@@ -39,7 +39,7 @@ function AppRenderer({
     _meta?: Record<string, unknown>;
   };
   connectionId: string;
-  workspaceId?: string;
+  orgId?: string;
 }) {
   const { sendMessage } = useChatBridge();
   const { setAppContext, clearAppContext } = useChatPrefs();
@@ -72,7 +72,7 @@ function AppRenderer({
   return (
     <MCPAppRenderer
       resourceURI={resourceURI}
-      workspaceId={workspaceId}
+      orgId={orgId}
       toolInfo={{ tool: strippedTool }}
       toolInput={EMPTY_TOOL_INPUT}
       toolResult={toolResult}
@@ -121,7 +121,7 @@ export function AppViewContent({
       resourceURI={resourceURI}
       tool={tool}
       connectionId={connectionId}
-      workspaceId={org.id}
+      orgId={org.id}
     />
   );
 }

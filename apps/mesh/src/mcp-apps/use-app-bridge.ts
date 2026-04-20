@@ -60,7 +60,7 @@ function buildHostContext(
   displayMode: McpUiDisplayMode,
   toolInfo?: McpUiHostContext["toolInfo"],
   maxHeight?: number,
-  workspaceId?: string,
+  orgId?: string,
 ): McpUiHostContext {
   return {
     theme: getDocumentTheme(),
@@ -74,7 +74,7 @@ function buildHostContext(
     ...(maxHeight != null && {
       containerDimensions: { maxHeight },
     }),
-    ...(workspaceId != null && { workspaceId }),
+    ...(orgId != null && { orgId }),
   };
 }
 
@@ -129,7 +129,7 @@ interface BridgeStoreConfig {
   displayMode: McpUiDisplayMode;
   minHeight: number;
   maxHeight: number;
-  workspaceId?: string;
+  orgId?: string;
   toolInfo?: McpUiHostContext["toolInfo"];
   toolInput?: Record<string, unknown>;
   toolResult?: CallToolResult;
@@ -197,9 +197,9 @@ class BridgeStore {
   /** Rebuild and push full host context to the bridge (e.g. on theme change). */
   private pushHostContext() {
     if (!this.bridge || this.disposed) return;
-    const { displayMode, maxHeight, toolInfo, workspaceId } = this.config;
+    const { displayMode, maxHeight, toolInfo, orgId } = this.config;
     this.bridge.setHostContext(
-      buildHostContext(displayMode, toolInfo, maxHeight, workspaceId),
+      buildHostContext(displayMode, toolInfo, maxHeight, orgId),
     );
   }
 
@@ -264,13 +264,12 @@ class BridgeStore {
     };
 
     try {
-      const { client, displayMode, maxHeight, toolInfo, workspaceId } =
-        this.config;
+      const { client, displayMode, maxHeight, toolInfo, orgId } = this.config;
       const hostContext = buildHostContext(
         displayMode,
         toolInfo,
         maxHeight,
-        workspaceId,
+        orgId,
       );
 
       // Pass the MCP client directly — AppBridge auto-wires oncalltool,
@@ -425,7 +424,7 @@ interface UseAppBridgeOptions {
   displayMode: McpUiDisplayMode;
   minHeight: number;
   maxHeight: number;
-  workspaceId?: string;
+  orgId?: string;
   toolInfo?: McpUiHostContext["toolInfo"];
   toolInput?: Record<string, unknown>;
   toolResult?: CallToolResult;
