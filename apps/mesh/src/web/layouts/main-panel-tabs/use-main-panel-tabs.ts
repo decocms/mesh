@@ -119,6 +119,7 @@ export function useMainPanelTabs(ctx: {
   const systemTabs: Array<{ id: string; title: string }> = [
     { id: "instructions", title: "Instructions" },
     { id: "connections", title: "Connections" },
+    { id: "automations", title: "Automations" },
     { id: "layout", title: "Layout" },
   ];
   if (hasActiveGithubRepo) {
