@@ -1,9 +1,9 @@
-import { Loading01 } from "@untitledui/icons";
+import { DecoScene } from "@/web/components/deco-scene";
 
 export function SplashScreen() {
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <Loading01 size={20} className="animate-spin text-muted-foreground" />
+    <div className="relative min-h-screen w-full bg-background">
+      <DecoScene />
     </div>
   );
 }
