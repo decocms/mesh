@@ -464,3 +464,4 @@ export function useAppBridge(options: UseAppBridgeOptions): UseAppBridgeReturn {
     iframeRef: storeRef.current.attach,
   };
 }
+
