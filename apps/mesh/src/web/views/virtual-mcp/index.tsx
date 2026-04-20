@@ -72,6 +72,7 @@ import {
 import { Suspense, useReducer, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { IconPicker } from "../../components/icon-picker";
 import { SimpleIconPicker } from "../../components/simple-icon-picker";
 import { Page } from "@/web/components/page";
 import { AddConnectionDialog } from "./add-connection-dialog";
@@ -1487,21 +1488,88 @@ Define step-by-step how the agent should handle requests.
 
             {/* Tab content */}
             {activeTab === "instructions" && (
-              <Controller
-                name="metadata.instructions"
-                control={form.control}
-                render={({ field }) => (
-                  <Textarea
-                    {...field}
-                    value={field.value ?? ""}
-                    onBlur={field.onBlur}
-                    disabled={hasGithubRepo}
-                    placeholder="Define how this agent should behave, what tone to use, any constraints or guidelines..."
-                    className="min-h-[300px] flex-1 resize-none text-[15px] placeholder:text-muted-foreground/40 leading-relaxed border-0 rounded-none shadow-none px-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-0 bg-transparent"
-                    style={{ boxShadow: "none" }}
+              <>
+                <div className="flex items-center gap-3 pb-3">
+                  <Controller
+                    name="icon"
+                    control={form.control}
+                    render={({ field }) => (
+                      <IconPicker
+                        value={field.value ?? null}
+                        onChange={(icon) => {
+                          field.onChange(icon);
+                          saveForm();
+                        }}
+                        onColorChange={(color) => {
+                          form.setValue("metadata.ui.themeColor", color, {
+                            shouldDirty: true,
+                          });
+                          saveForm();
+                        }}
+                        name={form.watch("title") || "Agent"}
+                        size="sm+"
+                        className="shrink-0 self-start"
+                        avatarClassName="[&_svg]:w-1/2 [&_svg]:h-1/2"
+                      />
+                    )}
                   />
-                )}
-              />
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <Controller
+                      name="title"
+                      control={form.control}
+                      render={({ field }) => (
+                        <input
+                          {...field}
+                          type="text"
+                          value={field.value ?? ""}
+                          onBlur={() => {
+                            field.onBlur();
+                            saveForm();
+                          }}
+                          placeholder="Agent name"
+                          className="text-sm font-medium text-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate"
+                        />
+                      )}
+                    />
+                    <Controller
+                      name="description"
+                      control={form.control}
+                      render={({ field }) => (
+                        <input
+                          {...field}
+                          type="text"
+                          value={field.value ?? ""}
+                          onBlur={() => {
+                            field.onBlur();
+                            saveForm();
+                          }}
+                          placeholder="Add a description..."
+                          className="text-sm text-muted-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate"
+                        />
+                      )}
+                    />
+                  </div>
+                </div>
+
+                <Controller
+                  name="metadata.instructions"
+                  control={form.control}
+                  render={({ field }) => (
+                    <Textarea
+                      {...field}
+                      value={field.value ?? ""}
+                      onBlur={() => {
+                        field.onBlur();
+                        saveForm();
+                      }}
+                      disabled={hasGithubRepo}
+                      placeholder="Define how this agent should behave, what tone to use, any constraints or guidelines..."
+                      className="min-h-[300px] flex-1 resize-none text-[15px] placeholder:text-muted-foreground/40 leading-relaxed border-0 rounded-none shadow-none px-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-0 bg-transparent"
+                      style={{ boxShadow: "none" }}
+                    />
+                  )}
+                />
+              </>
             )}
 
             {activeTab === "connections" && (
