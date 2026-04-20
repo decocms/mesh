@@ -14,6 +14,7 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import {
   SELF_MCP_ALIAS_ID,
+  useConnections,
   useMCPClient,
   useProjectContext,
   useVirtualMCP,
@@ -30,6 +31,7 @@ import {
   resolveTabClickTarget,
   type AutomationTabParsed,
 } from "./tab-id";
+import { resolveTabIcon, type TabIcon, type TabKind } from "./resolve-tab-icon";
 
 export type AgentTabDef = {
   id: string;
@@ -41,6 +43,13 @@ export type AgentTabDef = {
   };
 };
 
+export type Tab = {
+  id: string;
+  title: string;
+  icon: TabIcon;
+  kind: TabKind;
+};
+
 export interface MainPanelTabs {
   activeTab: string;
   mainOpen: boolean;
@@ -49,6 +58,7 @@ export interface MainPanelTabs {
   layoutTabs: AgentTabDef[];
   expandedTools: ThreadExpandedTool[];
   automationTabParsed: AutomationTabParsed | null;
+  tabs: Tab[];
 }
 
 function useTaskMetadata(taskId: string): ThreadMetadata | null {
@@ -103,6 +113,7 @@ export function useMainPanelTabs(ctx: {
   const layoutTabs = (entityLayout?.tabs ?? []) as AgentTabDef[];
   const expandedTools: ThreadExpandedTool[] = metadata?.expanded_tools ?? [];
   const hasActiveGithubRepo = !!(entity && getActiveGithubRepo(entity));
+  const connections = useConnections();
 
   const { activeTab, mainOpen } = resolveActiveTabAndOpen({
     mainParam: search.main,
@@ -127,6 +138,41 @@ export function useMainPanelTabs(ctx: {
     systemTabs.push({ id: "preview", title: "Preview" });
   }
 
+  const tabs: Tab[] = [
+    ...systemTabs.map((t) => ({
+      id: t.id,
+      title: t.title,
+      kind: "system" as const,
+      icon: resolveTabIcon({
+        tabId: t.id,
+        kind: "system",
+        connections,
+      }),
+    })),
+    ...layoutTabs.map((t) => ({
+      id: t.id,
+      title: t.title,
+      kind: "agent" as const,
+      icon: resolveTabIcon({
+        tabId: t.id,
+        kind: "agent",
+        appId: t.view.appId,
+        connections,
+      }),
+    })),
+    ...expandedTools.map((t) => ({
+      id: t.toolName,
+      title: t.toolName,
+      kind: "expanded" as const,
+      icon: resolveTabIcon({
+        tabId: t.toolName,
+        kind: "expanded",
+        appId: t.appId,
+        connections,
+      }),
+    })),
+  ];
+
   const setActiveTab = (id: string) => {
     const target = resolveTabClickTarget({
       clickedId: id,
@@ -148,5 +194,6 @@ export function useMainPanelTabs(ctx: {
     layoutTabs,
     expandedTools,
     automationTabParsed,
+    tabs,
   };
 }
