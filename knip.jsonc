@@ -19,7 +19,11 @@
         // Dev-only module loaded via require() - needs explicit entry
         "src/api/routes/dev-only.ts"
       ],
-      "ignore": ["src/api/index.ts"],
+      "ignore": [
+        "src/api/index.ts",
+        // Vite public/ is static assets served at runtime — not source
+        "public/**"
+      ],
       // Resolved at bundle-time by scripts/bundle-server-script.ts ALWAYS_INCLUDE
       "ignoreDependencies": ["@jitl/quickjs-wasmfile-release-sync"]
     },
