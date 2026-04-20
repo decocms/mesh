@@ -339,6 +339,10 @@ export const KEYS = {
       installationLogin,
       query,
     ] as const,
+
+  // Project info (local dev mode — set via `bunx decocms`)
+  projectInfo: () => ["project-info"] as const,
+  projectDevServer: () => ["project-dev-server"] as const,
 } as const;
 
 export function invalidateVirtualMcpQueries(

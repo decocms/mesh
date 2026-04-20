@@ -54,6 +54,10 @@ export interface Settings {
   s3SecretAccessKey: string | undefined;
   s3ForcePathStyle: boolean;
 
+  // Project
+  /** Absolute path to the user's project directory (CWD where CLI was invoked). Null when not running against a project. */
+  projectDir: string | null;
+
   // Runtime flags (set by CLI)
   isCli: boolean;
   noTui: boolean;
@@ -74,6 +78,7 @@ export interface CliFlags {
   noTui?: boolean;
   vitePort?: string;
   nodeEnv?: "production" | "development" | "test";
+  projectDir?: string;
 }
 
 export interface ServiceInputs {

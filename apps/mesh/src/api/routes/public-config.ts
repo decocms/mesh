@@ -6,6 +6,7 @@
  */
 
 import { Hono } from "hono";
+import { basename } from "path";
 import { getConfig, getThemeConfig, type ThemeConfig } from "@/core/config";
 import { isLocalMode } from "@/auth/local-mode";
 import { getInternalUrl } from "@/core/server-constants";
@@ -43,6 +44,15 @@ export type PublicConfig = {
    * Requires FIRECRAWL_API_KEY to be configured.
    */
   brandExtractEnabled?: boolean;
+  /**
+   * Absolute path to the user's project directory.
+   * Only set in local mode when running inside a project.
+   */
+  projectDir?: string;
+  /**
+   * Human-readable project name (basename of projectDir).
+   */
+  projectName?: string;
 };
 
 /**
@@ -61,6 +71,11 @@ app.get("/", (c) => {
     ...(isLocalMode() && { internalUrl: getInternalUrl() }),
     ...(getSettings().enableDecoImport && { enableDecoImport: true }),
     brandExtractEnabled: !!getSettings().firecrawlApiKey,
+    ...(isLocalMode() &&
+      getSettings().projectDir != null && {
+        projectDir: getSettings().projectDir as string,
+        projectName: basename(getSettings().projectDir as string),
+      }),
   };
 
   return c.json({ success: true, config });

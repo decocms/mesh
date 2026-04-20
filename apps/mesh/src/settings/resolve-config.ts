@@ -102,6 +102,9 @@ export function resolveConfig(
       envVars.S3_FORCE_PATH_STYLE === "true" ||
       envVars.S3_FORCE_PATH_STYLE === "1",
 
+    // Project
+    projectDir: flags.projectDir ?? envVars.DECOCMS_PROJECT_DIR ?? null,
+
     // Runtime flags
     isCli: true,
     noTui: flags.noTui === true,

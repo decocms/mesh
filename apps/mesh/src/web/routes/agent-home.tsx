@@ -50,10 +50,10 @@ function useResolvedMainView(): MainView & {} {
       return def.id
         ? { type: "ext-apps", id: def.id, toolName: def.toolName }
         : { type: "chat" };
-    case "settings":
-      return { type: "settings" };
     case "preview":
       return { type: "preview" };
+    case "settings":
+      return { type: "settings" };
     default:
       return { type: "chat" };
   }

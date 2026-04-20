@@ -125,6 +125,45 @@ if (settings.localMode && !isWorker) {
       try {
         const seeded = await seedLocalMode();
         void seeded;
+
+        // Bootstrap project agents if running in a project directory
+        if (settings.projectDir) {
+          try {
+            const { getDb } = await import("./database");
+            const { getLocalAdminUser } = await import("./auth/local-mode");
+            const database = getDb();
+            const user = await getLocalAdminUser();
+            if (user) {
+              // Get the user's organization
+              const membership = await database.db
+                .selectFrom("member")
+                .select("organizationId")
+                .where("userId", "=", user.id)
+                .executeTakeFirst();
+
+              if (membership) {
+                const { bootstrapProjectAgents } = await import(
+                  "./project/bootstrap"
+                );
+                const { scan } = await bootstrapProjectAgents(
+                  settings.projectDir,
+                  membership.organizationId,
+                  user.id,
+                );
+
+                // Auto-start the project dev server, remembering the org/user
+                // so it can publish previewUrl into each project agent's
+                // metadata.activeVms — which is what upstream's PreviewContent reads.
+                const { startProjectDevServer, setProjectSyncContext } =
+                  await import("./project/dev-server");
+                setProjectSyncContext(membership.organizationId, user.id);
+                await startProjectDevServer(scan);
+              }
+            }
+          } catch (error) {
+            console.error("[project] Failed to bootstrap project:", error);
+          }
+        }
       } catch (error) {
         console.error("Failed to seed local mode:", error);
       } finally {

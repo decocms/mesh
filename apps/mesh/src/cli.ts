@@ -15,6 +15,18 @@
 import { parseArgs } from "util";
 import { homedir } from "os";
 import { join } from "path";
+import { existsSync } from "fs";
+
+/** Check if a directory contains a project marker (package.json, deno.json, etc.) */
+function detectProjectDir(dir: string): string | undefined {
+  const markers = ["package.json", "deno.json", "deno.jsonc"];
+  for (const marker of markers) {
+    if (existsSync(join(dir, marker))) {
+      return dir;
+    }
+  }
+  return undefined;
+}
 
 const { values, positionals } = parseArgs({
   args: process.argv.slice(2),
@@ -60,6 +72,9 @@ const { values, positionals } = parseArgs({
       type: "string",
       default: "1",
     },
+    project: {
+      type: "string",
+    },
     vibe: {
       type: "boolean",
       default: false,
@@ -94,6 +109,7 @@ Server Options:
 Dev Options:
   --vite-port <port>    Vite dev server port (default: 4000)
   --base-url <url>      Base URL for the server
+  --project <path>      Project directory to manage (default: auto-detect CWD)
 
 Environment Variables:
   PORT                  Port to listen on (default: 3000)
@@ -203,6 +219,7 @@ if (command === "dev") {
     skipMigrations: values["skip-migrations"] === true,
     noTui,
     localMode: values["no-local-mode"] !== true,
+    projectDir: values.project || detectProjectDir(process.cwd()),
   };
 
   if (noTui) {
@@ -270,6 +287,7 @@ const serveOptions = {
     const n = Number(values["num-threads"]);
     return Number.isInteger(n) && n > 0 ? n : 1;
   })(),
+  projectDir: values.project || detectProjectDir(process.cwd()),
 };
 
 const noTui = values["no-tui"] === true || !process.stdout.isTTY;
