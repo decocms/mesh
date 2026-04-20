@@ -54,6 +54,7 @@ import { useStatusSounds } from "../../hooks/use-status-sounds";
 import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "@/web/components/empty-state";
 import { useChatMainPanelState } from "@/web/hooks/use-layout-state";
+import { TasksPanelStateProvider } from "@/web/hooks/use-tasks-panel-state";
 import { Separator } from "@deco/ui/components/separator.tsx";
 import { Toolbar } from "./toolbar";
 import { TasksPanelColumn } from "./tasks-panel-column";
@@ -284,14 +285,22 @@ function AgentInsetProvider() {
     <InsetContext value={insetContextValue}>
       <Toolbar.Toggles>
         <ToggleButtons
+          isDecopilot={isDecopilot}
           chatOpen={layout.chatOpen}
+          mainOpen={layout.mainOpen}
           toggleChat={layout.toggleChat}
+          toggleMain={layout.toggleMain}
         />
       </Toolbar.Toggles>
 
-      <Toolbar.Tabs>
-        <MainPanelTabsBar virtualMcpId={virtualMcpId} taskId={layout.taskId} />
-      </Toolbar.Tabs>
+      {!isDecopilot && (
+        <Toolbar.Tabs>
+          <MainPanelTabsBar
+            virtualMcpId={virtualMcpId}
+            taskId={layout.taskId}
+          />
+        </Toolbar.Tabs>
+      )}
 
       <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
         <NewTaskBridge
@@ -352,31 +361,44 @@ export default function AgentShellLayout() {
                 <AgentInsetProvider />
               </Suspense>
             ) : (
-              <Toolbar>
-                <Toolbar.Header>
-                  <Toolbar.Nav />
-                  <Toolbar.TabsSlot />
-                  <Separator orientation="vertical" className="mx-2 h-5" />
-                  <Toolbar.TogglesSlot />
-                </Toolbar.Header>
-                <div className="flex-1 min-h-0 flex flex-row">
-                  <TasksPanelColumn />
-                  <div className="flex-1 min-w-0 flex flex-col">
-                    <Suspense
-                      fallback={
-                        <div className="flex-1 flex items-center justify-center">
-                          <Loading01
-                            size={20}
-                            className="animate-spin text-muted-foreground"
-                          />
-                        </div>
-                      }
-                    >
-                      <AgentInsetProvider />
-                    </Suspense>
+              <Suspense
+                fallback={
+                  <div className="flex-1 flex items-center justify-center">
+                    <Loading01
+                      size={20}
+                      className="animate-spin text-muted-foreground"
+                    />
                   </div>
-                </div>
-              </Toolbar>
+                }
+              >
+                <TasksPanelStateProvider>
+                  <Toolbar>
+                    <Toolbar.Header>
+                      <Toolbar.Nav />
+                      <Toolbar.TabsSlot />
+                      <Separator orientation="vertical" className="mx-2 h-5" />
+                      <Toolbar.TogglesSlot />
+                    </Toolbar.Header>
+                    <div className="flex-1 min-h-0 flex flex-row">
+                      <TasksPanelColumn />
+                      <div className="flex-1 min-w-0 flex flex-col">
+                        <Suspense
+                          fallback={
+                            <div className="flex-1 flex items-center justify-center">
+                              <Loading01
+                                size={20}
+                                className="animate-spin text-muted-foreground"
+                              />
+                            </div>
+                          }
+                        >
+                          <AgentInsetProvider />
+                        </Suspense>
+                      </div>
+                    </div>
+                  </Toolbar>
+                </TasksPanelStateProvider>
+              </Suspense>
             )}
           </SidebarInset>
         </SidebarLayout>
