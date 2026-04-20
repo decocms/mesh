@@ -50,7 +50,7 @@ async function daemonPost(
   let json: unknown;
   try {
     json = JSON.parse(rawText);
-  } catch (e) {
+  } catch {
     console.error(
       "[vm-tools:daemonPost] Failed to parse JSON response endpoint=%s status=%d rawText=%s",
       endpoint,
