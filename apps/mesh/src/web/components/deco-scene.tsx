@@ -11,15 +11,20 @@ interface DecoSceneProps {
 export function DecoScene({ className }: DecoSceneProps) {
   return (
     <div
-      className={cn("absolute inset-0 overflow-hidden", className)}
+      className={cn(
+        "absolute inset-0 flex items-center justify-center overflow-hidden",
+        className,
+      )}
       aria-hidden="true"
     >
-      <UnicornScene
-        projectId={PROJECT_ID}
-        sdkUrl={SDK_URL}
-        width="100%"
-        height="100%"
-      />
+      <div className="w-[640px] h-[480px] max-w-full max-h-full">
+        <UnicornScene
+          projectId={PROJECT_ID}
+          sdkUrl={SDK_URL}
+          width="100%"
+          height="100%"
+        />
+      </div>
     </div>
   );
 }
