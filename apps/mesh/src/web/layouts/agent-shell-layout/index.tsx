@@ -5,13 +5,15 @@
  *   SidebarInset
  *   ├── Toolbar                            (outside Suspense)
  *   │   • Toolbar.Nav (back/forward)
- *   │   • Toolbar.TogglesSlot (portal target)
+ *   │   • Toolbar.TabsSlot    (portal target — main-panel tab bar)
+ *   │   • Toolbar.TogglesSlot (portal target — tasks/chat)
  *   └── flex-row
  *       ├── TasksPanelColumn               (outside Suspense, 212px fixed)
  *       └── Suspense
  *           └── AgentInsetProvider
  *               • useVirtualMCP (suspends here)
  *               • Toolbar.Toggles → portal into slot
+ *               • Toolbar.Tabs → portal into slot
  *               • Chat.Provider → ChatMainPanelGroup
  *
  * Mobile layout is unchanged (sheet-based tasks + chat).
@@ -52,10 +54,12 @@ import { useStatusSounds } from "../../hooks/use-status-sounds";
 import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "@/web/components/empty-state";
 import { useChatMainPanelState } from "@/web/hooks/use-layout-state";
+import { Separator } from "@deco/ui/components/separator.tsx";
 import { Toolbar } from "./toolbar";
 import { TasksPanelColumn } from "./tasks-panel-column";
 import { ChatMainPanelGroup } from "./chat-main-panel-group";
 import { ToggleButtons } from "./toggle-buttons";
+import { MainPanelTabsBar } from "@/web/layouts/main-panel-tabs/main-panel-tabs-bar";
 
 // ---------------------------------------------------------------------------
 // Types & Context
@@ -284,6 +288,10 @@ function AgentInsetProvider() {
         />
       </Toolbar.Toggles>
 
+      <Toolbar.Tabs>
+        <MainPanelTabsBar virtualMcpId={virtualMcpId} taskId={layout.taskId} />
+      </Toolbar.Tabs>
+
       <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
         <NewTaskBridge
           onNewTaskRef={onNewTask}
@@ -346,6 +354,8 @@ export default function AgentShellLayout() {
               <Toolbar>
                 <Toolbar.Header>
                   <Toolbar.Nav />
+                  <Toolbar.TabsSlot />
+                  <Separator orientation="vertical" className="mx-2 h-5" />
                   <Toolbar.TogglesSlot />
                 </Toolbar.Header>
                 <div className="flex-1 min-h-0 flex flex-row">
