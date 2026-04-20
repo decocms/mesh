@@ -421,6 +421,14 @@ const settingsAgentsRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/agents-list.tsx")),
 });
 
+const settingsAutomationsRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/automations",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/settings/automations.tsx"),
+  ),
+});
+
 // Plugin sub-route under unified chat
 const unifiedPluginRoute = createRoute({
   getParentRoute: () => unifiedChatRoute,
@@ -496,6 +504,7 @@ const settingsWithChildren = settingsLayout.addChildren([
   connectionDetailRoute,
   collectionDetailRoute,
   settingsAgentsRoute,
+  settingsAutomationsRoute,
   monitoringRoute,
   settingsGeneralRoute,
   settingsFeaturesRoute,
