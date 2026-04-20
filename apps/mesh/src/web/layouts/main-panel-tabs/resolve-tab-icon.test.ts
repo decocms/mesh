@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { BookOpen01, Dataflow03, Lightning01 } from "@untitledui/icons";
+import { BookOpen01, Lightning01, ZapSquare } from "@untitledui/icons";
 import { resolveTabIcon, SYSTEM_TAB_ICONS } from "./resolve-tab-icon";
 
 type TestConn = { id: string; icon: string | null };
@@ -7,7 +7,7 @@ type TestConn = { id: string; icon: string | null };
 describe("SYSTEM_TAB_ICONS", () => {
   test("covers every fixed system tab", () => {
     expect(SYSTEM_TAB_ICONS.instructions).toBe(BookOpen01);
-    expect(SYSTEM_TAB_ICONS.connections).toBe(Dataflow03);
+    expect(SYSTEM_TAB_ICONS.connections).toBe(ZapSquare);
     expect(SYSTEM_TAB_ICONS.automations).toBe(Lightning01);
     expect(SYSTEM_TAB_ICONS.layout).toBeDefined();
     expect(SYSTEM_TAB_ICONS.env).toBeDefined();

@@ -1,6 +1,6 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useTasks } from "@/web/components/chat/task/use-task-manager";
-import { useAutomationsList } from "@/web/hooks/use-automations";
+import { useAutomations } from "@/web/hooks/use-automations";
 import { resolveTasksOpen } from "@/web/hooks/use-layout-state";
 
 /**
@@ -16,7 +16,7 @@ export function useTasksPanelState() {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { tasks?: number };
   const { tasks } = useTasks({ owner: "all", status: "open" });
-  const { data: automations = [] } = useAutomationsList(undefined);
+  const { data: automations = [] } = useAutomations(undefined);
 
   const hasItems = tasks.length > 0 || automations.length > 0;
   const tasksOpen = resolveTasksOpen(search.tasks, hasItems);

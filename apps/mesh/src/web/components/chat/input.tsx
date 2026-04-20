@@ -1,25 +1,15 @@
 import { isModKey } from "@/web/lib/keyboard-shortcuts";
 import { calculateUsageStats } from "@/web/lib/usage-utils.ts";
-import { getAgentWrapperColor } from "@/web/components/agent-icon";
 import { Button } from "@deco/ui/components/button.tsx";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@deco/ui/components/popover.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   getWellKnownDecopilotVirtualMCP,
-  isDecopilot,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import {
   ArrowUp,
   BookOpen01,
   Check,
-  ChevronDown,
-  Edit01,
   Globe02,
   Image01,
   Lock01,
@@ -28,19 +18,13 @@ import {
   Stop,
   Upload01,
   X,
-  XCircle,
 } from "@untitledui/icons";
-import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import type { FormEvent } from "react";
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Metadata } from "./types.ts";
 import { useChatStream, useChatTask, useChatPrefs } from "./context";
 import { ChatHighlight } from "./highlight";
 import { ModelSelector } from "./select-model";
-import {
-  VirtualMCPPopoverContent,
-  type VirtualMCPInfo,
-} from "./select-virtual-mcp";
 import { modelSupportsFiles } from "./select-model";
 import type { AiProviderModel } from "@/web/hooks/collections/use-ai-providers";
 import { FileUploadButton, processFile } from "./tiptap/file";
@@ -60,139 +44,6 @@ import { AddConnectionDialog } from "@/web/views/virtual-mcp/add-connection-dial
 import { ConnectionsBanner } from "./connections-banner";
 import { useVoiceInput } from "@/web/hooks/use-voice-input.ts";
 import { VoiceWaveform } from "./voice-input";
-
-// ============================================================================
-// VirtualMCPBadge - Internal component for displaying selected virtual MCP
-// ============================================================================
-
-interface VirtualMCPBadgeProps {
-  virtualMcp: VirtualMCPInfo | null;
-  onVirtualMcpChange: (virtualMcpId: string | null) => void;
-  disabled?: boolean;
-}
-
-function VirtualMCPBadge({
-  virtualMcp,
-  onVirtualMcpChange,
-  disabled = false,
-}: VirtualMCPBadgeProps) {
-  const [open, setOpen] = useState(false);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const navigateToAgent = useNavigateToAgent();
-  const { org } = useProjectContext();
-  const isMobile = useIsMobile();
-
-  // Focus search input when popover opens (skip on mobile to avoid keyboard popup)
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (open && !isMobile) {
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 0);
-    }
-  }, [open, isMobile]);
-
-  if (!virtualMcp?.id || isDecopilot(virtualMcp.id)) return null; // Don't show badge for Decopilot
-
-  const themeColor = (
-    virtualMcp as {
-      metadata?: { ui?: { themeColor?: string | null } | null } | null;
-    }
-  ).metadata?.ui?.themeColor;
-  const color = getAgentWrapperColor(
-    virtualMcp.icon,
-    virtualMcp.title,
-    themeColor,
-  );
-
-  const handleReset = (e: MouseEvent) => {
-    e.stopPropagation();
-    const decopilotId = getWellKnownDecopilotVirtualMCP(org.id).id;
-    onVirtualMcpChange(decopilotId);
-  };
-
-  const handleEdit = (e: MouseEvent) => {
-    e.stopPropagation();
-    navigateToAgent(virtualMcp.id!, { search: { main: "settings" } });
-  };
-
-  const handleVirtualMcpChange = (newVirtualMcpId: string | null) => {
-    onVirtualMcpChange(newVirtualMcpId);
-    setOpen(false);
-  };
-
-  return (
-    <div
-      className={cn(
-        "flex items-center justify-between px-3 py-1.5 rounded-t-2xl z-10",
-        color?.bg,
-      )}
-    >
-      {/* Left side: Virtual MCP selector trigger with popover */}
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            disabled={disabled}
-            className={cn(
-              "flex items-center gap-1.5 px-2 py-1 rounded-md hover:opacity-80 transition-opacity",
-              disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
-            )}
-          >
-            <span className="text-xs text-white font-normal">
-              {virtualMcp.title}
-            </span>
-            <ChevronDown size={14} className="text-white/50" />
-          </button>
-        </PopoverTrigger>
-        <PopoverContent
-          className="w-[min(550px,calc(100vw-2rem))] p-0 overflow-hidden"
-          align="start"
-          side="top"
-          sideOffset={8}
-        >
-          <VirtualMCPPopoverContent
-            selectedVirtualMcpId={virtualMcp.id}
-            onVirtualMcpChange={handleVirtualMcpChange}
-            searchInputRef={searchInputRef}
-          />
-        </PopoverContent>
-      </Popover>
-
-      {/* Right side: Edit and Reset buttons */}
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          onClick={handleEdit}
-          disabled={disabled}
-          className={cn(
-            "flex items-center justify-center p-1 rounded-full transition-colors",
-            disabled
-              ? "cursor-not-allowed opacity-50"
-              : "cursor-pointer hover:bg-white/10",
-          )}
-          aria-label="Edit agent"
-        >
-          <Edit01 size={14} className="text-white" />
-        </button>
-        <button
-          type="button"
-          onClick={handleReset}
-          disabled={disabled}
-          className={cn(
-            "flex items-center justify-center p-1 rounded-full transition-colors",
-            disabled
-              ? "cursor-not-allowed opacity-50"
-              : "cursor-pointer hover:bg-white/10",
-          )}
-          aria-label="Reset to default"
-        >
-          <XCircle size={14} className="text-white" />
-        </button>
-      </div>
-    </div>
-  );
-}
 
 // ============================================================================
 // useWindowFileDrop - Reusable hook for window-level file drag & drop
@@ -328,7 +179,6 @@ export function ChatInput({
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
 
-  const navigateToAgent = useNavigateToAgent();
   const { org } = useProjectContext();
   const decopilotId = getWellKnownDecopilotVirtualMCP(org.id).id;
   const playSwitchSound = useSound(question004Sound);
@@ -363,14 +213,6 @@ export function ChatInput({
     ).trim();
     tiptapRef.current?.syncVoiceText(voiceBaselineDocRef.current, voiceText);
   }, [voice.transcript, voice.interimTranscript, voice.status]);
-
-  // Navigate to the agent route (like the sidebar does) instead of only
-  // setting an ephemeral search-param override, so the thread list re-scopes.
-  const handleAgentChange = (virtualMcpId: string | null) => {
-    if (virtualMcpId) {
-      navigateToAgent(virtualMcpId);
-    }
-  };
 
   const task = tasks.find((task) => task.id === taskId);
 
@@ -445,56 +287,6 @@ export function ChatInput({
     }
   };
 
-  // Track whether a non-Decopilot agent is active
-  const hasAgentBadge =
-    !!selectedVirtualMcp?.id && !isDecopilot(selectedVirtualMcp.id);
-
-  // Track if wrapper visuals should still show (stays true during exit animation)
-  const [showWrapper, setShowWrapper] = useState(false);
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (hasAgentBadge) {
-      setShowWrapper(true);
-    }
-  }, [hasAgentBadge]);
-
-  const handleGridTransitionEnd = (e: React.TransitionEvent) => {
-    if (e.propertyName !== "grid-template-rows") return;
-    if (!hasAgentBadge) {
-      setShowWrapper(false);
-      lastAgentRef.current = null;
-    }
-  };
-
-  // Keep last active agent + color for exit animation
-  const lastAgentRef = useRef<{
-    virtualMcp: VirtualMCPInfo;
-    color: ReturnType<typeof getAgentWrapperColor> | null;
-  } | null>(null);
-
-  const selectedThemeColor = (
-    selectedVirtualMcp as {
-      metadata?: { ui?: { themeColor?: string | null } | null } | null;
-    } | null
-  )?.metadata?.ui?.themeColor;
-  const color = selectedVirtualMcp
-    ? getAgentWrapperColor(
-        selectedVirtualMcp.icon,
-        selectedVirtualMcp.title,
-        selectedThemeColor,
-      )
-    : null;
-
-  if (hasAgentBadge && selectedVirtualMcp?.id) {
-    lastAgentRef.current = { virtualMcp: selectedVirtualMcp, color };
-  }
-
-  // Use current agent when active, last agent during exit animation
-  const badgeVirtualMcp = hasAgentBadge
-    ? selectedVirtualMcp
-    : (lastAgentRef.current?.virtualMcp ?? null);
-  const wrapperBg = color?.bg ?? lastAgentRef.current?.color?.bg;
-
   if (userId && task?.created_by && task.created_by !== userId) {
     return (
       <div className="flex w-full items-center gap-2 px-3 py-2.5 rounded-xl border border-border bg-muted/40 text-muted-foreground">
@@ -509,18 +301,7 @@ export function ChatInput({
   return (
     <>
       <div className="flex flex-col w-full justify-end">
-        {/* Virtual MCP wrapper with badge */}
         <div className="relative rounded-2xl w-full flex flex-col">
-          {/* Colored background overlay - stays during exit animation */}
-          {showWrapper && (
-            <div
-              className={cn(
-                "absolute inset-0 rounded-2xl pointer-events-none",
-                wrapperBg,
-              )}
-            />
-          )}
-
           {/* Muted background for connections banner - peeks through form's bottom radius */}
           {showConnectionsBanner && (
             <div className="absolute inset-0 rounded-2xl pointer-events-none bg-muted/50" />
@@ -529,255 +310,224 @@ export function ChatInput({
           {/* Highlight floats above the form area */}
           <ChatHighlight />
 
-          {/* Virtual MCP Badge Header - animated expand/collapse */}
-          <div
-            className={cn(
-              "relative z-10 grid transition-[grid-template-rows] duration-250 ease-out overflow-hidden rounded-t-2xl",
-              hasAgentBadge ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
-            )}
-            onTransitionEnd={handleGridTransitionEnd}
+          <TiptapProvider
+            key={taskId}
+            tiptapDoc={tiptapDoc}
+            setTiptapDoc={setTiptapDoc}
+            disabled={isStreaming || !selectedModel}
+            enterToSubmit={true}
+            onSubmit={handleSubmit}
           >
-            <div className="overflow-hidden">
-              {badgeVirtualMcp && (
-                <VirtualMCPBadge
-                  virtualMcp={badgeVirtualMcp}
-                  onVirtualMcpChange={handleAgentChange}
-                  disabled={isStreaming}
-                />
-              )}
-            </div>
-          </div>
-
-          {/* Inner container with the input */}
-          <div
-            className={cn(
-              "transition-[padding] duration-250 ease-out",
-              showWrapper ? "p-0.5" : "p-0",
-            )}
-          >
-            <TiptapProvider
-              key={taskId}
-              tiptapDoc={tiptapDoc}
-              setTiptapDoc={setTiptapDoc}
-              disabled={isStreaming || !selectedModel}
-              enterToSubmit={true}
+            <form
               onSubmit={handleSubmit}
+              className={cn(
+                "w-full relative rounded-2xl min-h-[110px] md:min-h-[130px] flex flex-col bg-background dark:bg-muted card-shadow",
+              )}
             >
-              <form
-                onSubmit={handleSubmit}
-                className={cn(
-                  "w-full relative rounded-2xl min-h-[110px] md:min-h-[130px] flex flex-col bg-background dark:bg-muted card-shadow",
-                )}
-              >
-                <FileDropZone selectedModel={selectedModel} />
+              <FileDropZone selectedModel={selectedModel} />
 
-                <div className="group/input relative flex flex-col gap-2 flex-1">
-                  <TiptapInput
-                    ref={tiptapRef}
-                    disabled={
-                      isStreaming ||
-                      !selectedModel ||
-                      voice.status === "recording"
-                    }
-                    virtualMcpId={selectedVirtualMcp?.id ?? decopilotId}
-                    showFileUploader={true}
-                    selectedModel={selectedModel}
-                  />
-                </div>
+              <div className="group/input relative flex flex-col gap-2 flex-1">
+                <TiptapInput
+                  ref={tiptapRef}
+                  disabled={
+                    isStreaming ||
+                    !selectedModel ||
+                    voice.status === "recording"
+                  }
+                  virtualMcpId={selectedVirtualMcp?.id ?? decopilotId}
+                  showFileUploader={true}
+                  selectedModel={selectedModel}
+                />
+              </div>
 
-                {/* Bottom Actions Row */}
-                <div className="flex items-center justify-between p-2.5 gap-1">
-                  {voice.status === "recording" ? (
-                    <>
-                      {/* Spacer */}
-                      <div className="flex-1" />
+              {/* Bottom Actions Row */}
+              <div className="flex items-center justify-between p-2.5 gap-1">
+                {voice.status === "recording" ? (
+                  <>
+                    {/* Spacer */}
+                    <div className="flex-1" />
 
-                      {/* Waveform + Cancel + Confirm */}
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <VoiceWaveform data={voice.waveformData.slice(0, 28)} />
+                    {/* Waveform + Cancel + Confirm */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <VoiceWaveform data={voice.waveformData.slice(0, 28)} />
+                      <button
+                        type="button"
+                        onClick={handleVoiceCancel}
+                        className="flex items-center justify-center size-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label="Cancel recording"
+                      >
+                        <X size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleVoiceConfirm}
+                        className="flex items-center justify-center size-8 rounded-lg bg-foreground text-background hover:opacity-80 transition-opacity"
+                        aria-label="Use transcription"
+                      >
+                        <Check size={16} />
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Left Actions (+, Tools, active tool pills, stats) */}
+                    <div className="flex items-center gap-1.5 min-w-0 shrink-0">
+                      <FileUploadButton
+                        selectedModel={selectedModel}
+                        isStreaming={isStreaming}
+                        icon={<Plus size={16} />}
+                      />
+                      <ToolsPopover
+                        disabled={isStreaming}
+                        onOpenConnections={() => setConnectionsOpen(true)}
+                        virtualMcpId={selectedVirtualMcp?.id ?? decopilotId}
+                      />
+                      {isPlanMode && (
                         <button
                           type="button"
-                          onClick={handleVoiceCancel}
-                          className="flex items-center justify-center size-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                          aria-label="Cancel recording"
-                        >
-                          <X size={16} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleVoiceConfirm}
-                          className="flex items-center justify-center size-8 rounded-lg bg-foreground text-background hover:opacity-80 transition-opacity"
-                          aria-label="Use transcription"
-                        >
-                          <Check size={16} />
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      {/* Left Actions (+, Tools, active tool pills, stats) */}
-                      <div className="flex items-center gap-1.5 min-w-0 shrink-0">
-                        <FileUploadButton
-                          selectedModel={selectedModel}
-                          isStreaming={isStreaming}
-                          icon={<Plus size={16} />}
-                        />
-                        <ToolsPopover
-                          disabled={isStreaming}
-                          onOpenConnections={() => setConnectionsOpen(true)}
-                          virtualMcpId={selectedVirtualMcp?.id ?? decopilotId}
-                          isAgentContext={hasAgentBadge}
-                        />
-                        {isPlanMode && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              playSwitchSound();
-                              setChatMode("default");
-                            }}
-                            className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 group whitespace-nowrap animate-in fade-in duration-200"
-                          >
-                            <BookOpen01 size={14} className="shrink-0" />
-                            Plan mode
-                            <X
-                              size={14}
-                              className="shrink-0 hidden group-hover:block"
-                            />
-                          </button>
-                        )}
-                        {chatMode === "gen-image" && imageModel && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              playSwitchSound();
-                              setChatMode("default");
-                            }}
-                            className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-pink-600 dark:text-pink-400 hover:bg-pink-500/10 group whitespace-nowrap animate-in fade-in duration-200"
-                          >
-                            <Image01 size={14} className="shrink-0" />
-                            <span className="max-w-[120px] truncate">
-                              {imageModel.title.includes(": ")
-                                ? imageModel.title
-                                    .split(": ")
-                                    .slice(1)
-                                    .join(": ")
-                                : imageModel.title}
-                            </span>
-                            <X
-                              size={14}
-                              className="shrink-0 hidden group-hover:block"
-                            />
-                          </button>
-                        )}
-                        {chatMode === "web-search" && deepResearchModel && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              playSwitchSound();
-                              setChatMode("default");
-                            }}
-                            className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 group whitespace-nowrap animate-in fade-in duration-200"
-                          >
-                            <Globe02 size={14} className="shrink-0" />
-                            <span className="max-w-[120px] truncate">
-                              {deepResearchModel.title.includes(": ")
-                                ? deepResearchModel.title
-                                    .split(": ")
-                                    .slice(1)
-                                    .join(": ")
-                                : deepResearchModel.title}
-                            </span>
-                            <X
-                              size={14}
-                              className="shrink-0 hidden group-hover:block"
-                            />
-                          </button>
-                        )}
-                        {contextWindow && lastTotalTokens > 0 && (
-                          <SessionStats
-                            usage={usage}
-                            totalTokens={lastTotalTokens}
-                            contextWindow={contextWindow}
-                            onOpenContextPanel={onOpenContextPanel}
-                          />
-                        )}
-                      </div>
-
-                      {/* Right Actions (mic, model, send) */}
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <ModelSelector
-                          placeholder="Model"
-                          variant="borderless"
-                          className="h-8 text-sm py-2 min-w-0"
-                        />
-
-                        {/* Microphone button — only shown when not streaming and speech is supported */}
-                        {voice.isSupported &&
-                          !isStreaming &&
-                          !isRunInProgress && (
-                            <Button
-                              type="button"
-                              onClick={handleVoiceStart}
-                              variant="ghost"
-                              size="icon"
-                              className={cn(
-                                "size-8 rounded-lg transition-colors",
-                                voice.status === "permission-denied"
-                                  ? "text-destructive hover:text-destructive hover:bg-destructive/10"
-                                  : "text-muted-foreground hover:text-foreground",
-                              )}
-                              title={
-                                voice.status === "permission-denied"
-                                  ? "Microphone access denied — click to try again"
-                                  : "Voice input"
-                              }
-                            >
-                              <Microphone01 size={18} />
-                            </Button>
-                          )}
-
-                        <Button
-                          type={showStopOrCancel ? "button" : "submit"}
-                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                            if (showStopOrCancel) {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              if (isStreaming) stop();
-                              else stop();
-                            }
+                          onClick={() => {
+                            playSwitchSound();
+                            setChatMode("default");
                           }}
-                          variant={
-                            canSubmit || showStopOrCancel ? "default" : "ghost"
-                          }
-                          size="icon"
-                          disabled={!canSubmit && !showStopOrCancel}
-                          className={cn(
-                            "size-8 rounded-lg transition-all",
-                            !canSubmit &&
-                              !showStopOrCancel &&
-                              "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground cursor-not-allowed",
-                          )}
-                          title={
-                            isStreaming
-                              ? "Stop generating"
-                              : isRunInProgress
-                                ? "Cancel run"
-                                : "Send message (Enter)"
-                          }
+                          className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 group whitespace-nowrap animate-in fade-in duration-200"
                         >
-                          {showStopOrCancel ? (
-                            <Stop size={20} />
-                          ) : (
-                            <ArrowUp size={20} />
-                          )}
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </form>
-            </TiptapProvider>
-          </div>
+                          <BookOpen01 size={14} className="shrink-0" />
+                          Plan mode
+                          <X
+                            size={14}
+                            className="shrink-0 hidden group-hover:block"
+                          />
+                        </button>
+                      )}
+                      {chatMode === "gen-image" && imageModel && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playSwitchSound();
+                            setChatMode("default");
+                          }}
+                          className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-pink-600 dark:text-pink-400 hover:bg-pink-500/10 group whitespace-nowrap animate-in fade-in duration-200"
+                        >
+                          <Image01 size={14} className="shrink-0" />
+                          <span className="max-w-[120px] truncate">
+                            {imageModel.title.includes(": ")
+                              ? imageModel.title.split(": ").slice(1).join(": ")
+                              : imageModel.title}
+                          </span>
+                          <X
+                            size={14}
+                            className="shrink-0 hidden group-hover:block"
+                          />
+                        </button>
+                      )}
+                      {chatMode === "web-search" && deepResearchModel && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playSwitchSound();
+                            setChatMode("default");
+                          }}
+                          className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 group whitespace-nowrap animate-in fade-in duration-200"
+                        >
+                          <Globe02 size={14} className="shrink-0" />
+                          <span className="max-w-[120px] truncate">
+                            {deepResearchModel.title.includes(": ")
+                              ? deepResearchModel.title
+                                  .split(": ")
+                                  .slice(1)
+                                  .join(": ")
+                              : deepResearchModel.title}
+                          </span>
+                          <X
+                            size={14}
+                            className="shrink-0 hidden group-hover:block"
+                          />
+                        </button>
+                      )}
+                      {contextWindow && lastTotalTokens > 0 && (
+                        <SessionStats
+                          usage={usage}
+                          totalTokens={lastTotalTokens}
+                          contextWindow={contextWindow}
+                          onOpenContextPanel={onOpenContextPanel}
+                        />
+                      )}
+                    </div>
+
+                    {/* Right Actions (mic, model, send) */}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <ModelSelector
+                        placeholder="Model"
+                        variant="borderless"
+                        className="h-8 text-sm py-2 min-w-0"
+                      />
+
+                      {/* Microphone button — only shown when not streaming and speech is supported */}
+                      {voice.isSupported &&
+                        !isStreaming &&
+                        !isRunInProgress && (
+                          <Button
+                            type="button"
+                            onClick={handleVoiceStart}
+                            variant="ghost"
+                            size="icon"
+                            className={cn(
+                              "size-8 rounded-lg transition-colors",
+                              voice.status === "permission-denied"
+                                ? "text-destructive hover:text-destructive hover:bg-destructive/10"
+                                : "text-muted-foreground hover:text-foreground",
+                            )}
+                            title={
+                              voice.status === "permission-denied"
+                                ? "Microphone access denied — click to try again"
+                                : "Voice input"
+                            }
+                          >
+                            <Microphone01 size={18} />
+                          </Button>
+                        )}
+
+                      <Button
+                        type={showStopOrCancel ? "button" : "submit"}
+                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                          if (showStopOrCancel) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (isStreaming) stop();
+                            else stop();
+                          }
+                        }}
+                        variant={
+                          canSubmit || showStopOrCancel ? "default" : "ghost"
+                        }
+                        size="icon"
+                        disabled={!canSubmit && !showStopOrCancel}
+                        className={cn(
+                          "size-8 rounded-lg transition-all",
+                          !canSubmit &&
+                            !showStopOrCancel &&
+                            "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground cursor-not-allowed",
+                        )}
+                        title={
+                          isStreaming
+                            ? "Stop generating"
+                            : isRunInProgress
+                              ? "Cancel run"
+                              : "Send message (Enter)"
+                        }
+                      >
+                        {showStopOrCancel ? (
+                          <Stop size={20} />
+                        ) : (
+                          <ArrowUp size={20} />
+                        )}
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </form>
+          </TiptapProvider>
 
           {/* Connections Banner Footer - always visible on home */}
           {showConnectionsBanner && (

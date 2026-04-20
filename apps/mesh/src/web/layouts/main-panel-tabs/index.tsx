@@ -18,6 +18,7 @@ import { PreviewTab } from "./preview-tab";
 import { EnvTab } from "./env-tab";
 import { AutomationTab } from "./automation-tab";
 import { AutomationsListTab } from "./automations-list-tab";
+import { parsePinnedViewTabId } from "./tab-id";
 
 const AppViewContent = lazy(() =>
   import("@/web/routes/project-app-view").then((m) => ({
@@ -32,8 +33,10 @@ export function MainPanelContent({
   taskId: string;
   virtualMcpId: string;
 }) {
-  const { activeTab, layoutTabs, expandedTools, automationTabParsed } =
-    useMainPanelTabs({ virtualMcpId, taskId });
+  const { activeTab, layoutTabs, automationTabParsed } = useMainPanelTabs({
+    virtualMcpId,
+    taskId,
+  });
 
   if (activeTab === "instructions") {
     return <InstructionsTab virtualMcpId={virtualMcpId} />;
@@ -54,7 +57,28 @@ export function MainPanelContent({
     return <PreviewTab virtualMcpId={virtualMcpId} />;
   }
   if (automationTabParsed) {
-    return <AutomationTab tabId={activeTab} />;
+    return <AutomationTab tabId={activeTab} virtualMcpId={virtualMcpId} />;
+  }
+
+  const pinnedView = parsePinnedViewTabId(activeTab);
+  if (pinnedView) {
+    return (
+      <Suspense
+        fallback={
+          <div className="flex-1 flex items-center justify-center">
+            <Loading01
+              size={20}
+              className="animate-spin text-muted-foreground"
+            />
+          </div>
+        }
+      >
+        <AppViewContent
+          connectionId={pinnedView.connectionId}
+          toolName={pinnedView.toolName}
+        />
+      </Suspense>
+    );
   }
 
   const agentTab = layoutTabs.find((t) => t.id === activeTab);
@@ -73,27 +97,6 @@ export function MainPanelContent({
         <AppViewContent
           connectionId={agentTab.view.appId}
           toolName={agentTab.id}
-        />
-      </Suspense>
-    );
-  }
-
-  const expanded = expandedTools.find((t) => t.toolName === activeTab);
-  if (expanded) {
-    return (
-      <Suspense
-        fallback={
-          <div className="flex-1 flex items-center justify-center">
-            <Loading01
-              size={20}
-              className="animate-spin text-muted-foreground"
-            />
-          </div>
-        }
-      >
-        <AppViewContent
-          connectionId={expanded.appId}
-          toolName={expanded.toolName}
         />
       </Suspense>
     );

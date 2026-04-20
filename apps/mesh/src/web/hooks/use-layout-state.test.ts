@@ -33,6 +33,42 @@ describe("resolveDefaultPanelState", () => {
     ).toEqual({ mainOpen: true, chatOpen: false });
   });
 
+  test("chatDefaultOpen=true with non-chat default → main open, chat open", () => {
+    expect(
+      resolveDefaultPanelState({
+        entityMetadata: {
+          defaultMainView: { type: "ext-app", id: "x" },
+          chatDefaultOpen: true,
+        },
+        mainParamPresent: false,
+      }),
+    ).toEqual({ mainOpen: true, chatOpen: true });
+  });
+
+  test("chatDefaultOpen=false is the default behavior (chat closed)", () => {
+    expect(
+      resolveDefaultPanelState({
+        entityMetadata: {
+          defaultMainView: { type: "layout" },
+          chatDefaultOpen: false,
+        },
+        mainParamPresent: false,
+      }),
+    ).toEqual({ mainOpen: true, chatOpen: false });
+  });
+
+  test("chatDefaultOpen ignored when default is chat (chat still open)", () => {
+    expect(
+      resolveDefaultPanelState({
+        entityMetadata: {
+          defaultMainView: { type: "chat" },
+          chatDefaultOpen: false,
+        },
+        mainParamPresent: false,
+      }),
+    ).toEqual({ mainOpen: false, chatOpen: true });
+  });
+
   test("?main=0 overrides default → main closed", () => {
     expect(
       resolveDefaultPanelState({

@@ -21,7 +21,16 @@ import { resolveDefaultTabId } from "@/web/layouts/main-panel-tabs/tab-id";
 // ---------------------------------------------------------------------------
 
 export interface EntityLayoutMetadata {
-  defaultMainView?: { type: string; id?: string } | null;
+  defaultMainView?: {
+    type: string;
+    id?: string;
+    toolName?: string;
+  } | null;
+  /**
+   * When true, the chat panel is open alongside the main view. Ignored
+   * when defaultMainView is chat (chat is always open in that case).
+   */
+  chatDefaultOpen?: boolean | null;
   tabs?: Array<{ id: string }>;
 }
 
@@ -67,9 +76,16 @@ export function resolveDefaultPanelState(ctx: {
     ? ctx.mainParamValue !== "0"
     : !defaultIsChat;
 
+  // Chat is always open when it IS the default view. Otherwise it opens
+  // alongside the main view only when the agent's layout opts in via
+  // chatDefaultOpen.
+  const chatOpen = defaultIsChat
+    ? true
+    : (ctx.entityMetadata?.chatDefaultOpen ?? false);
+
   return {
     mainOpen,
-    chatOpen: defaultIsChat,
+    chatOpen,
   };
 }
 

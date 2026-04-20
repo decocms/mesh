@@ -4,15 +4,15 @@ import { SearchInput } from "@deco/ui/components/search-input.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Page } from "@/web/components/page";
 import { EmptyState } from "@/web/components/empty-state.tsx";
-import { useAutomationsList } from "@/web/hooks/use-automations";
+import { useAutomations } from "@/web/hooks/use-automations";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
-import { AutomationCard } from "@/web/views/automations/automation-card";
+import { AutomationListRow } from "@/web/views/automations/automation-list-row";
 import { useVirtualMCPs, useProjectContext } from "@decocms/mesh-sdk";
 import { useNavigate } from "@tanstack/react-router";
 
 export default function SettingsAutomationsPage() {
   const { org } = useProjectContext();
-  const { data: automations = [] } = useAutomationsList(undefined);
+  const { data: automations = [] } = useAutomations(undefined);
   const agents = useVirtualMCPs();
   const navigateToAgent = useNavigateToAgent();
   const navigate = useNavigate();
@@ -29,7 +29,7 @@ export default function SettingsAutomationsPage() {
     return false;
   });
 
-  const handleCardClick = (automationId: string, agentId: string | null) => {
+  const handleRowClick = (automationId: string, agentId: string | null) => {
     if (!agentId) return;
     navigateToAgent(agentId, {
       search: { main: "automation:" + automationId },
@@ -79,17 +79,15 @@ export default function SettingsAutomationsPage() {
               />
             </div>
           ) : (
-            <div className="mt-6 @container">
-              <div className="grid grid-cols-1 @lg:grid-cols-2 @4xl:grid-cols-3 @6xl:grid-cols-4 gap-4">
-                {filtered.map((a) => (
-                  <AutomationCard
-                    key={a.id}
-                    automation={a}
-                    showAgent
-                    onClick={() => handleCardClick(a.id, a.agent?.id ?? null)}
-                  />
-                ))}
-              </div>
+            <div className="mt-6 rounded-xl border border-border overflow-hidden">
+              {filtered.map((a) => (
+                <AutomationListRow
+                  key={a.id}
+                  automation={a}
+                  showAgent
+                  onClick={() => handleRowClick(a.id, a.agent?.id ?? null)}
+                />
+              ))}
             </div>
           )}
         </Page.Body>

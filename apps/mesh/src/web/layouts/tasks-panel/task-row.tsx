@@ -36,7 +36,11 @@ export function TaskRow({
       tabIndex={0}
       onClick={onClick}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") onClick();
+        if (e.target !== e.currentTarget) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
       }}
       className={cn(
         "group/row flex items-center gap-3 px-2 py-1.5 rounded-md cursor-pointer transition-colors",

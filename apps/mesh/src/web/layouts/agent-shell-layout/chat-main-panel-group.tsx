@@ -28,17 +28,21 @@ function PersistentChatPanel({
   defaultSize,
 }: PropsWithChildren<{ defaultSize: number }>) {
   const [_isPending, startTransition] = useTransition();
-  const [, setChatPanelWidth] = useLocalStorage(
+  const [storedChatPanelWidth, setChatPanelWidth] = useLocalStorage(
     LOCALSTORAGE_KEYS.decoChatPanelWidth(),
     45,
   );
+  // Only apply the stored width when both panels are open (non-extreme default).
+  // When chat is solo (100) or closed (0), the caller's defaultSize wins.
+  const effectiveDefaultSize =
+    defaultSize > 0 && defaultSize < 100 ? storedChatPanelWidth : defaultSize;
   const handleResize = (size: number) =>
     startTransition(() => {
-      if (size > 0) setChatPanelWidth(size);
+      if (size > 0 && size < 100) setChatPanelWidth(size);
     });
   return (
     <ResizablePanel
-      defaultSize={defaultSize}
+      defaultSize={effectiveDefaultSize}
       minSize={20}
       collapsible={true}
       collapsedSize={0}
@@ -67,6 +71,10 @@ export function ChatMainPanelGroup({
   chatContent,
 }: ChatMainPanelGroupProps) {
   const sizes = computeChatMainSizes(chatOpen, mainOpen);
+  const [storedChatPanelWidth] = useLocalStorage(
+    LOCALSTORAGE_KEYS.decoChatPanelWidth(),
+    45,
+  );
   const panelGroupRef = useRef<ImperativePanelGroupHandle>(null);
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — syncs panel layout from URL-derived state; imperative DOM API has no React 19 alternative
@@ -74,8 +82,12 @@ export function ChatMainPanelGroup({
     const handle = panelGroupRef.current;
     if (!handle) return;
     const s = computeChatMainSizes(chatOpen, mainOpen);
-    handle.setLayout([s.chat, s.main]);
-  }, [chatOpen, mainOpen]);
+    // When both panels are open, honor the user's persisted chat width.
+    const chatSize = s.chat > 0 && s.chat < 100 ? storedChatPanelWidth : s.chat;
+    const mainSize =
+      s.chat > 0 && s.chat < 100 ? 100 - storedChatPanelWidth : s.main;
+    handle.setLayout([chatSize, mainSize]);
+  }, [chatOpen, mainOpen, storedChatPanelWidth]);
 
   return (
     <ResizablePanelGroup

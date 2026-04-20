@@ -70,26 +70,30 @@ export function IconPicker({
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<PickerTab>("icons");
   const [search, setSearch] = useState("");
-  const [selectedColor, setSelectedColor] = useState(() => {
-    const parsed = parseIconString(value);
-    if (parsed.type === "icon") return parsed.color;
-    if (parsed.type === "url" && parsed.color) return parsed.color;
-    return "blue";
-  });
+  // Local fallback color used only when `value` does not encode a color
+  // (i.e. fallback type). When `value` carries a color it wins, so prop
+  // updates stay in sync with the picker UI.
+  const [fallbackColor, setFallbackColor] = useState("blue");
+  const parsedValue = parseIconString(value);
+  const selectedColor =
+    parsedValue.type === "icon"
+      ? parsedValue.color
+      : parsedValue.type === "url" && parsedValue.color
+        ? parsedValue.color
+        : fallbackColor;
 
   const handleSelectIcon = (iconName: string) => {
     onChange(buildIconString(iconName, selectedColor));
   };
 
   const handleColorChange = (color: string) => {
-    setSelectedColor(color);
+    setFallbackColor(color);
     onColorChangeProp?.(color);
-    const parsed = parseIconString(value);
-    if (parsed.type === "icon") {
-      onChange(buildIconString(parsed.name, color));
-    } else if (parsed.type === "url") {
+    if (parsedValue.type === "icon") {
+      onChange(buildIconString(parsedValue.name, color));
+    } else if (parsedValue.type === "url") {
       // Persist color with image URL
-      onChange(buildImageIconString(parsed.url, color));
+      onChange(buildImageIconString(parsedValue.url, color));
     }
   };
 
@@ -190,9 +194,7 @@ export function IconPicker({
               onSelectIcon={handleSelectIcon}
               onRandom={handleRandomIcon}
               currentIconName={
-                parseIconString(value).type === "icon"
-                  ? (parseIconString(value) as { name: string }).name
-                  : null
+                parsedValue.type === "icon" ? parsedValue.name : null
               }
             />
           ) : (
@@ -372,6 +374,7 @@ function UploadTab({ onUpload }: { onUpload: (dataUrl: string) => void }) {
 
     if (file.size > 2 * 1024 * 1024) {
       toast.error("Image must be smaller than 2MB");
+      event.target.value = "";
       return;
     }
 

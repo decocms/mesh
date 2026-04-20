@@ -4,12 +4,13 @@
  * React hooks for fetching and mutating automations via MCP tools.
  */
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useMCPClient,
   useProjectContext,
   SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
+import { toast } from "sonner";
 import { KEYS } from "../lib/query-keys";
 
 // ============================================================================
@@ -147,12 +148,12 @@ export interface AutomationDetail {
 }
 
 // ============================================================================
-// List Hook
+// Query Hooks
 // ============================================================================
 
 type AutomationListOutput = { automations: AutomationListItem[] };
 
-export function useAutomationsList(virtualMcpId?: string | null) {
+export function useAutomations(virtualMcpId?: string | null) {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -163,7 +164,9 @@ export function useAutomationsList(virtualMcpId?: string | null) {
     queryKey: KEYS.automations(org.id, virtualMcpId),
     queryFn: async () => {
       const args: Record<string, unknown> =
-        virtualMcpId !== undefined ? { virtual_mcp_id: virtualMcpId } : {};
+        virtualMcpId !== undefined && virtualMcpId !== null
+          ? { virtual_mcp_id: virtualMcpId }
+          : {};
       const result = (await client.callTool({
         name: "AUTOMATION_LIST",
         arguments: args,
@@ -176,13 +179,9 @@ export function useAutomationsList(virtualMcpId?: string | null) {
   });
 }
 
-// ============================================================================
-// Detail Hook
-// ============================================================================
-
 type AutomationGetOutput = { automation: AutomationDetail | null };
 
-export function useAutomationDetail(id: string) {
+export function useAutomation(id: string) {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -222,10 +221,10 @@ export function buildDefaultAutomationInput(virtualMcpId?: string) {
 }
 
 // ============================================================================
-// Mutation Hooks
+// Actions Hook
 // ============================================================================
 
-export function useAutomationCreate() {
+export function useAutomationActions() {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -233,7 +232,13 @@ export function useAutomationCreate() {
   });
   const queryClient = useQueryClient();
 
-  return useMutation({
+  const invalidateAll = () =>
+    queryClient.invalidateQueries({ queryKey: KEYS.automationsAll(org.id) });
+
+  const invalidateOne = (id: string) =>
+    queryClient.invalidateQueries({ queryKey: KEYS.automation(org.id, id) });
+
+  const create = useMutation({
     mutationFn: async (input: Record<string, unknown>) => {
       const result = (await client.callTool({
         name: "AUTOMATION_CREATE",
@@ -245,52 +250,56 @@ export function useAutomationCreate() {
       };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: KEYS.automationsAll(org.id),
-      });
+      invalidateAll();
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to create automation",
+      );
     },
   });
-}
 
-export function useAutomationUpdate() {
-  const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-  const queryClient = useQueryClient();
-
-  return useMutation({
+  const update = useMutation({
     mutationFn: async (input: Record<string, unknown>) => {
       const result = (await client.callTool({
         name: "AUTOMATION_UPDATE",
         arguments: input,
       })) as { structuredContent?: unknown };
-      const parsed = (result.structuredContent ?? result) as { id: string };
-      return parsed;
+      return (result.structuredContent ?? result) as { id: string };
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: KEYS.automationsAll(org.id),
-      });
+      invalidateAll();
       if (typeof variables.id === "string") {
-        queryClient.invalidateQueries({
-          queryKey: KEYS.automation(org.id, variables.id),
-        });
+        invalidateOne(variables.id);
       }
     },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update automation",
+      );
+    },
   });
-}
 
-export function useAutomationTriggerAdd() {
-  const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      const result = (await client.callTool({
+        name: "AUTOMATION_DELETE",
+        arguments: { id },
+      })) as { structuredContent?: unknown };
+      return (result.structuredContent ?? result) as { success: boolean };
+    },
+    onSuccess: (_data, id) => {
+      queryClient.removeQueries({ queryKey: KEYS.automation(org.id, id) });
+      invalidateAll();
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete automation",
+      );
+    },
   });
-  const queryClient = useQueryClient();
 
-  return useMutation({
+  const triggerAdd = useMutation({
     mutationFn: async (input: Record<string, unknown>) => {
       const result = (await client.callTool({
         name: "AUTOMATION_TRIGGER_ADD",
@@ -304,32 +313,18 @@ export function useAutomationTriggerAdd() {
         const message = result.content?.[0]?.text ?? "Failed to add trigger";
         throw new Error(message);
       }
-      const data = (result.structuredContent ?? result) as {
+      return (result.structuredContent ?? result) as {
         id: string;
         automation_id: string;
       };
-      return data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({
-        queryKey: KEYS.automationsAll(org.id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: KEYS.automation(org.id, data.automation_id),
-      });
+      invalidateAll();
+      invalidateOne(data.automation_id);
     },
   });
-}
 
-export function useAutomationTriggerRemove() {
-  const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-  const queryClient = useQueryClient();
-
-  return useMutation({
+  const triggerRemove = useMutation({
     mutationFn: async (input: {
       trigger_id: string;
       automation_id: string;
@@ -341,12 +336,10 @@ export function useAutomationTriggerRemove() {
       return (result.structuredContent ?? result) as { success: boolean };
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: KEYS.automationsAll(org.id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: KEYS.automation(org.id, variables.automation_id),
-      });
+      invalidateAll();
+      invalidateOne(variables.automation_id);
     },
   });
+
+  return { create, update, remove, triggerAdd, triggerRemove };
 }

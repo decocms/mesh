@@ -5,12 +5,17 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { SearchInput } from "@deco/ui/components/search-input.tsx";
 import { Page } from "@/web/components/page";
 import { EmptyState } from "@/web/components/empty-state.tsx";
-import { useAutomationsList } from "@/web/hooks/use-automations";
-import { AutomationCard } from "./automation-card";
+import {
+  buildDefaultAutomationInput,
+  useAutomationActions,
+  useAutomations,
+} from "@/web/hooks/use-automations";
+import { AutomationListRow } from "./automation-list-row";
 
 export function AutomationsList({ virtualMcpId }: { virtualMcpId: string }) {
   const navigate = useNavigate();
-  const { data: automations = [] } = useAutomationsList(virtualMcpId);
+  const { data: automations = [] } = useAutomations(virtualMcpId);
+  const { create } = useAutomationActions();
   const [search, setSearch] = useState("");
 
   const lowerSearch = search.toLowerCase();
@@ -28,7 +33,13 @@ export function AutomationsList({ virtualMcpId }: { virtualMcpId: string }) {
       replace: true,
     });
 
-  const goToNew = () => goToDetail("new");
+  const handleNew = async () => {
+    if (create.isPending) return;
+    const created = await create.mutateAsync(
+      buildDefaultAutomationInput(virtualMcpId),
+    );
+    goToDetail(created.id);
+  };
 
   return (
     <Page>
@@ -37,7 +48,11 @@ export function AutomationsList({ virtualMcpId }: { virtualMcpId: string }) {
           <div className="flex flex-col gap-6">
             <Page.Title
               actions={
-                <Button size="sm" onClick={goToNew}>
+                <Button
+                  size="sm"
+                  onClick={handleNew}
+                  disabled={create.isPending}
+                >
                   <Plus size={14} />
                   New automation
                 </Button>
@@ -62,7 +77,11 @@ export function AutomationsList({ virtualMcpId }: { virtualMcpId: string }) {
                 title="No automations yet"
                 description="Create your first automation to run this agent on a schedule or in response to events."
                 actions={
-                  <Button size="sm" onClick={goToNew}>
+                  <Button
+                    size="sm"
+                    onClick={handleNew}
+                    disabled={create.isPending}
+                  >
                     <Plus size={14} />
                     New automation
                   </Button>
@@ -78,16 +97,14 @@ export function AutomationsList({ virtualMcpId }: { virtualMcpId: string }) {
               />
             </div>
           ) : (
-            <div className="mt-6 @container">
-              <div className="grid grid-cols-1 @lg:grid-cols-2 @4xl:grid-cols-3 @6xl:grid-cols-4 gap-4">
-                {filtered.map((a) => (
-                  <AutomationCard
-                    key={a.id}
-                    automation={a}
-                    onClick={() => goToDetail(a.id)}
-                  />
-                ))}
-              </div>
+            <div className="mt-6 rounded-xl border border-border overflow-hidden">
+              {filtered.map((a) => (
+                <AutomationListRow
+                  key={a.id}
+                  automation={a}
+                  onClick={() => goToDetail(a.id)}
+                />
+              ))}
             </div>
           )}
         </Page.Body>

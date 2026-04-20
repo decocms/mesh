@@ -26,6 +26,7 @@ import type {
   ThreadMetadata,
 } from "../../../storage/types";
 import {
+  formatPinnedViewTabId,
   parseAutomationTabId,
   resolveActiveTabAndOpen,
   resolveTabClickTarget,
@@ -98,19 +99,31 @@ export function useMainPanelTabs(ctx: {
   const entity = useVirtualMCP(ctx.virtualMcpId);
   const metadata = useTaskMetadata(ctx.taskId);
 
-  const entityLayout =
+  const entityUI =
     (
       entity?.metadata as {
         ui?: {
+          pinnedViews?: Array<{
+            connectionId: string;
+            toolName: string;
+            label: string;
+            icon?: string | null;
+          }> | null;
           layout?: {
             tabs?: AgentTabDef[];
-            defaultMainView?: { type: string; id?: string } | null;
+            defaultMainView?: {
+              type: string;
+              id?: string;
+              toolName?: string;
+            } | null;
           };
         };
       } | null
-    )?.ui?.layout ?? null;
+    )?.ui ?? null;
 
+  const entityLayout = entityUI?.layout ?? null;
   const layoutTabs = (entityLayout?.tabs ?? []) as AgentTabDef[];
+  const pinnedViews = entityUI?.pinnedViews ?? [];
   const expandedTools: ThreadExpandedTool[] = metadata?.expanded_tools ?? [];
   const hasActiveGithubRepo = !!(entity && getActiveGithubRepo(entity));
   const connections = useConnections();
@@ -138,6 +151,33 @@ export function useMainPanelTabs(ctx: {
     systemTabs.push({ id: "preview", title: "Preview" });
   }
 
+  // Merge pinned views + per-task expanded tools into a single list keyed
+  // by the pinned-view tab id. Pinned views win on dedupe so the
+  // virtual-MCP–configured label/icon survives even if the same tool was
+  // later expanded from a chat message.
+  const pinnedTabMap = new Map<
+    string,
+    { id: string; title: string; appId: string; iconKey: string }
+  >();
+  for (const t of expandedTools) {
+    const id = formatPinnedViewTabId(t.appId, t.toolName);
+    pinnedTabMap.set(id, {
+      id,
+      title: t.toolName,
+      appId: t.appId,
+      iconKey: t.toolName,
+    });
+  }
+  for (const pv of pinnedViews) {
+    const id = formatPinnedViewTabId(pv.connectionId, pv.toolName);
+    pinnedTabMap.set(id, {
+      id,
+      title: pv.label || pv.toolName,
+      appId: pv.connectionId,
+      iconKey: pv.toolName,
+    });
+  }
+
   const tabs: Tab[] = [
     ...systemTabs.map((t) => ({
       id: t.id,
@@ -160,12 +200,12 @@ export function useMainPanelTabs(ctx: {
         connections,
       }),
     })),
-    ...expandedTools.map((t) => ({
-      id: t.toolName,
-      title: t.toolName,
+    ...Array.from(pinnedTabMap.values()).map((t) => ({
+      id: t.id,
+      title: t.title,
       kind: "expanded" as const,
       icon: resolveTabIcon({
-        tabId: t.toolName,
+        tabId: t.iconKey,
         kind: "expanded",
         appId: t.appId,
         connections,

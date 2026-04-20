@@ -593,6 +593,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
             id?: string;
             toolName?: string;
           } | null;
+          chatDefaultOpen?: boolean | null;
         } | null;
       }
     | null
@@ -600,6 +601,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
 
   const serverPinned: PinnedView[] = uiMeta?.pinnedViews ?? [];
   const serverDefaultMain = uiMeta?.layout?.defaultMainView ?? null;
+  const serverChatDefaultOpen = uiMeta?.layout?.chatDefaultOpen ?? false;
 
   const serverDefaultMainKey = (() => {
     if (!serverDefaultMain || serverDefaultMain.type === "chat") return "chat";
@@ -614,6 +616,9 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   const [pinnedViews, setPinnedViews] = useState<PinnedView[]>(serverPinned);
   const [defaultMainView, setDefaultMainView] =
     useState<string>(serverDefaultMainKey);
+  const [chatDefaultOpen, setChatDefaultOpen] = useState<boolean>(
+    serverChatDefaultOpen,
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   // Parse default main view from composite key.
@@ -686,6 +691,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
             pinnedViews: validPinned,
             layout: {
               defaultMainView: parseDefaultMainView(nextDefault),
+              chatDefaultOpen,
             },
           },
         })
@@ -707,7 +713,11 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   }
 
   // Auto-save helper that persists given state
-  const saveLayout = (nextPinned: PinnedView[], nextDefaultMain: string) => {
+  const saveLayout = (
+    nextPinned: PinnedView[],
+    nextDefaultMain: string,
+    nextChatDefaultOpen?: boolean,
+  ) => {
     setIsSaving(true);
     const doSave = async () => {
       try {
@@ -718,6 +728,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
             pinnedViews: nextPinned,
             layout: {
               defaultMainView: parseDefaultMainView(nextDefaultMain),
+              chatDefaultOpen: nextChatDefaultOpen ?? chatDefaultOpen,
             },
           },
         });
@@ -875,6 +886,36 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <Label className="font-normal text-foreground">Show chat</Label>
+              <p className="text-xs text-muted-foreground">
+                Display the chat panel alongside the main view
+              </p>
+            </div>
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <span>
+                  <Switch
+                    checked={
+                      defaultMainView === "chat" ? true : chatDefaultOpen
+                    }
+                    disabled={defaultMainView === "chat" || isSaving}
+                    onCheckedChange={(checked) => {
+                      setChatDefaultOpen(checked);
+                      saveLayout(pinnedViews, defaultMainView, checked);
+                    }}
+                  />
+                </span>
+              </TooltipTrigger>
+              {defaultMainView === "chat" && (
+                <TooltipContent side="top">
+                  Chat is always shown when it is the default view
+                </TooltipContent>
+              )}
+            </Tooltip>
           </div>
         </CardContent>
       </Card>
@@ -1092,6 +1133,11 @@ function VirtualMcpDetailViewWithData({
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const saveForm = async () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+
     const hasDirtyFields = Object.keys(form.formState.dirtyFields).length > 0;
     if (!hasDirtyFields) return;
 
@@ -1461,35 +1507,13 @@ Define step-by-step how the agent should handle requests.
                     Add
                   </Button>
                 )}
-                {activeTab === "instructions" && !hasGithubRepo && (
-                  <div className="flex items-center gap-2">
-                    {!form.watch("metadata.instructions")?.trim() && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleInsertTemplate}
-                      >
-                        + Prompt template
-                      </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!form.watch("metadata.instructions")?.trim()}
-                      onClick={handleImprovePrompt}
-                    >
-                      <Stars01 size={13} />
-                      Improve
-                    </Button>
-                  </div>
-                )}
               </div>
             )}
 
             {/* Tab content */}
             {activeTab === "instructions" && (
               <>
-                <div className="flex items-center gap-3 pb-3">
+                <div className="flex items-center gap-4 pb-10">
                   <Controller
                     name="icon"
                     control={form.control}
@@ -1507,8 +1531,8 @@ Define step-by-step how the agent should handle requests.
                           saveForm();
                         }}
                         name={form.watch("title") || "Agent"}
-                        size="sm+"
-                        className="shrink-0 self-start"
+                        size="lg"
+                        className="shrink-0"
                         avatarClassName="[&_svg]:w-1/2 [&_svg]:h-1/2"
                         disabled={hasGithubRepo}
                       />
@@ -1529,7 +1553,7 @@ Define step-by-step how the agent should handle requests.
                           }}
                           disabled={hasGithubRepo}
                           placeholder="Agent name"
-                          className="text-sm font-medium text-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate disabled:hover:bg-transparent disabled:focus:bg-transparent disabled:opacity-50"
+                          className="text-[22px] font-medium leading-tight text-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate disabled:hover:bg-transparent disabled:focus:bg-transparent disabled:opacity-50"
                         />
                       )}
                     />
@@ -1547,12 +1571,35 @@ Define step-by-step how the agent should handle requests.
                           }}
                           disabled={hasGithubRepo}
                           placeholder="Add a description..."
-                          className="text-sm text-muted-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate disabled:hover:bg-transparent disabled:focus:bg-transparent disabled:opacity-50"
+                          className="text-base font-medium text-muted-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate disabled:hover:bg-transparent disabled:focus:bg-transparent disabled:opacity-50"
                         />
                       )}
                     />
                   </div>
                 </div>
+
+                {!hasGithubRepo && (
+                  <div className="flex items-center justify-end gap-2">
+                    {!form.watch("metadata.instructions")?.trim() && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleInsertTemplate}
+                      >
+                        + Prompt template
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!form.watch("metadata.instructions")?.trim()}
+                      onClick={handleImprovePrompt}
+                    >
+                      <Stars01 size={13} />
+                      Improve
+                    </Button>
+                  </div>
+                )}
 
                 <Controller
                   name="metadata.instructions"
@@ -1567,7 +1614,7 @@ Define step-by-step how the agent should handle requests.
                       }}
                       disabled={hasGithubRepo}
                       placeholder="Define how this agent should behave, what tone to use, any constraints or guidelines..."
-                      className="min-h-[300px] flex-1 resize-none text-[15px] placeholder:text-muted-foreground/40 leading-relaxed border-0 rounded-none shadow-none px-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-0 bg-transparent"
+                      className="min-h-[300px] flex-1 resize-none text-base text-muted-foreground placeholder:text-muted-foreground/40 leading-relaxed border-0 rounded-none shadow-none px-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-0 bg-transparent"
                       style={{ boxShadow: "none" }}
                     />
                   )}

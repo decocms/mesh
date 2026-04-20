@@ -5,18 +5,23 @@
  *   - Fixed system: "instructions" | "connections" | "layout" | "env" | "preview"
  *   - Agent-declared: <agentTab.id> (from virtualMcp.metadata.ui.layout.tabs)
  *   - Expanded-from-chat: <toolName> (from task.metadata.expanded_tools)
- *   - Ephemeral automation: "automation:<id>" (id="new" = draft)
+ *   - Pinned view: "app:<connectionId>:<toolName>" (from metadata.ui.pinnedViews)
+ *   - Ephemeral automation: "automation:<id>"
  *   - "0" = closed sentinel (not an actual tab id)
  */
 
 export interface EntityLayoutMetadata {
-  defaultMainView?: { type: string; id?: string } | null;
+  defaultMainView?: {
+    type: string;
+    id?: string;
+    toolName?: string;
+  } | null;
   tabs?: Array<{ id: string }>;
 }
 
-export type AutomationTabParsed =
-  | { kind: "new" }
-  | { kind: "existing"; id: string };
+export interface AutomationTabParsed {
+  id: string;
+}
 
 export function parseAutomationTabId(
   tabId: string | undefined,
@@ -24,8 +29,37 @@ export function parseAutomationTabId(
   if (!tabId || !tabId.startsWith("automation:")) return null;
   const id = tabId.slice("automation:".length);
   if (!id) return null;
-  if (id === "new") return { kind: "new" };
-  return { kind: "existing", id };
+  return { id };
+}
+
+export interface PinnedViewTabParsed {
+  connectionId: string;
+  toolName: string;
+}
+
+/**
+ * Format a pinned view's composite tab id. Carries both `connectionId`
+ * and `toolName` so two different connections can expose tools with the
+ * same name without colliding in the `?main=` URL state.
+ */
+export function formatPinnedViewTabId(
+  connectionId: string,
+  toolName: string,
+): string {
+  return `app:${connectionId}:${toolName}`;
+}
+
+export function parsePinnedViewTabId(
+  tabId: string | undefined,
+): PinnedViewTabParsed | null {
+  if (!tabId || !tabId.startsWith("app:")) return null;
+  const rest = tabId.slice("app:".length);
+  const sep = rest.indexOf(":");
+  if (sep <= 0) return null;
+  const connectionId = rest.slice(0, sep);
+  const toolName = rest.slice(sep + 1);
+  if (!connectionId || !toolName) return null;
+  return { connectionId, toolName };
 }
 
 export const FIXED_SYSTEM_TABS = [
@@ -53,7 +87,15 @@ export function resolveDefaultTabId(
   if (def.type === "settings") return "layout";
 
   if (def.type === "ext-app" || def.type === "ext-apps") {
-    return def.id ?? metadata?.tabs?.[0]?.id ?? "instructions";
+    // Pinned view default: { type: "ext-apps", id: connectionId, toolName }.
+    // Round-trip as the composite pinned-view tab id so the pinned-view
+    // branch in MainPanelContent renders it without a metadata round-trip.
+    if (def.id && def.toolName) {
+      return formatPinnedViewTabId(def.id, def.toolName);
+    }
+    const declaredTabIds = metadata?.tabs?.map((t) => t.id) ?? [];
+    if (def.id && declaredTabIds.includes(def.id)) return def.id;
+    return declaredTabIds[0] ?? "instructions";
   }
 
   return metadata?.tabs?.[0]?.id ?? "instructions";
@@ -69,7 +111,12 @@ export function resolveActiveTabAndOpen(ctx: {
     return { mainOpen: false, activeTab: def };
   }
   if (ctx.mainParam === undefined) {
-    return { mainOpen: ctx.metadata?.defaultMainView != null, activeTab: def };
+    // Mirror resolveDefaultPanelState: a chat-default (or absent default)
+    // keeps the main panel closed so the header tab bar doesn't highlight
+    // a tab while the panel is 0px wide.
+    const view = ctx.metadata?.defaultMainView ?? null;
+    const defaultIsChat = view == null || view.type === "chat";
+    return { mainOpen: !defaultIsChat, activeTab: def };
   }
   return { mainOpen: true, activeTab: ctx.mainParam };
 }

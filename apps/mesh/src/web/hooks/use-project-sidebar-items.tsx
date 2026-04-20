@@ -12,6 +12,7 @@ import {
 import { Dataflow03, Home01, LayoutLeft } from "@untitledui/icons";
 import { getIconComponent, parseIconString } from "../components/agent-icon";
 import { usePanelActions } from "@/web/layouts/shell-layout";
+import { formatPinnedViewTabId } from "@/web/layouts/main-panel-tabs/tab-id";
 import { pluginRootSidebarItems, pluginSidebarGroups } from "../index.tsx";
 import { PLUGIN_ID as WORKFLOWS_PLUGIN_ID } from "mesh-plugin-workflows/shared";
 
@@ -72,7 +73,10 @@ export function useProjectSidebarItems(): SidebarSection[] {
     navigate({
       to: "/$org/$taskId/$pluginId",
       params: { org, taskId, pluginId },
-      search: { virtualmcpid: virtualMcpId },
+      search: (prev: Record<string, unknown>) => ({
+        ...prev,
+        virtualmcpid: virtualMcpId,
+      }),
     });
   };
 
@@ -128,7 +132,8 @@ export function useProjectSidebarItems(): SidebarSection[] {
         <LayoutLeft size={16} className="text-muted-foreground" />
       ),
       isActive: false,
-      onClick: () => openTab(view.toolName),
+      onClick: () =>
+        openTab(formatPinnedViewTabId(view.connectionId, view.toolName)),
     };
   });
 

@@ -259,6 +259,8 @@ export function useTaskManager(virtualMcpId: string) {
   };
 
   // Hide task (backend + cache)
+  // Invalidate all task lists so hidden tasks disappear from open lists
+  // and (re)appear in archived lists on the next fetch.
   const hideTask = async (taskId: string) => {
     try {
       await callUpdateTaskTool(client, taskId, { hidden: true });
@@ -268,9 +270,8 @@ export function useTaskManager(virtualMcpId: string) {
       console.error("[chat] Failed to hide task:", error);
       return;
     }
-    updateTaskInCache(queryClient, locator, taskId, {
-      hidden: true,
-      updated_at: new Date().toISOString(),
+    queryClient.invalidateQueries({
+      queryKey: KEYS.tasksPrefix(locator),
     });
   };
 

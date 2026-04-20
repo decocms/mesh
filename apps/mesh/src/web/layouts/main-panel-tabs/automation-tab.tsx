@@ -1,33 +1,53 @@
 import { parseAutomationTabId } from "./tab-id";
 import { SettingsTab as AutomationInlineDetail } from "@/web/views/automations/automation-detail";
-import { useAutomationDetail } from "@/web/hooks/use-automations";
+import { useAutomation } from "@/web/hooks/use-automations";
+import { Page } from "@/web/components/page";
 import { Loading01 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { Suspense } from "react";
 
-export function AutomationTab({ tabId }: { tabId: string }) {
+export function AutomationTab({
+  tabId,
+  virtualMcpId,
+}: {
+  tabId: string;
+  virtualMcpId: string;
+}) {
   const parsed = parseAutomationTabId(tabId);
   if (!parsed) return null;
 
   return (
-    <Suspense
-      fallback={
-        <div className="flex-1 flex items-center justify-center">
-          <Loading01 size={20} className="animate-spin text-muted-foreground" />
-        </div>
-      }
-    >
-      <AutomationTabInner parsed={parsed} />
-    </Suspense>
+    <Page>
+      <Page.Content>
+        <Page.Body>
+          <Suspense
+            fallback={
+              <div className="flex-1 flex items-center justify-center">
+                <Loading01
+                  size={20}
+                  className="animate-spin text-muted-foreground"
+                />
+              </div>
+            }
+          >
+            <AutomationTabInner id={parsed.id} virtualMcpId={virtualMcpId} />
+          </Suspense>
+        </Page.Body>
+      </Page.Content>
+    </Page>
   );
 }
 
 function AutomationTabInner({
-  parsed,
+  id,
+  virtualMcpId,
 }: {
-  parsed: { kind: "new" } | { kind: "existing"; id: string };
+  id: string;
+  virtualMcpId: string;
 }) {
   const navigate = useNavigate();
+  const { data: automation, isLoading } = useAutomation(id);
+
   const onBack = () =>
     navigate({
       to: ".",
@@ -38,26 +58,14 @@ function AutomationTabInner({
       replace: true,
     });
 
-  if (parsed.kind === "new") {
+  if (isLoading) {
     return (
-      <AutomationInlineDetail
-        automationId="new"
-        automation={null}
-        onBack={onBack}
-      />
+      <div className="flex-1 flex items-center justify-center">
+        <Loading01 size={20} className="animate-spin text-muted-foreground" />
+      </div>
     );
   }
-  return <ExistingAutomation id={parsed.id} onBack={onBack} />;
-}
 
-function ExistingAutomation({
-  id,
-  onBack,
-}: {
-  id: string;
-  onBack: () => void;
-}) {
-  const { data: automation } = useAutomationDetail(id);
   if (!automation) {
     return (
       <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
@@ -65,10 +73,12 @@ function ExistingAutomation({
       </div>
     );
   }
+
   return (
     <AutomationInlineDetail
       automationId={id}
       automation={automation}
+      virtualMcpId={virtualMcpId}
       onBack={onBack}
     />
   );

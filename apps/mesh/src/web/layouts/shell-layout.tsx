@@ -132,7 +132,11 @@ export function usePanelActions() {
 
   const createNewTask = () => setTaskId(crypto.randomUUID());
 
-  const openTab = (tabId: string) => nav((prev) => ({ ...prev, main: tabId }));
+  const openTab = (tabId: string) =>
+    navWith(currentTaskId || crypto.randomUUID(), (prev) => ({
+      ...prev,
+      main: tabId,
+    }));
 
   const toggleMain = () =>
     nav((prev) => {

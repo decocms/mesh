@@ -9,6 +9,7 @@ import {
   useChatTask,
 } from "@/web/components/chat/context.tsx";
 import { useTaskExpandedTools } from "@/web/hooks/use-task-expanded-tools";
+import { formatPinnedViewTabId } from "@/web/layouts/main-panel-tabs/tab-id";
 import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -230,12 +231,14 @@ export function GenericToolCallPart({
       appId: connectionId,
       args,
     });
+    // Use the self-describing `app:<connId>:<toolName>` tab id so the
+    // main panel can render from the URL alone, without waiting on the
+    // thread metadata to fetch.
     navigate({
       to: ".",
       search: (prev: Record<string, unknown>) => ({
         ...prev,
-        tab: rawToolName,
-        mainOpen: 1,
+        main: formatPinnedViewTabId(connectionId, rawToolName),
       }),
       replace: true,
     });

@@ -9,13 +9,8 @@ import {
 } from "./tab-id";
 
 describe("parseAutomationTabId", () => {
-  test("automation:new → { kind: 'new' }", () => {
-    expect(parseAutomationTabId("automation:new")).toEqual({ kind: "new" });
-  });
-
-  test("automation:<uuid> → { kind: 'existing', id }", () => {
+  test("automation:<uuid> → { id }", () => {
     expect(parseAutomationTabId("automation:abc-123")).toEqual({
-      kind: "existing",
       id: "abc-123",
     });
   });
@@ -57,6 +52,37 @@ describe("resolveDefaultTabId", () => {
         tabs: [{ id: "t1" }, { id: "t2" }],
       }),
     ).toBe("t1");
+  });
+
+  test("ext-app id not in declared tabs → first declared tab id", () => {
+    expect(
+      resolveDefaultTabId({
+        defaultMainView: { type: "ext-app", id: "stale" },
+        tabs: [{ id: "t1" }, { id: "t2" }],
+      }),
+    ).toBe("t1");
+  });
+
+  test("ext-app id not in declared tabs and no tabs → 'instructions'", () => {
+    expect(
+      resolveDefaultTabId({
+        defaultMainView: { type: "ext-app", id: "stale" },
+        tabs: [],
+      }),
+    ).toBe("instructions");
+  });
+
+  test("ext-apps with id + toolName → pinned-view tab id", () => {
+    expect(
+      resolveDefaultTabId({
+        defaultMainView: {
+          type: "ext-apps",
+          id: "conn-abc",
+          toolName: "hello_world",
+        },
+        tabs: [],
+      }),
+    ).toBe("app:conn-abc:hello_world");
   });
 
   test("instructions → 'instructions'", () => {
@@ -103,7 +129,10 @@ describe("resolveDefaultTabId", () => {
 });
 
 describe("resolveActiveTabAndOpen", () => {
-  const meta = { defaultMainView: { type: "ext-app", id: "analytics" } };
+  const meta = {
+    defaultMainView: { type: "ext-app", id: "analytics" },
+    tabs: [{ id: "analytics" }],
+  };
 
   test("?main absent + defaultMainView set → open, tab = default", () => {
     expect(
@@ -114,6 +143,15 @@ describe("resolveActiveTabAndOpen", () => {
   test("?main absent + no defaultMainView → closed, tab = 'instructions'", () => {
     expect(
       resolveActiveTabAndOpen({ mainParam: undefined, metadata: null }),
+    ).toEqual({ mainOpen: false, activeTab: "instructions" });
+  });
+
+  test("?main absent + defaultMainView.type === 'chat' → closed (aligns with resolveDefaultPanelState)", () => {
+    expect(
+      resolveActiveTabAndOpen({
+        mainParam: undefined,
+        metadata: { defaultMainView: { type: "chat" } },
+      }),
     ).toEqual({ mainOpen: false, activeTab: "instructions" });
   });
 

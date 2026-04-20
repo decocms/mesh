@@ -1,11 +1,11 @@
 import type { ComponentType, SVGProps } from "react";
 import {
   BookOpen01,
-  Dataflow03,
   Globe01,
   LayoutAlt04,
   Lightning01,
   Terminal,
+  ZapSquare,
 } from "@untitledui/icons";
 
 export type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
@@ -27,7 +27,7 @@ export type SystemTabId =
 
 export const SYSTEM_TAB_ICONS: Record<SystemTabId, IconComponent> = {
   instructions: BookOpen01,
-  connections: Dataflow03,
+  connections: ZapSquare,
   automations: Lightning01,
   layout: LayoutAlt04,
   env: Terminal,

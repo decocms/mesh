@@ -61,10 +61,33 @@ export function useTaskExpandedTools(taskId: string) {
 
       return next;
     },
+    onMutate: async (tool) => {
+      // Optimistic: put the new tool into the cache so the header tab
+      // renders before the server round-trip completes.
+      const key = KEYS.threadMetadata(taskId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<ThreadMetadata | null>(key);
+      const currentTools: ThreadExpandedTool[] = previous?.expanded_tools ?? [];
+      const nextTools = currentTools.filter(
+        (t) => t.toolName !== tool.toolName,
+      );
+      nextTools.push({ ...tool, expandedAt: new Date().toISOString() });
+      queryClient.setQueryData<ThreadMetadata | null>(key, {
+        ...(previous ?? {}),
+        expanded_tools: nextTools,
+      });
+      return { previous };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: KEYS.tasksPrefix(locator) });
+      queryClient.invalidateQueries({
+        queryKey: KEYS.threadMetadata(taskId),
+      });
     },
-    onError: (error) => {
+    onError: (error, _tool, context) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(KEYS.threadMetadata(taskId), context.previous);
+      }
       toast.error(
         error instanceof Error ? error.message : "Failed to expand tool",
       );

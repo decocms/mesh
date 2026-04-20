@@ -168,6 +168,7 @@ function AgentInsetProvider() {
   const entityMetadata = layoutMetadata
     ? {
         defaultMainView: layoutMetadata.defaultMainView ?? null,
+        chatDefaultOpen: layoutMetadata.chatDefaultOpen ?? null,
       }
     : null;
 
