@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!**/dist"],
+    "includes": ["**", "!**/dist", "!apps/mesh/public/vendor/**"],
     "ignoreUnknown": false
   },
   "formatter": {
