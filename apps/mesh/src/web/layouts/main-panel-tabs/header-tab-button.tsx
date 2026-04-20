@@ -5,6 +5,10 @@
  *   - idle (inactive): icon-only square button.
  *   - active: expanded pill with icon + title (accent colors).
  *
+ * Pill animation uses a single unified transition (180ms ease-out-cubic) on
+ * all properties so the expand/collapse reads as one clean motion rather than
+ * staggered layers. Kept simple on purpose — tab bars are seen constantly.
+ *
  * Every button is wrapped in a Tooltip showing the tab title so the
  * title is discoverable on hover in both states.
  */
@@ -38,21 +42,29 @@ export function HeaderTabButton({
           aria-pressed={active}
           aria-label={title}
           className={cn(
-            "shrink-0 flex items-center h-8 rounded-md transition-colors",
-            active ? "px-2 gap-1.5" : "px-1.5",
+            "shrink-0 grid items-center h-8 rounded-md",
+            "[transition:grid-template-columns_180ms_var(--ease-out-cubic),gap_180ms_var(--ease-out-cubic),padding_180ms_var(--ease-out-cubic),background-color_180ms_ease,color_180ms_ease]",
             active
-              ? "bg-primary/10 text-primary"
-              : "text-muted-foreground hover:bg-accent hover:text-foreground",
+              ? "grid-cols-[auto_1fr] gap-1.5 px-2"
+              : "grid-cols-[auto_0fr] gap-0 px-1.5",
+            active
+              ? "bg-sidebar-accent text-sidebar-foreground"
+              : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
           )}
         >
-          <span className="flex size-5 items-center justify-center shrink-0">
+          <span className="flex size-5 items-center justify-center">
             <Icon icon={icon} />
           </span>
-          {active && (
-            <span className="text-xs font-medium leading-none whitespace-nowrap">
-              {title}
-            </span>
-          )}
+          <span
+            aria-hidden={!active}
+            className={cn(
+              "overflow-hidden whitespace-nowrap text-xs font-medium leading-none min-w-0",
+              "[transition:opacity_180ms_ease]",
+              active ? "opacity-100" : "opacity-0",
+            )}
+          >
+            {title}
+          </span>
         </button>
       </TooltipTrigger>
       <TooltipContent side="bottom">{title}</TooltipContent>
