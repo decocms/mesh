@@ -85,7 +85,12 @@ export function useTaskExpandedTools(taskId: string) {
       });
     },
     onError: (error, _tool, context) => {
-      if (context?.previous !== undefined) {
+      if (context?.previous === undefined) {
+        queryClient.removeQueries({
+          queryKey: KEYS.threadMetadata(taskId),
+          exact: true,
+        });
+      } else {
         queryClient.setQueryData(KEYS.threadMetadata(taskId), context.previous);
       }
       toast.error(
