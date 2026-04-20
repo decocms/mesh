@@ -4,6 +4,8 @@ import {
   resolveDefaultTabId,
   resolveActiveTabAndOpen,
   resolveTabClickTarget,
+  isAutomationsPillActive,
+  resolveAutomationsPillClickTarget,
 } from "./tab-id";
 
 describe("parseAutomationTabId", () => {
@@ -173,5 +175,90 @@ describe("resolveTabClickTarget", () => {
         mainOpen: false,
       }),
     ).toBe("instructions");
+  });
+});
+
+describe("isAutomationsPillActive", () => {
+  test("activeTab='automations' and panel open → true", () => {
+    expect(
+      isAutomationsPillActive({ activeTab: "automations", mainOpen: true }),
+    ).toBe(true);
+  });
+
+  test("activeTab='automation:abc' and panel open → true", () => {
+    expect(
+      isAutomationsPillActive({ activeTab: "automation:abc", mainOpen: true }),
+    ).toBe(true);
+  });
+
+  test("activeTab='automation:new' and panel open → true", () => {
+    expect(
+      isAutomationsPillActive({ activeTab: "automation:new", mainOpen: true }),
+    ).toBe(true);
+  });
+
+  test("panel closed → false even when activeTab matches", () => {
+    expect(
+      isAutomationsPillActive({ activeTab: "automations", mainOpen: false }),
+    ).toBe(false);
+    expect(
+      isAutomationsPillActive({ activeTab: "automation:abc", mainOpen: false }),
+    ).toBe(false);
+  });
+
+  test("non-automation tab → false", () => {
+    expect(
+      isAutomationsPillActive({ activeTab: "instructions", mainOpen: true }),
+    ).toBe(false);
+    expect(
+      isAutomationsPillActive({ activeTab: "connections", mainOpen: true }),
+    ).toBe(false);
+  });
+});
+
+describe("resolveAutomationsPillClickTarget", () => {
+  test("panel closed → open the list", () => {
+    expect(
+      resolveAutomationsPillClickTarget({
+        activeTab: "automations",
+        mainOpen: false,
+      }),
+    ).toBe("automations");
+  });
+
+  test("on detail (automation:<id>) → navigate up to list", () => {
+    expect(
+      resolveAutomationsPillClickTarget({
+        activeTab: "automation:abc",
+        mainOpen: true,
+      }),
+    ).toBe("automations");
+  });
+
+  test("on detail (automation:new) → navigate up to list", () => {
+    expect(
+      resolveAutomationsPillClickTarget({
+        activeTab: "automation:new",
+        mainOpen: true,
+      }),
+    ).toBe("automations");
+  });
+
+  test("on list while panel open → close ('0')", () => {
+    expect(
+      resolveAutomationsPillClickTarget({
+        activeTab: "automations",
+        mainOpen: true,
+      }),
+    ).toBe("0");
+  });
+
+  test("on unrelated tab → open list", () => {
+    expect(
+      resolveAutomationsPillClickTarget({
+        activeTab: "instructions",
+        mainOpen: true,
+      }),
+    ).toBe("automations");
   });
 });

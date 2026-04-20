@@ -31,6 +31,7 @@ export function parseAutomationTabId(
 export const FIXED_SYSTEM_TABS = [
   "instructions",
   "connections",
+  "automations",
   "layout",
   "env",
   "preview",
@@ -86,4 +87,33 @@ export function resolveTabClickTarget(ctx: {
 }): string {
   if (ctx.mainOpen && ctx.clickedId === ctx.activeTab) return "0";
   return ctx.clickedId;
+}
+
+/**
+ * The "Automations" header pill is active whenever the main panel is open
+ * and the active tab is either the list (`automations`) or a detail
+ * (`automation:<id>` / `automation:new`).
+ */
+export function isAutomationsPillActive(ctx: {
+  activeTab: string;
+  mainOpen: boolean;
+}): boolean {
+  if (!ctx.mainOpen) return false;
+  if (ctx.activeTab === "automations") return true;
+  return parseAutomationTabId(ctx.activeTab) !== null;
+}
+
+/**
+ * Click target for the Automations pill.
+ *
+ * - On the list with the panel open → close (`"0"`).
+ * - On a detail view → navigate up to the list (`"automations"`).
+ * - Otherwise (panel closed or on a different tab) → open the list.
+ */
+export function resolveAutomationsPillClickTarget(ctx: {
+  activeTab: string;
+  mainOpen: boolean;
+}): string {
+  if (ctx.mainOpen && ctx.activeTab === "automations") return "0";
+  return "automations";
 }
