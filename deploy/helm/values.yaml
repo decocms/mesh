@@ -45,6 +45,7 @@ persistence:
   size: 10Gi
   claimName: ""  # Optional: Specify existing PVC name
   distributed: false  # Mark as true if storage offers ReadWriteMany
+  emptyDirSizeLimit: "10Gi"  # Cap for the emptyDir volume when persistence.enabled=false. Prevents a single pod from exhausting node ephemeral-storage.
 
 autoscaling:
   enabled: false
