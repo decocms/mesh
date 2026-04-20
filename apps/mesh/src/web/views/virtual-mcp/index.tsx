@@ -1049,7 +1049,7 @@ function VirtualMcpDetailViewWithData({
     settingsConnectionId: null,
   });
 
-  // Tab state — internal unless forced externally (e.g. by MainPanelWithTabs)
+  // Tab state — internal unless forced externally (e.g. by MainPanelContent)
   const validTabIds = ["instructions", "connections", "layout"];
   const [internalTab, setInternalTab] = useState(() => {
     const stored = localStorage.getItem("agent-detail-tab") || "instructions";

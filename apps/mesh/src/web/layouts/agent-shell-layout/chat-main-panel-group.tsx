@@ -21,7 +21,7 @@ import {
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { computeChatMainSizes } from "@/web/hooks/use-layout-state";
-import { MainPanelWithTabs } from "@/web/layouts/main-panel-tabs";
+import { MainPanelContent } from "@/web/layouts/main-panel-tabs";
 
 function PersistentChatPanel({
   children,
@@ -113,7 +113,9 @@ export function ChatMainPanelGroup({
               "rounded-[0.75rem]",
             )}
           >
-            <MainPanelWithTabs taskId={taskId} virtualMcpId={virtualMcpId} />
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <MainPanelContent taskId={taskId} virtualMcpId={virtualMcpId} />
+            </div>
           </div>
         </div>
       </ResizablePanel>
