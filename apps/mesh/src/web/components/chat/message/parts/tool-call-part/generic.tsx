@@ -234,10 +234,23 @@ export function GenericToolCallPart({
   const isStaleApproval =
     part.state === "approval-requested" && isLastMessage === false;
   const isCancelled = part.state === "output-denied" || isStaleApproval;
+
+  // MCP tools can return isError:true inside a successful output-available response
+  const isOutputError =
+    part.state === "output-available" &&
+    typeof part.output === "object" &&
+    part.output != null &&
+    "isError" in (part.output as object) &&
+    (part.output as Record<string, unknown>).isError === true;
+
   // Approval-requested parts render as idle inline (approval UI is in the highlight above input)
   const rawState = getEffectiveState(part.state);
   const effectiveState =
-    isStaleApproval || rawState === "approval" ? "idle" : rawState;
+    isStaleApproval || rawState === "approval"
+      ? "idle"
+      : isOutputError
+        ? "error"
+        : rawState;
 
   // Error text (used in summary and detail)
   const errorText =
@@ -245,7 +258,9 @@ export function GenericToolCallPart({
 
   const summary = isStaleApproval
     ? "Cancelled"
-    : getSummary(part.state, part.output, errorText);
+    : isOutputError
+      ? "Failed"
+      : getSummary(part.state, part.output, errorText);
 
   // Build expanded content
   let detail = "";

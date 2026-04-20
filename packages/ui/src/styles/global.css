@@ -70,7 +70,7 @@
   --destructive-foreground: oklch(0.97 0.01 17);
   --success: oklch(0.6 0.17 149);
   --success-foreground: oklch(0.98 0.02 156);
-  --warning: oklch(0.75 0.15 70);
+  --warning: oklch(0.62 0.17 70);
   --warning-foreground: oklch(0.99 0.02 95);
 
   --sidebar: oklch(0.975 0.006 80);
