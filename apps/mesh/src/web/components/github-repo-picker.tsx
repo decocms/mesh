@@ -5,6 +5,7 @@ import {
   DialogTitle,
 } from "@deco/ui/components/dialog.tsx";
 import { SearchInput } from "@deco/ui/components/search-input.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { Suspense, useDeferredValue, useState } from "react";
 import {
   useMutation,
@@ -22,10 +23,11 @@ import {
 import type { ConnectionEntity } from "@decocms/mesh-sdk";
 import { KEYS } from "@/web/lib/query-keys";
 import { toast } from "sonner";
-import { Loading01 } from "@untitledui/icons";
+import { ArrowLeft, Loading01 } from "@untitledui/icons";
 import { useAutoInstallGitHub } from "@/web/hooks/use-auto-install-github";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { usePreferences } from "@/web/hooks/use-preferences.ts";
+import { GitHubIcon } from "@/web/components/icons/github-icon";
 
 interface GitHubInstallation {
   installationId: number;
@@ -44,6 +46,17 @@ interface Repo {
   updatedAt: string;
 }
 
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days === 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}y ago`;
+}
+
 export function GitHubRepoPicker({
   open,
   onOpenChange,
@@ -59,16 +72,22 @@ export function GitHubRepoPicker({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[480px] p-0 gap-0 overflow-hidden">
+        <DialogHeader className="sr-only">
           <DialogTitle>Import from GitHub</DialogTitle>
         </DialogHeader>
+        <div className="flex items-center h-12 border-b border-border px-4 gap-3">
+          <GitHubIcon className="size-4 text-foreground shrink-0" />
+          <span className="text-sm font-medium text-foreground">
+            Import from GitHub
+          </span>
+        </div>
         <div className="min-w-0">
           <Suspense
             fallback={
-              <div className="flex items-center justify-center py-8">
+              <div className="flex items-center justify-center py-12">
                 <Loading01
-                  size={20}
+                  size={18}
                   className="animate-spin text-muted-foreground"
                 />
               </div>
@@ -91,10 +110,8 @@ function PickerContent({ onComplete }: { onComplete: () => void }) {
   const [selectedInstallation, setSelectedInstallation] =
     useState<GitHubInstallation | null>(null);
 
-  // Find all mcp-github connections in the organization
   const githubConnections = useConnections({ slug: "mcp-github" });
 
-  // Auto-install hook — only enabled when no connections exist
   const autoInstall = useAutoInstallGitHub({
     enabled: githubConnections.length === 0,
   });
@@ -104,7 +121,6 @@ function PickerContent({ onComplete }: { onComplete: () => void }) {
       ? (githubConnections[0] ?? null)
       : selectedConnection;
 
-  // MCP clients
   const githubClient = useMCPClient({
     connectionId: effectiveConnection?.id ?? "",
     orgId: org.id,
@@ -166,11 +182,9 @@ function PickerContent({ onComplete }: { onComplete: () => void }) {
       .then(async (entries) => {
         const files = new Map(entries);
 
-        // Detect instructions
         const instructions =
           files.get("AGENTS.md") ?? files.get("CLAUDE.md") ?? null;
 
-        // Detect runtime
         const runtimeFiles: Array<{ file: string; pm: string }> = [
           { file: "deno.json", pm: "deno" },
           { file: "deno.jsonc", pm: "deno" },
@@ -215,7 +229,6 @@ function PickerContent({ onComplete }: { onComplete: () => void }) {
           }
         }
 
-        // Update the virtual MCP with detected metadata
         await selfClient.callTool({
           name: "COLLECTION_VIRTUAL_MCP_UPDATE",
           arguments: {
@@ -236,7 +249,6 @@ function PickerContent({ onComplete }: { onComplete: () => void }) {
       });
   };
 
-  // Import mutation: create virtual MCP + detect runtime/instructions
   const importMutation = useMutation({
     mutationFn: async (repo: Repo) => {
       if (!effectiveConnection || !selectedInstallation) {
@@ -249,7 +261,7 @@ function PickerContent({ onComplete }: { onComplete: () => void }) {
         name: "COLLECTION_VIRTUAL_MCP_CREATE",
         arguments: {
           data: {
-            title: repo.fullName,
+            title: repo.name,
             description: repo.description || "Imported from GitHub",
             pinned: true,
             icon: null,
@@ -291,7 +303,6 @@ function PickerContent({ onComplete }: { onComplete: () => void }) {
     onSuccess: ({ virtualMcpId, repo, item }) => {
       toast.success(`Imported ${repo.name} from GitHub`);
 
-      // Seed cache so navigation is instant
       queryClient.setQueryData(
         KEYS.collectionItem(
           selfClient,
@@ -304,12 +315,10 @@ function PickerContent({ onComplete }: { onComplete: () => void }) {
       );
       invalidateVirtualMcpQueries(queryClient, org.id);
 
-      // Navigate immediately, detect runtime/instructions in background
       onComplete();
       localStorage.setItem("mesh:sidebar-open", JSON.stringify(false));
       navigateToAgent(virtualMcpId);
 
-      // Background: fetch files and update metadata
       detectRepoFiles(virtualMcpId, repo);
     },
     onError: (error) => {
@@ -320,7 +329,6 @@ function PickerContent({ onComplete }: { onComplete: () => void }) {
     },
   });
 
-  // Auto-install in progress — keep showing progress UI until flow completes
   if (
     autoInstall.status === "installing" ||
     autoInstall.status === "authenticating"
@@ -344,7 +352,6 @@ function PickerContent({ onComplete }: { onComplete: () => void }) {
     );
   }
 
-  // No GitHub connections and auto-install is idle (shouldn't happen, but safety net)
   if (githubConnections.length === 0 && autoInstall.status === "idle") {
     return (
       <AutoInstallGitHubUI
@@ -355,26 +362,31 @@ function PickerContent({ onComplete }: { onComplete: () => void }) {
     );
   }
 
-  // Multiple connections, none selected — show connection picker
   if (githubConnections.length > 1 && !effectiveConnection) {
     return (
-      <div className="flex flex-col gap-2">
-        <p className="text-sm text-muted-foreground">
-          Select a GitHub connection:
-        </p>
+      <div className="flex flex-col py-2">
+        <div className="px-4 py-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Select a connection
+          </p>
+        </div>
         {githubConnections.map((conn) => (
           <button
             key={conn.id}
             type="button"
             onClick={() => setSelectedConnection(conn)}
-            className="flex items-center gap-3 p-3 rounded-md border hover:bg-accent transition-colors text-left"
+            className="flex items-center gap-3 px-4 py-3 hover:bg-accent transition-colors text-left"
           >
-            {conn.icon && (
+            {conn.icon ? (
               <img
                 src={conn.icon}
                 alt={conn.title}
-                className="size-8 rounded-full"
+                className="size-7 rounded-full shrink-0"
               />
+            ) : (
+              <div className="size-7 rounded-full bg-muted flex items-center justify-center shrink-0">
+                <GitHubIcon className="size-3.5 text-muted-foreground" />
+              </div>
             )}
             <span className="text-sm font-medium">{conn.title}</span>
           </button>
@@ -383,7 +395,6 @@ function PickerContent({ onComplete }: { onComplete: () => void }) {
     );
   }
 
-  // Connection resolved — show org picker or repo browser
   if (!effectiveConnection) return null;
 
   if (!selectedInstallation) {
@@ -447,17 +458,19 @@ function InstallationPicker({
 
   if (installationsQuery.isLoading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loading01 size={20} className="animate-spin text-muted-foreground" />
+      <div className="flex items-center justify-center py-12">
+        <Loading01 size={18} className="animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   if (installationsQuery.isError) {
     return (
-      <p className="text-sm text-destructive text-center py-4">
-        Failed to load GitHub accounts
-      </p>
+      <div className="flex items-center justify-center py-12">
+        <p className="text-sm text-destructive">
+          Failed to load GitHub accounts
+        </p>
+      </div>
     );
   }
 
@@ -465,53 +478,71 @@ function InstallationPicker({
   if (!data) return null;
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col">
       {showBackButton && (
-        <button
-          type="button"
-          onClick={onBack}
-          className="text-xs text-muted-foreground hover:text-foreground self-start"
-        >
-          &larr; Change connection
-        </button>
+        <div className="flex items-center gap-1 px-4 pt-3 pb-1">
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft size={12} />
+            Change connection
+          </button>
+        </div>
       )}
-      <p className="text-sm text-muted-foreground">Select an account:</p>
+
+      <div className="px-4 py-2">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          Select an account
+        </p>
+      </div>
 
       {data.installations.map((inst) => (
         <button
           key={inst.installationId}
           type="button"
           onClick={() => onSelect(inst)}
-          className="flex items-center gap-3 p-3 rounded-md border hover:bg-accent transition-colors text-left"
+          className="flex items-center gap-3 px-4 py-3 hover:bg-accent transition-colors text-left group"
         >
           <img
             src={inst.avatarUrl}
             alt={inst.login}
-            className="size-8 rounded-full"
+            className="size-7 rounded-full shrink-0 ring-1 ring-border"
           />
-          <div className="flex flex-col">
-            <span className="text-sm font-medium">{inst.login}</span>
+          <div className="flex flex-col min-w-0 flex-1">
+            <span className="text-sm font-medium leading-none">
+              {inst.login}
+            </span>
             {inst.type === "User" && (
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-muted-foreground mt-1">
                 Personal account
               </span>
             )}
           </div>
+          <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            Select →
+          </span>
         </button>
       ))}
 
-      <a
-        href={
-          data.appSlug
-            ? `https://github.com/apps/${data.appSlug}/installations/new`
-            : "https://github.com/settings/installations"
-        }
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-xs text-primary hover:underline text-center pt-2"
-      >
-        Account not listed? Install the GitHub App
-      </a>
+      <div className="px-4 py-3 border-t border-border mt-1">
+        <a
+          href={
+            data.appSlug
+              ? `https://github.com/apps/${data.appSlug}/installations/new`
+              : "https://github.com/settings/installations"
+          }
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          Account not listed?{" "}
+          <span className="underline underline-offset-2">
+            Install the GitHub App
+          </span>
+        </a>
+      </div>
     </div>
   );
 }
@@ -536,35 +567,46 @@ function RepoBrowser({
   const isStale = query !== deferredQuery;
 
   return (
-    <div className="flex flex-col gap-3">
-      <button
-        type="button"
-        onClick={onBack}
-        className="text-xs text-muted-foreground hover:text-foreground self-start"
-      >
-        &larr; {installation.login}
-      </button>
+    <div className="flex flex-col">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          aria-label="Back to accounts"
+        >
+          <ArrowLeft size={16} />
+        </button>
+        <img
+          src={installation.avatarUrl}
+          alt={installation.login}
+          className="size-5 rounded-full ring-1 ring-border shrink-0"
+        />
+        <span className="text-sm font-medium text-foreground">
+          {installation.login}
+        </span>
+      </div>
 
-      <SearchInput
-        placeholder="Search repositories..."
-        value={query}
-        onChange={setQuery}
-        isSearching={isStale}
-      />
+      <div className="px-3 py-2 border-b border-border">
+        <SearchInput
+          placeholder="Search repositories..."
+          value={query}
+          onChange={setQuery}
+          isSearching={isStale}
+        />
+      </div>
 
       <div
-        style={{
-          opacity: isStale ? 0.5 : 1,
-          transition: isStale
-            ? "opacity 0.2s 0.2s linear"
-            : "opacity 0s 0s linear",
-        }}
+        className={cn(
+          "transition-opacity duration-150",
+          isStale ? "opacity-40" : "opacity-100",
+        )}
       >
         <Suspense
           fallback={
-            <div className="flex items-center justify-center py-8">
+            <div className="flex items-center justify-center py-12">
               <Loading01
-                size={20}
+                size={18}
                 className="animate-spin text-muted-foreground"
               />
             </div>
@@ -645,35 +687,46 @@ function RepoList({
 
   if (repos.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-4">
-        No repositories found
-      </p>
+      <div className="flex flex-col items-center justify-center py-12 gap-1">
+        <p className="text-sm text-muted-foreground">No repositories found</p>
+        {query && (
+          <p className="text-xs text-muted-foreground/60">
+            Try a different search term
+          </p>
+        )}
+      </div>
     );
   }
 
   return (
-    <div className="max-h-72 overflow-y-auto overflow-x-hidden flex flex-col gap-1">
+    <div className="max-h-72 overflow-y-auto overflow-x-hidden flex flex-col [scrollbar-gutter:stable]">
       {repos.map((repo) => (
         <button
           key={repo.fullName}
           type="button"
           onClick={() => onSelectRepo(repo)}
           disabled={isSaving}
-          className="flex items-center gap-2 p-2 rounded-md hover:bg-accent transition-colors text-left"
+          className="flex items-start gap-3 px-4 py-3 hover:bg-accent transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <div className="flex flex-col min-w-0 flex-1">
-            <span className="text-sm font-medium truncate">{repo.name}</span>
+          <GitHubIcon className="size-4 text-muted-foreground mt-0.5 shrink-0" />
+          <div className="flex flex-col min-w-0 flex-1 gap-0.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-sm font-medium truncate">{repo.name}</span>
+              {repo.private && (
+                <span className="text-[10px] font-medium text-muted-foreground border border-border rounded px-1.5 py-0.5 shrink-0 leading-none">
+                  private
+                </span>
+              )}
+            </div>
             {repo.description && (
-              <p className="text-xs text-muted-foreground truncate m-0">
+              <p className="text-xs text-muted-foreground truncate">
                 {repo.description}
               </p>
             )}
           </div>
-          {repo.private && (
-            <span className="text-xs text-muted-foreground shrink-0">
-              private
-            </span>
-          )}
+          <span className="text-xs text-muted-foreground/60 shrink-0 mt-0.5 tabular-nums">
+            {relativeTime(repo.updatedAt)}
+          </span>
         </button>
       ))}
     </div>
@@ -691,12 +744,20 @@ function AutoInstallGitHubUI({
 }) {
   if (status === "error") {
     return (
-      <div className="flex flex-col items-center gap-3 py-6">
-        <p className="text-sm text-destructive text-center">{error}</p>
+      <div className="flex flex-col items-center gap-4 px-6 py-10">
+        <div className="size-10 rounded-full bg-destructive/10 flex items-center justify-center">
+          <GitHubIcon className="size-5 text-destructive" />
+        </div>
+        <div className="flex flex-col items-center gap-1 text-center">
+          <p className="text-sm font-medium">Connection failed</p>
+          <p className="text-xs text-muted-foreground max-w-[260px] leading-relaxed">
+            {error ?? "Something went wrong while connecting to GitHub."}
+          </p>
+        </div>
         <button
           type="button"
           onClick={retry}
-          className="text-sm font-medium text-primary hover:underline"
+          className="text-xs font-medium text-foreground border border-border rounded-md px-3 py-1.5 hover:bg-accent transition-colors"
         >
           Try again
         </button>
@@ -704,14 +765,49 @@ function AutoInstallGitHubUI({
     );
   }
 
+  const isAuthenticating = status === "authenticating";
+
   return (
-    <div className="flex flex-col items-center gap-2 py-8">
-      <Loading01 size={20} className="animate-spin text-muted-foreground" />
-      <p className="text-sm text-muted-foreground">
-        {status === "authenticating"
-          ? "Authenticating with GitHub..."
-          : "Setting up GitHub..."}
-      </p>
+    <div className="flex flex-col items-center gap-4 px-6 py-10">
+      <div className="relative size-10">
+        <div className="size-10 rounded-full bg-muted flex items-center justify-center">
+          <GitHubIcon className="size-5 text-foreground" />
+        </div>
+        <div className="absolute -bottom-0.5 -right-0.5 size-4 rounded-full bg-background flex items-center justify-center">
+          <Loading01 size={12} className="animate-spin text-muted-foreground" />
+        </div>
+      </div>
+      <div className="flex flex-col items-center gap-1 text-center">
+        <p className="text-sm font-medium">
+          {isAuthenticating
+            ? "Authenticating with GitHub"
+            : "Setting up GitHub"}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {isAuthenticating
+            ? "Complete the OAuth flow in your browser"
+            : "Installing the GitHub connection..."}
+        </p>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span
+          className={cn(
+            "size-1.5 rounded-full",
+            !isAuthenticating
+              ? "bg-foreground animate-pulse"
+              : "bg-muted-foreground/30",
+          )}
+        />
+        <span
+          className={cn(
+            "size-1.5 rounded-full",
+            isAuthenticating
+              ? "bg-foreground animate-pulse"
+              : "bg-muted-foreground/30",
+          )}
+        />
+        <span className="size-1.5 rounded-full bg-muted-foreground/30" />
+      </div>
     </div>
   );
 }
