@@ -6,7 +6,6 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { useVirtualMCP } from "@decocms/mesh-sdk";
-import { Github } from "lucide-react";
 import { McpAvatar } from "./mcp-avatar";
 import { getStatusConfig } from "@/web/lib/task-status";
 import { formatTimeAgo } from "@/web/lib/format-time";
@@ -51,7 +50,6 @@ export function TaskRow({
           <div className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
             {githubRepo && (
               <>
-                <Github size={12} className="shrink-0" />
                 <span className="truncate">
                   {githubRepo.owner}/{githubRepo.name}
                 </span>
