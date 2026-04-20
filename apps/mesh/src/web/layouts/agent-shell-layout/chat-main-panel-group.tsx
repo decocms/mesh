@@ -98,7 +98,7 @@ export function ChatMainPanelGroup({
       style={{ overflow: "visible" }}
     >
       <PersistentChatPanel defaultSize={sizes.chat}>
-        <div className="h-full p-0.5">
+        <div className="h-full p-0.5 pt-0.25">
           <div className="h-full bg-background rounded-[0.75rem] overflow-hidden card-shadow">
             {chatContent}
           </div>
@@ -116,7 +116,7 @@ export function ChatMainPanelGroup({
         collapsedSize={0}
         minSize={20}
       >
-        <div className="h-full p-0.5">
+        <div className="h-full p-0.5 pt-0.25">
           <div
             className={cn(
               "flex flex-col h-full min-h-0 bg-background overflow-hidden",

@@ -22,7 +22,7 @@ function TasksPanelColumnInner() {
       className="shrink-0 h-full bg-sidebar pb-1"
       style={{ width: `${TASKS_COLUMN_WIDTH_PX}px` }}
     >
-      <div className="h-full p-0.5">
+      <div className="h-full p-0.5 pt-0.25">
         <div className="h-full bg-background rounded-[0.75rem] overflow-hidden card-shadow">
           <TasksPanel />
         </div>
