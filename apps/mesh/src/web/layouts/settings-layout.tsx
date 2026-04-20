@@ -86,6 +86,12 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
           to: "/$org/settings/agents",
         },
         {
+          key: "automations",
+          label: "Automations",
+          icon: <Zap size={14} />,
+          to: "/$org/settings/automations",
+        },
+        {
           key: "store",
           label: "Store",
           icon: <PackageCheck size={14} />,
