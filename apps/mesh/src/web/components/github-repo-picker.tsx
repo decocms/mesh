@@ -249,7 +249,7 @@ function PickerContent({ onComplete }: { onComplete: () => void }) {
         name: "COLLECTION_VIRTUAL_MCP_CREATE",
         arguments: {
           data: {
-            title: repo.name,
+            title: repo.fullName,
             description: repo.description || "Imported from GitHub",
             pinned: true,
             icon: null,
