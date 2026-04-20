@@ -72,7 +72,8 @@ export function useTasks(params: UseTasksParams) {
       if (params.virtualMcpId) where.virtual_mcp_id = params.virtualMcpId;
       if (params.owner === "me") where.created_by = "me";
       if (params.owner === "automation") where.has_trigger = true;
-      if (params.hasTrigger !== undefined) where.has_trigger = params.hasTrigger;
+      if (params.hasTrigger !== undefined)
+        where.has_trigger = params.hasTrigger;
 
       const input = {
         limit: TASK_CONSTANTS.TASKS_PAGE_SIZE,
