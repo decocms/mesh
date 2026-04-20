@@ -24,6 +24,7 @@ export const KEYS = {
       status: "open" | "archived";
       virtualMcpId?: string;
       userId?: string | null;
+      hasTrigger?: boolean | null;
     },
   ) =>
     [
@@ -33,6 +34,7 @@ export const KEYS = {
       filters.status,
       filters.virtualMcpId ?? null,
       filters.userId ?? null,
+      filters.hasTrigger ?? null,
     ] as const,
   // Prefix for broad invalidation of all task queries for a locator
   tasksPrefix: (locator: string) => ["tasks", locator] as const,

@@ -40,6 +40,7 @@ export interface UseTasksParams {
   status: TaskStatusFilter;
   userId?: string;
   virtualMcpId?: string;
+  hasTrigger?: boolean;
 }
 
 // ============================================================================
@@ -59,6 +60,7 @@ export function useTasks(params: UseTasksParams) {
       status: params.status,
       virtualMcpId: params.virtualMcpId,
       userId: params.owner === "me" ? (params.userId ?? null) : null,
+      hasTrigger: params.hasTrigger ?? null,
     }),
     queryFn: async () => {
       if (!client) {
@@ -70,6 +72,7 @@ export function useTasks(params: UseTasksParams) {
       if (params.virtualMcpId) where.virtual_mcp_id = params.virtualMcpId;
       if (params.owner === "me") where.created_by = "me";
       if (params.owner === "automation") where.has_trigger = true;
+      if (params.hasTrigger !== undefined) where.has_trigger = params.hasTrigger;
 
       const input = {
         limit: TASK_CONSTANTS.TASKS_PAGE_SIZE,
