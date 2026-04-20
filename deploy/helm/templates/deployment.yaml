@@ -166,7 +166,7 @@ spec:
         {{- else }}
         - name: data
           emptyDir:
-            sizeLimit: {{ .Values.persistence.emptyDirSizeLimit | default "5Gi" }}
+            sizeLimit: {{ .Values.persistence.emptyDirSizeLimit | default "10Gi" }}
         {{- end }}
         {{- if .Values.s3Sync.enabled }}
         - name: s3-sync-script
