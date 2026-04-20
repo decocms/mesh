@@ -53,7 +53,7 @@
     },
     "apps/mesh": {
       "name": "decocms",
-      "version": "2.261.0",
+      "version": "2.266.0",
       "bin": {
         "deco": "./dist/server/cli.js",
       },
@@ -87,6 +87,7 @@
         "nats": "^2.29.3",
         "react": "^19.2.0",
         "react-dom": "^19.2.0",
+        "unicornstudio-react": "^2.1.4-1",
       },
       "devDependencies": {
         "@ai-sdk/provider": "^3.0.8",
@@ -269,7 +270,7 @@
     },
     "packages/runtime": {
       "name": "@decocms/runtime",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "dependencies": {
         "@ai-sdk/provider": "^3.0.0",
         "@cloudflare/workers-types": "^4.20250617.0",
@@ -3127,6 +3128,8 @@
     "unenv": ["unenv@2.0.0-rc.24", "", { "dependencies": { "pathe": "^2.0.3" } }, "sha512-i7qRCmY42zmCwnYlh9H2SvLEypEFGye5iRmEMKjcGi7zk9UquigRjFtTLz0TYqr0ZGLZhaMHl/foy1bZR+Cwlw=="],
 
     "unicorn-magic": ["unicorn-magic@0.3.0", "", {}, "sha512-+QBBXBCvifc56fsbuxZQ6Sic3wqqc3WWaqxs58gvJrcOuN83HGTCwz3oS5phzU9LthRNE9VrJCFCLUgHeeFnfA=="],
+
+    "unicornstudio-react": ["unicornstudio-react@2.1.4-1", "", { "peerDependencies": { "react": ">=18.0.0", "react-dom": ">=18.0.0" } }, "sha512-k1SLWsUlac8IZAczEP6heGxLTlSgogLvUL6vqmYtJtePJXzV/EUwNXqWkxwcz+WGILFaFa9cVKUDZh2vSkOJow=="],
 
     "unified": ["unified@11.0.5", "", { "dependencies": { "@types/unist": "^3.0.0", "bail": "^2.0.0", "devlop": "^1.0.0", "extend": "^3.0.0", "is-plain-obj": "^4.0.0", "trough": "^2.0.0", "vfile": "^6.0.0" } }, "sha512-xKvGhPWw3k84Qjh8bI3ZeJjqnyadK+GEFtazSfZv/rKeTkTjOJho6mFqh2SM96iIcZokxiOpg78GazTSg8+KHA=="],
 

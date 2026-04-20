@@ -67,7 +67,8 @@
     "kysely": "^0.28.12",
     "nats": "^2.29.3",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "unicornstudio-react": "^2.1.4-1"
   },
   "devDependencies": {
     "@ai-sdk/provider": "^3.0.8",
