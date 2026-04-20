@@ -1,12 +1,14 @@
 /**
  * Toolbar — vertical shell containing a fixed header row plus a body slot.
  *
- * The header hosts back/forward buttons plus two portal targets:
+ * The header hosts back/forward buttons plus three portal targets:
+ *   - Toolbar.LeftSlot      — contextual label (e.g. virtual MCP icon + title)
  *   - Toolbar.TabsSlot      — main-panel tab bar (scrollable)
  *   - Toolbar.TogglesSlot   — tasks/chat toggle buttons
  *
  * Consumers live inside the inner Suspense and render into the slots via
- * <Toolbar.Tabs> / <Toolbar.Toggles> (createPortal). Never suspends itself.
+ * <Toolbar.Left> / <Toolbar.Tabs> / <Toolbar.Toggles> (createPortal).
+ * Never suspends itself.
  */
 
 import { createContext, use, useState, type ReactNode } from "react";
@@ -18,6 +20,8 @@ type ToolbarCtx = {
   setTogglesEl: (el: HTMLDivElement | null) => void;
   tabsEl: HTMLDivElement | null;
   setTabsEl: (el: HTMLDivElement | null) => void;
+  leftEl: HTMLDivElement | null;
+  setLeftEl: (el: HTMLDivElement | null) => void;
 };
 
 const ToolbarContext = createContext<ToolbarCtx | null>(null);
@@ -31,8 +35,18 @@ function useToolbarCtx(): ToolbarCtx {
 export function Toolbar({ children }: { children?: ReactNode }) {
   const [togglesEl, setTogglesEl] = useState<HTMLDivElement | null>(null);
   const [tabsEl, setTabsEl] = useState<HTMLDivElement | null>(null);
+  const [leftEl, setLeftEl] = useState<HTMLDivElement | null>(null);
   return (
-    <ToolbarContext value={{ togglesEl, setTogglesEl, tabsEl, setTabsEl }}>
+    <ToolbarContext
+      value={{
+        togglesEl,
+        setTogglesEl,
+        tabsEl,
+        setTabsEl,
+        leftEl,
+        setLeftEl,
+      }}
+    >
       <div className="flex flex-col h-full min-h-0">{children}</div>
     </ToolbarContext>
   );
@@ -69,6 +83,19 @@ function ToolbarNav() {
   );
 }
 
+function ToolbarLeftSlot() {
+  const { setLeftEl } = useToolbarCtx();
+  return (
+    <div ref={setLeftEl} className="flex items-center gap-2 min-w-0 shrink" />
+  );
+}
+
+function ToolbarLeft({ children }: { children: ReactNode }) {
+  const { leftEl } = useToolbarCtx();
+  if (!leftEl) return null;
+  return createPortal(children, leftEl);
+}
+
 function ToolbarTabsSlot() {
   const { setTabsEl } = useToolbarCtx();
   return (
@@ -103,6 +130,8 @@ function ToolbarToggles({ children }: { children: ReactNode }) {
 
 Toolbar.Header = ToolbarHeader;
 Toolbar.Nav = ToolbarNav;
+Toolbar.LeftSlot = ToolbarLeftSlot;
+Toolbar.Left = ToolbarLeft;
 Toolbar.TabsSlot = ToolbarTabsSlot;
 Toolbar.Tabs = ToolbarTabs;
 Toolbar.TogglesSlot = ToolbarTogglesSlot;
