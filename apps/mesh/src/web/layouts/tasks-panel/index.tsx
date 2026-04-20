@@ -1,8 +1,7 @@
 /**
  * TasksPanel — left-panel entry point. Org-wide (not scoped to a virtualMCP).
- * Renders two sections of tasks:
- *   - "Tasks": tasks I created that do not run an automation.
- *   - "Automations": tasks that run an automation (regardless of author).
+ * Renders all open tasks in a single list, sorted by updated_at.
+ * Automation-triggered tasks are distinguished by a badge on their avatar.
  */
 
 import { Suspense } from "react";
@@ -49,12 +48,10 @@ function TasksPanelContent() {
 
   const activeTaskId = params.taskId ?? null;
 
-  const sortedMyTasks = [...myTasks].sort((a, b) =>
-    (b.updated_at ?? "").localeCompare(a.updated_at ?? ""),
-  );
-  const sortedAutomationTasks = [...automationTasks].sort((a, b) =>
-    (b.updated_at ?? "").localeCompare(a.updated_at ?? ""),
-  );
+  const allTasks = [
+    ...myTasks,
+    ...automationTasks.map((t) => ({ ...t, fromAutomation: true as const })),
+  ].sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""));
 
   const handleArchive = async (task: Task) => {
     try {
@@ -68,7 +65,7 @@ function TasksPanelContent() {
     }
   };
 
-  if (myTasks.length === 0 && automationTasks.length === 0) {
+  if (allTasks.length === 0) {
     return (
       <div className="h-full flex items-center justify-center p-4">
         <EmptyState
@@ -84,21 +81,12 @@ function TasksPanelContent() {
     <div className="flex flex-col h-full min-h-0 overflow-y-auto p-2 gap-3">
       <TasksSection
         title="Tasks"
-        tasks={sortedMyTasks}
+        tasks={allTasks}
         activeTaskId={activeTaskId}
         onSelect={(t) => setTaskId(t.id, t.virtual_mcp_id)}
         onArchive={handleArchive}
         onNew={createNewTask}
         showNewButton
-      />
-      <TasksSection
-        title="Automations"
-        tasks={sortedAutomationTasks}
-        activeTaskId={activeTaskId}
-        onSelect={(t) => setTaskId(t.id, t.virtual_mcp_id)}
-        onArchive={handleArchive}
-        showAutomationBadge
-        emptyLabel="No automation runs yet"
       />
     </div>
   );

@@ -25,7 +25,7 @@ export function McpAvatar({
       {showAutomationBadge && (
         <span
           aria-label="Automation-triggered"
-          className="absolute -bottom-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full bg-background ring-1 ring-background text-foreground"
+          className="absolute -bottom-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full bg-background border border-border text-foreground"
         >
           <Zap size={8} className="text-foreground" />
         </span>

@@ -50,7 +50,7 @@ export function TasksSection({
             isActive={activeTaskId === t.id}
             onClick={() => onSelect(t)}
             onArchive={() => onArchive(t)}
-            showAutomationBadge={showAutomationBadge}
+            showAutomationBadge={showAutomationBadge || t.fromAutomation}
           />
         ))
       )}
