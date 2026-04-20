@@ -17,6 +17,7 @@ import { LayoutTab } from "./layout-tab";
 import { PreviewTab } from "./preview-tab";
 import { EnvTab } from "./env-tab";
 import { AutomationTab } from "./automation-tab";
+import { AutomationsListTab } from "./automations-list-tab";
 
 const AppViewContent = lazy(() =>
   import("@/web/routes/project-app-view").then((m) => ({
@@ -39,6 +40,9 @@ export function MainPanelContent({
   }
   if (activeTab === "connections") {
     return <ConnectionsTab virtualMcpId={virtualMcpId} />;
+  }
+  if (activeTab === "automations") {
+    return <AutomationsListTab virtualMcpId={virtualMcpId} />;
   }
   if (activeTab === "layout") {
     return <LayoutTab virtualMcpId={virtualMcpId} />;
