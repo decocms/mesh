@@ -3,6 +3,7 @@ import {
   parseAutomationTabId,
   resolveDefaultTabId,
   resolveActiveTabAndOpen,
+  resolveTabClickTarget,
 } from "./tab-id";
 
 describe("parseAutomationTabId", () => {
@@ -133,5 +134,44 @@ describe("resolveActiveTabAndOpen", () => {
         metadata: meta,
       }),
     ).toEqual({ mainOpen: true, activeTab: "automation:abc" });
+  });
+});
+
+describe("resolveTabClickTarget", () => {
+  test("clicking active tab while panel open → close ('0')", () => {
+    expect(
+      resolveTabClickTarget({
+        clickedId: "layout",
+        activeTab: "layout",
+        mainOpen: true,
+      }),
+    ).toBe("0");
+  });
+
+  test("clicking non-active tab while panel open → clicked id", () => {
+    expect(
+      resolveTabClickTarget({
+        clickedId: "connections",
+        activeTab: "layout",
+        mainOpen: true,
+      }),
+    ).toBe("connections");
+  });
+
+  test("clicking any tab while panel closed → clicked id (open it)", () => {
+    expect(
+      resolveTabClickTarget({
+        clickedId: "layout",
+        activeTab: "layout",
+        mainOpen: false,
+      }),
+    ).toBe("layout");
+    expect(
+      resolveTabClickTarget({
+        clickedId: "instructions",
+        activeTab: "layout",
+        mainOpen: false,
+      }),
+    ).toBe("instructions");
   });
 });

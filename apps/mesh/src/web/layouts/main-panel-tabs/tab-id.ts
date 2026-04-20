@@ -72,3 +72,18 @@ export function resolveActiveTabAndOpen(ctx: {
   }
   return { mainOpen: true, activeTab: ctx.mainParam };
 }
+
+/**
+ * Tab-as-toggle semantics for the header tab bar.
+ *
+ * Clicking the currently-active tab while the panel is open closes it
+ * (navigates to `?main=0`). Any other click opens or switches.
+ */
+export function resolveTabClickTarget(ctx: {
+  clickedId: string;
+  activeTab: string;
+  mainOpen: boolean;
+}): string {
+  if (ctx.mainOpen && ctx.clickedId === ctx.activeTab) return "0";
+  return ctx.clickedId;
+}
