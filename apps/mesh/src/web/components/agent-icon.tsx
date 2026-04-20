@@ -25,7 +25,7 @@ export interface AgentIconColor {
   dot: string; // bg-{color}-400 (for picker dots)
 }
 
-export const AGENT_ICON_COLORS: AgentIconColor[] = [
+const AGENT_ICON_COLORS: AgentIconColor[] = [
   {
     name: "red",
     bg: "bg-red-100 dark:bg-red-950/60",
@@ -126,7 +126,7 @@ export const AGENT_ICON_COLORS: AgentIconColor[] = [
 
 const COLOR_MAP = new Map(AGENT_ICON_COLORS.map((c) => [c.name, c]));
 
-export function getIconColor(name: string): AgentIconColor {
+function getIconColor(name: string): AgentIconColor {
   return COLOR_MAP.get(name) ?? AGENT_ICON_COLORS[0]!;
 }
 
@@ -327,18 +327,6 @@ export function parseIconString(icon: string | null | undefined): ParsedIcon {
   }
 
   return { type: "url", url: icon };
-}
-
-export function buildIconString(name: string, color: string): string {
-  return `icon://${name}?color=${color}`;
-}
-
-/** Build an image URL with color encoded in hash fragment */
-export function buildImageIconString(url: string, color: string): string {
-  // Strip any existing agentcolor hash first
-  const hashIdx = url.lastIndexOf("#agentcolor=");
-  const cleanUrl = hashIdx >= 0 ? url.slice(0, hashIdx) : url;
-  return `${cleanUrl}#agentcolor=${color}`;
 }
 
 // ---------------------------------------------------------------------------

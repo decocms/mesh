@@ -74,5 +74,3 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
 export function isModKey(e: KeyboardEvent | React.KeyboardEvent): boolean {
   return isMac ? e.metaKey : e.ctrlKey;
 }
-
-export { isMac };

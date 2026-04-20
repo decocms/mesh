@@ -282,30 +282,6 @@ export function useAutomationUpdate() {
   });
 }
 
-export function useAutomationDelete() {
-  const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const result = (await client.callTool({
-        name: "AUTOMATION_DELETE",
-        arguments: { id },
-      })) as { structuredContent?: unknown };
-      return (result.structuredContent ?? result) as { success: boolean };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: KEYS.automationsAll(org.id),
-      });
-    },
-  });
-}
-
 export function useAutomationTriggerAdd() {
   const { org } = useProjectContext();
   const client = useMCPClient({

@@ -37,7 +37,7 @@ export type ThreadMessageEntity = z.infer<typeof ThreadMessageEntitySchema>;
 // Thread Schema
 // ============================================================================
 
-export const ThreadExpandedToolSchema = z.object({
+const ThreadExpandedToolSchema = z.object({
   toolName: z.string().describe("Fully qualified tool name"),
   appId: z.string().describe("App ID that owns the tool"),
   args: z
@@ -46,7 +46,7 @@ export const ThreadExpandedToolSchema = z.object({
   expandedAt: z.string().datetime().describe("When the tool was expanded"),
 });
 
-export const ThreadMetadataSchema = z
+const ThreadMetadataSchema = z
   .object({
     expanded_tools: z.array(ThreadExpandedToolSchema).optional(),
   })

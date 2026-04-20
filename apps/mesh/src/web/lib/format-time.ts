@@ -12,17 +12,6 @@ export function formatTimeAgo(date: Date): string {
   return `${Math.floor(seconds / 31536000)}y ago`;
 }
 
-export function formatTimeUntil(date: Date): string {
-  const seconds = differenceInSeconds(date, new Date());
-
-  if (seconds < 0) return "now";
-  if (seconds < 60) return "<1m";
-  if (seconds < 3600) return `in ${Math.floor(seconds / 60)}m`;
-  if (seconds < 86400) return `in ${Math.floor(seconds / 3600)}h`;
-  if (seconds < 604800) return `in ${Math.floor(seconds / 86400)}d`;
-  return `in ${Math.floor(seconds / 604800)}w`;
-}
-
 /**
  * Format a duration in seconds into a human-readable string.
  * - Under 60s: "12.3s"
