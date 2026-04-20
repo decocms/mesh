@@ -2,23 +2,31 @@
  * MainPanelTabsBar — horizontal tab strip rendered in the agent-shell
  * header via `Toolbar.Tabs` (portal).
  *
- * Click semantics are tabs-as-toggles: clicking the active tab closes
- * the main panel; clicking any other tab opens or switches. The logic
- * lives in `resolveTabClickTarget` via `useMainPanelTabs`.
+ * Rendering pipeline:
+ *   1. Normalize tabs via useMainPanelTabs (system / agent / expanded).
+ *   2. Compute the per-tab active flag; the Automations system tab uses
+ *      isAutomationsPillActive so it lights up on list + detail URLs.
+ *   3. Promote the active tab into the visible slice when needed via
+ *      selectTabSlots (cap = 6).
+ *   4. Render each visible tab as <HeaderTabButton>. If there is
+ *      overflow, append a <TabOverflowMenu>.
  *
- * Exception: the Automations pill represents two URL states — the list
- * (`?main=automations`) and the detail (`?main=automation:<id>`). It uses
- * `resolveAutomationsPillClickTarget` so that clicking on the detail
- * navigates back up to the list instead of closing.
+ * Click routing: the Automations pill uses resolveAutomationsPillClickTarget
+ * (list/detail collapse); every other tab uses the hook's setActiveTab,
+ * which already routes through resolveTabClickTarget (click active → close).
  */
 
-import { cn } from "@deco/ui/lib/utils.js";
 import { useNavigate } from "@tanstack/react-router";
 import {
   isAutomationsPillActive,
   resolveAutomationsPillClickTarget,
 } from "./tab-id";
-import { useMainPanelTabs } from "./use-main-panel-tabs";
+import { useMainPanelTabs, type Tab } from "./use-main-panel-tabs";
+import { selectTabSlots } from "./select-tab-slots";
+import { HeaderTabButton } from "./header-tab-button";
+import { TabOverflowMenu } from "./tab-overflow-menu";
+
+const MAX_VISIBLE_TABS = 6;
 
 export function MainPanelTabsBar({
   virtualMcpId,
@@ -28,90 +36,57 @@ export function MainPanelTabsBar({
   taskId: string;
 }) {
   const navigate = useNavigate();
-  const {
-    activeTab,
-    mainOpen,
-    setActiveTab,
-    systemTabs,
-    layoutTabs,
-    expandedTools,
-  } = useMainPanelTabs({ virtualMcpId, taskId });
+  const { tabs, activeTab, mainOpen, setActiveTab } = useMainPanelTabs({
+    virtualMcpId,
+    taskId,
+  });
 
-  const isActive = (id: string) => mainOpen && activeTab === id;
+  const automationsActive = isAutomationsPillActive({ activeTab, mainOpen });
 
-  const onAutomationsClick = () => {
-    const target = resolveAutomationsPillClickTarget({ activeTab, mainOpen });
-    navigate({
-      to: ".",
-      search: (prev: Record<string, unknown>) => ({ ...prev, main: target }),
-      replace: true,
-    });
+  const isTabActive = (tab: Tab) => {
+    if (tab.id === "automations") return automationsActive;
+    return mainOpen && tab.id === activeTab;
+  };
+
+  const activeFromTabs = tabs.find((t) => isTabActive(t));
+  const effectiveActiveId = activeFromTabs?.id ?? null;
+
+  const { visible, overflow } = selectTabSlots(
+    tabs,
+    effectiveActiveId,
+    MAX_VISIBLE_TABS,
+  );
+
+  const handleSelect = (id: string) => {
+    if (id === "automations") {
+      const target = resolveAutomationsPillClickTarget({
+        activeTab,
+        mainOpen,
+      });
+      navigate({
+        to: ".",
+        search: (prev: Record<string, unknown>) => ({ ...prev, main: target }),
+        replace: true,
+      });
+      return;
+    }
+    setActiveTab(id);
   };
 
   return (
-    <div className="flex items-center min-w-0 ml-auto">
-      {systemTabs.map((t) => {
-        if (t.id === "automations") {
-          return (
-            <HeaderTabButton
-              key={t.id}
-              title={t.title}
-              active={isAutomationsPillActive({ activeTab, mainOpen })}
-              onClick={onAutomationsClick}
-            />
-          );
-        }
-        return (
-          <HeaderTabButton
-            key={t.id}
-            title={t.title}
-            active={isActive(t.id)}
-            onClick={() => setActiveTab(t.id)}
-          />
-        );
-      })}
-      {layoutTabs.map((t) => (
+    <div className="flex items-center min-w-0 ml-auto gap-0.5">
+      {visible.map((tab) => (
         <HeaderTabButton
-          key={t.id}
-          title={t.title}
-          active={isActive(t.id)}
-          onClick={() => setActiveTab(t.id)}
+          key={tab.id}
+          title={tab.title}
+          icon={tab.icon}
+          active={isTabActive(tab)}
+          onClick={() => handleSelect(tab.id)}
         />
       ))}
-      {expandedTools.map((t) => (
-        <HeaderTabButton
-          key={t.toolName}
-          title={t.toolName}
-          active={isActive(t.toolName)}
-          onClick={() => setActiveTab(t.toolName)}
-        />
-      ))}
-    </div>
-  );
-}
-
-function HeaderTabButton({
-  title,
-  active,
-  onClick,
-}: {
-  title: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "shrink-0 px-3 h-10 text-xs font-medium capitalize transition-colors",
-        active
-          ? "text-foreground border-b-2 border-primary"
-          : "text-muted-foreground hover:text-foreground",
+      {overflow.length > 0 && (
+        <TabOverflowMenu overflow={overflow} onSelect={handleSelect} />
       )}
-    >
-      {title}
-    </button>
+    </div>
   );
 }
