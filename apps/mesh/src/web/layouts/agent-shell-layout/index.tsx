@@ -375,6 +375,7 @@ export default function AgentShellLayout() {
                   <Toolbar>
                     <Toolbar.Header>
                       <Toolbar.Nav />
+                      <Toolbar.LeftSlot />
                       <Toolbar.TabsSlot />
                       <Separator orientation="vertical" className="mx-2 h-5" />
                       <Toolbar.TogglesSlot />
