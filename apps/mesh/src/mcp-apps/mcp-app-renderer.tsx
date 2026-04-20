@@ -39,7 +39,7 @@ function useResourceHtml(data: ReadResourceData | undefined): string | null {
 
 interface MCPAppRendererProps {
   resourceURI: string;
-  workspaceId?: string;
+  orgId?: string;
   toolInfo?: McpUiHostContext["toolInfo"];
   toolInput?: Record<string, unknown>;
   toolResult?: CallToolResult;
@@ -61,7 +61,7 @@ interface MCPAppRendererProps {
 
 export function MCPAppRenderer({
   resourceURI: uri,
-  workspaceId,
+  orgId,
   toolInfo,
   toolInput,
   toolResult,
@@ -82,7 +82,7 @@ export function MCPAppRenderer({
     displayMode,
     minHeight,
     maxHeight,
-    workspaceId,
+    orgId,
     toolInfo,
     toolInput,
     toolResult,

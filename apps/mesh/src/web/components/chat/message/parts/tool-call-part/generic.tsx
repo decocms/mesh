@@ -467,7 +467,7 @@ function MCPAppRenderer({
     <div className="mt-2 border border-border/75 rounded-lg overflow-hidden p-3">
       <MCPAppIframeRenderer
         resourceURI={uiResourceUri}
-        workspaceId={orgId}
+        orgId={orgId}
         toolInfo={{ tool: toolDef }}
         toolInput={normalizeToolInput(toolInput)}
         toolResult={normalizeToolResult(toolResult)}
