@@ -17,11 +17,13 @@ export function TaskRow({
   isActive,
   onClick,
   onArchive,
+  showAutomationBadge,
 }: {
   task: Task;
   isActive: boolean;
   onClick: () => void;
   onArchive: () => void;
+  showAutomationBadge?: boolean;
 }) {
   const config = getStatusConfig(task.status);
   const StatusIcon = config.icon;
@@ -41,7 +43,11 @@ export function TaskRow({
         isActive ? "bg-accent" : "hover:bg-accent/60",
       )}
     >
-      <McpAvatar virtualMcpId={task.virtual_mcp_id} size="sm" />
+      <McpAvatar
+        virtualMcpId={task.virtual_mcp_id}
+        size="sm"
+        showAutomationBadge={showAutomationBadge}
+      />
       <div className="flex-1 min-w-0">
         <div className="text-sm text-foreground truncate">
           {task.title || "Untitled task"}

@@ -1,10 +1,12 @@
 /**
  * TasksPanel — left-panel entry point. Org-wide (not scoped to a virtualMCP).
- * Lists all org tasks and automations with their originating MCP avatar.
+ * Renders two sections of tasks:
+ *   - "Tasks": tasks I created that do not run an automation.
+ *   - "Automations": tasks that run an automation (regardless of author).
  */
 
 import { Suspense } from "react";
-import { useParams, useSearch } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import {
   useMCPClient,
   useProjectContext,
@@ -18,20 +20,25 @@ import { EmptyState } from "@/web/components/empty-state";
 import { useTasks } from "@/web/components/chat/task/use-task-manager";
 import { callUpdateTaskTool } from "@/web/components/chat/task/helpers";
 import type { Task } from "@/web/components/chat/task/types";
-import { useAutomationsList } from "@/web/hooks/use-automations";
 import { useTasksAutoRefresh } from "@/web/hooks/use-tasks-auto-refresh";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { KEYS } from "@/web/lib/query-keys";
 import { toast } from "sonner";
 import { TasksSection } from "./tasks-section";
-import { AutomationsSection } from "./automations-section";
 
 function TasksPanelContent() {
   useTasksAutoRefresh();
-  const { tasks } = useTasks({ owner: "all", status: "open" });
-  const { data: automations = [] } = useAutomationsList(undefined);
-  const { setTaskId, openTab, createNewTask } = usePanelActions();
-  const search = useSearch({ strict: false }) as { main?: string };
+  const { tasks: myTasks } = useTasks({
+    owner: "me",
+    status: "open",
+    hasTrigger: false,
+  });
+  const { tasks: automationTasks } = useTasks({
+    owner: "all",
+    status: "open",
+    hasTrigger: true,
+  });
+  const { setTaskId, createNewTask } = usePanelActions();
   const params = useParams({ strict: false }) as { taskId?: string };
   const { locator, org } = useProjectContext();
   const queryClient = useQueryClient();
@@ -41,15 +48,12 @@ function TasksPanelContent() {
   });
 
   const activeTaskId = params.taskId ?? null;
-  const activeAutomationId = search.main?.startsWith("automation:")
-    ? search.main.slice("automation:".length)
-    : null;
 
-  const sortedTasks = [...tasks].sort((a, b) =>
+  const sortedMyTasks = [...myTasks].sort((a, b) =>
     (b.updated_at ?? "").localeCompare(a.updated_at ?? ""),
   );
-  const sortedAutomations = [...automations].sort((a, b) =>
-    (b.created_at ?? "").localeCompare(a.created_at ?? ""),
+  const sortedAutomationTasks = [...automationTasks].sort((a, b) =>
+    (b.updated_at ?? "").localeCompare(a.updated_at ?? ""),
   );
 
   const handleArchive = async (task: Task) => {
@@ -64,7 +68,7 @@ function TasksPanelContent() {
     }
   };
 
-  if (tasks.length === 0 && automations.length === 0) {
+  if (myTasks.length === 0 && automationTasks.length === 0) {
     return (
       <div className="h-full flex items-center justify-center p-4">
         <EmptyState
@@ -78,18 +82,23 @@ function TasksPanelContent() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-y-auto p-2 gap-3">
-      <AutomationsSection
-        automations={sortedAutomations}
-        activeAutomationId={activeAutomationId}
-        onSelect={(a) => openTab("automation:" + a.id)}
-        onNew={() => openTab("automation:new")}
-      />
       <TasksSection
-        tasks={sortedTasks}
+        title="Tasks"
+        tasks={sortedMyTasks}
         activeTaskId={activeTaskId}
         onSelect={(t) => setTaskId(t.id, t.virtual_mcp_id)}
         onArchive={handleArchive}
         onNew={createNewTask}
+        showNewButton
+      />
+      <TasksSection
+        title="Automations"
+        tasks={sortedAutomationTasks}
+        activeTaskId={activeTaskId}
+        onSelect={(t) => setTaskId(t.id, t.virtual_mcp_id)}
+        onArchive={handleArchive}
+        showAutomationBadge
+        emptyLabel="No automation runs yet"
       />
     </div>
   );
