@@ -34,7 +34,7 @@ export function HeaderTabButton({
   onClick: () => void;
 }) {
   return (
-    <Tooltip>
+    <Tooltip delayDuration={700}>
       <TooltipTrigger asChild>
         <button
           type="button"
@@ -42,7 +42,7 @@ export function HeaderTabButton({
           aria-pressed={active}
           aria-label={title}
           className={cn(
-            "shrink-0 grid items-center h-8 rounded-md",
+            "shrink-0 grid items-center h-7 rounded-md overflow-hidden",
             "[transition:grid-template-columns_180ms_var(--ease-out-cubic),gap_180ms_var(--ease-out-cubic),padding_180ms_var(--ease-out-cubic),background-color_180ms_ease,color_180ms_ease]",
             active
               ? "grid-cols-[auto_1fr] gap-1.5 px-2"
@@ -58,7 +58,7 @@ export function HeaderTabButton({
           <span
             aria-hidden={!active}
             className={cn(
-              "overflow-hidden whitespace-nowrap text-xs font-medium leading-none min-w-0",
+              "whitespace-nowrap text-sm font-medium leading-none min-w-0",
               "[transition:opacity_180ms_ease]",
               active ? "opacity-100" : "opacity-0",
             )}
