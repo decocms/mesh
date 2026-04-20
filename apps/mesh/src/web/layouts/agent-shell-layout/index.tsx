@@ -61,6 +61,7 @@ import { TasksPanelColumn } from "./tasks-panel-column";
 import { ChatMainPanelGroup } from "./chat-main-panel-group";
 import { ToggleButtons } from "./toggle-buttons";
 import { MainPanelTabsBar } from "@/web/layouts/main-panel-tabs/main-panel-tabs-bar";
+import { VirtualMcpHeaderInfo } from "../../views/virtual-mcp/header-info.tsx";
 
 // ---------------------------------------------------------------------------
 // Types & Context
@@ -292,6 +293,8 @@ function AgentInsetProvider() {
           toggleMain={layout.toggleMain}
         />
       </Toolbar.Toggles>
+
+      {!isDecopilot && <VirtualMcpHeaderInfo virtualMcp={entity} />}
 
       {!isDecopilot && (
         <Toolbar.Tabs>
