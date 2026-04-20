@@ -30,7 +30,7 @@ export function MainPanelTabsBar({
   const isActive = (id: string) => mainOpen && activeTab === id;
 
   return (
-    <div className="flex items-center min-w-0">
+    <div className="flex items-center min-w-0 ml-auto">
       {systemTabs.map((t) => (
         <HeaderTabButton
           key={t.id}
