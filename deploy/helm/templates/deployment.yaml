@@ -138,7 +138,6 @@ spec:
           volumeMounts:
             - name: data
               mountPath: {{ .Values.configMap.meshConfig.DATA_DIR | default "/app/data" }}
-              readOnly: true
             - name: s3-sync-script
               mountPath: /scripts
               readOnly: true
@@ -166,7 +165,8 @@ spec:
           {{- end }}
         {{- else }}
         - name: data
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: {{ .Values.persistence.emptyDirSizeLimit | default "5Gi" }}
         {{- end }}
         {{- if .Values.s3Sync.enabled }}
         - name: s3-sync-script
