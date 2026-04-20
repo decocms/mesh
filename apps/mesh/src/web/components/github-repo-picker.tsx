@@ -4,7 +4,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@deco/ui/components/dialog.tsx";
-import { SearchInput } from "@deco/ui/components/search-input.tsx";
+import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Suspense, useDeferredValue, useState } from "react";
 import {
@@ -23,7 +23,7 @@ import {
 import type { ConnectionEntity } from "@decocms/mesh-sdk";
 import { KEYS } from "@/web/lib/query-keys";
 import { toast } from "sonner";
-import { ArrowLeft, Loading01 } from "@untitledui/icons";
+import { ArrowLeft, Loading01, Lock01, LockUnlocked01 } from "@untitledui/icons";
 import { useAutoInstallGitHub } from "@/web/hooks/use-auto-install-github";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { usePreferences } from "@/web/hooks/use-preferences.ts";
@@ -72,20 +72,20 @@ export function GitHubRepoPicker({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px] p-0 gap-0 overflow-hidden">
+      <DialogContent className="sm:max-w-[560px] h-[85svh] sm:h-[520px] p-0 gap-0 overflow-hidden flex flex-col">
         <DialogHeader className="sr-only">
           <DialogTitle>Import from GitHub</DialogTitle>
         </DialogHeader>
-        <div className="flex items-center h-12 border-b border-border px-4 gap-3">
+        <div className="flex items-center h-12 border-b border-border px-4 gap-3 shrink-0">
           <GitHubIcon className="size-4 text-foreground shrink-0" />
           <span className="text-sm font-medium text-foreground">
             Import from GitHub
           </span>
         </div>
-        <div className="min-w-0">
+        <div className="flex-1 overflow-hidden flex flex-col min-w-0">
           <Suspense
             fallback={
-              <div className="flex items-center justify-center py-12">
+              <div className="flex-1 flex items-center justify-center">
                 <Loading01
                   size={18}
                   className="animate-spin text-muted-foreground"
@@ -366,7 +366,7 @@ function PickerContent({ onComplete }: { onComplete: () => void }) {
     return (
       <div className="flex flex-col py-2">
         <div className="px-4 py-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          <p className="text-xs font-medium text-muted-foreground">
             Select a connection
           </p>
         </div>
@@ -458,7 +458,7 @@ function InstallationPicker({
 
   if (installationsQuery.isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
+      <div className="flex-1 flex items-center justify-center">
         <Loading01 size={18} className="animate-spin text-muted-foreground" />
       </div>
     );
@@ -466,10 +466,8 @@ function InstallationPicker({
 
   if (installationsQuery.isError) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <p className="text-sm text-destructive">
-          Failed to load GitHub accounts
-        </p>
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-sm text-destructive">Failed to load GitHub accounts</p>
       </div>
     );
   }
@@ -478,9 +476,9 @@ function InstallationPicker({
   if (!data) return null;
 
   return (
-    <div className="flex flex-col">
+    <div className="flex-1 flex flex-col overflow-hidden">
       {showBackButton && (
-        <div className="flex items-center gap-1 px-4 pt-3 pb-1">
+        <div className="flex items-center gap-1 px-4 pt-3 pb-1 shrink-0">
           <button
             type="button"
             onClick={onBack}
@@ -492,12 +490,7 @@ function InstallationPicker({
         </div>
       )}
 
-      <div className="px-4 py-2">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-          Select an account
-        </p>
-      </div>
-
+      <div className="flex-1 overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable]">
       {data.installations.map((inst) => (
         <button
           key={inst.installationId}
@@ -525,8 +518,9 @@ function InstallationPicker({
           </span>
         </button>
       ))}
+      </div>
 
-      <div className="px-4 py-3 border-t border-border mt-1">
+      <div className="px-4 py-3 border-t border-border shrink-0">
         <a
           href={
             data.appSlug
@@ -567,8 +561,8 @@ function RepoBrowser({
   const isStale = query !== deferredQuery;
 
   return (
-    <div className="flex flex-col">
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-border shrink-0">
         <button
           type="button"
           onClick={onBack}
@@ -587,24 +581,22 @@ function RepoBrowser({
         </span>
       </div>
 
-      <div className="px-3 py-2 border-b border-border">
-        <SearchInput
-          placeholder="Search repositories..."
-          value={query}
-          onChange={setQuery}
-          isSearching={isStale}
-        />
-      </div>
+      <CollectionSearch
+        placeholder="Search repositories..."
+        value={query}
+        onChange={setQuery}
+        isSearching={isStale}
+      />
 
       <div
         className={cn(
-          "transition-opacity duration-150",
+          "flex-1 overflow-hidden flex flex-col transition-opacity duration-150",
           isStale ? "opacity-40" : "opacity-100",
         )}
       >
         <Suspense
           fallback={
-            <div className="flex items-center justify-center py-12">
+            <div className="flex-1 flex items-center justify-center">
               <Loading01
                 size={18}
                 className="animate-spin text-muted-foreground"
@@ -687,7 +679,7 @@ function RepoList({
 
   if (repos.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 gap-1">
+      <div className="flex-1 flex flex-col items-center justify-center gap-1">
         <p className="text-sm text-muted-foreground">No repositories found</p>
         {query && (
           <p className="text-xs text-muted-foreground/60">
@@ -699,7 +691,7 @@ function RepoList({
   }
 
   return (
-    <div className="max-h-72 overflow-y-auto overflow-x-hidden flex flex-col [scrollbar-gutter:stable]">
+    <div className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col [scrollbar-gutter:stable]">
       {repos.map((repo) => (
         <button
           key={repo.fullName}
@@ -709,23 +701,16 @@ function RepoList({
           className="flex items-start gap-3 px-4 py-3 hover:bg-accent transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <GitHubIcon className="size-4 text-muted-foreground mt-0.5 shrink-0" />
-          <div className="flex flex-col min-w-0 flex-1 gap-0.5">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-sm font-medium truncate">{repo.name}</span>
-              {repo.private && (
-                <span className="text-[10px] font-medium text-muted-foreground border border-border rounded px-1.5 py-0.5 shrink-0 leading-none">
-                  private
-                </span>
-              )}
-            </div>
-            {repo.description && (
-              <p className="text-xs text-muted-foreground truncate">
-                {repo.description}
-              </p>
-            )}
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <span className="text-sm font-medium truncate">{repo.name}</span>
           </div>
-          <span className="text-xs text-muted-foreground/60 shrink-0 mt-0.5 tabular-nums">
-            {relativeTime(repo.updatedAt)}
+          <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground border border-border rounded px-1.5 py-0.5 shrink-0 leading-none">
+            {repo.private ? (
+              <Lock01 size={10} />
+            ) : (
+              <LockUnlocked01 size={10} />
+            )}
+            {repo.private ? "Private" : "Public"}
           </span>
         </button>
       ))}
