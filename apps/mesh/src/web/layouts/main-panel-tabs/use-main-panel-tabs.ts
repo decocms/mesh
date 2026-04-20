@@ -126,7 +126,7 @@ export function useMainPanelTabs(ctx: {
   const pinnedViews = entityUI?.pinnedViews ?? [];
   const expandedTools: ThreadExpandedTool[] = metadata?.expanded_tools ?? [];
   const hasActiveGithubRepo = !!(entity && getActiveGithubRepo(entity));
-  const connections = useConnections();
+  const connections = useConnections({ includeVirtual: true });
 
   const { activeTab, mainOpen } = resolveActiveTabAndOpen({
     mainParam: search.main,
@@ -157,7 +157,13 @@ export function useMainPanelTabs(ctx: {
   // later expanded from a chat message.
   const pinnedTabMap = new Map<
     string,
-    { id: string; title: string; appId: string; iconKey: string }
+    {
+      id: string;
+      title: string;
+      appId: string;
+      iconKey: string;
+      iconUrl?: string | null;
+    }
   >();
   for (const t of expandedTools) {
     const id = formatPinnedViewTabId(t.appId, t.toolName);
@@ -175,6 +181,7 @@ export function useMainPanelTabs(ctx: {
       title: pv.label || pv.toolName,
       appId: pv.connectionId,
       iconKey: pv.toolName,
+      iconUrl: pv.icon ?? null,
     });
   }
 
@@ -208,6 +215,7 @@ export function useMainPanelTabs(ctx: {
         tabId: t.iconKey,
         kind: "expanded",
         appId: t.appId,
+        iconUrl: t.iconUrl,
         connections,
       }),
     })),

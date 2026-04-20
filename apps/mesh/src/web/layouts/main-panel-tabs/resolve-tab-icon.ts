@@ -7,6 +7,7 @@ import {
   Terminal,
   ZapSquare,
 } from "@untitledui/icons";
+import { getIconComponent, parseIconString } from "../../components/agent-icon";
 
 export type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -37,16 +38,34 @@ export const SYSTEM_TAB_ICONS: Record<SystemTabId, IconComponent> = {
 type ConnectionLike = { id: string; icon: string | null };
 
 /**
+ * Convert an icon string (icon://Name or plain URL) to a TabIcon, or null
+ * if unresolvable. Handles the @untitledui/icons "icon://" scheme used by
+ * pinned views and connection entities.
+ */
+function toTabIcon(icon: string | null | undefined): TabIcon | null {
+  const parsed = parseIconString(icon);
+  if (parsed.type === "icon") {
+    const Component = getIconComponent(parsed.name);
+    if (Component) return { kind: "component", Component };
+    return null;
+  }
+  if (parsed.type === "url") return { kind: "url", src: parsed.url };
+  return null;
+}
+
+/**
  * Compute the `TabIcon` for a tab.
  *
  * - system: look up the hardcoded mapping from tabId.
- * - agent / expanded: look up the connection by appId; if it has a
- *   non-empty `icon` URL, return { kind: "url" }; else fall back.
+ * - agent / expanded: prefer an explicit `iconUrl` (e.g. pinned view's own
+ *   icon), otherwise look up the connection by appId and use its icon; else
+ *   fall back. Icon strings may be either "icon://<Name>" or a raw URL.
  */
 export function resolveTabIcon(args: {
   tabId: string;
   kind: TabKind;
   appId?: string;
+  iconUrl?: string | null;
   connections: ConnectionLike[];
 }): TabIcon {
   if (args.kind === "system") {
@@ -54,11 +73,15 @@ export function resolveTabIcon(args: {
     return { kind: "component", Component };
   }
 
+  const fromExplicit = toTabIcon(args.iconUrl);
+  if (fromExplicit) return fromExplicit;
+
   if (!args.appId) return { kind: "fallback" };
   const conn = args.connections.find((c) => c.id === args.appId);
   if (!conn) return { kind: "fallback" };
-  if (typeof conn.icon === "string" && conn.icon.length > 0) {
-    return { kind: "url", src: conn.icon };
-  }
+
+  const fromConn = toTabIcon(conn.icon);
+  if (fromConn) return fromConn;
+
   return { kind: "fallback" };
 }
