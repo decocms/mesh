@@ -280,9 +280,7 @@ function AgentInsetProvider() {
       <Toolbar.Toggles>
         <ToggleButtons
           chatOpen={layout.chatOpen}
-          mainOpen={layout.mainOpen}
           toggleChat={layout.toggleChat}
-          toggleMain={layout.toggleMain}
         />
       </Toolbar.Toggles>
 
