@@ -52,9 +52,13 @@ import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useStatusSounds } from "../../hooks/use-status-sounds";
 import { Button } from "@deco/ui/components/button.tsx";
+import { DecoScene } from "@/web/components/deco-scene";
 import { EmptyState } from "@/web/components/empty-state";
 import { useChatMainPanelState } from "@/web/hooks/use-layout-state";
-import { TasksPanelStateProvider } from "@/web/hooks/use-tasks-panel-state";
+import {
+  TasksPanelStateProvider,
+  useTasksPanelState,
+} from "@/web/hooks/use-tasks-panel-state";
 import { Separator } from "@deco/ui/components/separator.tsx";
 import { Toolbar } from "./toolbar";
 import { TasksPanelColumn } from "./tasks-panel-column";
@@ -179,6 +183,9 @@ function AgentInsetProvider() {
     orgSlug,
     isAgentRoute,
   });
+
+  const { tasksOpen } = useTasksPanelState();
+  const allCollapsed = !tasksOpen && !layout.mainOpen && !layout.chatOpen;
 
   const { setOpenMobile, openMobile: mobileSidebarOpen } = useSidebar();
   const setMobileSidebarOpen = setOpenMobile;
@@ -305,21 +312,24 @@ function AgentInsetProvider() {
         </Toolbar.Tabs>
       )}
 
-      <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
-        <NewTaskBridge
-          onNewTaskRef={onNewTask}
-          createNewTask={layout.createNewTask}
-        />
-        <ChatMainPanelGroup
-          virtualMcpId={virtualMcpId}
-          taskId={layout.taskId}
-          chatOpen={layout.chatOpen}
-          mainOpen={layout.mainOpen}
-          chatContent={
-            <ActiveTaskBoundary variant={isDecopilot ? "home" : undefined} />
-          }
-        />
-      </Chat.Provider>
+      <div className="relative flex-1 min-h-0 flex flex-col">
+        {allCollapsed && <DecoScene />}
+        <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
+          <NewTaskBridge
+            onNewTaskRef={onNewTask}
+            createNewTask={layout.createNewTask}
+          />
+          <ChatMainPanelGroup
+            virtualMcpId={virtualMcpId}
+            taskId={layout.taskId}
+            chatOpen={layout.chatOpen}
+            mainOpen={layout.mainOpen}
+            chatContent={
+              <ActiveTaskBoundary variant={isDecopilot ? "home" : undefined} />
+            }
+          />
+        </Chat.Provider>
+      </div>
     </InsetContext>
   );
 }
