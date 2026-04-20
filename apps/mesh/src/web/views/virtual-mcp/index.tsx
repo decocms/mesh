@@ -856,190 +856,193 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   }
 
   return (
-    <div className="space-y-3">
-      {/* Default view card */}
-      <Card className="hover:bg-card p-6 gap-6">
-        <CardContent className="p-0 space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="space-y-0.5">
-              <Label className="font-normal text-foreground">Main view</Label>
-              <p className="text-xs text-muted-foreground">
-                Configure what users see when they first open this agent.
-              </p>
+    <div className="flex flex-col gap-6">
+      <Page.Title>Layout</Page.Title>
+      <div className="space-y-3">
+        {/* Default view card */}
+        <Card className="hover:bg-card p-6 gap-6">
+          <CardContent className="p-0 space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5">
+                <Label className="font-normal text-foreground">Main view</Label>
+                <p className="text-xs text-muted-foreground">
+                  Configure what users see when they first open this agent.
+                </p>
+              </div>
+              <Select
+                value={defaultMainView}
+                onValueChange={handleDefaultMainViewChange}
+              >
+                <SelectTrigger className="w-44 h-8 text-sm capitalize">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {defaultMainOptions.map((opt) => (
+                    <SelectItem
+                      key={opt.value}
+                      value={opt.value}
+                      className="capitalize"
+                    >
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <Select
-              value={defaultMainView}
-              onValueChange={handleDefaultMainViewChange}
-            >
-              <SelectTrigger className="w-44 h-8 text-sm capitalize">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {defaultMainOptions.map((opt) => (
-                  <SelectItem
-                    key={opt.value}
-                    value={opt.value}
-                    className="capitalize"
-                  >
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
-          <div className="flex items-center justify-between gap-4">
-            <div className="space-y-0.5">
-              <Label className="font-normal text-foreground">Show chat</Label>
-              <p className="text-xs text-muted-foreground">
-                Display the chat panel alongside the main view
-              </p>
-            </div>
-            <Tooltip delayDuration={0}>
-              <TooltipTrigger asChild>
-                <span>
-                  <Switch
-                    checked={
-                      defaultMainView === "chat" ? true : chatDefaultOpen
-                    }
-                    disabled={defaultMainView === "chat" || isSaving}
-                    onCheckedChange={(checked) => {
-                      setChatDefaultOpen(checked);
-                      saveLayout(pinnedViews, defaultMainView, checked);
-                    }}
-                  />
-                </span>
-              </TooltipTrigger>
-              {defaultMainView === "chat" && (
-                <TooltipContent side="top">
-                  Chat is always shown when it is the default view
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Pinned views card */}
-      <Card className="hover:bg-card p-6 gap-4">
-        <CardHeader className="p-0">
-          <span className="text-sm font-normal">Pinned views</span>
-        </CardHeader>
-        <CardContent className="p-0">
-          {noConnections && (
-            <p className="text-sm text-muted-foreground">
-              No connections yet. Add connections in the Connections tab to
-              configure pinned views.
-            </p>
-          )}
-          {noInteractiveTools && !noConnections && (
-            <p className="text-sm text-muted-foreground">
-              None of the connected servers have interactive tools available.
-            </p>
-          )}
-          {connectionsData.length > 0 && (
-            <div className="space-y-4">
-              {connectionsData.map((conn, connIdx) => (
-                <div key={conn.id}>
-                  {connIdx > 0 && (
-                    <div className="border-t border-border -mx-6 mb-4" />
-                  )}
-                  <div className="flex items-center gap-2 mb-3">
-                    <IntegrationIcon
-                      icon={conn.icon}
-                      name={conn.title}
-                      size="xs"
-                      className="shrink-0"
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5">
+                <Label className="font-normal text-foreground">Show chat</Label>
+                <p className="text-xs text-muted-foreground">
+                  Display the chat panel alongside the main view
+                </p>
+              </div>
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Switch
+                      checked={
+                        defaultMainView === "chat" ? true : chatDefaultOpen
+                      }
+                      disabled={defaultMainView === "chat" || isSaving}
+                      onCheckedChange={(checked) => {
+                        setChatDefaultOpen(checked);
+                        saveLayout(pinnedViews, defaultMainView, checked);
+                      }}
                     />
-                    <span className="text-sm font-medium text-muted-foreground">
-                      {conn.title}
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    {conn.uiTools.map((tool) => {
-                      const pinned = pinnedViews.some(
-                        (v) =>
-                          v.connectionId === conn.id &&
-                          v.toolName === tool.name,
-                      );
-                      const pinnedView = pinnedViews.find(
-                        (v) =>
-                          v.connectionId === conn.id &&
-                          v.toolName === tool.name,
-                      );
-                      return (
-                        <div
-                          key={tool.name}
-                          className={cn(
-                            "flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-border transition-colors",
-                            pinned ? "bg-accent/30" : "bg-muted/20",
-                          )}
-                        >
-                          <div className="min-w-0 flex-1 flex items-center gap-2">
-                            <SimpleIconPicker
-                              value={pinnedView?.icon ?? null}
-                              onChange={(icon) =>
-                                handleIconChange(conn.id, tool.name, icon)
+                  </span>
+                </TooltipTrigger>
+                {defaultMainView === "chat" && (
+                  <TooltipContent side="top">
+                    Chat is always shown when it is the default view
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Pinned views card */}
+        <Card className="hover:bg-card p-6 gap-4">
+          <CardHeader className="p-0">
+            <span className="text-sm font-normal">Pinned views</span>
+          </CardHeader>
+          <CardContent className="p-0">
+            {noConnections && (
+              <p className="text-sm text-muted-foreground">
+                No connections yet. Add connections in the Connections tab to
+                configure pinned views.
+              </p>
+            )}
+            {noInteractiveTools && !noConnections && (
+              <p className="text-sm text-muted-foreground">
+                None of the connected servers have interactive tools available.
+              </p>
+            )}
+            {connectionsData.length > 0 && (
+              <div className="space-y-4">
+                {connectionsData.map((conn, connIdx) => (
+                  <div key={conn.id}>
+                    {connIdx > 0 && (
+                      <div className="border-t border-border -mx-6 mb-4" />
+                    )}
+                    <div className="flex items-center gap-2 mb-3">
+                      <IntegrationIcon
+                        icon={conn.icon}
+                        name={conn.title}
+                        size="xs"
+                        className="shrink-0"
+                      />
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {conn.title}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {conn.uiTools.map((tool) => {
+                        const pinned = pinnedViews.some(
+                          (v) =>
+                            v.connectionId === conn.id &&
+                            v.toolName === tool.name,
+                        );
+                        const pinnedView = pinnedViews.find(
+                          (v) =>
+                            v.connectionId === conn.id &&
+                            v.toolName === tool.name,
+                        );
+                        return (
+                          <div
+                            key={tool.name}
+                            className={cn(
+                              "flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-border transition-colors",
+                              pinned ? "bg-accent/30" : "bg-muted/20",
+                            )}
+                          >
+                            <div className="min-w-0 flex-1 flex items-center gap-2">
+                              <SimpleIconPicker
+                                value={pinnedView?.icon ?? null}
+                                onChange={(icon) =>
+                                  handleIconChange(conn.id, tool.name, icon)
+                                }
+                                disabled={!pinned || isSaving}
+                              />
+                              <Input
+                                value={
+                                  pinned && pinnedView
+                                    ? pinnedView.label
+                                    : tool.name.replace(/_/g, " ")
+                                }
+                                onChange={(e) =>
+                                  handleLabelChange(
+                                    conn.id,
+                                    tool.name,
+                                    e.target.value,
+                                  )
+                                }
+                                onBlur={handleLabelBlur}
+                                className="h-7 text-sm w-40 capitalize"
+                                disabled={!pinned || isSaving}
+                                readOnly={!pinned}
+                              />
+                            </div>
+                            <Switch
+                              checked={pinned}
+                              onCheckedChange={() =>
+                                handleTogglePin(conn.id, tool.name)
                               }
-                              disabled={!pinned || isSaving}
-                            />
-                            <Input
-                              value={
-                                pinned && pinnedView
-                                  ? pinnedView.label
-                                  : tool.name.replace(/_/g, " ")
-                              }
-                              onChange={(e) =>
-                                handleLabelChange(
-                                  conn.id,
-                                  tool.name,
-                                  e.target.value,
-                                )
-                              }
-                              onBlur={handleLabelBlur}
-                              className="h-7 text-sm w-40 capitalize"
-                              disabled={!pinned || isSaving}
-                              readOnly={!pinned}
+                              disabled={isSaving}
                             />
                           </div>
-                          <Switch
-                            checked={pinned}
-                            onCheckedChange={() =>
-                              handleTogglePin(conn.id, tool.name)
-                            }
-                            disabled={isSaving}
-                          />
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-      <div className="flex justify-end">
-        <Tooltip delayDuration={0}>
-          <TooltipTrigger asChild>
-            <Button
-              onClick={() => {
-                navigate({
-                  to: "/$org/$taskId",
-                  params: {
-                    org: org.slug,
-                    taskId: crypto.randomUUID(),
-                  },
-                  search: { virtualmcpid: virtualMcpId },
-                });
-              }}
-            >
-              Test layout
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top">Test agent page layout</TooltipContent>
-        </Tooltip>
+        <div className="flex justify-end">
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => {
+                  navigate({
+                    to: "/$org/$taskId",
+                    params: {
+                      org: org.slug,
+                      taskId: crypto.randomUUID(),
+                    },
+                    search: { virtualmcpid: virtualMcpId },
+                  });
+                }}
+              >
+                Test layout
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Test agent page layout</TooltipContent>
+          </Tooltip>
+        </div>
       </div>
     </div>
   );
@@ -1424,7 +1427,7 @@ Define step-by-step how the agent should handle requests.
   return (
     <Page>
       <Page.Content>
-        <Page.Body className="pt-6 md:pt-8">
+        <Page.Body>
           <div className="flex flex-col gap-6">
             {!hideOwnTitle && (
               <Page.Title
@@ -1513,7 +1516,7 @@ Define step-by-step how the agent should handle requests.
             {/* Tab content */}
             {activeTab === "instructions" && (
               <>
-                <div className="flex items-center gap-4 pb-10">
+                <div className="flex items-center gap-3">
                   <Controller
                     name="icon"
                     control={form.control}
@@ -1531,7 +1534,7 @@ Define step-by-step how the agent should handle requests.
                           saveForm();
                         }}
                         name={form.watch("title") || "Agent"}
-                        size="lg"
+                        size="md"
                         className="shrink-0"
                         avatarClassName="[&_svg]:w-1/2 [&_svg]:h-1/2"
                         disabled={hasGithubRepo}
@@ -1553,7 +1556,7 @@ Define step-by-step how the agent should handle requests.
                           }}
                           disabled={hasGithubRepo}
                           placeholder="Agent name"
-                          className="text-[22px] font-medium leading-tight text-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate disabled:hover:bg-transparent disabled:focus:bg-transparent disabled:opacity-50"
+                          className="text-lg font-medium leading-tight text-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate disabled:hover:bg-transparent disabled:focus:bg-transparent disabled:opacity-50"
                         />
                       )}
                     />
@@ -1571,7 +1574,7 @@ Define step-by-step how the agent should handle requests.
                           }}
                           disabled={hasGithubRepo}
                           placeholder="Add a description..."
-                          className="text-base font-medium text-muted-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate disabled:hover:bg-transparent disabled:focus:bg-transparent disabled:opacity-50"
+                          className="text-sm text-muted-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate disabled:hover:bg-transparent disabled:focus:bg-transparent disabled:opacity-50"
                         />
                       )}
                     />
@@ -1623,46 +1626,60 @@ Define step-by-step how the agent should handle requests.
             )}
 
             {activeTab === "connections" && (
-              <div className="flex flex-col gap-2">
-                {connections.length === 0 ? (
-                  <button
-                    type="button"
-                    onClick={handleOpenAddDialog}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-dashed border-border hover:bg-accent/50 transition-colors w-full text-left cursor-pointer"
-                  >
-                    <div className="flex items-center justify-center size-8 rounded-md text-muted-foreground/75 border border-dashed border-border shrink-0">
-                      <Plus size={16} />
-                    </div>
-                    <span className="text-sm text-muted-foreground">
-                      No connections yet. Add one to get started.
-                    </span>
-                  </button>
-                ) : (
-                  connections.map((conn) => (
-                    <ErrorBoundary
-                      key={conn.connection_id}
-                      fallback={() => null}
+              <div className="flex flex-col gap-6">
+                <Page.Title
+                  actions={
+                    connections.length > 0 ? (
+                      <Button size="sm" onClick={handleOpenAddDialog}>
+                        <Plus size={14} />
+                        Add connection
+                      </Button>
+                    ) : undefined
+                  }
+                >
+                  Connections
+                </Page.Title>
+                <div className="flex flex-col gap-2">
+                  {connections.length === 0 ? (
+                    <button
+                      type="button"
+                      onClick={handleOpenAddDialog}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-dashed border-border hover:bg-accent/50 transition-colors w-full text-left cursor-pointer"
                     >
-                      <Suspense fallback={<ConnectionItemSkeleton />}>
-                        <ConnectionItem
-                          connection_id={conn.connection_id}
-                          usedConnectionIds={addedConnectionIds}
-                          onOpenSettings={() =>
-                            handleOpenSettings(conn.connection_id)
-                          }
-                          onRemove={() =>
-                            handleRemoveConnection(conn.connection_id)
-                          }
-                          onAuthenticate={handleAuthenticate}
-                          onSwitchInstance={handleSwitchInstance}
-                          onNewInstance={() =>
-                            handleNewInstance(conn.connection_id)
-                          }
-                        />
-                      </Suspense>
-                    </ErrorBoundary>
-                  ))
-                )}
+                      <div className="flex items-center justify-center size-8 rounded-md text-muted-foreground/75 border border-dashed border-border shrink-0">
+                        <Plus size={16} />
+                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        No connections yet. Add one to get started.
+                      </span>
+                    </button>
+                  ) : (
+                    connections.map((conn) => (
+                      <ErrorBoundary
+                        key={conn.connection_id}
+                        fallback={() => null}
+                      >
+                        <Suspense fallback={<ConnectionItemSkeleton />}>
+                          <ConnectionItem
+                            connection_id={conn.connection_id}
+                            usedConnectionIds={addedConnectionIds}
+                            onOpenSettings={() =>
+                              handleOpenSettings(conn.connection_id)
+                            }
+                            onRemove={() =>
+                              handleRemoveConnection(conn.connection_id)
+                            }
+                            onAuthenticate={handleAuthenticate}
+                            onSwitchInstance={handleSwitchInstance}
+                            onNewInstance={() =>
+                              handleNewInstance(conn.connection_id)
+                            }
+                          />
+                        </Suspense>
+                      </ErrorBoundary>
+                    ))
+                  )}
+                </div>
               </div>
             )}
 
