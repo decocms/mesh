@@ -183,6 +183,9 @@ const ALL_TOOL_NAMES = [
   // VM tools (app-only)
   "VM_START",
   "VM_DELETE",
+  "SANDBOX_ENV_LIST",
+  "SANDBOX_ENV_SET",
+  "SANDBOX_ENV_DELETE",
 
   // GitHub tools (app-only)
   "GITHUB_LIST_USER_ORGS",
@@ -876,6 +879,21 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "VM",
   },
   {
+    name: "SANDBOX_ENV_LIST",
+    description: "List sandbox env var keys for a thread",
+    category: "VM",
+  },
+  {
+    name: "SANDBOX_ENV_SET",
+    description: "Set sandbox env vars for a thread",
+    category: "VM",
+  },
+  {
+    name: "SANDBOX_ENV_DELETE",
+    description: "Delete sandbox env vars for a thread",
+    category: "VM",
+  },
+  {
     name: "GITHUB_LIST_USER_ORGS",
     description: "List GitHub user's personal account and organizations",
     category: "GitHub",
@@ -1020,6 +1038,9 @@ const TOOL_LABELS: Record<ToolName, string> = {
   // VM
   VM_START: "Start VM preview",
   VM_DELETE: "Delete VM preview",
+  SANDBOX_ENV_LIST: "List sandbox env keys",
+  SANDBOX_ENV_SET: "Set sandbox env vars",
+  SANDBOX_ENV_DELETE: "Delete sandbox env vars",
   GITHUB_LIST_USER_ORGS: "List GitHub user orgs",
 };
 

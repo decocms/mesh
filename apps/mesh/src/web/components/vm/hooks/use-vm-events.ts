@@ -57,6 +57,10 @@ export function useVmEvents(
   const [suspended, setSuspended] = useState(false);
   const [scripts, setScripts] = useState<string[]>([]);
   const [activeProcesses, setActiveProcesses] = useState<string[]>([]);
+  // Bumped whenever log chunks land so consumers reading `getBuffer` /
+  // `hasData` during render see fresh data — buffer mutation alone doesn't
+  // trigger a re-render.
+  const [, setLogTick] = useState(0);
   const disconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onChunkRef = useRef(onChunk);
   onChunkRef.current = onChunk;
@@ -105,8 +109,13 @@ export function useVmEvents(
 
         if (e.type === "log" && typeof data.data === "string") {
           const source = data.source as string;
-          getOrCreateBuffer(source).append(data.data);
-          onChunkRef.current?.(source, data.data);
+          // xterm.js treats bare `\n` as "cursor down, keep column" — the
+          // daemon forwards raw `\n` from child stdout, so without this each
+          // line would start wherever the previous one ended.
+          const normalized = data.data.replace(/\r?\n/g, "\r\n");
+          getOrCreateBuffer(source).append(normalized);
+          onChunkRef.current?.(source, normalized);
+          setLogTick((t) => t + 1);
         } else if (e.type === "status") {
           setStatus({
             ready: Boolean(data.ready),

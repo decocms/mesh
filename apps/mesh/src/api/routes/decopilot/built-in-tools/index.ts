@@ -13,6 +13,7 @@ import { createReadToolOutputTool } from "./read-tool-output";
 import { createReadPromptTool } from "./prompts";
 import { createReadResourceTool } from "./resources";
 import { createSandboxTool, type VirtualClient } from "./sandbox";
+import { createSandboxBashTool, type SandboxRepoRef } from "./sandbox-bash";
 import { createVmTools } from "./vm-tools";
 import { createOpenInAgentTool } from "./open-in-agent";
 import { createSubtaskTool } from "./subtask";
@@ -36,6 +37,17 @@ export interface BuiltinToolParams {
   passthroughClient: VirtualClient;
   /** When set, VM file tools replace the sandbox tool */
   activeVm?: { vmBaseUrl: string } | null;
+  /**
+   * GitHub repo attached to the agent's Virtual MCP. When set, the Docker
+   * sandbox clones it on first provisioning. Ignored when `activeVm` is set
+   * (the Freestyle VM handles its own cloning).
+   */
+  sandboxRepo?: SandboxRepoRef | null;
+  /**
+   * Thread's `sandbox_ref` — identifies the shared Docker container for bash
+   * and the preview iframe. Null for legacy threads that predate the column.
+   */
+  sandboxRef?: string | null;
 }
 
 /**
@@ -60,6 +72,8 @@ function buildAllTools(
     toolOutputMap,
     passthroughClient,
     activeVm,
+    sandboxRepo,
+    sandboxRef,
   } = params;
   const approvalOpts = { isPlanMode };
   const tools: Record<string, unknown> = {
@@ -113,6 +127,16 @@ function buildAllTools(
       needsApproval:
         toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false,
     });
+    tools.bash = createSandboxBashTool(
+      {
+        needsApproval:
+          toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false,
+        toolOutputMap,
+        repo: sandboxRepo ?? null,
+        sandboxRef: sandboxRef ?? null,
+      },
+      ctx,
+    );
   }
   // subtask requires a provider (LLM calls) — skip when provider is null (Claude Code)
   if (provider) {
@@ -152,6 +176,7 @@ function buildAllTools(
     agent_search: ReturnType<typeof createAgentSearchTool>;
     read_tool_output: ReturnType<typeof createReadToolOutputTool>;
     sandbox: ReturnType<typeof createSandboxTool>;
+    bash: ReturnType<typeof createSandboxBashTool>;
     read_resource: ReturnType<typeof createReadResourceTool>;
     read_prompt: ReturnType<typeof createReadPromptTool>;
     open_in_agent: ReturnType<typeof createOpenInAgentTool>;

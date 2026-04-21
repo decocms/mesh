@@ -24,6 +24,11 @@ import {
 } from "../core/context-factory";
 import type { MeshContext } from "../core/mesh-context";
 import { closeDatabase, getDb, type MeshDatabase } from "../database";
+import { getSharedRunnerIfInit } from "../sandbox/shared-runner";
+import {
+  startSandboxPrepWorker,
+  type PrepWorker,
+} from "../sandbox/prep-worker";
 import { createEventBus, type EventBus } from "../event-bus";
 import {
   flushMonitoringData,
@@ -44,6 +49,7 @@ import oauthProxyRoutes, {
 } from "./routes/oauth-proxy";
 import openaiCompatRoutes from "./routes/openai-compat";
 import proxyRoutes from "./routes/proxy";
+import { createSandboxPreviewRoutes } from "./routes/sandbox-preview";
 import { createKVRoutes } from "./routes/kv";
 import { createTriggerCallbackRoutes } from "./routes/trigger-callback";
 import publicConfigRoutes from "./routes/public-config";
@@ -150,6 +156,9 @@ let currentDecopilotCleanup: (() => void | Promise<void>) | null = null;
 
 // Track monitoring retention timer for cleanup during HMR
 let currentRetentionTimer: ReturnType<typeof setInterval> | null = null;
+
+// Track sandbox prep worker for cleanup during HMR / shutdown
+let currentPrepWorker: PrepWorker | null = null;
 
 // ============================================================================
 // Deco Store OAuth Helpers
@@ -479,9 +488,13 @@ export async function createApp(options: CreateAppOptions = {}) {
     }),
   );
 
-  // Security headers middleware - prevents UI redressing / clickjacking
+  // Security headers middleware - prevents UI redressing / clickjacking.
+  // Skipped for the sandbox preview proxy — that endpoint intentionally
+  // serves the user's dev server *inside* the mesh UI's own iframe, so
+  // `frame-ancestors 'none'` would block the preview panel entirely.
   app.use("*", async (c, next) => {
     await next();
+    if (c.req.path.startsWith("/api/sandbox/")) return;
     c.header("X-Frame-Options", "DENY");
     c.header("Content-Security-Policy", "frame-ancestors 'none'");
   });
@@ -885,6 +898,14 @@ export async function createApp(options: CreateAppOptions = {}) {
     currentCronWorkerCleanup();
     currentCronWorkerCleanup = null;
   }
+
+  // Sandbox prep worker — bakes per-(user,repo) Docker images so new thread
+  // containers skip clone + install. No-op when MESH_SANDBOX_RUNNER !== "docker".
+  if (currentPrepWorker) {
+    await currentPrepWorker.stop().catch(() => {});
+    currentPrepWorker = null;
+  }
+  currentPrepWorker = startSandboxPrepWorker(database.db as any, vault);
 
   const automationsStorage = createAutomationsStorage(database.db);
   const triggerCallbackTokenStorage = new KyselyTriggerCallbackTokenStorage(
@@ -1360,6 +1381,11 @@ export async function createApp(options: CreateAppOptions = {}) {
   });
   app.route("/api", decopilotRoutes);
 
+  // Browser-facing reverse-proxy for Docker-backed sandbox dev servers.
+  // Mounted at root: the route module defines the full `/api/sandbox/...`
+  // path so session middleware still applies.
+  app.route("/", createSandboxPreviewRoutes());
+
   // Stable file redirect endpoint (resolves mesh-storage: URIs to presigned URLs)
   app.route("/api", filesRoutes);
 
@@ -1572,12 +1598,41 @@ export async function createApp(options: CreateAppOptions = {}) {
             currentDecopilotCleanup = null;
           })
         : Promise.resolve(),
+      currentPrepWorker
+        ? currentPrepWorker.stop().finally(() => {
+            currentPrepWorker = null;
+          })
+        : Promise.resolve(),
     ]);
 
     // Phase 2: Clear timers
     if (currentRetentionTimer) {
       clearInterval(currentRetentionTimer);
       currentRetentionTimer = null;
+    }
+
+    // Phase 2.5: Sweep sandbox containers for the docker runner.
+    //
+    // Containers are `docker run --rm`, so `runner.sweepOrphans()` (which
+    // stops every container labelled `mesh-sandbox=1`) is enough to
+    // auto-remove them. Runs before NATS drain and DB close because the
+    // runner's state store writes during sweep. Skipped entirely when the
+    // shared runner was never initialised (no request ever touched a
+    // sandbox — nothing to sweep).
+    //
+    // Caveat: this filters ONLY by the shared label, so if multiple mesh
+    // pods ever share one docker host, each pod's SIGTERM will nuke the
+    // others' containers. Fine for single-pod-per-host deployments; revisit
+    // with a per-pod label when we go multi-tenant on one host.
+    const sandboxRunner = getSharedRunnerIfInit();
+    if (sandboxRunner) {
+      console.log("[shutdown] Sweeping sandbox containers...");
+      await sandboxRunner
+        .sweepOrphans()
+        .then((n) => console.log(`[shutdown] Swept ${n} sandbox container(s).`))
+        .catch((err: unknown) =>
+          console.error("[shutdown] Sandbox sweep error:", err),
+        );
     }
 
     // Phase 3: Drain NATS (after all consumers stopped)

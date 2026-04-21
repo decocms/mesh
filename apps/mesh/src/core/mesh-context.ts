@@ -211,6 +211,8 @@ export interface RequestMetadata {
   timestamp: Date;
   userAgent?: string;
   ipAddress?: string;
+  /** Decopilot thread id, set on stream entry once the thread is resolved. */
+  threadId?: string;
   /** Custom properties from x-mesh-properties header (string key-value pairs) */
   properties?: Record<string, string>;
   wellKnownForwardableHeaders?: Record<string, string | null>;
@@ -240,6 +242,8 @@ import type { OrgSsoConfigStorage } from "../storage/org-sso-config";
 import type { OrgSsoSessionStorage } from "../storage/org-sso-sessions";
 import type { BrandContextStorage } from "../storage/brand-context";
 import type { OrganizationDomainStorage } from "../storage/organization-domains";
+import type { SandboxEnvStorage } from "../storage/sandbox-env";
+import type { SandboxPrepStorage } from "../storage/sandbox-prep";
 import type { RegistryStorage } from "../storage/registry";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
@@ -280,6 +284,8 @@ export interface MeshStorage {
   registry: RegistryStorage;
   brandContext: BrandContextStorage;
   organizationDomains: OrganizationDomainStorage;
+  sandboxEnv: SandboxEnvStorage;
+  sandboxPrep: SandboxPrepStorage;
 }
 
 // ============================================================================

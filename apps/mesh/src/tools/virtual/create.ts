@@ -14,6 +14,7 @@ import {
   requireOrganization,
 } from "../../core/mesh-context";
 import { VirtualMCPCreateDataSchema, VirtualMCPEntitySchema } from "./schema";
+import { enqueuePrepForRepoLink } from "../../sandbox/prep-enqueue";
 /**
  * Random icon+color for new agents (server-side, no React deps).
  * Uses the same icon:// format as the client-side agent-icon module.
@@ -122,6 +123,27 @@ export const COLLECTION_VIRTUAL_MCP_CREATE = defineTool({
       userId,
       dataWithIcon,
     );
+
+    // Repo was linked at create time — fire a background bake so the
+    // Docker sandbox for the first thread spawns from a pre-baked image.
+    const metadata = (dataWithIcon.metadata ?? {}) as {
+      githubRepo?: {
+        owner?: string;
+        name?: string;
+        connectionId?: string;
+      } | null;
+    };
+    if (
+      metadata.githubRepo?.owner &&
+      metadata.githubRepo.name &&
+      metadata.githubRepo.connectionId
+    ) {
+      enqueuePrepForRepoLink(ctx, userId, {
+        owner: metadata.githubRepo.owner,
+        name: metadata.githubRepo.name,
+        connectionId: metadata.githubRepo.connectionId,
+      });
+    }
 
     // Return virtual MCP entity directly (already in correct format)
     return {

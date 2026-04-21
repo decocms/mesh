@@ -728,6 +728,12 @@ export interface ThreadTable {
   virtual_mcp_id: string;
   /** Per-task UI state (e.g., expanded_tools for right-panel tabs) */
   metadata: ColumnType<ThreadMetadata, string | undefined, string>;
+  /**
+   * Identifier for the sandbox this thread uses (Docker runner path).
+   * Null for legacy rows and for threads that never provisioned a sandbox.
+   * Shared containers: multiple threads can point to the same sandbox_ref.
+   */
+  sandbox_ref: string | null;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
   created_by: string; // User ID;
@@ -765,6 +771,8 @@ export interface Thread {
   /** Virtual MCP (agent) this thread was initiated with */
   virtual_mcp_id: string;
   metadata: ThreadMetadata;
+  /** Sandbox container identifier (Docker runner path); null if not provisioned. */
+  sandbox_ref: string | null;
 }
 
 export interface ThreadMessageTable {
@@ -947,6 +955,83 @@ export interface KVTable {
 }
 
 // ============================================================================
+// Sandbox Runner State Table Definition
+// ============================================================================
+
+/**
+ * Persistent state for the sandbox runner (docker/freestyle/etc).
+ *
+ * Shape of `state` is opaque to the storage layer — each runner serialises
+ * its own fields (tokens, ports, domain names) and reads them back on
+ * ensure(). See packages/mesh-plugin-user-sandbox/server/runner/.
+ */
+export interface SandboxRunnerStateTable {
+  user_id: string;
+  project_ref: string;
+  runner_kind: string;
+  handle: string;
+  state: ColumnType<Record<string, unknown>, string, string>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+}
+
+/**
+ * Status values for a sandbox prep row — the lifecycle of a baked image.
+ *
+ *  - `pending`: enqueued, waiting for a worker to claim.
+ *  - `baking`: a worker is running clone + install right now.
+ *  - `ready`: a baked image exists and can be used for new thread containers.
+ *  - `failed`: last bake attempt errored; row retained for debugging.
+ *  - `stale`: superseded (lockfile drift, repo unlinked); eligible for prune.
+ */
+export type SandboxPrepStatus =
+  | "pending"
+  | "baking"
+  | "ready"
+  | "failed"
+  | "stale";
+
+/**
+ * Baked Docker image per (user, repo, lockfile_hash). A ready row lets the
+ * runner spawn new thread containers from `image_tag` instead of re-cloning
+ * and re-installing on every thread.
+ */
+export interface SandboxPrepTable {
+  prep_key: string;
+  user_id: string;
+  /** Unauthenticated canonical URL (e.g. https://github.com/owner/repo.git). */
+  clone_url: string;
+  repo_owner: string;
+  repo_name: string;
+  connection_id: string;
+  lockfile_hash: string | null;
+  head_sha: string | null;
+  status: SandboxPrepStatus;
+  image_tag: string | null;
+  error: string | null;
+  install_command: string | null;
+  claimed_at: ColumnType<
+    Date | null,
+    Date | string | null,
+    Date | string | null
+  >;
+  last_used_at: ColumnType<Date, Date | string, Date | string>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+}
+
+/**
+ * Per-sandbox user-defined env vars. `value_encrypted` is vault-encrypted and
+ * never leaves the server in plaintext except at `docker run -e` time.
+ * Keyed by `sandbox_ref` so container recreation keeps the same values.
+ */
+export interface SandboxEnvTable {
+  sandbox_ref: string;
+  user_id: string;
+  key: string;
+  value_encrypted: string;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+}
+
+// ============================================================================
 // Organization Domain Table Definition
 // ============================================================================
 
@@ -1091,4 +1176,13 @@ export interface Database {
 
   // Organization domain claims (for auto-join)
   organization_domains: OrganizationDomainTable;
+
+  // Sandbox runner state (docker/freestyle handle + runner-private blob)
+  sandbox_runner_state: SandboxRunnerStateTable;
+
+  // Per-sandbox user-defined env vars (vault-encrypted values)
+  sandbox_env: SandboxEnvTable;
+
+  // Baked prep images for faster thread provisioning
+  sandbox_prep: SandboxPrepTable;
 }

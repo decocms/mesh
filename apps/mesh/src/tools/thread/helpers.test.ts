@@ -24,6 +24,7 @@ const BASE_THREAD: Thread = {
   run_started_at: null,
   virtual_mcp_id: "",
   metadata: {},
+  sandbox_ref: null,
 };
 
 const NOW = new Date("2025-01-01T01:00:00.000Z").getTime(); // 1hr after base
