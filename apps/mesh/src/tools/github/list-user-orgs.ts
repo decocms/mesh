@@ -119,8 +119,9 @@ export const GITHUB_LIST_USER_ORGS = defineTool({
 
       // Reactive refresh: GitHub rejected the token (revoked, rotated, or
       // expired before our clock said so). Try one refresh + retry before
-      // giving up.
-      if (res.status === 401 && page === 1) {
+      // giving up. Applies to any page — a token can be invalidated
+      // between pages of a long installations listing.
+      if (res.status === 401) {
         const current = await tokenStorage.get(input.connectionId);
         if (!current || !canRefresh(current)) {
           await tokenStorage.delete(input.connectionId);

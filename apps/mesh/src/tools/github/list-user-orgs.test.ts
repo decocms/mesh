@@ -449,4 +449,67 @@ describe("GITHUB_LIST_USER_ORGS", () => {
 
     expect(mockRefreshAccessToken).not.toHaveBeenCalled();
   });
+
+  it("reactively refreshes on 401 that surfaces on a later page", async () => {
+    await tokenStorage.upsert({
+      connectionId,
+      accessToken: "seemingly-valid-token",
+      refreshToken: "rt",
+      scope: "repo",
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      clientId: "cid",
+      clientSecret: "csecret",
+      tokenEndpoint: "https://github.com/login/oauth/access_token",
+    });
+
+    mockRefreshAccessToken.mockResolvedValueOnce({
+      success: true,
+      accessToken: "fresh-token",
+      refreshToken: "rt2",
+      expiresIn: 3600,
+      scope: "repo",
+    });
+
+    const fullPage = Array.from({ length: 100 }, (_, i) => ({
+      id: i + 1,
+      account: {
+        login: `org-${i + 1}`,
+        avatar_url: `https://example.com/${i + 1}.png`,
+        type: "Organization",
+      },
+      app_slug: "mcp-github",
+    }));
+
+    installHandler(
+      () => githubOkResponse(fullPage),
+      () => github401(),
+      () =>
+        githubOkResponse([
+          {
+            id: 101,
+            account: {
+              login: "late",
+              avatar_url: "https://example.com/late.png",
+              type: "Organization",
+            },
+            app_slug: "mcp-github",
+          },
+        ]),
+    );
+
+    const result = await GITHUB_LIST_USER_ORGS.execute({ connectionId }, ctx);
+
+    expect(result.installations).toHaveLength(101);
+    expect(mockRefreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(fetchCalls).toHaveLength(3);
+    expect(fetchCalls[0]?.headers["authorization"]).toBe(
+      "Bearer seemingly-valid-token",
+    );
+    expect(fetchCalls[1]?.headers["authorization"]).toBe(
+      "Bearer seemingly-valid-token",
+    );
+    expect(fetchCalls[2]?.headers["authorization"]).toBe("Bearer fresh-token");
+    expect(fetchCalls[1]?.url).toContain("page=2");
+    expect(fetchCalls[2]?.url).toContain("page=2");
+  });
 });
