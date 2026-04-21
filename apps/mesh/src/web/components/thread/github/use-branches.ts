@@ -45,6 +45,29 @@ type RawBranchesResponse =
     };
 
 /**
+ * github-mcp-server may return either:
+ * - `structuredContent` with parsed JSON, OR
+ * - `content: [{ type: "text", text: "<json>" }]` (most common)
+ * Accept both.
+ */
+function extractBranches(r: unknown): RawBranchesResponse {
+  const result = r as {
+    structuredContent?: RawBranchesResponse;
+    content?: Array<{ type?: string; text?: string }>;
+  };
+  if (result.structuredContent) return result.structuredContent;
+  const textPart = result.content?.find((c) => c.type === "text")?.text;
+  if (textPart) {
+    try {
+      return JSON.parse(textPart) as RawBranchesResponse;
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+/**
  * Lists branches for the picker.
  *
  * - "yours" are derived from vmMap[userId] — no network call.
@@ -74,8 +97,7 @@ export function useBranches({
       toolArguments: { owner, repo },
       enabled: enabled && !!connectionId && !!owner && !!repo,
       staleTime: 30_000,
-      select: (r) =>
-        (r as { structuredContent?: unknown }).structuredContent as never,
+      select: (r) => extractBranches(r),
     },
   );
 
