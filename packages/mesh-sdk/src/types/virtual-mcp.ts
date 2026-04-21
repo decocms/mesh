@@ -236,6 +236,9 @@ export const VirtualMCPCreateDataSchema = z.object({
       githubRepo: GithubRepoSchema.nullable()
         .optional()
         .describe("Linked GitHub repository"),
+      vmMap: VmMapSchema.optional().describe(
+        "Per-user, per-branch vm mapping: vmMap[userId][branch] -> vmId",
+      ),
     })
     .loose()
     .nullable()
@@ -281,6 +284,9 @@ export const VirtualMCPUpdateDataSchema = z.object({
       githubRepo: GithubRepoSchema.nullable()
         .optional()
         .describe("Linked GitHub repository"),
+      vmMap: VmMapSchema.optional().describe(
+        "Per-user, per-branch vm mapping: vmMap[userId][branch] -> vmId",
+      ),
     })
     .loose()
     .nullable()
