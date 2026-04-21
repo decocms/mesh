@@ -22,6 +22,7 @@ import { type VmEntry, patchActiveVms } from "./types";
 import { requireVmEntry, resolveRuntimeConfig } from "./helpers";
 import { DownstreamTokenStorage } from "../../storage/downstream-token";
 import { buildDaemonScript } from "./daemon";
+import { readVmMap, resolveVm, setVmMapEntry } from "./vm-map";
 
 const PROXY_PORT = 9000;
 
@@ -86,6 +87,12 @@ export const VM_START = defineTool({
   _meta: { ui: { visibility: "app" } },
   inputSchema: z.object({
     virtualMcpId: z.string().describe("Virtual MCP ID"),
+    branch: z
+      .string()
+      .nullish()
+      .describe(
+        "Optional git branch to check out. When set, the vm is registered in vmMap and shared across threads with the same (user, branch). Falls back to a random branch name when omitted.",
+      ),
   }),
   outputSchema: z.object({
     terminalUrl: z.string().nullable(),
@@ -101,6 +108,8 @@ export const VM_START = defineTool({
       if (!metadata.githubRepo) {
         throw new Error("No GitHub repo connected");
       }
+
+      const injectedBranch = input.branch ?? null;
 
       const { owner, name } = metadata.githubRepo;
       const { packageManager, runtime, port, runtimeBinPath } =
@@ -118,12 +127,17 @@ export const VM_START = defineTool({
         ctx.vault,
       );
 
-      // Generate a unique subdomain per (virtualMcpId, userId) pair.
+      // Generate a unique subdomain per (virtualMcpId, userId[, branch]) tuple.
+      // When branch is injected, include it in the key so two vms for the same
+      // user on different branches get distinct preview domains.
       // MD5 of the composite key guarantees a valid, fixed-length hex subdomain
       // and avoids collisions between different users on the same Virtual MCP.
       // Freestyle docs: /v2/vms/configuration/domains
+      const domainKeySource = injectedBranch
+        ? `${input.virtualMcpId}:${userId}:${injectedBranch}`
+        : `${input.virtualMcpId}:${userId}`;
       const domainKey = createHash("md5")
-        .update(`${input.virtualMcpId}:${userId}`)
+        .update(domainKeySource)
         .digest("hex")
         .slice(0, 16);
       const previewDomain = `${domainKey}.deco.studio`;
@@ -146,6 +160,7 @@ export const VM_START = defineTool({
               bootstrapScript: BOOTSTRAP_SCRIPT,
               gitUserName,
               gitUserEmail,
+              injectedBranch,
             }),
           },
           "/opt/run-daemon.sh": {
@@ -202,10 +217,29 @@ export const VM_START = defineTool({
             : baseSpec;
 
       // Resume existing VM if one is tracked.
+      // Priority order:
+      //   1. vmMap[userId][branch] — when branch is injected, reuse the
+      //      per-branch vm so multiple threads on the same (user, branch)
+      //      share one sandbox.
+      //   2. activeVms[userId] — legacy, branch-unaware fallback. Remains
+      //      for backward-compat with callers that don't pass a branch yet.
       // Try vm.start() which resumes suspended/stopped VMs. If the VM was
       // deleted externally, the call will throw — clear the stale entry and
       // fall through to create a new one.
-      const existing = metadata.activeVms?.[userId];
+      const vmMap = readVmMap(metadata);
+      const mappedVmId = injectedBranch
+        ? resolveVm(vmMap, userId, injectedBranch)
+        : null;
+      const existing =
+        mappedVmId && metadata.activeVms?.[userId]?.vmId === mappedVmId
+          ? metadata.activeVms[userId]
+          : mappedVmId
+            ? ({
+                vmId: mappedVmId,
+                previewUrl: `https://${previewDomain}`,
+                terminalUrl: null as string | null,
+              } satisfies VmEntry)
+            : metadata.activeVms?.[userId];
       if (existing) {
         try {
           const vm = freestyle.vms.ref({ vmId: existing.vmId, spec });
@@ -256,6 +290,19 @@ export const VM_START = defineTool({
         userId,
         (vms) => ({ ...vms, [userId]: entry }),
       );
+
+      // When a branch was injected, also record (user, branch) -> vmId in the
+      // branch-aware vmMap so later VM_START calls for the same pair reuse.
+      if (injectedBranch) {
+        await setVmMapEntry(
+          ctx.storage.virtualMcps,
+          input.virtualMcpId,
+          userId,
+          userId,
+          injectedBranch,
+          vmId,
+        );
+      }
 
       return { ...entry, isNewVm: true };
     } catch (e) {
