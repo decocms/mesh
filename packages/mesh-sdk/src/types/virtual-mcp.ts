@@ -132,6 +132,18 @@ const GithubRepoSchema = z.object({
 export type GithubRepo = z.infer<typeof GithubRepoSchema>;
 
 /**
+ * Maps a user to their active vm per branch.
+ * Lookup: vmMap[userId][branch] -> vmId
+ * Multiple threads with the same (userId, branch) share one vm.
+ */
+export const VmMapSchema = z.record(
+  z.string().describe("userId"),
+  z.record(z.string().describe("branch"), z.string().describe("vmId")),
+);
+
+export type VmMap = z.infer<typeof VmMapSchema>;
+
+/**
  * Virtual MCP entity schema - single source of truth
  * Compliant with collections binding pattern
  */
@@ -172,6 +184,9 @@ export const VirtualMCPEntitySchema = z.object({
       githubRepo: GithubRepoSchema.nullable()
         .optional()
         .describe("Linked GitHub repository"),
+      vmMap: VmMapSchema.optional().describe(
+        "Per-user, per-branch vm mapping: vmMap[userId][branch] -> vmId",
+      ),
     })
     .loose()
     .describe("Metadata"),
