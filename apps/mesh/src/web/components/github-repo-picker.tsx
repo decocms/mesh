@@ -46,16 +46,6 @@ interface Repo {
   updatedAt: string;
 }
 
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const days = Math.floor(diff / 86400000);
-  if (days === 0) return "today";
-  if (days === 1) return "yesterday";
-  if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `${months}mo ago`;
-  return `${Math.floor(months / 12)}y ago`;
-}
 
 export function GitHubRepoPicker({
   open,
@@ -65,6 +55,8 @@ export function GitHubRepoPicker({
   onOpenChange: (open: boolean) => void;
 }) {
   const [preferences] = usePreferences();
+  const [selectedInstallation, setSelectedInstallation] =
+    useState<GitHubInstallation | null>(null);
 
   if (!preferences.experimental_vibecode) {
     return null;
@@ -77,10 +69,33 @@ export function GitHubRepoPicker({
           <DialogTitle>Import from GitHub</DialogTitle>
         </DialogHeader>
         <div className="flex items-center h-12 border-b border-border px-4 gap-3 shrink-0">
-          <GitHubIcon className="size-4 text-foreground shrink-0" />
-          <span className="text-sm font-medium text-foreground">
-            Import from GitHub
-          </span>
+          {selectedInstallation ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setSelectedInstallation(null)}
+                className="flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                aria-label="Back to accounts"
+              >
+                <ArrowLeft size={16} />
+              </button>
+              <img
+                src={selectedInstallation.avatarUrl}
+                alt={selectedInstallation.login}
+                className="size-5 rounded-full ring-1 ring-border shrink-0"
+              />
+              <span className="text-sm font-medium text-foreground">
+                {selectedInstallation.login}
+              </span>
+            </>
+          ) : (
+            <>
+              <GitHubIcon className="size-4 text-foreground shrink-0" />
+              <span className="text-sm font-medium text-foreground">
+                Import from GitHub
+              </span>
+            </>
+          )}
         </div>
         <div className="flex-1 overflow-hidden flex flex-col min-w-0">
           <Suspense
@@ -93,7 +108,11 @@ export function GitHubRepoPicker({
               </div>
             }
           >
-            <PickerContent onComplete={() => onOpenChange(false)} />
+            <PickerContent
+              onComplete={() => onOpenChange(false)}
+              selectedInstallation={selectedInstallation}
+              onSelectInstallation={setSelectedInstallation}
+            />
           </Suspense>
         </div>
       </DialogContent>
@@ -101,14 +120,20 @@ export function GitHubRepoPicker({
   );
 }
 
-function PickerContent({ onComplete }: { onComplete: () => void }) {
+function PickerContent({
+  onComplete,
+  selectedInstallation,
+  onSelectInstallation,
+}: {
+  onComplete: () => void;
+  selectedInstallation: GitHubInstallation | null;
+  onSelectInstallation: (inst: GitHubInstallation | null) => void;
+}) {
   const { org } = useProjectContext();
   const queryClient = useQueryClient();
   const navigateToAgent = useNavigateToAgent();
   const [selectedConnection, setSelectedConnection] =
     useState<ConnectionEntity | null>(null);
-  const [selectedInstallation, setSelectedInstallation] =
-    useState<GitHubInstallation | null>(null);
 
   const githubConnections = useConnections({ slug: "mcp-github" });
 
@@ -402,7 +427,7 @@ function PickerContent({ onComplete }: { onComplete: () => void }) {
       <InstallationPicker
         connectionId={effectiveConnection.id}
         orgId={org.id}
-        onSelect={setSelectedInstallation}
+        onSelect={onSelectInstallation}
         showBackButton={githubConnections.length > 1}
         onBack={() => setSelectedConnection(null)}
       />
@@ -414,7 +439,6 @@ function PickerContent({ onComplete }: { onComplete: () => void }) {
       connectionId={effectiveConnection.id}
       orgId={org.id}
       installation={selectedInstallation}
-      onBack={() => setSelectedInstallation(null)}
       onSelectRepo={(repo) => importMutation.mutate(repo)}
       isSaving={importMutation.isPending}
     />
@@ -545,14 +569,12 @@ function RepoBrowser({
   connectionId,
   orgId,
   installation,
-  onBack,
   onSelectRepo,
   isSaving,
 }: {
   connectionId: string;
   orgId: string;
   installation: GitHubInstallation;
-  onBack: () => void;
   onSelectRepo: (repo: Repo) => void;
   isSaving: boolean;
 }) {
@@ -562,25 +584,6 @@ function RepoBrowser({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-2 shrink-0">
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors shrink-0"
-          aria-label="Back to accounts"
-        >
-          <ArrowLeft size={16} />
-        </button>
-        <img
-          src={installation.avatarUrl}
-          alt={installation.login}
-          className="size-5 rounded-full ring-1 ring-border shrink-0"
-        />
-        <span className="text-sm font-medium text-foreground">
-          {installation.login}
-        </span>
-      </div>
-
       <CollectionSearch
         placeholder="Search repositories..."
         value={query}
