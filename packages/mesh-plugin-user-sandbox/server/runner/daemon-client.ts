@@ -118,9 +118,31 @@ export async function bootstrapRepo(
 }
 
 /**
+ * Headers that must never flow from the browser through mesh into the user
+ * sandbox. The browser attaches the mesh session cookie to every same-origin
+ * request (including `/api/sandbox/<handle>/preview/*`), so without this the
+ * user's dev server sees the caller's mesh session. Also covers hop-by-hop
+ * headers per RFC 7230 — except `connection`/`upgrade`, which the WS upgrade
+ * path needs intact and handles separately.
+ */
+const STRIP_REQUEST_HEADERS = [
+  "cookie",
+  "host",
+  "connection",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "accept-encoding",
+  "content-length",
+];
+
+/**
  * HTTP passthrough to the daemon — the caller's bearer is overwritten with
- * ours and hop-by-hop headers are dropped. Returns the native `Response` so
- * the body streams through without buffering.
+ * ours and hop-by-hop + session-cookie headers are dropped. Returns the
+ * native `Response` so the body streams through without buffering.
  */
 export async function proxyDaemonRequest(
   daemonUrl: string,
@@ -129,11 +151,8 @@ export async function proxyDaemonRequest(
   init: { method: string; headers: Headers; body: BodyInit | null },
 ): Promise<Response> {
   const headers = new Headers(init.headers);
+  for (const h of STRIP_REQUEST_HEADERS) headers.delete(h);
   headers.set("authorization", `Bearer ${token}`);
-  headers.delete("host");
-  headers.delete("connection");
-  headers.delete("accept-encoding");
-  headers.delete("content-length");
   const hasBody = init.method !== "GET" && init.method !== "HEAD";
   const target = `${daemonUrl}${path.startsWith("/") ? path : `/${path}`}`;
   return fetch(target, {
@@ -180,6 +199,12 @@ export async function openDaemonUpgrade(
       for (const vv of Array.isArray(v) ? v : [v]) headers[k] = vv;
     }
   }
+  // Strip the browser's mesh session cookie before handing off to the user
+  // sandbox. See STRIP_REQUEST_HEADERS rationale on proxyDaemonRequest; here
+  // we keep `connection`/`upgrade` because they're part of the WS handshake.
+  delete headers["cookie"];
+  delete headers["proxy-authenticate"];
+  delete headers["proxy-authorization"];
   // Overwrite the client's host/auth with ours — the daemon only accepts
   // bearer auth and must see its own loopback host in the Host header.
   headers["host"] = `127.0.0.1:${daemonHost.port}`;

@@ -177,10 +177,28 @@ const server = Bun.serve<SandboxWsData>({
     // renders with the wrong CSS / missing scripts. Referer carries the
     // full iframe URL (same-origin) so we can route each stray request to
     // its originating sandbox.
+    //
+    // SECURITY: only honour Referer when it's same-origin with the incoming
+    // request. Cross-origin Referer should never reach here (browsers default
+    // to strict-origin-when-cross-origin), but we enforce it explicitly so a
+    // misconfigured Referrer-Policy on a third-party page can't drive routing.
+    // Browser cookies are stripped further down the pipe (daemon-client's
+    // proxyDaemonRequest) so even a routed request can't leak the mesh
+    // session into the user's dev server.
     const reqUrl = new URL(request.url);
-    const previewSource = extractSandboxHandleFromReferer(
-      request.headers.get("referer"),
-    );
+    const refererHeader = request.headers.get("referer");
+    let sameOriginReferer: string | null = null;
+    if (refererHeader) {
+      try {
+        const refererUrl = new URL(refererHeader);
+        if (refererUrl.origin === reqUrl.origin) {
+          sameOriginReferer = refererHeader;
+        }
+      } catch {
+        // malformed referer — ignore
+      }
+    }
+    const previewSource = extractSandboxHandleFromReferer(sameOriginReferer);
     if (
       previewSource &&
       !reqUrl.pathname.startsWith("/api/sandbox/") &&
