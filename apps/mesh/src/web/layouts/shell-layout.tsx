@@ -125,6 +125,13 @@ export function usePanelActions() {
         if (virtualMcpId) next.virtualmcpid = virtualMcpId;
         else if (prev.virtualmcpid) next.virtualmcpid = prev.virtualmcpid;
         if (prev.tasks) next.tasks = prev.tasks;
+        // Preserve the branch selection across task switches / new tasks so
+        // a freshly created thread inherits the branch chosen on the
+        // previous one — matches the "sticky branch" picker UX.
+        if (prev.branch) next.branch = prev.branch;
+        // Preserve the main panel tab (git / preview / env / …) so that
+        // switching tasks keeps the user's current view.
+        if (prev.main) next.main = prev.main;
         return next;
       },
       false,
