@@ -19,69 +19,78 @@ export interface TemplateContext {
 type RepoCtx = Pick<TemplateContext, "owner" | "repo">;
 const repoRef = (c: RepoCtx) => `${c.owner}/${c.repo}`;
 
+/**
+ * Preamble appended to any command that involves rewriting history or
+ * resolving conflicts. Tells the agent to use the BASH tool + git CLI
+ * directly (not the github-mcp-server API, which e.g. performs a merge
+ * instead of a true rebase).
+ */
+const GIT_CLI_PREAMBLE =
+  "Use the BASH tool with the git CLI inside the vm's working tree (not the GitHub REST/MCP tools) for any step that rewrites history, resolves conflicts, stages/commits, or pushes — the repo is already cloned and checked out there. Reserve the GitHub tools for PR-level operations (opening/closing/merging PRs, posting review comments).";
+
 export function createPr(
   ctx: Pick<TemplateContext, "owner" | "repo" | "branch" | "base">,
 ): string {
-  return `On repo \`${repoRef(ctx)}\`, create a pull request for branch \`${ctx.branch}\` against \`${ctx.base}\`. Write a clear title and a summary of the changes so far.`;
+  return `On repo \`${repoRef(ctx)}\`, create a pull request for branch \`${ctx.branch}\` against \`${ctx.base}\`. Write a clear title and a summary of the changes so far. ${GIT_CLI_PREAMBLE}`;
 }
 
 export function mergeSquash(
   ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber" | "base">,
 ): string {
-  return `On repo \`${repoRef(ctx)}\`, squash-merge PR #${ctx.prNumber} into \`${ctx.base}\`.`;
+  return `On repo \`${repoRef(ctx)}\`, squash-merge PR #${ctx.prNumber} into \`${ctx.base}\`. You may call the GitHub merge API for this since it's a PR-level operation; use the BASH tool with git only if you need to prep or reorganize commits first.`;
 }
 
 export function mergeRebase(
   ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber" | "base">,
 ): string {
-  return `On repo \`${repoRef(ctx)}\`, rebase-merge PR #${ctx.prNumber} into \`${ctx.base}\`.`;
+  return `On repo \`${repoRef(ctx)}\`, rebase-merge PR #${ctx.prNumber} into \`${ctx.base}\`. Prefer a true rebase via the BASH tool (\`git rebase ${ctx.base}\` in the vm, then force-push), and only use the GitHub merge API after the branch is ready.`;
 }
 
 export function mergeCommit(
   ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber" | "base">,
 ): string {
-  return `On repo \`${repoRef(ctx)}\`, merge PR #${ctx.prNumber} into \`${ctx.base}\` with a merge commit.`;
+  return `On repo \`${repoRef(ctx)}\`, merge PR #${ctx.prNumber} into \`${ctx.base}\` with a merge commit via the GitHub merge API. Use the BASH tool with git only if you need to prep commits first.`;
 }
 
 export function rebaseOnBase(
   ctx: Pick<TemplateContext, "owner" | "repo" | "branch" | "base">,
 ): string {
-  return `On repo \`${repoRef(ctx)}\`, rebase branch \`${ctx.branch}\` on the latest \`${ctx.base}\`.`;
+  return `On repo \`${repoRef(ctx)}\`, rebase branch \`${ctx.branch}\` on the latest \`${ctx.base}\` using the BASH tool and git CLI in the vm's working tree. Run \`git fetch origin\`, \`git checkout ${ctx.branch}\`, \`git rebase origin/${ctx.base}\`, then \`git push --force-with-lease\`. Do NOT use the GitHub \`update_pull_request_branch\` MCP tool — it performs a merge-of-base, not a true rebase. ${GIT_CLI_PREAMBLE}`;
 }
 
 export function resolveConflicts(
   ctx: Pick<TemplateContext, "owner" | "repo" | "branch" | "base">,
 ): string {
-  return `On repo \`${repoRef(ctx)}\`, resolve the merge conflicts between \`${ctx.branch}\` and \`${ctx.base}\`.`;
+  return `On repo \`${repoRef(ctx)}\`, resolve the merge conflicts between \`${ctx.branch}\` and \`${ctx.base}\` using the BASH tool and git CLI in the vm's working tree. Start with \`git fetch origin && git checkout ${ctx.branch} && git merge origin/${ctx.base}\` (or rebase, if the original PR was rebased-based). Edit the conflicted files directly, then \`git add\` the resolutions, finish the merge/rebase, and force-push when rebasing. ${GIT_CLI_PREAMBLE}`;
 }
 
 export function fixErrors(
   ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber" | "failingChecks">,
 ): string {
   const list = (ctx.failingChecks ?? []).join(", ");
-  return `On repo \`${repoRef(ctx)}\`, the following checks are failing on PR #${ctx.prNumber}: ${list}. Investigate and fix them.`;
+  return `On repo \`${repoRef(ctx)}\`, the following checks are failing on PR #${ctx.prNumber}: ${list}. Investigate and fix them. Work in the vm's working tree using the BASH tool + git CLI for any code edits, commits, and pushes; use the GitHub MCP tools only to read the check logs and (optionally) leave a PR comment once fixed. ${GIT_CLI_PREAMBLE}`;
 }
 
 export function rerunChecks(
   ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber">,
 ): string {
-  return `On repo \`${repoRef(ctx)}\`, re-run the failing checks on PR #${ctx.prNumber}.`;
+  return `On repo \`${repoRef(ctx)}\`, re-run the failing checks on PR #${ctx.prNumber} via the GitHub MCP tools. If the checks require a new commit (e.g., an empty commit to retrigger CI), use the BASH tool with git to create and push it.`;
 }
 
 export function rerunCheck(
   ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber" | "checkName">,
 ): string {
-  return `On repo \`${repoRef(ctx)}\`, re-run the \`${ctx.checkName}\` check on PR #${ctx.prNumber}.`;
+  return `On repo \`${repoRef(ctx)}\`, re-run the \`${ctx.checkName}\` check on PR #${ctx.prNumber} via the GitHub MCP tools. If an empty commit is needed to retrigger CI, use the BASH tool with git to create and push it.`;
 }
 
 export function closePr(
   ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber">,
 ): string {
-  return `On repo \`${repoRef(ctx)}\`, close PR #${ctx.prNumber} without merging.`;
+  return `On repo \`${repoRef(ctx)}\`, close PR #${ctx.prNumber} without merging. Use the GitHub MCP tools for this PR-level operation.`;
 }
 
 export function reopenPr(
   ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber">,
 ): string {
-  return `On repo \`${repoRef(ctx)}\`, reopen PR #${ctx.prNumber}.`;
+  return `On repo \`${repoRef(ctx)}\`, reopen PR #${ctx.prNumber}. Use the GitHub MCP tools for this PR-level operation.`;
 }
