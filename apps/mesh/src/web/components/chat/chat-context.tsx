@@ -147,6 +147,7 @@ export interface ChatPrefsContextValue {
 
 export interface ChatBridgeValue {
   sendMessage: (params: SendMessageParams) => Promise<void>;
+  isStreaming: boolean;
 }
 
 // ============================================================================
@@ -163,6 +164,7 @@ const BRIDGE_NOOP: ChatBridgeValue = {
       "[ChatBridge] sendMessage called but ActiveTaskProvider not mounted",
     );
   },
+  isStreaming: false,
 };
 
 /** Internal-only type for cross-provider communication */
@@ -790,7 +792,10 @@ export function ActiveTaskProvider({
   };
 
   // Register sendMessage on the bridge so TaskProvider-level code can call it
-  bridgeRef.current = { sendMessage: sendMessageInternal };
+  bridgeRef.current = {
+    sendMessage: sendMessageInternal,
+    isStreaming: chat.status === "submitted" || chat.status === "streaming",
+  };
 
   // Consume pending message when this task is the target
   const pendingConsumedRef = useRef<string | null>(null);
