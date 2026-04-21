@@ -10,6 +10,7 @@
  */
 
 import type { MeshContext } from "@/core/mesh-context";
+import { fetchRemoteHeadSha } from "./prep-head-check";
 
 export interface GithubRepoRef {
   owner: string;
@@ -71,6 +72,13 @@ export function canonicalGithubCloneUrl(owner: string, name: string): string {
  * current thread still pays the slow path (the bake hasn't finished yet),
  * but without this, repos linked before the prep system existed would
  * never self-heal.
+ *
+ * Freshness check: for `ready` rows we also peek at the remote default
+ * branch's HEAD SHA. If it drifted from the SHA we baked, we re-enqueue
+ * and take the slow path so the current thread runs against current code
+ * instead of a stale snapshot. The check is throttled in-process
+ * (`prep-head-check.ts`) so the common case adds near-zero latency, and
+ * it fails open — network errors never invalidate a working image.
  */
 export async function resolvePrepImage(
   ctx: MeshContext,
@@ -89,6 +97,24 @@ export async function resolvePrepImage(
     return null;
   }
   if (row.status !== "ready" || !row.imageTag) return null;
+
+  // Remote-drift revalidation. Only when we actually captured a SHA at
+  // bake time — a `ready` row without `headSha` came from a non-git
+  // workdir, nothing to compare against.
+  if (row.headSha) {
+    const remoteSha = await fetchRemoteHeadSha({
+      db: ctx.db,
+      vault: ctx.vault,
+      connectionId: repo.connectionId,
+      owner: repo.owner,
+      name: repo.name,
+    });
+    if (remoteSha && remoteSha !== row.headSha) {
+      enqueuePrepForRepoLink(ctx, userId, repo);
+      return null;
+    }
+  }
+
   void ctx.storage.sandboxPrep.touchUsed(row.prepKey).catch(() => {});
   return row.imageTag;
 }
