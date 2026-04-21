@@ -99,9 +99,10 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
 
   const orgKey = org.slug ?? org.id;
   const { data: dockerSandbox } = useQuery<{
-    sandboxRef: string;
-    handle: string;
-    previewUrl: string;
+    threadExists: boolean;
+    sandboxRef: string | null;
+    handle: string | null;
+    previewUrl: string | null;
     serverUp: boolean;
   } | null>({
     queryKey: ["thread-sandbox", orgKey, taskId],
@@ -112,10 +113,11 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
         `/api/${orgKey}/decopilot/threads/${taskId}/sandbox`,
       );
       if (!res.ok) return null;
-      return (await res.json()) as null | {
-        sandboxRef: string;
-        handle: string;
-        previewUrl: string;
+      return (await res.json()) as {
+        threadExists: boolean;
+        sandboxRef: string | null;
+        handle: string | null;
+        previewUrl: string | null;
         serverUp: boolean;
       };
     },
@@ -123,7 +125,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
 
   const existingVm =
     freestyleVm ??
-    (dockerSandbox
+    (dockerSandbox?.handle && dockerSandbox.previewUrl
       ? {
           previewUrl: dockerSandbox.previewUrl,
           vmId: dockerSandbox.handle,
@@ -251,7 +253,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     verb: "start" | "stop",
     scriptName: string,
   ): { url: string; init: RequestInit } => {
-    if (dockerSandbox) {
+    if (dockerSandbox?.handle) {
       const path = verb === "start" ? "dev/start" : "dev/stop";
       // Forward the user-configured port so the daemon can pick it over any
       // other listener the dev process binds (API + Vite is the canonical
@@ -406,10 +408,6 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
 
   const githubRepo = useActiveGithubRepo();
 
-  if (!githubRepo) {
-    return null;
-  }
-
   const runtime = (
     inset?.entity?.metadata as
       | { runtime?: { selected: string | null; port?: string | null } | null }
@@ -453,26 +451,33 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     return (
       <div className="flex flex-col items-center justify-center w-full h-full p-6">
         <div className="flex flex-col gap-4 w-full max-w-xs">
-          <a
-            href={`https://github.com/${githubRepo.owner}/${githubRepo.name}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors"
-          >
-            <GitHubIcon size={24} />
-            <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-              <span className="text-sm font-medium truncate">
-                {githubRepo.owner}/{githubRepo.name}
-              </span>
-              <span className="text-xs text-muted-foreground truncate">
-                github.com/{githubRepo.owner}/{githubRepo.name}
-              </span>
+          {githubRepo ? (
+            <a
+              href={`https://github.com/${githubRepo.owner}/${githubRepo.name}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors"
+            >
+              <GitHubIcon size={24} />
+              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                <span className="text-sm font-medium truncate">
+                  {githubRepo.owner}/{githubRepo.name}
+                </span>
+                <span className="text-xs text-muted-foreground truncate">
+                  github.com/{githubRepo.owner}/{githubRepo.name}
+                </span>
+              </div>
+              <LinkExternal01
+                size={14}
+                className="text-muted-foreground shrink-0"
+              />
+            </a>
+          ) : (
+            <div className="flex items-center gap-3 p-4 rounded-lg border border-dashed border-border text-muted-foreground">
+              <GitHubIcon size={24} className="opacity-40" />
+              <span className="text-sm">No repo connected</span>
             </div>
-            <LinkExternal01
-              size={14}
-              className="text-muted-foreground shrink-0"
-            />
-          </a>
+          )}
 
           {isDetecting ? (
             <div className="flex items-center justify-center gap-2 w-full">

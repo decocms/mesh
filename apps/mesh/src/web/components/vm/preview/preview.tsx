@@ -3,11 +3,16 @@ import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import { authClient } from "@/web/lib/auth-client";
 import { useToggleEnvPanel } from "@/web/hooks/use-toggle-env-panel";
 import { useChatTask } from "@/web/components/chat/context";
-import { useProjectContext } from "@decocms/mesh-sdk";
+import {
+  useProjectContext,
+  useMCPClient,
+  SELF_MCP_ALIAS_ID,
+} from "@decocms/mesh-sdk";
 import { useQuery } from "@tanstack/react-query";
 import {
   CursorClick01,
   LinkExternal01,
+  Loading01,
   Monitor04,
   RefreshCw01,
   Server01,
@@ -70,14 +75,17 @@ export function PreviewContent() {
 
   // Docker path: resolve the preview URL from the thread-scoped endpoint so
   // bash and the iframe share the same container keyed by thread.sandbox_ref.
-  // Returns null for Freestyle (no row in sandbox_runner_state), in which case
-  // we fall back to activeVms below.
+  // Endpoint always returns an object so the client can tell "thread never
+  // existed" (auto-spin candidate) from "thread exists but sandbox is
+  // dormant" (user must click). Freestyle threads get `handle: null` and we
+  // fall back to activeVms below.
   const { org } = useProjectContext();
   const { taskId } = useChatTask();
   const { data: threadSandbox } = useQuery<{
-    sandboxRef: string;
-    handle: string;
-    previewUrl: string;
+    threadExists: boolean;
+    sandboxRef: string | null;
+    handle: string | null;
+    previewUrl: string | null;
     serverUp: boolean;
     phase: string | null;
   } | null>({
@@ -94,10 +102,11 @@ export function PreviewContent() {
         `/api/${org.slug ?? org.id}/decopilot/threads/${taskId}/sandbox`,
       );
       if (!res.ok) return null;
-      return (await res.json()) as null | {
-        sandboxRef: string;
-        handle: string;
-        previewUrl: string;
+      return (await res.json()) as {
+        threadExists: boolean;
+        sandboxRef: string | null;
+        handle: string | null;
+        previewUrl: string | null;
         serverUp: boolean;
         phase: string | null;
       };
@@ -106,13 +115,81 @@ export function PreviewContent() {
 
   // Docker path takes precedence: if the thread has a sandbox_ref at all,
   // mount the iframe unconditionally. When the dev server is still booting
-  // or crashed, the sandbox-preview proxy renders a loading page (with live
-  // logs + auto-reload) for the initial HTML request — so `previewUrl` is
-  // always safe to use here. Freestyle (threadSandbox === null) keeps using
-  // activeVms unchanged.
-  const previewUrl = threadSandbox
-    ? threadSandbox.previewUrl
-    : (vmEntry?.previewUrl ?? null);
+  // or crashed, the sandbox-preview proxy renders a loading page for the
+  // initial HTML request — so `previewUrl` is always safe to use here.
+  // Freestyle (no docker handle) keeps using activeVms unchanged.
+  const previewUrl = threadSandbox?.previewUrl ?? vmEntry?.previewUrl ?? null;
+
+  // Auto-spin the VM for brand-new threads (no DB row yet). Old threads stay
+  // manual — the env panel's Run button is the entry point for reviving a
+  // dormant sandbox so browsing thread history doesn't spin containers.
+  const mcpClient = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+  const autoStartedForTaskRef = useRef<string | null>(null);
+  const [autoStartFailed, setAutoStartFailed] = useState(false);
+  const virtualMcpId = inset?.entity?.id ?? null;
+  const shouldAutoStart =
+    !!taskId &&
+    !!virtualMcpId &&
+    !!threadSandbox &&
+    !threadSandbox.threadExists &&
+    autoStartedForTaskRef.current !== taskId;
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — 500ms debounced side-effect; no React 19 alternative
+  useEffect(() => {
+    if (!shouldAutoStart || !taskId || !virtualMcpId) return;
+    const targetTaskId = taskId;
+    const timer = setTimeout(() => {
+      autoStartedForTaskRef.current = targetTaskId;
+      setAutoStartFailed(false);
+      mcpClient
+        .callTool({
+          name: "VM_START",
+          arguments: { virtualMcpId, threadId: targetTaskId },
+        })
+        .catch((err) => {
+          // Leave the flag set — don't retry on loop. Surface the button so
+          // the user can click the env panel Run button to retry manually.
+          console.error("[preview] auto-start VM_START failed", err);
+          setAutoStartFailed(true);
+        });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [shouldAutoStart, taskId, virtualMcpId, mcpClient]);
+  // Reset the failure flag when navigating to a different thread so a new
+  // thread starts with a clean slate.
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — resets per-task state when taskId changes
+  useEffect(() => {
+    setAutoStartFailed(false);
+  }, [taskId]);
+
+  // Auto-open the env (logs) panel the first time a thread has a running
+  // sandbox. Previously the "Start Server" button was the entry point that
+  // opened it as a side effect — without that button, old threads with
+  // already-running containers had no way to surface logs. Keyed on taskId
+  // so if the user explicitly closes the panel on a thread, we respect that
+  // and don't reopen on the same thread.
+  const envAutoOpenedForTaskRef = useRef<string | null>(null);
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — one-shot side-effect per (taskId, first previewUrl)
+  useEffect(() => {
+    if (!taskId || !previewUrl) return;
+    if (envAutoOpenedForTaskRef.current === taskId) return;
+    envAutoOpenedForTaskRef.current = taskId;
+    openEnv();
+  }, [taskId, previewUrl, openEnv]);
+
+  // Empty-state discriminator. While the thread-sandbox query is loading
+  // (threadSandbox === undefined) we render nothing to avoid button flicker.
+  const isAutoSpinning =
+    !previewUrl &&
+    !!threadSandbox &&
+    !threadSandbox.threadExists &&
+    !autoStartFailed;
+  const showManualStart =
+    !previewUrl &&
+    !!threadSandbox &&
+    (threadSandbox.threadExists || autoStartFailed);
 
   const vmEvents = useVmEvents(previewUrl, null);
   const hasHtmlPreview = vmEvents.status.htmlSupport;
@@ -231,7 +308,16 @@ export function PreviewContent() {
 
       {/* Content area */}
       <div className="flex-1 relative overflow-hidden">
-        {!previewUrl && (
+        {isAutoSpinning && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-background">
+            <Loading01
+              size={28}
+              className="text-muted-foreground animate-spin"
+            />
+            <h3 className="text-sm font-medium">Starting dev server…</h3>
+          </div>
+        )}
+        {showManualStart && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-background">
             <Monitor04 size={48} className="text-muted-foreground/40" />
             <h3 className="text-lg font-medium">Preview</h3>

@@ -401,17 +401,25 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
     if (!taskId || /[.*>\s]/.test(taskId)) {
       throw new HTTPException(400, { message: "Invalid thread ID" });
     }
-    // Thread may not exist yet — the UI polls this endpoint from the moment
-    // a chat is opened, before the first message creates the thread row.
-    // Treat "no thread" the same as "no sandbox yet": return null.
+    // Always return an object so the client can distinguish "thread never
+    // existed" (auto-spin candidate) from "thread exists but sandbox is
+    // dormant" (user must click). `threadExists` is the discriminator.
     const thread = await ctx.storage.threads.get(taskId);
+    const emptyResponse = {
+      threadExists: Boolean(thread),
+      sandboxRef: null as string | null,
+      handle: null as string | null,
+      previewUrl: null as string | null,
+      serverUp: false,
+      phase: null as string | null,
+    };
     if (!thread) {
-      return c.json(null);
+      return c.json(emptyResponse);
     }
 
     const sandboxRef = thread.sandbox_ref;
     if (!sandboxRef) {
-      return c.json(null);
+      return c.json(emptyResponse);
     }
 
     const row = await ctx.db
@@ -423,7 +431,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
       .executeTakeFirst();
 
     if (!row) {
-      return c.json(null);
+      return c.json({ ...emptyResponse, sandboxRef });
     }
 
     // Ask the sandbox daemon whether the dev server is actually bound. The
@@ -468,6 +476,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
     }
 
     return c.json({
+      threadExists: true,
       sandboxRef,
       handle: row.handle,
       previewUrl: `/api/sandbox/${row.handle}/preview/`,

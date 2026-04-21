@@ -78,12 +78,14 @@ export const VM_START = defineTool({
     try {
       const { metadata, userId } = await requireVmEntry(input, ctx);
 
-      if (!metadata.githubRepo) {
-        throw new Error("No GitHub repo connected");
+      if (resolveRunnerKind() === "docker") {
+        // Docker path supports repo-less spin (bun base image, no clone).
+        return await dockerStart(input, ctx, metadata, userId);
       }
 
-      if (resolveRunnerKind() === "docker") {
-        return await dockerStart(input, ctx, metadata, userId);
+      // Freestyle path needs a repo: its daemon script hardcodes cloneUrl.
+      if (!metadata.githubRepo) {
+        throw new Error("No GitHub repo connected");
       }
 
       const { owner, name } = metadata.githubRepo;
@@ -301,15 +303,20 @@ async function dockerStart(
     );
   }
 
-  const repo = metadata.githubRepo!;
+  const repo = metadata.githubRepo ?? null;
 
-  const { cloneUrl, gitUserName, gitUserEmail } = await buildCloneInfo(
-    repo.connectionId,
-    repo.owner,
-    repo.name,
-    ctx.db,
-    ctx.vault,
-  );
+  // Repo-less spin: container boots from the default bun image with an empty
+  // workdir. No clone, no prep image, no dev-server auto-start. Useful so the
+  // sandbox is ready for bash before the user connects a repo.
+  const repoInfo = repo
+    ? await buildCloneInfo(
+        repo.connectionId,
+        repo.owner,
+        repo.name,
+        ctx.db,
+        ctx.vault,
+      )
+    : null;
 
   const runner = getSharedRunner(ctx);
   // Pull user-defined env vars so `docker run -e KEY=VALUE` injects them at
@@ -319,11 +326,13 @@ async function dockerStart(
   const userEnv = await ctx.storage.sandboxEnv.resolve(sandboxRef);
   // Spawn from a pre-baked prep image when one is ready for this (user, repo).
   // Cuts clone + install from the first-start latency budget.
-  const prepImage = await resolvePrepImage(ctx, userId, {
-    owner: repo.owner,
-    name: repo.name,
-    connectionId: repo.connectionId,
-  });
+  const prepImage = repo
+    ? await resolvePrepImage(ctx, userId, {
+        owner: repo.owner,
+        name: repo.name,
+        connectionId: repo.connectionId,
+      })
+    : null;
   const { port: preferredPortRaw, runtime } = resolveRuntimeConfig(metadata);
   const preferredPortNum = preferredPortRaw ? Number(preferredPortRaw) : NaN;
   const sandbox = await runner.ensure(
@@ -332,11 +341,13 @@ async function dockerStart(
       projectRef: sandboxRef,
     },
     {
-      repo: {
-        cloneUrl,
-        userName: gitUserName,
-        userEmail: gitUserEmail,
-      },
+      repo: repoInfo
+        ? {
+            cloneUrl: repoInfo.cloneUrl,
+            userName: repoInfo.gitUserName,
+            userEmail: repoInfo.gitUserEmail,
+          }
+        : undefined,
       env: { ...userEnv },
       image: prepImage ?? undefined,
     },
@@ -345,8 +356,9 @@ async function dockerStart(
   // Kick off the dev server now that `ensure()` has guaranteed the clone is
   // complete. Idempotent — the daemon's `/dev/start` no-ops when phase is
   // already starting/installing/ready, so repeated calls from page polls
-  // (see decopilot/routes.ts) are safe.
-  if (runner instanceof DockerSandboxRunner) {
+  // (see decopilot/routes.ts) are safe. Skipped for repo-less spins: no
+  // package.json means nothing to run.
+  if (repo && runner instanceof DockerSandboxRunner) {
     // `runtime` tells the sandbox daemon which toolchain to use. Deno in
     // particular is lazy-installed into the container on first use, and the
     // daemon reads tasks from `deno.json` instead of `package.json.scripts`
