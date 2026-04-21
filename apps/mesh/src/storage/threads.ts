@@ -145,6 +145,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
       status: data.status ?? "completed",
       trigger_id: data.trigger_id ?? null,
       virtual_mcp_id: data.virtual_mcp_id ?? "",
+      branch: data.branch ?? null,
       created_at: now,
       updated_at: now,
       created_by: data.created_by,
@@ -216,6 +217,9 @@ export class SqlThreadStorage implements ThreadStoragePort {
     }
     if (data.metadata !== undefined) {
       updateData.metadata = JSON.stringify(data.metadata);
+    }
+    if (data.branch !== undefined) {
+      updateData.branch = data.branch;
     }
 
     await this.db
@@ -659,6 +663,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
     run_config?: Record<string, unknown> | null;
     run_started_at?: Date | string | null;
     virtual_mcp_id?: string | null;
+    branch?: string | null;
     metadata?: ThreadMetadata | string | null;
     created_at: Date | string;
     updated_at: Date | string;
@@ -697,6 +702,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
         ? toIsoString(row.run_started_at)
         : null,
       virtual_mcp_id: row.virtual_mcp_id ?? "",
+      branch: row.branch ?? null,
       metadata,
       created_at: toIsoString(row.created_at),
       updated_at: toIsoString(row.updated_at),
