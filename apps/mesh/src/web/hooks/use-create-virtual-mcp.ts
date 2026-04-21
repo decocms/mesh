@@ -49,7 +49,7 @@ export function useCreateVirtualMCP(
     });
 
     if (navigateOnCreate) {
-      navigateToAgent(virtualMcp.id!, { search: { main: "settings" } });
+      navigateToAgent(virtualMcp.id!, { search: { main: "instructions" } });
     }
 
     return { id: virtualMcp.id!, virtualMcp }; // ID is guaranteed to be non-null for created virtual MCPs
