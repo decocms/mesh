@@ -217,6 +217,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
     }
     if (data.metadata !== undefined) {
       updateData.metadata = JSON.stringify(data.metadata);
+    }
     if (data.sandbox_ref !== undefined) {
       updateData.sandbox_ref = data.sandbox_ref;
     }
