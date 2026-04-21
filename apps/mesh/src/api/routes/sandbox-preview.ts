@@ -34,6 +34,10 @@ const STRIP_RESPONSE_HEADERS = [
   "x-frame-options",
   "content-security-policy",
   "content-encoding",
+  // Prevent the user's dev server from planting cookies on the mesh origin.
+  // Defense in depth: the daemon's proxy.mjs already strips this, but a
+  // mis-deploy that bypasses the daemon shouldn't reintroduce the risk.
+  "set-cookie",
 ];
 
 /**

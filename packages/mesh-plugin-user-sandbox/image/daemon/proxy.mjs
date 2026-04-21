@@ -40,6 +40,9 @@ function injectBootstrap(upstreamHeaders, bodyBuf) {
   delete headers["content-security-policy"];
   delete headers["content-encoding"];
   delete headers["content-length"];
+  // Prevent the dev server from setting cookies on the mesh origin.
+  delete headers["set-cookie"];
+  delete headers["Set-Cookie"];
   let html = bodyBuf.toString("utf8");
   const idx = html.lastIndexOf("</body>");
   html =
@@ -53,6 +56,11 @@ export function proxyHttp(req, res, parsed) {
   const headers = { ...req.headers };
   delete headers.host;
   delete headers.authorization;
+  // Defense in depth: mesh's daemon-client already strips `cookie`, but the
+  // daemon port is bound on the host via `-p` (or is the host's own net ns
+  // in host-network mode), so a direct loopback caller could otherwise pass
+  // browser cookies straight through to the dev server.
+  delete headers["cookie"];
   // `accept-encoding` dropped so upstream doesn't gzip — we may rewrite the
   // body for HTML injection, and decoding gzip just to re-encode wastes CPU.
   delete headers["accept-encoding"];
@@ -74,6 +82,11 @@ export function proxyHttp(req, res, parsed) {
         const outHeaders = { ...u.headers };
         delete outHeaders["x-frame-options"];
         delete outHeaders["content-security-policy"];
+        // Prevent the dev server from setting cookies on the mesh origin.
+        // Node's IncomingMessage spreads multi-value `set-cookie` into both
+        // camelCase and lowercase forms; delete both to be safe.
+        delete outHeaders["set-cookie"];
+        delete outHeaders["Set-Cookie"];
         res.writeHead(u.statusCode ?? 502, outHeaders);
         u.pipe(res);
         return;

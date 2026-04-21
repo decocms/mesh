@@ -1,7 +1,12 @@
 /**
  * Typed file-operation endpoints (/fs/*). Plain-JSON bodies, paths rooted at
- * /app (or body.cwd) and guarded against escape. Shells out to `rg` for
- * grep/glob — the binary is pre-installed in the base image.
+ * `WORKDIR` and guarded against escape. Shells out to `rg` for grep/glob —
+ * the binary is pre-installed in the base image.
+ *
+ * SECURITY: body.cwd is accepted as a convenience for relative path
+ * resolution but is NEVER treated as the root. It must itself resolve under
+ * WORKDIR. The root is always WORKDIR. A caller cannot read/write outside
+ * WORKDIR by passing `cwd: "/"`.
  */
 
 import { spawn } from "node:child_process";
@@ -11,13 +16,31 @@ import { WORKDIR } from "./config.mjs";
 import { readJson, send } from "./http-helpers.mjs";
 
 /**
- * Resolve `p` against `root`, rejecting paths that escape the root. Returns
- * the absolute path on success, null on escape. Empty path resolves to
- * `root` itself, which grep/glob use as "search everywhere".
+ * Resolve `body.cwd` to an absolute directory under WORKDIR. Empty/missing
+ * returns WORKDIR itself. Returns null if cwd escapes WORKDIR.
  */
-function safePath(p, root = WORKDIR) {
-  const resolved = path.resolve(root, p ?? "");
-  if (resolved !== root && !resolved.startsWith(root + path.sep)) return null;
+function resolveCwd(cwd) {
+  if (!cwd) return WORKDIR;
+  const resolved = path.resolve(WORKDIR, cwd);
+  if (resolved !== WORKDIR && !resolved.startsWith(WORKDIR + path.sep)) {
+    return null;
+  }
+  return resolved;
+}
+
+/**
+ * Resolve `p` relative to `cwd` (which must itself be under WORKDIR), then
+ * verify the final path is still under WORKDIR. Returns the absolute path on
+ * success, null on escape. Empty path resolves to `cwd` itself, which
+ * grep/glob use as "search this directory".
+ */
+function safePath(p, cwd) {
+  const base = resolveCwd(cwd);
+  if (base === null) return null;
+  const resolved = path.resolve(base, p ?? "");
+  if (resolved !== WORKDIR && !resolved.startsWith(WORKDIR + path.sep)) {
+    return null;
+  }
   return resolved;
 }
 
@@ -132,6 +155,8 @@ export async function handleFsGrep(req, res) {
     if (typeof body.pattern !== "string" || body.pattern.length === 0) {
       return send(res, 400, { error: "pattern is required" });
     }
+    const cwd = resolveCwd(body.cwd);
+    if (cwd === null) return send(res, 400, { error: "cwd escapes workdir" });
     const searchPath = safePath(body.path ?? "", body.cwd);
     if (!searchPath) return send(res, 400, { error: "path escapes workdir" });
     const mode = body.output_mode ?? "files";
@@ -146,7 +171,7 @@ export async function handleFsGrep(req, res) {
     args.push("--", body.pattern, searchPath);
     const limit = Math.max(1, Number(body.limit) || 250);
     const child = spawn("rg", args, {
-      cwd: body.cwd || WORKDIR,
+      cwd,
       stdio: ["ignore", "pipe", "pipe"],
     });
     const lines = [];
@@ -180,9 +205,10 @@ export async function handleFsGlob(req, res) {
     if (typeof body.pattern !== "string" || body.pattern.length === 0) {
       return send(res, 400, { error: "pattern is required" });
     }
+    const root = resolveCwd(body.cwd);
+    if (root === null) return send(res, 400, { error: "cwd escapes workdir" });
     const searchPath = safePath(body.path ?? "", body.cwd);
     if (!searchPath) return send(res, 400, { error: "path escapes workdir" });
-    const root = body.cwd || WORKDIR;
     const child = spawn("rg", ["--files", "--glob", body.pattern, searchPath], {
       cwd: root,
       stdio: ["ignore", "pipe", "pipe"],

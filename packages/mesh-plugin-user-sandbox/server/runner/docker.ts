@@ -66,13 +66,24 @@ export interface DockerRunnerOptions {
  *  - `"add-host"`    — preferred. `--add-host=host.docker.internal:host-gateway`,
  *                      container keeps its own net namespace, daemon port is
  *                      mapped via `-p 127.0.0.1:0:<DAEMON_PORT>`.
- *  - `"network-host"` — fallback for old Docker/podman where host-gateway isn't
- *                      supported. Container shares the host's network namespace,
- *                      so `localhost` inside == `localhost` on host. The daemon
- *                      binds directly to a mesh-picked port on the host (no
- *                      `-p` mapping available).
+ *  - `"network-host"` — opt-in ONLY via `MESH_SANDBOX_ALLOW_HOST_NETWORK=1`.
+ *                      Container shares the host's network namespace, so
+ *                      `localhost` inside == `localhost` on host. That means
+ *                      user-controlled code inside the container can reach
+ *                      host loopback services (mesh postgres, mesh API
+ *                      internals), so this is unsafe in multi-tenant setups
+ *                      and only acceptable for single-tenant dev/self-host.
  */
 type HostAccessMode = "add-host" | "network-host";
+
+/**
+ * Opt-in escape hatch for operators on podman/old-docker where
+ * `--add-host=host.docker.internal:host-gateway` isn't supported. Setting
+ * this env var to "1" acknowledges the single-tenant security trade-off
+ * documented on HostAccessMode. Default behaviour (no env) refuses to
+ * provision when the probe fails.
+ */
+const ALLOW_HOST_NETWORK = process.env.MESH_SANDBOX_ALLOW_HOST_NETWORK === "1";
 
 /** Private per-handle record. Never escapes the runner. */
 interface DockerRecord {
@@ -144,9 +155,15 @@ export class DockerSandboxRunner implements SandboxRunner {
   /**
    * Probe whether `--add-host=host.docker.internal:host-gateway` resolves
    * inside a fresh container. Works on Docker Desktop (mac/Windows) and modern
-   * Linux Docker; fails silently on podman and older Linux Docker where
-   * host-gateway isn't a recognized keyword. Result cached for the life of
-   * this runner.
+   * Linux Docker; fails on podman and older Linux Docker where host-gateway
+   * isn't a recognized keyword.
+   *
+   * When the probe fails, the only alternative is `--network=host`, which is
+   * unsafe in multi-tenant setups (see HostAccessMode). We therefore require
+   * `MESH_SANDBOX_ALLOW_HOST_NETWORK=1` before returning `"network-host"`,
+   * and throw otherwise so the operator has to make an explicit decision.
+   *
+   * Result cached for the life of this runner.
    */
   private getHostAccessMode(): Promise<HostAccessMode> {
     if (this.hostAccessModePromise) return this.hostAccessModePromise;
@@ -161,11 +178,27 @@ export class DockerSandboxRunner implements SandboxRunner {
         "host.docker.internal",
       ]);
       const ok = probe.code === 0 && /\S/.test(probe.stdout);
-      const mode: HostAccessMode = ok ? "add-host" : "network-host";
-      console.log(
-        `[mesh-sandbox] host access mode: ${mode}${ok ? "" : " (--add-host probe failed, falling back to --network=host)"}`,
+      if (ok) {
+        console.log("[mesh-sandbox] host access mode: add-host");
+        return "add-host";
+      }
+      if (!ALLOW_HOST_NETWORK) {
+        throw new Error(
+          "[mesh-sandbox] `--add-host=host.docker.internal:host-gateway` is " +
+            "not supported by this docker runtime, and the only fallback " +
+            "(`--network=host`) is unsafe in multi-tenant setups because " +
+            "user code inside the container can reach host loopback services " +
+            "(mesh postgres, mesh API, cloud metadata at 169.254.169.254). " +
+            "Upgrade docker, or — if you're running single-tenant and " +
+            "accept the trade-off — set MESH_SANDBOX_ALLOW_HOST_NETWORK=1.",
+        );
+      }
+      console.warn(
+        "[mesh-sandbox] host access mode: network-host " +
+          "(MESH_SANDBOX_ALLOW_HOST_NETWORK=1; container shares host network — " +
+          "do NOT enable in multi-tenant production)",
       );
-      return mode;
+      return "network-host";
     })();
     return this.hostAccessModePromise;
   }

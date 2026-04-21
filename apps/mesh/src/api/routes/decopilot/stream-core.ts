@@ -52,7 +52,10 @@ import { ThreadMessage } from "@/storage/types";
 import type { MeshProvider } from "@/ai-providers/types";
 import { resolveClaudeCodeModelId } from "@/ai-providers/adapters/claude-code";
 import { createClaudeCodeModelForRequest } from "@/ai-providers/coding-agents/claude-code";
-import { defaultClaudeCodeCredsSource } from "@/ai-providers/coding-agents/claude-code/creds-source";
+import {
+  defaultClaudeCodeCredsSource,
+  isOperatorClaudeCredsAllowedInSandbox,
+} from "@/ai-providers/coding-agents/claude-code/creds-source";
 import { resolveClaudeCodeCreds } from "mesh-plugin-user-sandbox/creds/claude-code";
 import {
   DockerSandboxRunner,
@@ -671,6 +674,25 @@ async function streamCoreInner(
 
           if (runner instanceof DockerSandboxRunner && sandboxRef) {
             try {
+              // The Docker runner is localhost-only (dev + self-host). The
+              // studio user and the mesh host user are the same person, so
+              // shipping the host's Claude OAuth token into their own
+              // sandbox is fine — it was already on their machine. Prod
+              // uses KubernetesSandboxRunner with per-user creds and never
+              // takes this branch (see PLAN.md).
+              //
+              // Still gate on an explicit env var so a Docker runner that
+              // somehow ends up wired into a multi-user mesh doesn't leak
+              // the host token by default.
+              if (!isOperatorClaudeCredsAllowedInSandbox()) {
+                throw new Error(
+                  "sandbox claude-code disabled: set " +
+                    "MESH_SANDBOX_ALLOW_OPERATOR_CLAUDE_CREDS=1 on localhost " +
+                    "self-host to acknowledge the host Claude token is " +
+                    "shipped into the sandbox. Not supported on multi-user " +
+                    "mesh — use the Kubernetes runner instead.",
+                );
+              }
               // Materialize host creds, then immediately read+drop the
               // tempfile — we ship the contents inline per spawn instead
               // of bind-mounting them, so the host tempfile only exists
