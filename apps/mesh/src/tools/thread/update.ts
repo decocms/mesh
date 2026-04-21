@@ -75,6 +75,10 @@ export const COLLECTION_THREADS_UPDATE = defineTool({
       updateData.metadata = data.metadata;
     }
 
+    if (data.branch !== undefined) {
+      updateData.branch = data.branch;
+    }
+
     const thread = await ctx.storage.threads.update(id, updateData);
 
     return {
