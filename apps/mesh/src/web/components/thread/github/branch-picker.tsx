@@ -1,0 +1,164 @@
+import { useState } from "react";
+import type { VmMap } from "@decocms/mesh-sdk";
+import { Button } from "@deco/ui/components/button.tsx";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@deco/ui/components/command.tsx";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@deco/ui/components/popover.tsx";
+import { GitBranch01 } from "@untitledui/icons";
+import { NewBranchForm } from "./new-branch-form";
+import { useBranches } from "./use-branches";
+
+interface Props {
+  orgId: string;
+  userId: string;
+  connectionId: string;
+  owner: string;
+  repo: string;
+  vmMap: VmMap | undefined;
+  value: string | null | undefined;
+  onChange: (branch: string) => void;
+}
+
+/**
+ * Grouped branch picker: "Your branches" (from vmMap) + "Other branches in
+ * repo" (from github-mcp-server.list_branches) + "+ New branch" sub-form.
+ */
+export function BranchPicker({
+  orgId,
+  userId,
+  connectionId,
+  owner,
+  repo,
+  vmMap,
+  value,
+  onChange,
+}: Props) {
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"picker" | "new">("picker");
+
+  const { yours, others, defaultBase, isLoading, isError } = useBranches({
+    orgId,
+    userId,
+    connectionId,
+    vmMap,
+    owner,
+    repo,
+    enabled: open,
+  });
+
+  const pick = (name: string) => {
+    onChange(name);
+    setOpen(false);
+    setMode("picker");
+  };
+
+  const label = value ?? "Select branch…";
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(o: boolean) => {
+        setOpen(o);
+        if (!o) setMode("picker");
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 gap-1.5 px-2 font-mono text-xs"
+        >
+          <GitBranch01 className="h-3.5 w-3.5" />
+          <span className="max-w-[200px] truncate">{label}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-[min(420px,calc(100vw-2rem))] p-0"
+        align="start"
+      >
+        {mode === "picker" ? (
+          <Command>
+            <CommandInput placeholder="Search branches…" />
+            <CommandList>
+              {isError && (
+                <div className="p-3 text-xs text-muted-foreground">
+                  Couldn't load branches from GitHub. You can still pick from
+                  your branches or create a new one.
+                </div>
+              )}
+              {!isError &&
+                !isLoading &&
+                yours.length === 0 &&
+                others.length === 0 && (
+                  <CommandEmpty>No branches found.</CommandEmpty>
+                )}
+              {yours.length > 0 && (
+                <CommandGroup heading="Your branches">
+                  {yours.map((b) => (
+                    <CommandItem
+                      key={b.name}
+                      value={b.name}
+                      onSelect={() => pick(b.name)}
+                    >
+                      <GitBranch01 className="mr-2 h-4 w-4" />
+                      <span className="flex-1 truncate">{b.name}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+              {others.length > 0 && (
+                <>
+                  <CommandSeparator />
+                  <CommandGroup heading="Other branches in repo">
+                    {others.map((b) => (
+                      <CommandItem
+                        key={b.name}
+                        value={b.name}
+                        onSelect={() => pick(b.name)}
+                      >
+                        <GitBranch01 className="mr-2 h-4 w-4" />
+                        <span className="flex-1 truncate">{b.name}</span>
+                        {b.author && (
+                          <span className="text-xs text-muted-foreground">
+                            @{b.author}
+                          </span>
+                        )}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </>
+              )}
+              <CommandSeparator />
+              <CommandGroup>
+                <CommandItem onSelect={() => setMode("new")}>
+                  ✚ New branch…
+                </CommandItem>
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        ) : (
+          <NewBranchForm
+            orgId={orgId}
+            connectionId={connectionId}
+            owner={owner}
+            repo={repo}
+            defaultBase={defaultBase}
+            onBack={() => setMode("picker")}
+            onCreated={pick}
+          />
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}

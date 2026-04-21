@@ -586,6 +586,7 @@ export function ActiveTaskProvider({
   } = internals;
 
   const { org } = useProjectContext();
+  const { branch: urlBranch } = useChatNavigation();
 
   // Messages for current task (from React Query / server) — this is what suspends
   const serverMessages = useTaskMessages(taskId || null);
@@ -692,6 +693,7 @@ export function ActiveTaskProvider({
       created_at: new Date().toISOString(),
       thread_id: capturedTaskId,
       agent: { id: capturedVirtualMcpId },
+      ...(urlBranch ? { branch: urlBranch } : {}),
       user: {
         avatar: user?.image ?? undefined,
         name: user?.name ?? "you",
