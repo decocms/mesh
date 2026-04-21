@@ -1,0 +1,7 @@
+@import "@decocms/ui/styles/global.css";
+
+@layer base {
+  body {
+    @apply bg-background text-foreground min-h-screen;
+  }
+}
