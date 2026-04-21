@@ -36,6 +36,8 @@ import { streamCore } from "./stream-core";
 import { RunClaimError } from "./run-reactor";
 import type { SqlThreadStorage } from "@/storage/threads";
 import { getPodId } from "@/core/pod-identity";
+import { getSharedRunner } from "@/sandbox/shared-runner";
+import { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
 
 // ============================================================================
 // Request Validation
@@ -378,6 +380,100 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
     }
 
     return c.json({ cancelled: true, async: true }, 202);
+  });
+
+  // ============================================================================
+  // Thread Sandbox Endpoint — resolves the Docker preview URL for a thread
+  //
+  // Frontend calls this from the preview panel to discover the sandbox iframe
+  // URL for the current thread. Freestyle sandboxes read `activeVms` on the
+  // Virtual MCP as before; this endpoint is Docker-only.
+  // ============================================================================
+
+  app.get("/:org/decopilot/threads/:threadId/sandbox", async (c) => {
+    const ctx = c.get("meshContext");
+    const userId = ctx.auth?.user?.id;
+    if (!userId) {
+      throw new HTTPException(401, { message: "Unauthorized" });
+    }
+    ensureOrganization(c);
+    const taskId = c.req.param("threadId");
+    if (!taskId || /[.*>\s]/.test(taskId)) {
+      throw new HTTPException(400, { message: "Invalid thread ID" });
+    }
+    // Thread may not exist yet — the UI polls this endpoint from the moment
+    // a chat is opened, before the first message creates the thread row.
+    // Treat "no thread" the same as "no sandbox yet": return null.
+    const thread = await ctx.storage.threads.get(taskId);
+    if (!thread) {
+      return c.json(null);
+    }
+
+    const sandboxRef = thread.sandbox_ref;
+    if (!sandboxRef) {
+      return c.json(null);
+    }
+
+    const row = await ctx.db
+      .selectFrom("sandbox_runner_state")
+      .select(["handle"])
+      .where("user_id", "=", userId)
+      .where("project_ref", "=", sandboxRef)
+      .where("runner_kind", "=", "docker")
+      .executeTakeFirst();
+
+    if (!row) {
+      return c.json(null);
+    }
+
+    // Ask the sandbox daemon whether the dev server is actually bound. The
+    // daemon discovers the port itself so we don't need to thread it through
+    // runtime metadata — any framework's default port works.
+    //
+    // If the dev process has exited/crashed, fire-and-forget `/dev/start` so
+    // the server self-heals on page view. The `/dev/start` call is idempotent
+    // when phase is already starting/installing/ready, so hitting this
+    // endpoint on every poll is safe. Phase "idle" happens after a daemon
+    // restart (container still alive but never saw a /dev/start yet).
+    const runner = getSharedRunner(ctx);
+    let phase: string | undefined;
+    let serverUp = false;
+    if (runner instanceof DockerSandboxRunner) {
+      try {
+        const res = await runner.proxyDaemonRequest(row.handle, "/dev/status", {
+          method: "GET",
+          headers: new Headers(),
+          body: null,
+        });
+        if (res.ok) {
+          const status = (await res.json()) as { phase?: string };
+          phase = status.phase;
+          serverUp = status.phase === "ready";
+        }
+      } catch {
+        serverUp = false;
+      }
+
+      if (phase === "idle" || phase === "exited" || phase === "crashed") {
+        runner
+          .proxyDaemonRequest(row.handle, "/dev/start", {
+            method: "POST",
+            headers: new Headers({ "content-type": "application/json" }),
+            body: JSON.stringify({ restart: phase !== "idle" }),
+          })
+          .catch(() => {
+            // Fire-and-forget — the UI will re-poll /dev/status.
+          });
+      }
+    }
+
+    return c.json({
+      sandboxRef,
+      handle: row.handle,
+      previewUrl: `/api/sandbox/${row.handle}/preview/`,
+      serverUp,
+      phase: phase ?? null,
+    });
   });
 
   // ============================================================================

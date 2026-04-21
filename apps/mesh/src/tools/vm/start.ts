@@ -1,14 +1,21 @@
 /**
  * VM_START Tool
  *
- * Creates a Freestyle VM with the connected GitHub repo
- * and infrastructure-only systemd services (ttyd, terminal, iframe-proxy).
- * App-only tool — not visible to AI models.
+ * Creates a sandbox with the connected GitHub repo, populates the Virtual
+ * MCP's `activeVms[userId]` entry, and returns the preview URL the frontend
+ * embeds in the iframe. App-only tool — not visible to AI models.
  *
- * Install/dev lifecycle is handled by the in-VM daemon so VM_START returns fast.
- *
- * Freestyle docs: /v2/vms, /v2/vms/configuration/systemd-services,
- * /v2/vms/configuration/ports-networking, /v2/vms/configuration/domains
+ * Dispatches on `MESH_SANDBOX_RUNNER`:
+ *  - "freestyle" → spins up a Freestyle VM with in-VM iframe-proxy/daemon.
+ *    Install + dev lifecycle runs in the VM daemon so VM_START returns fast.
+ *    Freestyle docs: /v2/vms, /v2/vms/configuration/systemd-services,
+ *    /v2/vms/configuration/ports-networking, /v2/vms/configuration/domains.
+ *  - "docker" → reuses the shared DockerSandboxRunner. The preview URL is a
+ *    relative mesh proxy path; the container's dev-server port is bound to
+ *    127.0.0.1 and forwarded via /api/sandbox/:handle/preview/:port/. Repo
+ *    clone happens inside the runner; the user is expected to start the dev
+ *    server manually via the `bash` tool (preview-lifecycle automation is
+ *    deferred).
  */
 
 import { createHash } from "node:crypto";
@@ -20,57 +27,24 @@ import { VmBun } from "@freestyle-sh/with-bun";
 import { VmNodeJs } from "@freestyle-sh/with-nodejs";
 import { type VmEntry, patchActiveVms } from "./types";
 import { requireVmEntry, resolveRuntimeConfig } from "./helpers";
-import { DownstreamTokenStorage } from "../../storage/downstream-token";
+import { buildCloneInfo } from "../../shared/github-clone-info";
 import { buildDaemonScript } from "./daemon";
+import type { MeshContext } from "../../core/mesh-context";
+import { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
+import { getSharedRunner } from "../../sandbox/shared-runner";
+import { resolvePrepImage } from "../../sandbox/prep-enqueue";
 
 const PROXY_PORT = 9000;
 
-const BOOTSTRAP_SCRIPT = `<script>(function(){window.addEventListener("message",function(e){if(e.data&&e.data.type==="visual-editor::activate"&&e.data.script){try{new Function(e.data.script)()}catch(err){console.error("[visual-editor] injection failed",err)}}});})();</script>`;
-
-/**
- * Fetches the GitHub OAuth token and user profile from downstream_tokens.
- * Returns the authenticated git clone URL and the user's git identity.
- */
-async function buildCloneInfo(
-  connectionId: string,
-  owner: string,
-  name: string,
-  db: import("kysely").Kysely<import("../../storage/types").Database>,
-  vault: import("../../encryption/credential-vault").CredentialVault,
-): Promise<{ cloneUrl: string; gitUserName: string; gitUserEmail: string }> {
-  const tokenStorage = new DownstreamTokenStorage(db, vault);
-  const token = await tokenStorage.get(connectionId);
-  if (!token) {
-    throw new Error(
-      "No GitHub token found. Ensure the mcp-github connection is authenticated.",
-    );
-  }
-  const cloneUrl = `https://x-access-token:${token.accessToken}@github.com/${owner}/${name}.git`;
-
-  let gitUserName = "Deco Studio";
-  let gitUserEmail = "studio@deco.cx";
-  try {
-    const res = await fetch("https://api.github.com/user", {
-      headers: {
-        Authorization: `token ${token.accessToken}`,
-        Accept: "application/vnd.github+json",
-      },
-    });
-    if (res.ok) {
-      const user = (await res.json()) as {
-        name?: string | null;
-        login: string;
-        email?: string | null;
-      };
-      gitUserName = user.name || user.login;
-      gitUserEmail = user.email || `${user.login}@users.noreply.github.com`;
-    }
-  } catch {
-    // Fallback to defaults — don't block VM start
-  }
-
-  return { cloneUrl, gitUserName, gitUserEmail };
+function resolveRunnerKind(): "docker" | "freestyle" {
+  const raw = process.env.MESH_SANDBOX_RUNNER;
+  if (raw === "docker" || raw === "freestyle") return raw;
+  // Freestyle stays the default for the hosted control plane. Explicit opt-in
+  // via the env var picks docker for local dev.
+  return "freestyle";
 }
+
+const BOOTSTRAP_SCRIPT = `<script>(function(){window.addEventListener("message",function(e){if(e.data&&e.data.type==="visual-editor::activate"&&e.data.script){try{new Function(e.data.script)()}catch(err){console.error("[visual-editor] injection failed",err)}}});})();</script>`;
 
 export const VM_START = defineTool({
   name: "VM_START",
@@ -86,6 +60,12 @@ export const VM_START = defineTool({
   _meta: { ui: { visibility: "app" } },
   inputSchema: z.object({
     virtualMcpId: z.string().describe("Virtual MCP ID"),
+    threadId: z
+      .string()
+      .optional()
+      .describe(
+        "Current thread id. Required for the Docker runner — its sandbox is keyed off the thread's sandbox_ref so bash and the preview iframe share one container.",
+      ),
   }),
   outputSchema: z.object({
     terminalUrl: z.string().nullable(),
@@ -100,6 +80,10 @@ export const VM_START = defineTool({
 
       if (!metadata.githubRepo) {
         throw new Error("No GitHub repo connected");
+      }
+
+      if (resolveRunnerKind() === "docker") {
+        return await dockerStart(input, ctx, metadata, userId);
       }
 
       const { owner, name } = metadata.githubRepo;
@@ -264,3 +248,145 @@ export const VM_START = defineTool({
     }
   },
 });
+
+/**
+ * Docker-backed VM_START path.
+ *
+ * The container is keyed off the thread's `sandbox_ref` so bash and the
+ * preview iframe share one lifecycle. The browser reaches the dev server
+ * through the `/api/sandbox/:handle/preview/:port/` mesh proxy, so the
+ * `previewUrl` we return is a relative mesh path. Starting the dev server
+ * is still a manual step — see the MVP note in the module docstring.
+ *
+ * Note: the Docker path no longer writes to `activeVms`. The preview panel
+ * reads its URL from the thread-scoped
+ * `GET /api/:org/decopilot/threads/:threadId/sandbox` endpoint, so we only
+ * need to return `{ previewUrl, vmId, isNewVm }` to the caller.
+ */
+async function dockerStart(
+  input: { virtualMcpId: string; threadId?: string },
+  ctx: MeshContext,
+  metadata: {
+    githubRepo?: { owner: string; name: string; connectionId: string } | null;
+  },
+  userId: string,
+) {
+  if (!input.threadId) {
+    throw new Error(
+      "VM_START (docker runner): threadId is required — pass the current thread id so the sandbox stays keyed off thread.sandbox_ref",
+    );
+  }
+
+  // The env panel can be clicked before any chat message has been sent — at
+  // that point the thread row doesn't exist yet. Create it eagerly with a
+  // fresh sandbox_ref so VM_START works in the zero-message case. If the row
+  // already exists but sandbox_ref is null (legacy thread), populate it now.
+  let thread = await ctx.storage.threads.get(input.threadId);
+  if (!thread) {
+    thread = await ctx.storage.threads.create({
+      id: input.threadId,
+      created_by: userId,
+      virtual_mcp_id: input.virtualMcpId,
+      sandbox_ref: crypto.randomUUID(),
+    });
+  } else if (!thread.sandbox_ref) {
+    thread = await ctx.storage.threads.update(thread.id, {
+      sandbox_ref: crypto.randomUUID(),
+    });
+  }
+  const sandboxRef = thread.sandbox_ref;
+  if (!sandboxRef) {
+    throw new Error(
+      "VM_START (docker runner): failed to assign sandbox_ref to thread",
+    );
+  }
+
+  const repo = metadata.githubRepo!;
+
+  const { cloneUrl, gitUserName, gitUserEmail } = await buildCloneInfo(
+    repo.connectionId,
+    repo.owner,
+    repo.name,
+    ctx.db,
+    ctx.vault,
+  );
+
+  const runner = getSharedRunner(ctx);
+  // Pull user-defined env vars so `docker run -e KEY=VALUE` injects them at
+  // provision time. Unchanged for existing containers — docker args are only
+  // consulted on fresh provision. To apply new values the caller must
+  // VM_DELETE first, then VM_START.
+  const userEnv = await ctx.storage.sandboxEnv.resolve(sandboxRef);
+  // Spawn from a pre-baked prep image when one is ready for this (user, repo).
+  // Cuts clone + install from the first-start latency budget.
+  const prepImage = await resolvePrepImage(ctx, userId, {
+    owner: repo.owner,
+    name: repo.name,
+    connectionId: repo.connectionId,
+  });
+  const { port: preferredPortRaw, runtime } = resolveRuntimeConfig(metadata);
+  const preferredPortNum = preferredPortRaw ? Number(preferredPortRaw) : NaN;
+  const sandbox = await runner.ensure(
+    {
+      userId,
+      projectRef: sandboxRef,
+    },
+    {
+      repo: {
+        cloneUrl,
+        userName: gitUserName,
+        userEmail: gitUserEmail,
+      },
+      env: { ...userEnv },
+      image: prepImage ?? undefined,
+    },
+  );
+
+  // Kick off the dev server now that `ensure()` has guaranteed the clone is
+  // complete. Idempotent — the daemon's `/dev/start` no-ops when phase is
+  // already starting/installing/ready, so repeated calls from page polls
+  // (see decopilot/routes.ts) are safe.
+  if (runner instanceof DockerSandboxRunner) {
+    // `runtime` tells the sandbox daemon which toolchain to use. Deno in
+    // particular is lazy-installed into the container on first use, and the
+    // daemon reads tasks from `deno.json` instead of `package.json.scripts`
+    // — so a wrong guess here means the dev server never starts.
+    const preferredPort = Number.isFinite(preferredPortNum)
+      ? preferredPortNum
+      : undefined;
+    runner
+      .proxyDaemonRequest(sandbox.handle, "/dev/start", {
+        method: "POST",
+        headers: new Headers({ "content-type": "application/json" }),
+        body: JSON.stringify({
+          preferredPort,
+          runtime: runtime ?? undefined,
+        }),
+      })
+      .catch((err) => {
+        console.error(
+          `[VM_START] /dev/start failed for ${sandbox.handle}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+  }
+
+  // Port-less URL — the preview proxy resolves the actual port via the
+  // daemon's /dev/status. The dev server can bind to 127.0.0.1 or any port
+  // and it still works.
+  const previewUrl = `/api/sandbox/${sandbox.handle}/preview/`;
+  const entry: VmEntry = {
+    vmId: sandbox.handle,
+    previewUrl,
+    terminalUrl: null,
+  };
+
+  // Intentionally DON'T write to activeVms on the docker path. activeVms
+  // is what switches the decopilot tool set from `bash` (QuickJS/daemon
+  // backed) to the Freestyle in-VM file tools — those hit
+  // `<previewUrl>/_decopilot_vm/*` and would target the dev-server port we
+  // just published, not the sandbox daemon. The env panel and preview panel
+  // both read running state from the thread-scoped sandbox endpoint for the
+  // docker runner.
+
+  return { ...entry, isNewVm: true };
+}

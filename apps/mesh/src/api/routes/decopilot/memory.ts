@@ -98,6 +98,12 @@ export async function createMemory(
 
   let thread: Thread;
 
+  // TODO: sandbox sharing across threads. Today a fresh sandbox_ref is
+  // always minted for newly-created threads; a picker UI + explicit
+  // `sandbox_ref` on thread creation will let users reuse an existing
+  // container. Intentionally deferred — don't prompt here.
+  const freshSandboxRef = () => crypto.randomUUID();
+
   if (!thread_id) {
     // Create new thread
     thread = await storage.create({
@@ -106,6 +112,7 @@ export async function createMemory(
       created_by: userId,
       trigger_id: triggerId ?? null,
       virtual_mcp_id: virtualMcpId ?? "",
+      sandbox_ref: freshSandboxRef(),
     });
   } else {
     // Try to get existing thread scoped to this org
@@ -123,6 +130,7 @@ export async function createMemory(
         created_by: userId,
         trigger_id: triggerId ?? null,
         virtual_mcp_id: virtualMcpId ?? "",
+        sandbox_ref: freshSandboxRef(),
       });
     }
   }

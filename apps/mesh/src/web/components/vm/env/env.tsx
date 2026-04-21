@@ -5,7 +5,7 @@ import {
   useMCPClient,
   SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { invalidateVirtualMcpQueries } from "@/web/lib/query-keys";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import {
@@ -40,14 +40,14 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { useChatBridge } from "@/web/components/chat/context";
+import { useChatBridge, useChatTask } from "@/web/components/chat/context";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { VmErrorState } from "../vm-error-state";
 import { VmSuspendedState } from "../vm-suspended-state";
 import { useVmEvents } from "../hooks/use-vm-events";
 import { VmTerminal } from "./terminal";
+import { EnvVarsEditor } from "./env-vars-editor";
 import type { Terminal as XTerminal } from "@xterm/xterm";
-import { EmptyState } from "../../empty-state";
 import { LiveTimer } from "../../live-timer";
 import { useActiveGithubRepo } from "@/web/hooks/use-active-github-repo";
 import { authClient } from "@/web/lib/auth-client";
@@ -77,8 +77,13 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const inset = useInsetContext();
   const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
+  const { taskId } = useChatTask();
 
-  // Check if there's already an active VM for this user
+  // Check if there's already an active VM for this user.
+  // - Freestyle writes to virtualMcp.metadata.activeVms[userId].
+  // - Docker path writes nothing and the container is keyed by
+  //   thread.sandbox_ref — the thread-scoped sandbox endpoint tells us if
+  //   one exists (shared with the preview panel).
   const userId = session?.user?.id;
   const activeVmMetadata = inset?.entity?.metadata as
     | {
@@ -88,7 +93,43 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
         >;
       }
     | undefined;
-  const existingVm = userId ? activeVmMetadata?.activeVms?.[userId] : undefined;
+  const freestyleVm = userId
+    ? activeVmMetadata?.activeVms?.[userId]
+    : undefined;
+
+  const orgKey = org.slug ?? org.id;
+  const { data: dockerSandbox } = useQuery<{
+    sandboxRef: string;
+    handle: string;
+    previewUrl: string;
+    serverUp: boolean;
+  } | null>({
+    queryKey: ["thread-sandbox", orgKey, taskId],
+    enabled: !!taskId,
+    staleTime: 5_000,
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/${orgKey}/decopilot/threads/${taskId}/sandbox`,
+      );
+      if (!res.ok) return null;
+      return (await res.json()) as null | {
+        sandboxRef: string;
+        handle: string;
+        previewUrl: string;
+        serverUp: boolean;
+      };
+    },
+  });
+
+  const existingVm =
+    freestyleVm ??
+    (dockerSandbox
+      ? {
+          previewUrl: dockerSandbox.previewUrl,
+          vmId: dockerSandbox.handle,
+          terminalUrl: null as string | null,
+        }
+      : undefined);
 
   const [status, setStatus] = useState<ViewStatus>(
     existingVm ? "running" : "idle",
@@ -155,8 +196,16 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   });
 
   const handleChunk = (source: string, data: string) => {
-    const term = terminalRefs.current.get(source);
-    if (term) {
+    if (source === "setup") {
+      terminalRefs.current.get("setup")?.write(data);
+      return;
+    }
+    // Dev-process output arrives tagged with the script name (e.g. "dev") or
+    // with "daemon" for lifecycle events (spawn / exit / port-bind errors).
+    // Mirror both into every open script tab so the user sees the full picture
+    // in whichever tab they're viewing.
+    for (const [tab, term] of terminalRefs.current) {
+      if (tab === "setup") continue;
       term.write(data);
     }
   };
@@ -194,14 +243,49 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     );
   };
 
+  // Docker sandboxes expose lifecycle via the new /api/sandbox/<handle>/dev/*
+  // routes (daemon-backed). Freestyle VMs still use the legacy
+  // <previewUrl>/_decopilot_vm/exec|kill endpoints. Pick the right URL + body
+  // shape based on which path produced vmDataRef.
+  const buildLifecycleRequest = (
+    verb: "start" | "stop",
+    scriptName: string,
+  ): { url: string; init: RequestInit } => {
+    if (dockerSandbox) {
+      const path = verb === "start" ? "dev/start" : "dev/stop";
+      // Forward the user-configured port so the daemon can pick it over any
+      // other listener the dev process binds (API + Vite is the canonical
+      // case). Ignored by the daemon when absent.
+      const preferredPortRaw = runtime?.port ? Number(runtime.port) : null;
+      const preferredPort =
+        preferredPortRaw && Number.isFinite(preferredPortRaw)
+          ? preferredPortRaw
+          : undefined;
+      return {
+        url: `/api/sandbox/${dockerSandbox.handle}/${path}`,
+        init: {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body:
+            verb === "start"
+              ? JSON.stringify({ script: scriptName, preferredPort })
+              : "{}",
+        },
+      };
+    }
+    const op = verb === "start" ? "exec" : "kill";
+    return {
+      url: `${vmDataRef.current!.previewUrl}/_decopilot_vm/${op}/${scriptName}`,
+      init: { method: "POST" },
+    };
+  };
+
   const handleExec = async (scriptName: string) => {
     if (execInFlight || !vmDataRef.current) return;
     setExecInFlight(true);
     try {
-      const res = await fetch(
-        `${vmDataRef.current.previewUrl}/_decopilot_vm/exec/${scriptName}`,
-        { method: "POST" },
-      );
+      const { url, init } = buildLifecycleRequest("start", scriptName);
+      const res = await fetch(url, init);
       if (!res.ok) throw new Error(`Exec failed: ${res.statusText}`);
       setKilledProcesses((prev) => {
         const next = new Set(prev);
@@ -217,10 +301,8 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     if (execInFlight || !vmDataRef.current) return;
     setExecInFlight(true);
     try {
-      const res = await fetch(
-        `${vmDataRef.current.previewUrl}/_decopilot_vm/kill/${scriptName}`,
-        { method: "POST" },
-      );
+      const { url, init } = buildLifecycleRequest("stop", scriptName);
+      const res = await fetch(url, init);
       if (!res.ok) throw new Error(`Kill failed: ${res.statusText}`);
       setKilledProcesses((prev) => new Set(prev).add(scriptName));
     } finally {
@@ -251,6 +333,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
       if (!inset?.entity) throw new Error("No virtual MCP context");
       const data = (await callTool("VM_START", {
         virtualMcpId: inset.entity.id,
+        threadId: taskId,
       })) as VmData;
 
       if (!data.previewUrl || !data.vmId) {
@@ -280,7 +363,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
       try {
         await client.callTool({
           name: "VM_DELETE",
-          arguments: { virtualMcpId },
+          arguments: { virtualMcpId, threadId: taskId },
         });
       } catch {
         // Best effort
@@ -301,6 +384,25 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
       setStatus("running");
     }
   }, [vmEvents.suspended, status]);
+
+  // Hydrate status + vmDataRef once the thread-sandbox query resolves after
+  // first mount. The `useState`/`useRef` initializers above run on mount with
+  // `existingVm === undefined` (TanStack Query hasn't fetched yet), so status
+  // would be stuck at "idle" even when a container is already running. When
+  // the fetch lands and a sandbox exists, flip to "running" and backfill the
+  // ref so `vmEvents` picks up the preview URL.
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — syncs async query result into local state on first arrival
+  useEffect(() => {
+    if (existingVm && status === "idle") {
+      vmDataRef.current = {
+        terminalUrl: existingVm.terminalUrl,
+        previewUrl: existingVm.previewUrl,
+        vmId: existingVm.vmId,
+        isNewVm: false,
+      };
+      setStatus("running");
+    }
+  }, [existingVm, status]);
 
   const githubRepo = useActiveGithubRepo();
 
@@ -434,6 +536,12 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
               </Button>
             </div>
           )}
+
+          {taskId && (
+            <div className="pt-4 border-t border-border">
+              <EnvVarsEditor threadId={taskId} orgId={org.id} />
+            </div>
+          )}
         </div>
       </div>
     );
@@ -457,9 +565,11 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     return <VmSuspendedState onResume={handleStart} />;
   }
 
-  // All tabs: setup + open script tabs + optional daemon
+  // All tabs: setup + env (always present so users can edit secrets while
+  // the server is running) + open script tabs + optional daemon.
   const allTabs = [
     "setup",
+    "env",
     ...openScriptTabs,
     ...(daemonOpen ? ["daemon"] : []),
   ];
@@ -628,7 +738,27 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
               key={tab}
               className={cn("h-full", activeTab === tab ? "block" : "hidden")}
             >
-              {vmEvents.hasData(tab) || tab === "setup" || tab === "daemon" ? (
+              {tab === "env" ? (
+                <div className="h-full overflow-auto p-4">
+                  {taskId ? (
+                    <EnvVarsEditor
+                      threadId={taskId}
+                      orgId={org.id}
+                      onSaved={(hasChanges) => {
+                        if (hasChanges) {
+                          toast(
+                            "Restart the server to apply env changes to the running container.",
+                          );
+                        }
+                      }}
+                    />
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Open a thread to edit env vars.
+                    </p>
+                  )}
+                </div>
+              ) : (
                 <VmTerminal
                   onReady={(t) => {
                     terminalRefs.current.set(tab, t);
@@ -636,30 +766,15 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
                   onSelectionChange={(has, getText) =>
                     handleSelectionChange(tab, has, getText)
                   }
-                  initialData={vmEvents.getBuffer(tab)}
-                  className="h-full"
-                />
-              ) : (
-                <EmptyState
-                  className="h-full"
-                  image={null}
-                  title={`Script "${tab}" not running`}
-                  description={`Click Run to start "${tab}".`}
-                  actions={
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={execInFlight}
-                      onClick={() => handleExec(tab)}
-                    >
-                      {execInFlight ? (
-                        <Loading01 size={14} className="animate-spin" />
-                      ) : (
-                        <Play size={14} />
-                      )}
-                      Run
-                    </Button>
+                  initialData={
+                    tab === "setup"
+                      ? vmEvents.getBuffer("setup")
+                      : // Script tabs replay the script-named buffer + daemon
+                        // lifecycle log, since dev-process output can land under
+                        // either source depending on where it was emitted.
+                        vmEvents.getBuffer(tab) + vmEvents.getBuffer("daemon")
                   }
+                  className="h-full"
                 />
               )}
             </div>

@@ -210,6 +210,7 @@ async function streamCoreInner(
     ]);
 
     taskId = mem.thread.id;
+    ctx.metadata.threadId = mem.thread.id;
     rootSpan.setAttribute("decopilot.thread.id", mem.thread.id);
 
     if (mem.thread.created_by !== input.userId) {
@@ -412,14 +413,33 @@ async function streamCoreInner(
 
         // Resolve active VM for the current user — when present, VM file tools
         // replace the QuickJS sandbox in the built-in tool set.
-        const activeVmEntry = (
-          virtualMcp.metadata as {
-            activeVms?: Record<string, { previewUrl: string }>;
-          }
-        )?.activeVms?.[input.userId];
+        //
+        // Freestyle-only: the VM file tools hit the in-VM daemon at
+        // `<previewUrl>/_decopilot_vm/*`. The docker runner writes no
+        // activeVms entry (its sandbox is keyed off `thread.sandbox_ref`), so
+        // we also hard-skip activation when MESH_SANDBOX_RUNNER=docker — old
+        // Freestyle rows in `activeVms` must never reach the docker tool set,
+        // or bash starts pointing at a dev-server port instead of the
+        // sandbox daemon.
+        const runnerKind =
+          (process.env.MESH_SANDBOX_RUNNER as "docker" | "freestyle") ??
+          "freestyle";
+        const virtualMcpMetadata = virtualMcp.metadata as {
+          activeVms?: Record<string, { previewUrl: string }>;
+          githubRepo?: {
+            owner: string;
+            name: string;
+            connectionId: string;
+          } | null;
+        };
+        const activeVmEntry =
+          runnerKind === "docker"
+            ? undefined
+            : virtualMcpMetadata?.activeVms?.[input.userId];
         const activeVm = activeVmEntry
           ? { vmBaseUrl: activeVmEntry.previewUrl }
           : null;
+        const sandboxRepo = virtualMcpMetadata?.githubRepo ?? null;
 
         const builtInTools = isCliAgent
           ? {}
@@ -435,6 +455,8 @@ async function streamCoreInner(
                 toolOutputMap,
                 passthroughClient,
                 activeVm,
+                sandboxRepo,
+                sandboxRef: mem.thread.sandbox_ref,
               },
               ctx,
             );
