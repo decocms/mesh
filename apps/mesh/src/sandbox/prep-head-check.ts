@@ -66,11 +66,6 @@ export async function fetchRemoteHeadSha(
   return sha;
 }
 
-/** Drop the cached entry for a repo — e.g. after a manual invalidation. */
-export function forgetHeadCache(owner: string, name: string): void {
-  headCache.delete(`${owner}/${name}`);
-}
-
 async function tryFetchHeadSha(input: HeadCheckInput): Promise<string | null> {
   let accessToken: string;
   try {

@@ -9,6 +9,7 @@ import {
   SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 import { useQuery } from "@tanstack/react-query";
+import { KEYS } from "@/web/lib/query-keys";
 import {
   CursorClick01,
   LinkExternal01,
@@ -89,7 +90,7 @@ export function PreviewContent() {
     serverUp: boolean;
     phase: string | null;
   } | null>({
-    queryKey: ["thread-sandbox", org.slug ?? org.id, taskId],
+    queryKey: KEYS.threadSandbox(org.slug ?? org.id, taskId),
     enabled: !!taskId,
     // Keep polling while the dev server is still booting so status/logs in
     // the proxy's loading page stay fresh. Once `serverUp` flips, the iframe

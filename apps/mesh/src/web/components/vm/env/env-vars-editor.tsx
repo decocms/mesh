@@ -17,6 +17,7 @@ import { useMCPClient, SELF_MCP_ALIAS_ID } from "@decocms/mesh-sdk";
 import { Plus, Trash01, Loading01 } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { toast } from "sonner";
 
 interface Row {
@@ -220,11 +221,12 @@ export function EnvVarsEditor({
               <button
                 type="button"
                 onClick={() => removeRow(i)}
-                className={`shrink-0 p-1 rounded transition-colors ${
+                className={cn(
+                  "shrink-0 p-1 rounded transition-colors",
                   row.deleted
                     ? "text-destructive"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                    : "text-muted-foreground hover:text-foreground",
+                )}
                 title={row.deleted ? "Undo delete" : "Delete"}
               >
                 <Trash01 size={12} />

@@ -173,6 +173,8 @@ export const KEYS = {
     ["threads", "model-logs", locator, dateKey] as const,
   threadMetadata: (threadId: string) =>
     ["threads", "metadata", threadId] as const,
+  threadSandbox: (orgKey: string, taskId: string | undefined) =>
+    ["thread-sandbox", orgKey, taskId] as const,
 
   // Virtual MCP tools (for tool definition lookup in chat)
   // null virtualMcpId means default virtual MCP

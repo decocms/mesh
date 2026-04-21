@@ -57,7 +57,7 @@ export function appendLog(source, chunk, threadId) {
  * chatter): every subscriber gets it. A string `threadId` is scoped: only
  * subscribers registered on that thread receive it.
  */
-export function broadcast(event, payload, threadId) {
+function broadcast(event, payload, threadId) {
   const tid = threadId ?? null;
   const envelope =
     payload && typeof payload === "object"
