@@ -140,12 +140,15 @@ export function useMainPanelTabs(ctx: {
 
   const automationTabParsed = parseAutomationTabId(activeTab);
 
-  const systemTabs: Array<{ id: string; title: string }> = [
-    { id: "instructions", title: "Instructions" },
-    { id: "connections", title: "Connections" },
-    { id: "automations", title: "Automations" },
-    { id: "layout", title: "Layout" },
-  ];
+  // When linked to a GitHub repo, "Instructions" is replaced by a "git" tab
+  // that renders the branch/PR panel. The agent's system prompt is still
+  // editable elsewhere (vm settings) but not visible here.
+  const systemTabs: Array<{ id: string; title: string }> = hasActiveGithubRepo
+    ? [{ id: "git", title: "git" }]
+    : [{ id: "instructions", title: "Instructions" }];
+  systemTabs.push({ id: "connections", title: "Connections" });
+  systemTabs.push({ id: "automations", title: "Automations" });
+  systemTabs.push({ id: "layout", title: "Layout" });
   if (hasActiveGithubRepo) {
     systemTabs.push({ id: "env", title: "Terminal" });
     systemTabs.push({ id: "preview", title: "Preview" });
