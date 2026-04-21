@@ -30,6 +30,13 @@ export interface MemoryConfig {
 
   /** Virtual MCP ID to associate with the thread */
   virtualMcpId?: string;
+
+  /**
+   * Git branch to pin this thread to. Only meaningful for GitHub-linked
+   * virtualmcps. When set on a brand-new thread, it's persisted on the
+   * thread row and propagates to VM_START.
+   */
+  branch?: string | null;
 }
 
 /**
@@ -94,6 +101,7 @@ export async function createMemory(
     defaultWindowSize,
     triggerId,
     virtualMcpId,
+    branch,
   } = config;
 
   let thread: Thread;
@@ -106,6 +114,7 @@ export async function createMemory(
       created_by: userId,
       trigger_id: triggerId ?? null,
       virtual_mcp_id: virtualMcpId ?? "",
+      branch: branch ?? null,
     });
   } else {
     // Try to get existing thread scoped to this org
@@ -123,6 +132,7 @@ export async function createMemory(
         created_by: userId,
         trigger_id: triggerId ?? null,
         virtual_mcp_id: virtualMcpId ?? "",
+        branch: branch ?? null,
       });
     }
   }
