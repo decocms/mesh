@@ -17,7 +17,6 @@ export const DENO_BIN = `${DENO_INSTALL_DIR}/bin/deno`;
 // translator fixtures) in the same PR.
 export const CLAUDE_CODE_VERSION = process.env.CLAUDE_CODE_VERSION ?? "2.1.116";
 export const CLAUDE_BIN = "/usr/local/bin/claude";
-export const CLAUDE_CREDS_PATH = "/root/.claude/.credentials.json";
 
 // Optional HTML snippet injected before `</body>` on proxied HTML responses.
 // Mesh populates this via `-e DAEMON_BOOTSTRAP=...` when it owns the preview

@@ -4,7 +4,6 @@ import { createClaudeCodeSandboxModel } from "./sandbox-model";
 import type { DaemonTarget } from "./remote-spawn";
 import type { McpServer } from "./mcp-urls";
 
-export { createClaudeCodeSandboxModel } from "./sandbox-model";
 export type { DaemonTarget } from "./remote-spawn";
 
 /**
@@ -60,7 +59,7 @@ export function createClaudeCodeModelForRequest(
  * This is separate from the adapter's create() because it needs
  * runtime config (mcpServers, permissionMode, resume) that varies per request.
  */
-export function createClaudeCodeModel(
+function createClaudeCodeModel(
   modelId: string,
   options?: {
     mcpServers?: Record<

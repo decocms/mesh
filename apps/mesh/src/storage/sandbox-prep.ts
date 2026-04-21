@@ -59,7 +59,7 @@ export interface MarkReadyInput {
  * belong to a dead worker and may be reclaimed. Picked to comfortably outlive
  * a typical clone + install run.
  */
-export const BAKE_STALE_MS = 15 * 60_000;
+const BAKE_STALE_MS = 15 * 60_000;
 
 export interface SandboxPrepStorage {
   /** Lookup a row by its deterministic prep_key. */
@@ -95,7 +95,7 @@ export interface SandboxPrepStorage {
 }
 
 /** Deterministic key — collision-resistant within one mesh deployment. */
-export function sandboxPrepKey(userId: string, cloneUrl: string): string {
+function sandboxPrepKey(userId: string, cloneUrl: string): string {
   return createHash("sha256")
     .update(`${userId}\u0000${cloneUrl}`)
     .digest("hex")
@@ -107,7 +107,7 @@ export function sandboxPrepKey(userId: string, cloneUrl: string): string {
  * URL is a stable identity regardless of token rotation. Idempotent for URLs
  * that already lack userinfo.
  */
-export function canonicalizeCloneUrl(cloneUrl: string): string {
+function canonicalizeCloneUrl(cloneUrl: string): string {
   try {
     const u = new URL(cloneUrl);
     u.username = "";

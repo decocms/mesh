@@ -6,7 +6,7 @@ import {
   SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { invalidateVirtualMcpQueries } from "@/web/lib/query-keys";
+import { invalidateVirtualMcpQueries, KEYS } from "@/web/lib/query-keys";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import {
   Loading01,
@@ -105,7 +105,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     previewUrl: string | null;
     serverUp: boolean;
   } | null>({
-    queryKey: ["thread-sandbox", orgKey, taskId],
+    queryKey: KEYS.threadSandbox(orgKey, taskId),
     enabled: !!taskId,
     staleTime: 5_000,
     queryFn: async () => {
@@ -392,7 +392,10 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   // `existingVm === undefined` (TanStack Query hasn't fetched yet), so status
   // would be stuck at "idle" even when a container is already running. When
   // the fetch lands and a sandbox exists, flip to "running" and backfill the
-  // ref so `vmEvents` picks up the preview URL.
+  // ref so `vmEvents` picks up the preview URL. Depend on the stable vmId
+  // rather than the `existingVm` object identity to avoid re-running every
+  // render.
+  const existingVmId = existingVm?.vmId;
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — syncs async query result into local state on first arrival
   useEffect(() => {
     if (existingVm && status === "idle") {
@@ -404,7 +407,8 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
       };
       setStatus("running");
     }
-  }, [existingVm, status]);
+    // oxlint-disable-next-line react-hooks/exhaustive-deps — existingVm is a derived object recreated each render; existingVmId captures the actual identity change
+  }, [existingVmId, status]);
 
   const githubRepo = useActiveGithubRepo();
 

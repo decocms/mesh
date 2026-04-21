@@ -24,7 +24,7 @@ export const devByThread = new Map();
  */
 export const ownedPorts = new Set();
 
-export function makeDevState(key) {
+function makeDevState(key) {
   return {
     threadId: key,
     cwd: WORKDIR,
@@ -61,7 +61,7 @@ export function getDev(threadId) {
   return dev;
 }
 
-export function computeCrashBackoffMs(dev) {
+function computeCrashBackoffMs(dev) {
   if (!dev.crashCount) return 0;
   return Math.min(MAX_BACKOFF_MS, 1000 * 2 ** (dev.crashCount - 1));
 }

@@ -55,7 +55,7 @@ export function enqueuePrepForRepoLink(
     });
 }
 
-export function canonicalGithubCloneUrl(owner: string, name: string): string {
+function canonicalGithubCloneUrl(owner: string, name: string): string {
   return `https://github.com/${owner}/${name}.git`;
 }
 

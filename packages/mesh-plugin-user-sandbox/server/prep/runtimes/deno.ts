@@ -204,7 +204,7 @@ done
 
 # Final hold: deco's post-bind "installing N apps" and handler-side lazy
 # imports often finish after the last curl. This gives them time to land
-# in \$DENO_DIR before SIGTERM.
+# in $DENO_DIR before SIGTERM.
 sleep ${TAIL_HOLD_SECONDS}
 
 kill -TERM "$SERVER_PID" 2>/dev/null
