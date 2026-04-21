@@ -1,12 +1,15 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
 import * as net from "node:net";
+import { DAEMON_PORT, DEFAULT_IMAGE } from "../../shared";
 import {
-  DAEMON_PORT,
-  DEFAULT_IMAGE,
-  gitIdentityScript,
-  shellQuote,
-} from "../../shared";
+  bootstrapRepo,
+  daemonBash,
+  openDaemonUpgrade as openDaemonUpgradeClient,
+  probeDaemonHealth,
+  proxyDaemonRequest as proxyDaemonRequestClient,
+  waitForDaemonReady,
+} from "./daemon-client";
 import { dockerExec, type DockerResult } from "../docker-cli";
 import type { RunnerStateStore } from "./state-store";
 import type {
@@ -26,10 +29,6 @@ const LABEL_ID = "mesh-sandbox.id";
 const DEFAULT_WORKDIR = "/app";
 const PORT_READBACK_ATTEMPTS = 15;
 const PORT_READBACK_INTERVAL_MS = 200;
-const READINESS_ATTEMPTS = 25;
-const READINESS_INTERVAL_MS = 200;
-const READINESS_REQUEST_TIMEOUT_MS = 500;
-const DEFAULT_EXEC_TIMEOUT_MS = 60_000;
 
 /**
  * Dev convenience: bind-mount the host's daemon source over the image's
@@ -503,34 +502,13 @@ export class DockerSandboxRunner implements SandboxRunner {
         headers: { "content-type": "application/json" },
       });
     }
-    const headers = new Headers(init.headers);
-    headers.set("authorization", `Bearer ${rec.token}`);
-    headers.delete("host");
-    headers.delete("connection");
-    headers.delete("accept-encoding");
-    headers.delete("content-length");
-    const hasBody = init.method !== "GET" && init.method !== "HEAD";
-    const target = `${rec.daemonUrl}${path.startsWith("/") ? path : `/${path}`}`;
-    return fetch(target, {
-      method: init.method,
-      headers,
-      body: hasBody ? init.body : undefined,
-      redirect: "manual",
-      // @ts-expect-error Bun/Undici-only: allow streaming request body.
-      duplex: hasBody ? "half" : undefined,
-    });
+    return proxyDaemonRequestClient(rec.daemonUrl, rec.token, path, init);
   }
 
   /**
    * Open a raw TCP upgrade to the daemon's `/proxy/:port/*` endpoint with the
    * bearer attached. Caller is responsible for piping bytes to/from the
-   * browser socket. Returns the upstream socket plus any bytes the upstream
-   * already wrote as the HTTP response head.
-   *
-   * We open the upgrade manually (net.connect + raw HTTP) because we need
-   * access to the upstream socket — http.request's `upgrade` event gives it
-   * back but the handshake state would still be in progress. Doing it by
-   * hand lets us forward the full 101 response verbatim to the browser.
+   * browser socket.
    */
   async openDaemonUpgrade(
     handle: string,
@@ -541,40 +519,12 @@ export class DockerSandboxRunner implements SandboxRunner {
     if (!rec) {
       throw new Error(`sandbox not found: ${handle}`);
     }
-    const daemonHost = new URL(rec.daemonUrl);
-    const socket = net.connect(
-      Number(daemonHost.port || 80),
-      daemonHost.hostname,
+    return openDaemonUpgradeClient(
+      rec.daemonUrl,
+      rec.token,
+      path,
+      clientHeaders,
     );
-    await new Promise<void>((resolve, reject) => {
-      socket.once("connect", () => resolve());
-      socket.once("error", reject);
-    });
-
-    const headers: Record<string, string> = {};
-    if (clientHeaders instanceof Headers) {
-      clientHeaders.forEach((value, key) => {
-        headers[key] = value;
-      });
-    } else {
-      for (const [k, v] of Object.entries(clientHeaders)) {
-        if (v == null) continue;
-        // Multi-value headers collapse to last-wins in a Record.
-        for (const vv of Array.isArray(v) ? v : [v]) headers[k] = vv;
-      }
-    }
-    // Overwrite the client's host/auth with ours — the daemon only accepts
-    // bearer auth and must see its own loopback host in the Host header.
-    headers["host"] = `127.0.0.1:${daemonHost.port}`;
-    headers["authorization"] = `Bearer ${rec.token}`;
-
-    const lines = [`GET ${path.startsWith("/") ? path : `/${path}`} HTTP/1.1`];
-    for (const [k, v] of Object.entries(headers)) {
-      lines.push(`${k}: ${v}`);
-    }
-    lines.push("", "");
-    socket.write(lines.join("\r\n"));
-    return socket;
   }
 
   /**
@@ -599,14 +549,7 @@ export class DockerSandboxRunner implements SandboxRunner {
   ): Promise<DockerRecord | null> {
     const rec = await this.hydratePersisted(id, record);
     if (!rec) return null;
-    try {
-      const res = await fetch(`${rec.daemonUrl}/health`, {
-        signal: AbortSignal.timeout(READINESS_REQUEST_TIMEOUT_MS),
-      });
-      return res.ok ? rec : null;
-    } catch {
-      return null;
-    }
+    return (await probeDaemonHealth(rec.daemonUrl)) ? rec : null;
   }
 
   /**
@@ -645,23 +588,12 @@ export class DockerSandboxRunner implements SandboxRunner {
   }
 
   private async waitForReady(daemonUrl: string, handle: string): Promise<void> {
-    for (let i = 0; i < READINESS_ATTEMPTS; i++) {
-      try {
-        const res = await fetch(`${daemonUrl}/health`, {
-          signal: AbortSignal.timeout(READINESS_REQUEST_TIMEOUT_MS),
-        });
-        if (res.ok) return;
-      } catch {
-        // Connection refused / reset / timeout — daemon still starting.
-      }
-      await sleep(READINESS_INTERVAL_MS);
+    try {
+      await waitForDaemonReady(daemonUrl);
+    } catch (err) {
+      await this.stopContainer(handle).catch(() => {});
+      throw err;
     }
-    await this.stopContainer(handle).catch(() => {});
-    throw new Error(
-      `sandbox daemon at ${daemonUrl} did not respond on /health within ${
-        (READINESS_ATTEMPTS * READINESS_INTERVAL_MS) / 1000
-      }s`,
-    );
   }
 
   private async recoverSandbox(
@@ -700,14 +632,7 @@ export class DockerSandboxRunner implements SandboxRunner {
     const daemonUrl = networkHost
       ? `http://127.0.0.1:${daemonPort}`
       : `http://127.0.0.1:${await this.readPort(handle, DAEMON_PORT)}`;
-    try {
-      const res = await fetch(`${daemonUrl}/health`, {
-        signal: AbortSignal.timeout(READINESS_REQUEST_TIMEOUT_MS),
-      });
-      if (!res.ok) return null;
-    } catch {
-      return null;
-    }
+    if (!(await probeDaemonHealth(daemonUrl))) return null;
     // Recovered via docker inspect — state store is empty so we don't know
     // whether a repo was previously attached, nor which volumes the runner
     // owned. Leave both empty; the next ensure() will re-stamp them, and
@@ -819,80 +744,6 @@ async function pickFreePort(): Promise<number> {
       }
     });
   });
-}
-
-async function daemonBash(
-  daemonUrl: string,
-  token: string,
-  input: ExecInput,
-): Promise<ExecOutput> {
-  const timeoutMs = input.timeoutMs ?? DEFAULT_EXEC_TIMEOUT_MS;
-  const response = await fetch(`${daemonUrl}/bash`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      command: input.command,
-      timeoutMs,
-      cwd: input.cwd,
-      env: input.env,
-    }),
-    signal: AbortSignal.timeout(timeoutMs + 5_000),
-  });
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new Error(
-      `sandbox daemon /bash returned ${response.status}${body ? `: ${body}` : ""}`,
-    );
-  }
-  const json = (await response.json()) as {
-    stdout?: string;
-    stderr?: string;
-    exitCode?: number;
-    timedOut?: boolean;
-  };
-  return {
-    stdout: json.stdout ?? "",
-    stderr: json.stderr ?? "",
-    exitCode: json.exitCode ?? -1,
-    timedOut: Boolean(json.timedOut),
-  };
-}
-
-/**
- * Idempotent repo bootstrap: sets global git identity, then clones into
- * `workdir`. Three branches:
- *  - `workdir/.git` exists → already a repo, skip.
- *  - `workdir` empty → clone directly.
- *  - `workdir` non-empty and not a repo → late-attach. Move every existing
- *    file (including dotfiles) into a sibling `<workdir>.prelink.<unix-ts>/`
- *    backup so the clone can proceed without clobbering user work.
- */
-async function bootstrapRepo(
-  daemonUrl: string,
-  token: string,
-  workdir: string,
-  repo: NonNullable<EnsureOptions["repo"]>,
-): Promise<void> {
-  const qWorkdir = shellQuote(workdir);
-  // `shopt -s dotglob nullglob` lets the glob expand to dotfiles and to
-  // nothing when the dir is empty, so `mv` never sees `*` literally.
-  const cmd = [
-    gitIdentityScript(repo.userName, repo.userEmail),
-    `if [ -d ${qWorkdir}/.git ]; then echo "workdir already a git repo, skipping clone"; elif [ -z "$(ls -A ${qWorkdir} 2>/dev/null)" ]; then git clone ${shellQuote(repo.cloneUrl)} ${qWorkdir}; else BACKUP=${qWorkdir}.prelink.$(date +%s) && mkdir -p "$BACKUP" && ( shopt -s dotglob nullglob && mv ${qWorkdir}/* "$BACKUP"/ ) && echo "moved pre-link contents to $BACKUP" && git clone ${shellQuote(repo.cloneUrl)} ${qWorkdir}; fi`,
-  ].join(" && ");
-  // git clone for medium repos can easily exceed the default 60s exec timeout.
-  const result = await daemonBash(daemonUrl, token, {
-    command: cmd,
-    timeoutMs: 10 * 60_000,
-  });
-  if (result.exitCode !== 0) {
-    throw new Error(
-      `docker sandbox repo bootstrap failed (exit ${result.exitCode}): ${result.stderr || result.stdout}`,
-    );
-  }
 }
 
 function hashId(id: SandboxId): string {
