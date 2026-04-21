@@ -1,4 +1,4 @@
-import { cn } from "@deco/ui/lib/utils.ts";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import { ChevronRight } from "@untitledui/icons";
 
 const FEATURED_ICONS = [

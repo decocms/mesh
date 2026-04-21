@@ -6,24 +6,24 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { LayoutLeft } from "@untitledui/icons";
 
-import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
-import { cn } from "@deco/ui/lib/utils.ts";
-import { Button } from "@deco/ui/components/button.tsx";
-import { Input } from "@deco/ui/components/input.tsx";
+import { useIsMobile } from "@decocms/ui/hooks/use-mobile.ts";
+import { cn } from "@decocms/ui/lib/utils.ts";
+import { Button } from "@decocms/ui/components/button.tsx";
+import { Input } from "@decocms/ui/components/input.tsx";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@deco/ui/components/sheet.tsx";
-import { Skeleton } from "@deco/ui/components/skeleton.tsx";
+} from "@decocms/ui/components/sheet.tsx";
+import { Skeleton } from "@decocms/ui/components/skeleton.tsx";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
+} from "@decocms/ui/components/tooltip.tsx";
 
 const SIDEBAR_WIDTH = "15rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";

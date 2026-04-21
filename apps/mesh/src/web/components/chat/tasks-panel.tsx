@@ -23,8 +23,8 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
+} from "@decocms/ui/components/tooltip.tsx";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import { Loading01, Plus, RefreshCcw01 } from "@untitledui/icons";
 import { useRef, useState } from "react";
 import { User as UserIcon, Users as UsersIcon } from "lucide-react";
@@ -35,7 +35,7 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
-} from "@deco/ui/components/dropdown-menu.js";
+} from "@decocms/ui/components/dropdown-menu.js";
 import type { TaskOwnerFilter } from "./task";
 import {
   useAutomationsList,
@@ -53,10 +53,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@deco/ui/components/alert-dialog.tsx";
+} from "@decocms/ui/components/alert-dialog.tsx";
 import { Archive, Trash01 } from "@untitledui/icons";
 import { useSound } from "@/web/hooks/use-sound.ts";
-import { question004Sound } from "@deco/ui/lib/question-004.ts";
+import { question004Sound } from "@decocms/ui/lib/question-004.ts";
 
 // ────────────────────────────────────────
 

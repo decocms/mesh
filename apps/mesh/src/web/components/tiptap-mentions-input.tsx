@@ -9,14 +9,14 @@ import {
 } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Mention from "@tiptap/extension-mention";
-import { cn } from "@deco/ui/lib/utils.ts";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import { createStore } from "zustand";
 import { useStore } from "zustand";
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
-} from "@deco/ui/components/hover-card.tsx";
+} from "@decocms/ui/components/hover-card.tsx";
 import { createContext, useContext } from "react";
 import { useResolvedRefs } from "./details/workflow/components/tool-selector";
 

@@ -3,8 +3,8 @@ import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.t
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import { authClient } from "@/web/lib/auth-client";
 import { KEYS } from "@/web/lib/query-keys";
-import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
-import { cn } from "@deco/ui/lib/utils.ts";
+import { useIsMobile } from "@decocms/ui/hooks/use-mobile.ts";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import {
   getWellKnownDecopilotVirtualMCP,
   useProjectContext,

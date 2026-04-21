@@ -1,5 +1,5 @@
-import { Button } from "@deco/ui/components/button.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
+import { Button } from "@decocms/ui/components/button.tsx";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import { AlertCircle, AlertTriangle, X } from "@untitledui/icons";
 import { usePreferences } from "@/web/hooks/use-preferences.ts";
 import { useChatStream, useChatTask } from "../context";

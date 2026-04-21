@@ -6,8 +6,8 @@
  */
 
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import { Skeleton } from "@deco/ui/components/skeleton.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
+import { Skeleton } from "@decocms/ui/components/skeleton.tsx";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import {
   isDecopilot,
   WELL_KNOWN_AGENT_TEMPLATES,

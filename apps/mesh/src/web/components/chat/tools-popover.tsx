@@ -9,7 +9,7 @@ import {
   useMCPClient,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { Button } from "@deco/ui/components/button.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,9 +18,9 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "@deco/ui/components/dropdown-menu.tsx";
+} from "@decocms/ui/components/dropdown-menu.tsx";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
-import { cn } from "@deco/ui/lib/utils.ts";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import type { Prompt } from "@modelcontextprotocol/sdk/types.js";
 import { useQuery } from "@tanstack/react-query";
 import { useCurrentEditor } from "@tiptap/react";
@@ -43,7 +43,7 @@ import {
 import { insertMention } from "./tiptap/mention";
 import { KEYS } from "@/web/lib/query-keys";
 import { useSound } from "@/web/hooks/use-sound.ts";
-import { switch005Sound } from "@deco/ui/lib/switch-005.ts";
+import { switch005Sound } from "@decocms/ui/lib/switch-005.ts";
 import { useChatPrefs } from "./context";
 import {
   useAiProviderModels,

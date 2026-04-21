@@ -3,17 +3,17 @@ import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { AlertCircle, ChevronRight, Plus, Trash01 } from "@untitledui/icons";
-import { Button } from "@deco/ui/components/button.tsx";
-import { Card } from "@deco/ui/components/card.tsx";
-import { Input } from "@deco/ui/components/input.tsx";
-import { Switch } from "@deco/ui/components/switch.tsx";
-import { Skeleton } from "@deco/ui/components/skeleton.tsx";
-import { Avatar } from "@deco/ui/components/avatar.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
+import { Card } from "@decocms/ui/components/card.tsx";
+import { Input } from "@decocms/ui/components/input.tsx";
+import { Switch } from "@decocms/ui/components/switch.tsx";
+import { Skeleton } from "@decocms/ui/components/skeleton.tsx";
+import { Avatar } from "@decocms/ui/components/avatar.tsx";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@deco/ui/components/popover.tsx";
+} from "@decocms/ui/components/popover.tsx";
 import {
   useProjectContext,
   WellKnownOrgMCPId,

@@ -1,7 +1,7 @@
 /* eslint-disable ban-memoization/ban-memoization */
 import { useMemo, useState, type ReactNode } from "react";
 
-import { Button } from "@deco/ui/components/button.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
 import {
   Command,
   CommandEmpty,
@@ -9,15 +9,15 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "@deco/ui/components/command.tsx";
+} from "@decocms/ui/components/command.tsx";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@deco/ui/components/dropdown-menu.tsx";
-import { Input } from "@deco/ui/components/input.tsx";
+} from "@decocms/ui/components/dropdown-menu.tsx";
+import { Input } from "@decocms/ui/components/input.tsx";
 import { ArrowLeft, X, Plus } from "@untitledui/icons";
 
 export type FilterOperator =

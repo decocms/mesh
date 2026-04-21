@@ -4,7 +4,7 @@ import type {
   ArrayFieldTemplateProps,
   TemplatesType,
 } from "@rjsf/utils";
-import { Button } from "@deco/ui/components/button.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
 import {
   Type,
   Hash,
@@ -14,7 +14,7 @@ import {
   X,
   FileText,
 } from "lucide-react";
-import { cn } from "@deco/ui/lib/utils.ts";
+import { cn } from "@decocms/ui/lib/utils.ts";
 
 function getTypeIcon(type: string | string[] | undefined) {
   const typeStr = Array.isArray(type) ? type[0] : (type ?? "unknown");

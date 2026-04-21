@@ -6,9 +6,9 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from "@deco/ui/components/dialog.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
-import { Spinner } from "@deco/ui/components/spinner.tsx";
+} from "@decocms/ui/components/dialog.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
+import { Spinner } from "@decocms/ui/components/spinner.tsx";
 import { Play } from "@untitledui/icons";
 import { ToolInput } from "./tool-selection/components/tool-input";
 import type { JsonSchema } from "@/web/utils/constants";

@@ -1,9 +1,9 @@
-import { Button } from "@deco/ui/components/button.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
+} from "@decocms/ui/components/tooltip.tsx";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { useCurrentEditor, type Editor } from "@tiptap/react";
 import { useEffect, useRef, type ChangeEvent } from "react";

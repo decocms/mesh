@@ -2,15 +2,15 @@
 
 import type { ReactNode } from "react";
 import { useRef, useState } from "react";
-import { cn } from "@deco/ui/lib/utils.ts";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import { ChevronRight, Check, Copy01 } from "@untitledui/icons";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@deco/ui/components/collapsible.tsx";
-import { useAutoScroll } from "@deco/ui/hooks/use-auto-scroll.ts";
-import { useCopy } from "@deco/ui/hooks/use-copy.ts";
+} from "@decocms/ui/components/collapsible.tsx";
+import { useAutoScroll } from "@decocms/ui/hooks/use-auto-scroll.ts";
+import { useCopy } from "@decocms/ui/hooks/use-copy.ts";
 import { MessageUsageStats } from "../../../usage-stats.tsx";
 import type { UsageStats as UsageStatsType } from "@/web/lib/usage-utils.ts";
 

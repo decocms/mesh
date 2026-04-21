@@ -1,5 +1,5 @@
 import type { JsonSchema } from "@/web/utils/constants";
-import { Card } from "@deco/ui/components/card.tsx";
+import { Card } from "@decocms/ui/components/card.tsx";
 import type { BaseCollectionEntity } from "@decocms/bindings/collections";
 import { IntegrationIcon } from "../integration-icon.tsx";
 import {
@@ -7,8 +7,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@deco/ui/components/dropdown-menu.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
+} from "@decocms/ui/components/dropdown-menu.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
 import { DotsVertical, Eye, Edit01, Copy01, Trash01 } from "@untitledui/icons";
 
 interface CollectionCardProps<T extends BaseCollectionEntity> {

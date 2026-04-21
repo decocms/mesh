@@ -9,28 +9,28 @@ import {
   useInfiniteQuery,
   useSuspenseInfiniteQuery,
 } from "@tanstack/react-query";
-import { Button } from "@deco/ui/components/button.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
-import { Badge } from "@deco/ui/components/badge.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
+import { cn } from "@decocms/ui/lib/utils.ts";
+import { Badge } from "@decocms/ui/components/badge.tsx";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
-} from "@deco/ui/components/sheet.tsx";
+} from "@decocms/ui/components/sheet.tsx";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@deco/ui/components/select.tsx";
-import { MultiSelect } from "@deco/ui/components/multi-select.tsx";
+} from "@decocms/ui/components/select.tsx";
+import { MultiSelect } from "@decocms/ui/components/multi-select.tsx";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@deco/ui/components/popover.tsx";
+} from "@decocms/ui/components/popover.tsx";
 import {
   Table,
   TableBody,
@@ -38,8 +38,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@deco/ui/components/table.tsx";
-import { Avatar } from "@deco/ui/components/avatar.tsx";
+} from "@decocms/ui/components/table.tsx";
+import { Avatar } from "@decocms/ui/components/avatar.tsx";
 import {
   ChevronUp,
   ChevronDown,

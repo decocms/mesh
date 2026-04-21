@@ -1,4 +1,4 @@
-import { cn } from "@deco/ui/lib/utils.ts";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import type { JsonSchema } from "@/web/utils/constants";
 import { usePrioritizedList } from "../hooks";
@@ -14,7 +14,7 @@ import {
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
-import { Spinner } from "@deco/ui/components/spinner.tsx";
+import { Spinner } from "@decocms/ui/components/spinner.tsx";
 
 interface ToolSidebarProps {
   className?: string;

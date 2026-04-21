@@ -10,21 +10,21 @@ import { connectionImplementsBinding } from "@/web/hooks/use-binding";
 import { MCP_BINDING } from "@decocms/bindings/mcp";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import { useMembers } from "@/web/hooks/use-members";
-import { Avatar } from "@deco/ui/components/avatar.tsx";
+import { Avatar } from "@decocms/ui/components/avatar.tsx";
 import {
   authenticateMcp,
   isConnectionAuthenticated,
 } from "@/web/lib/mcp-oauth";
 import { KEYS } from "@/web/lib/query-keys";
 import { ConnectionInstancesPanel } from "./connection-instances-panel.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@deco/ui/components/sheet.tsx";
+} from "@decocms/ui/components/sheet.tsx";
 import {
   Form,
   FormControl,
@@ -32,8 +32,8 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@deco/ui/components/form.tsx";
-import { Input } from "@deco/ui/components/input.tsx";
+} from "@decocms/ui/components/form.tsx";
+import { Input } from "@decocms/ui/components/input.tsx";
 import {
   isStdioParameters,
   useConnectionActions,

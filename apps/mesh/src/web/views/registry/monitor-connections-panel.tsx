@@ -1,16 +1,16 @@
 import { useState } from "react";
 import { authenticateMcp, isConnectionAuthenticated } from "@decocms/mesh-sdk";
 import { useQuery } from "@tanstack/react-query";
-import { Badge } from "@deco/ui/components/badge.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
-import { Card } from "@deco/ui/components/card.tsx";
-import { Input } from "@deco/ui/components/input.tsx";
+import { Badge } from "@decocms/ui/components/badge.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
+import { Card } from "@decocms/ui/components/card.tsx";
+import { Input } from "@decocms/ui/components/input.tsx";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@deco/ui/components/dropdown-menu.tsx";
+} from "@decocms/ui/components/dropdown-menu.tsx";
 import { toast } from "sonner";
 import {
   useSyncMonitorConnections,
@@ -20,7 +20,7 @@ import {
   useUpdateMonitorConnectionAuth,
 } from "@/web/hooks/registry/use-monitor";
 import { KEYS } from "@/web/lib/registry/query-keys";
-import { cn } from "@deco/ui/lib/utils.ts";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import { useRegistryMutations } from "@/web/hooks/registry/use-registry";
 import type {
   MonitorConnectionAuthStatus,

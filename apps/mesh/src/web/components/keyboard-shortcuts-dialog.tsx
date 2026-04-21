@@ -3,7 +3,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@deco/ui/components/dialog.tsx";
+} from "@decocms/ui/components/dialog.tsx";
 import { SHORTCUT_GROUPS } from "@/web/lib/keyboard-shortcuts";
 
 export function KeyboardShortcutsDialog({

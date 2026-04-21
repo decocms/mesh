@@ -18,7 +18,7 @@ import { useMCPClient } from "./use-mcp-client";
 import { SELF_MCP_ALIAS_ID } from "../lib/constants";
 
 /**
- * Filter definition for virtual MCPs (matches @deco/ui Filter shape)
+ * Filter definition for virtual MCPs (matches @decocms/ui Filter shape)
  */
 export type VirtualMCPFilter = CollectionFilter;
 

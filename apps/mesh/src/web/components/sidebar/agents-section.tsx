@@ -26,20 +26,20 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@deco/ui/components/sidebar.tsx";
-import { Skeleton } from "@deco/ui/components/skeleton.tsx";
+} from "@decocms/ui/components/sidebar.tsx";
+import { Skeleton } from "@decocms/ui/components/skeleton.tsx";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@deco/ui/components/popover.tsx";
+} from "@decocms/ui/components/popover.tsx";
 import {
   Drawer,
   DrawerContent,
   DrawerTitle,
-} from "@deco/ui/components/drawer.tsx";
-import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
-import { CollectionSearch } from "@deco/ui/components/collection-search.tsx";
+} from "@decocms/ui/components/drawer.tsx";
+import { useIsMobile } from "@decocms/ui/hooks/use-mobile.ts";
+import { CollectionSearch } from "@decocms/ui/components/collection-search.tsx";
 import { FolderPlus, Plus, Settings02, X } from "@untitledui/icons";
 import {
   ContextMenu,
@@ -47,7 +47,7 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuTrigger,
-} from "@deco/ui/components/context-menu.tsx";
+} from "@decocms/ui/components/context-menu.tsx";
 import {
   isDecopilot,
   isStudioPackAgent,
@@ -64,8 +64,8 @@ import { AgentAvatar } from "@/web/components/agent-icon";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
-} from "@deco/ui/components/dropdown-menu.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
+} from "@decocms/ui/components/dropdown-menu.tsx";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.tsx";
 import { GitHubRepoPicker } from "@/web/components/github-repo-picker.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";

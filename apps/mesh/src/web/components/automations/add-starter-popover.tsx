@@ -5,7 +5,7 @@
 
 import { useAutomationTriggerAdd } from "@/web/hooks/use-automations";
 import { SCHEDULE_UNITS } from "@/web/lib/cron-utils.ts";
-import { Button } from "@deco/ui/components/button.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +14,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "@deco/ui/components/dropdown-menu.tsx";
+} from "@decocms/ui/components/dropdown-menu.tsx";
 import { Clock, Plus, Zap } from "@untitledui/icons";
 import { useState } from "react";
 import { toast } from "sonner";

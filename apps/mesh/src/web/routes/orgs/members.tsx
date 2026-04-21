@@ -1,5 +1,5 @@
 import { CollectionDisplayButton } from "@/web/components/collections/collection-display-button.tsx";
-import { SearchInput } from "@deco/ui/components/search-input.tsx";
+import { SearchInput } from "@decocms/ui/components/search-input.tsx";
 import { Page } from "@/web/components/page";
 import { CollectionTableWrapper } from "@/web/components/collections/collection-table-wrapper.tsx";
 import { ManageRolesDialog } from "@/web/components/manage-roles-dialog";
@@ -20,7 +20,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
+} from "@decocms/ui/components/tooltip.tsx";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,11 +30,11 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@deco/ui/components/alert-dialog.tsx";
-import { Avatar } from "@deco/ui/components/avatar.tsx";
-import { Badge } from "@deco/ui/components/badge.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
-import { Card } from "@deco/ui/components/card.tsx";
+} from "@decocms/ui/components/alert-dialog.tsx";
+import { Avatar } from "@decocms/ui/components/avatar.tsx";
+import { Badge } from "@decocms/ui/components/badge.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
+import { Card } from "@decocms/ui/components/card.tsx";
 import type { TableColumn } from "@/web/components/collections/collection-table.tsx";
 import {
   DropdownMenu,
@@ -45,7 +45,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "@deco/ui/components/dropdown-menu.tsx";
+} from "@decocms/ui/components/dropdown-menu.tsx";
 import {
   DotsVertical,
   SwitchHorizontal01,
@@ -61,8 +61,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@deco/ui/components/select.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
+} from "@decocms/ui/components/select.tsx";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";

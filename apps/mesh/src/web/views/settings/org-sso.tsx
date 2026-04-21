@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Page } from "@/web/components/page";
-import { Button } from "@deco/ui/components/button.tsx";
-import { Input } from "@deco/ui/components/input.tsx";
-import { Label } from "@deco/ui/components/label.tsx";
-import { Switch } from "@deco/ui/components/switch.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
+import { Input } from "@decocms/ui/components/input.tsx";
+import { Label } from "@decocms/ui/components/label.tsx";
+import { Switch } from "@decocms/ui/components/switch.tsx";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import {
   useOrgSsoConfig,

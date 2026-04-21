@@ -32,7 +32,7 @@ import { Loading01, Settings02 } from "@untitledui/icons";
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { KEYS } from "@/web/lib/query-keys";
-import { Button } from "@deco/ui/components/button.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
 import { Page } from "@/web/components/page";
 
 interface PluginLayoutProps {

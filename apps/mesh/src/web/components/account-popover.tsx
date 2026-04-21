@@ -4,21 +4,21 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@deco/ui/components/popover.tsx";
+} from "@decocms/ui/components/popover.tsx";
 import {
   Drawer,
   DrawerContent,
   DrawerTitle,
-} from "@deco/ui/components/drawer.tsx";
-import { Avatar } from "@deco/ui/components/avatar.tsx";
+} from "@decocms/ui/components/drawer.tsx";
+import { Avatar } from "@decocms/ui/components/avatar.tsx";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
-import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
+} from "@decocms/ui/components/tooltip.tsx";
+import { cn } from "@decocms/ui/lib/utils.ts";
+import { useIsMobile } from "@decocms/ui/hooks/use-mobile.ts";
 import {
   Check,
   Copy01,
@@ -36,11 +36,11 @@ import {
   VolumeX,
 } from "@untitledui/icons";
 import { GitHubIcon } from "@daveyplate/better-auth-ui";
-import { SidebarMenuButton } from "@deco/ui/components/sidebar.tsx";
+import { SidebarMenuButton } from "@decocms/ui/components/sidebar.tsx";
 import { authClient } from "@/web/lib/auth-client";
 import { CreateOrganizationDialog } from "@/web/components/create-organization-dialog";
 import { usePreferences, type ThemeMode } from "@/web/hooks/use-preferences.ts";
-import { toast } from "@deco/ui/components/sonner.js";
+import { toast } from "@decocms/ui/components/sonner.js";
 
 function getOrgColorStyle(name: string): {
   backgroundColor: string;

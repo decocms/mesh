@@ -6,7 +6,7 @@ import {
   SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 import { KEYS } from "@/web/lib/query-keys";
-import { Switch } from "@deco/ui/components/switch.tsx";
+import { Switch } from "@decocms/ui/components/switch.tsx";
 import { toast } from "sonner";
 import { Container } from "@untitledui/icons";
 import { sourcePlugins } from "@/web/plugins";

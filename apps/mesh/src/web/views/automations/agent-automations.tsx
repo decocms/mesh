@@ -6,7 +6,7 @@ import {
   BreadcrumbItem,
   BreadcrumbList,
   BreadcrumbPage,
-} from "@deco/ui/components/breadcrumb.tsx";
+} from "@decocms/ui/components/breadcrumb.tsx";
 import { Loading01 } from "@untitledui/icons";
 import { useMatch, useSearch } from "@tanstack/react-router";
 import { Suspense } from "react";

@@ -15,15 +15,15 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@deco/ui/components/dialog.tsx";
+} from "@decocms/ui/components/dialog.tsx";
 import {
   Drawer,
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
-} from "@deco/ui/components/drawer.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
-import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
+} from "@decocms/ui/components/drawer.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
+import { useIsMobile } from "@decocms/ui/hooks/use-mobile.ts";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import {
   SELF_MCP_ALIAS_ID,

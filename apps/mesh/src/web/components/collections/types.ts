@@ -1,6 +1,6 @@
 import type { BaseCollectionEntity } from "@decocms/bindings/collections";
 import type { ReactNode } from "react";
-import type { Filter } from "@deco/ui/components/filter-bar.tsx";
+import type { Filter } from "@decocms/ui/components/filter-bar.tsx";
 import type { TableColumn } from "./collection-table.tsx";
 import type { JsonSchema } from "@/web/utils/constants";
 

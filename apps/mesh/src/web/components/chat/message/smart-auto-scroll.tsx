@@ -1,4 +1,4 @@
-import { useAutoScroll } from "@deco/ui/hooks/use-auto-scroll.ts";
+import { useAutoScroll } from "@decocms/ui/hooks/use-auto-scroll.ts";
 
 /**
  * Smart auto-scroll sentinel component that handles auto-scrolling when visible.

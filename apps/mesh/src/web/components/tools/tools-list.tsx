@@ -1,10 +1,10 @@
-import { Badge } from "@deco/ui/components/badge.tsx";
+import { Badge } from "@decocms/ui/components/badge.tsx";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
+} from "@decocms/ui/components/tooltip.tsx";
 import { getUIResourceUri } from "@/mcp-apps/types.ts";
 import type { ToolDefinition } from "@decocms/mesh-sdk";
 import {

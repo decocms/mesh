@@ -3,11 +3,11 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@deco/ui/components/accordion.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
-import { ScrollArea, ScrollBar } from "@deco/ui/components/scroll-area.tsx";
-import { toast } from "@deco/ui/components/sonner.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
+} from "@decocms/ui/components/accordion.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
+import { ScrollArea, ScrollBar } from "@decocms/ui/components/scroll-area.tsx";
+import { toast } from "@decocms/ui/components/sonner.tsx";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import { Check, CornerDownRight, Repeat03, XClose } from "@untitledui/icons";
 import {
   Box,

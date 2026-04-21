@@ -1,6 +1,6 @@
 import type * as React from "react";
 
-import { cn } from "@deco/ui/lib/utils.ts";
+import { cn } from "@decocms/ui/lib/utils.ts";
 
 function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
   return (

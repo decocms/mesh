@@ -1,22 +1,22 @@
 "use client";
 
 import * as React from "react";
-import { Button } from "@deco/ui/components/button.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@deco/ui/components/popover.tsx";
-import { ScrollArea } from "@deco/ui/components/scroll-area.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
+} from "@decocms/ui/components/popover.tsx";
+import { ScrollArea } from "@decocms/ui/components/scroll-area.tsx";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import { Clock, ChevronDown } from "@untitledui/icons";
-import { DateTimeInput } from "@deco/ui/components/datetime-input.tsx";
+import { DateTimeInput } from "@decocms/ui/components/datetime-input.tsx";
 import {
   QUICK_RANGES,
   expressionToDate,
   getTimeRangeDisplayText,
   type QuickRange,
-} from "@deco/ui/lib/time-expressions.ts";
+} from "@decocms/ui/lib/time-expressions.ts";
 
 export interface TimeRange {
   from: string;

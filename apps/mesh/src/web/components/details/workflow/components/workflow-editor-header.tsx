@@ -1,8 +1,8 @@
 import { VirtualMCPSelect } from "./virtual-mcp-select";
-import { Button } from "@deco/ui/components/button.tsx";
-import { Spinner } from "@deco/ui/components/spinner.tsx";
-import { ViewModeToggle } from "@deco/ui/components/view-mode-toggle.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
+import { Button } from "@decocms/ui/components/button.tsx";
+import { Spinner } from "@decocms/ui/components/spinner.tsx";
+import { ViewModeToggle } from "@decocms/ui/components/view-mode-toggle.tsx";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import {
   ClockFastForward,
   Code02,
@@ -18,7 +18,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
+} from "@decocms/ui/components/tooltip.tsx";
 import {
   usePollingWorkflowExecution,
   useWorkflowCancel,

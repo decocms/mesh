@@ -9,16 +9,16 @@ import {
   RefreshCw01,
   Server01,
 } from "@untitledui/icons";
-import { Button } from "@deco/ui/components/button.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
 import {
   ViewModeToggle,
   type ViewModeOption,
-} from "@deco/ui/components/view-mode-toggle.tsx";
+} from "@decocms/ui/components/view-mode-toggle.tsx";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
+} from "@decocms/ui/components/tooltip.tsx";
 import {
   VISUAL_EDITOR_SCRIPT,
   VisualEditorPayloadSchema,

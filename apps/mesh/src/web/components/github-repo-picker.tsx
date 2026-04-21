@@ -3,8 +3,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@deco/ui/components/dialog.tsx";
-import { SearchInput } from "@deco/ui/components/search-input.tsx";
+} from "@decocms/ui/components/dialog.tsx";
+import { SearchInput } from "@decocms/ui/components/search-input.tsx";
 import { Suspense, useDeferredValue, useState } from "react";
 import {
   useMutation,

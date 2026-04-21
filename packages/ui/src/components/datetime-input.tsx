@@ -1,20 +1,20 @@
 "use client";
 
 import * as React from "react";
-import { Calendar } from "@deco/ui/components/calendar.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
-import { Input } from "@deco/ui/components/input.tsx";
+import { Calendar } from "@decocms/ui/components/calendar.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
+import { Input } from "@decocms/ui/components/input.tsx";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@deco/ui/components/popover.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
+} from "@decocms/ui/components/popover.tsx";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import { Calendar as CalendarIcon } from "@untitledui/icons";
 import {
   expressionToDate,
   isTimeExpression,
-} from "@deco/ui/lib/time-expressions.ts";
+} from "@decocms/ui/lib/time-expressions.ts";
 
 export interface DateTimeInputProps {
   value: string;

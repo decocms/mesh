@@ -1,18 +1,18 @@
 import { AgentAvatar } from "@/web/components/agent-icon";
-import { Button } from "@deco/ui/components/button.tsx";
-import { Input } from "@deco/ui/components/input.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
+import { Input } from "@decocms/ui/components/input.tsx";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@deco/ui/components/popover.tsx";
+} from "@decocms/ui/components/popover.tsx";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
+} from "@decocms/ui/components/tooltip.tsx";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import { isDecopilot, type VirtualMCPEntity } from "@decocms/mesh-sdk";
 import { useVirtualMCPs } from "@decocms/mesh-sdk";
 import { Check, Loading01, SearchMd, Users03 } from "@untitledui/icons";
@@ -24,7 +24,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
+import { useIsMobile } from "@decocms/ui/hooks/use-mobile.ts";
 import { useCreateVirtualMCP } from "../../hooks/use-create-virtual-mcp";
 
 export interface VirtualMCPInfo

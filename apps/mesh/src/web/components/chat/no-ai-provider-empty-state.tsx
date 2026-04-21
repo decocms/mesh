@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { Zap } from "@untitledui/icons";
-import { Skeleton } from "@deco/ui/components/skeleton.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
+import { Skeleton } from "@decocms/ui/components/skeleton.tsx";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import { ProviderCardGrid } from "@/web/views/settings/org-ai-providers";
 import {
   SELF_MCP_ALIAS_ID,

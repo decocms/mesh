@@ -1,5 +1,5 @@
-import { Input } from "@deco/ui/components/input.tsx";
-import { Label } from "@deco/ui/components/label.tsx";
+import { Input } from "@decocms/ui/components/input.tsx";
+import { Label } from "@decocms/ui/components/label.tsx";
 
 type CronFrequency = "daily" | "weekly" | "biweekly" | "monthly" | "custom";
 

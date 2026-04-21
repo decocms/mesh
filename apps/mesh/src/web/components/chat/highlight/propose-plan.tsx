@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@deco/ui/components/button.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
 import { Check } from "@untitledui/icons";
 import { HighlightCard } from "./card";
 import { MessageTextPart } from "../message/parts/text-part.tsx";

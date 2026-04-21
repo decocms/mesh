@@ -26,15 +26,15 @@ import {
   SidebarLayout,
   SidebarProvider,
   useSidebar,
-} from "@deco/ui/components/sidebar.tsx";
-import { Sheet, SheetContent, SheetTitle } from "@deco/ui/components/sheet.tsx";
+} from "@decocms/ui/components/sidebar.tsx";
+import { Sheet, SheetContent, SheetTitle } from "@decocms/ui/components/sheet.tsx";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
-import { cn } from "@deco/ui/lib/utils.js";
-import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
+} from "@decocms/ui/components/tooltip.tsx";
+import { cn } from "@decocms/ui/lib/utils.js";
+import { useIsMobile } from "@decocms/ui/hooks/use-mobile.ts";
 import {
   AlertCircle,
   Browser,
@@ -63,7 +63,7 @@ import {
 } from "@tanstack/react-router";
 import { PropsWithChildren, Suspense, useTransition } from "react";
 import { useStatusSounds } from "../hooks/use-status-sounds";
-import { Button } from "@deco/ui/components/button.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
 import { EmptyState } from "@/web/components/empty-state";
 import {
   computeDefaultSizes,

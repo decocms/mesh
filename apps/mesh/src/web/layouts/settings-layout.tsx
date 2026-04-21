@@ -4,7 +4,7 @@ import {
   useRouterState,
   useParams,
 } from "@tanstack/react-router";
-import { cn } from "@deco/ui/lib/utils.ts";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import {
   Sidebar,
   SidebarContent,
@@ -17,8 +17,8 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   useSidebar,
-} from "@deco/ui/components/sidebar.tsx";
-import { Sheet, SheetContent, SheetTitle } from "@deco/ui/components/sheet.tsx";
+} from "@decocms/ui/components/sidebar.tsx";
+import { Sheet, SheetContent, SheetTitle } from "@decocms/ui/components/sheet.tsx";
 import { PageContentClassNameProvider } from "@/web/components/page";
 import {
   ArrowNarrowLeft,
@@ -38,7 +38,7 @@ import {
   Zap,
 } from "@untitledui/icons";
 import { useProjectContext } from "@decocms/mesh-sdk";
-import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
+import { useIsMobile } from "@decocms/ui/hooks/use-mobile.ts";
 import { Suspense } from "react";
 import { pluginSettingsSidebarItems } from "@/web/index";
 import { useStatusSounds } from "../hooks/use-status-sounds";

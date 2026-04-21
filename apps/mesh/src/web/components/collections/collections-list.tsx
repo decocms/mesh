@@ -4,14 +4,14 @@ import { CollectionTableWrapper } from "./collection-table-wrapper.tsx";
 import { CollectionDisplayButton } from "./collection-display-button.tsx";
 import type { CollectionsListProps } from "./types";
 import type { TableColumn } from "./collection-table.tsx";
-import { EmptyState } from "@deco/ui/components/empty-state.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
+import { EmptyState } from "@decocms/ui/components/empty-state.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@deco/ui/components/dropdown-menu.tsx";
+} from "@decocms/ui/components/dropdown-menu.tsx";
 import {
   DotsVertical,
   Eye,

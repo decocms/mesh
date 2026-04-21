@@ -7,9 +7,9 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@deco/ui/components/chart.tsx";
+} from "@decocms/ui/components/chart.tsx";
 import { KEYS } from "@/web/lib/query-keys.ts";
-import { cn } from "@deco/ui/lib/utils.ts";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import {
   SELF_MCP_ALIAS_ID,
   useMCPClient,

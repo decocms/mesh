@@ -25,13 +25,13 @@ import { isMac } from "@/web/lib/keyboard-shortcuts";
 import { ErrorBoundary } from "../error-boundary";
 import { Chat } from "./index";
 import { OwnerFilter, TaskListContent } from "./tasks-panel";
-import { cn } from "@deco/ui/lib/utils.ts";
-import { Skeleton } from "@deco/ui/components/skeleton.tsx";
+import { cn } from "@decocms/ui/lib/utils.ts";
+import { Skeleton } from "@decocms/ui/components/skeleton.tsx";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
+} from "@decocms/ui/components/tooltip.tsx";
 import { IconPicker } from "@/web/components/icon-picker.tsx";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import { useActiveGithubRepo } from "@/web/hooks/use-active-github-repo";

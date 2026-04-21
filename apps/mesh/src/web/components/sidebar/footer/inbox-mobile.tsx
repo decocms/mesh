@@ -5,7 +5,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@deco/ui/components/sidebar.tsx";
+} from "@decocms/ui/components/sidebar.tsx";
 import { Settings02 } from "@untitledui/icons";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import { useNavigate } from "@tanstack/react-router";

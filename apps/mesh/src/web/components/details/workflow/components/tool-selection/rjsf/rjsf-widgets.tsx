@@ -1,4 +1,4 @@
-import { cn } from "@deco/ui/lib/utils.ts";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import type { WidgetProps, RegistryWidgetsType } from "@rjsf/utils";
 import { MentionInput } from "@/web/components/tiptap-mentions-input";
 import { useMentions } from "./rjsf-context";

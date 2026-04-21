@@ -3,7 +3,7 @@ import { MCPAppRenderer } from "@/mcp-apps/mcp-app-renderer.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ToolAnnotationBadges, type Tool } from "@/web/components/tools";
-import { Card } from "@deco/ui/components/card.tsx";
+import { Card } from "@decocms/ui/components/card.tsx";
 import {
   useConnection,
   useMCPClient,

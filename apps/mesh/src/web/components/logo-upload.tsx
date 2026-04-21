@@ -1,4 +1,4 @@
-import { Button } from "@deco/ui/components/button.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
 import { Upload01, X } from "@untitledui/icons";
 import { useRef } from "react";
 import { toast } from "sonner";

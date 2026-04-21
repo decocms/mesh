@@ -1,27 +1,27 @@
 import { useState } from "react";
 import { Page } from "@/web/components/page";
-import { Avatar } from "@deco/ui/components/avatar.tsx";
+import { Avatar } from "@decocms/ui/components/avatar.tsx";
 import {
   Card,
   CardContent,
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@deco/ui/components/card.tsx";
-import { Switch } from "@deco/ui/components/switch.tsx";
+} from "@decocms/ui/components/card.tsx";
+import { Switch } from "@decocms/ui/components/switch.tsx";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-} from "@deco/ui/components/select.tsx";
+} from "@decocms/ui/components/select.tsx";
 import {
   ToggleGroup,
   ToggleGroupItem,
-} from "@deco/ui/components/toggle-group.tsx";
-import { Input } from "@deco/ui/components/input.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
-import { Label } from "@deco/ui/components/label.tsx";
+} from "@decocms/ui/components/toggle-group.tsx";
+import { Input } from "@decocms/ui/components/input.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
+import { Label } from "@decocms/ui/components/label.tsx";
 import { Moon01, Monitor01, Play, Sun } from "@untitledui/icons";
 import { authClient } from "@/web/lib/auth-client";
 import {
@@ -29,9 +29,9 @@ import {
   type ThemeMode,
   type ToolApprovalLevel,
 } from "@/web/hooks/use-preferences.ts";
-import { playSound } from "@deco/ui/lib/sound-engine.ts";
-import { question004Sound } from "@deco/ui/lib/question-004.ts";
-import { toast } from "@deco/ui/components/sonner.js";
+import { playSound } from "@decocms/ui/lib/sound-engine.ts";
+import { question004Sound } from "@decocms/ui/lib/question-004.ts";
+import { toast } from "@decocms/ui/components/sonner.js";
 
 function PreferenceRow({
   label,

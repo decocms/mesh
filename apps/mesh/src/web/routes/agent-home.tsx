@@ -3,7 +3,7 @@ import { AutomationInlineDetail } from "@/web/views/automations/automations-tab"
 import { PreviewContent } from "@/web/components/vm/preview/preview";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { EmptyState } from "@/web/components/empty-state";
-import { Button } from "@deco/ui/components/button.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
 import { MessageChatCircle } from "@untitledui/icons";
 import { lazy } from "react";
 import {

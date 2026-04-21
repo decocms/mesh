@@ -5,7 +5,7 @@ import Editor, {
   type EditorProps,
 } from "@monaco-editor/react";
 import type { Plugin } from "prettier";
-import { Spinner } from "@deco/ui/components/spinner.js";
+import { Spinner } from "@decocms/ui/components/spinner.js";
 import { getReturnType } from "./monaco";
 
 // ============================================

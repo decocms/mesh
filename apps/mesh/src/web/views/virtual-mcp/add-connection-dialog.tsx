@@ -21,15 +21,15 @@ import {
 import { getGitHubAvatarUrl } from "@/web/utils/github";
 import { useEnabledRegistries } from "@/web/hooks/use-enabled-registries";
 import { useMergedStoreDiscovery } from "@/web/hooks/use-merged-store-discovery";
-import { Badge } from "@deco/ui/components/badge.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
+import { Badge } from "@decocms/ui/components/badge.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@deco/ui/components/dialog.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
+} from "@decocms/ui/components/dialog.tsx";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import {
   type ConnectionEntity,
   SELF_MCP_ALIAS_ID,

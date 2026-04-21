@@ -3,8 +3,8 @@
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { useOrg, useVirtualMCP, type ToolDefinition } from "@decocms/mesh-sdk";
-import { Spinner } from "@deco/ui/components/spinner.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
+import { Spinner } from "@decocms/ui/components/spinner.tsx";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import { ArrowRight, Users03 } from "@untitledui/icons";
 import { useRef } from "react";
 import { getEffectiveState } from "./utils.tsx";

@@ -1,17 +1,17 @@
 import { authClient } from "@/web/lib/auth-client";
 import { AccountPopover } from "@/web/components/account-popover";
-import { Button } from "@deco/ui/components/button.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@deco/ui/components/popover.tsx";
+} from "@decocms/ui/components/popover.tsx";
 import {
   SidebarFooter,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@deco/ui/components/sidebar.tsx";
+} from "@decocms/ui/components/sidebar.tsx";
 import {
   Check,
   Coins04,
@@ -21,7 +21,7 @@ import {
   XClose,
 } from "@untitledui/icons";
 import { AuthUIContext } from "@daveyplate/better-auth-ui";
-import { cn } from "@deco/ui/lib/utils.ts";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import { Component, Suspense, useContext, useState } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import { toast } from "sonner";

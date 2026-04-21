@@ -8,8 +8,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
-} from "@deco/ui/components/sidebar.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
+} from "@decocms/ui/components/sidebar.tsx";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import { type ReactNode, Suspense } from "react";
 import { SidebarCollapsibleGroup } from "./sidebar-group";
 import type { NavigationSidebarItem, SidebarSection } from "./types";

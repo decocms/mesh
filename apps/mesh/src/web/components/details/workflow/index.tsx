@@ -16,8 +16,8 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/web/components/resizable";
-import { Badge } from "@deco/ui/components/badge.js";
-import { Button } from "@deco/ui/components/button.js";
+import { Badge } from "@decocms/ui/components/badge.js";
+import { Button } from "@decocms/ui/components/button.js";
 import {
   AlertOctagon,
   AlertTriangle,
@@ -42,7 +42,7 @@ import {
   useProjectContext,
 } from "@decocms/mesh-sdk";
 
-import { EmptyState } from "@deco/ui/components/empty-state.js";
+import { EmptyState } from "@decocms/ui/components/empty-state.js";
 import { usePollingWorkflowExecution } from "./hooks";
 import { useWorkflowSSE } from "./hooks/use-workflow-sse";
 import { InputSchemaPanel } from "./components/input-schema-panel";

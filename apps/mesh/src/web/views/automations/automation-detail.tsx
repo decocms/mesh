@@ -19,14 +19,14 @@ import {
 } from "@/web/hooks/use-automations";
 import { useChatTask, useChatPrefs } from "@/web/components/chat/context";
 import { usePreferences } from "@/web/hooks/use-preferences";
-import { Button } from "@deco/ui/components/button.tsx";
-import { Input } from "@deco/ui/components/input.tsx";
-import { Switch } from "@deco/ui/components/switch.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
+import { Input } from "@decocms/ui/components/input.tsx";
+import { Switch } from "@decocms/ui/components/switch.tsx";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
+} from "@decocms/ui/components/tooltip.tsx";
 import {
   getDecopilotId,
   useConnections,
@@ -80,7 +80,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@deco/ui/components/select.tsx";
+} from "@decocms/ui/components/select.tsx";
 
 // ============================================================================
 // Event Trigger Form

@@ -7,7 +7,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@deco/ui/components/alert-dialog.tsx";
+} from "@decocms/ui/components/alert-dialog.tsx";
 import type { DeleteConnectionState } from "@/web/hooks/use-delete-connection";
 
 export function DeleteConnectionDialogs({

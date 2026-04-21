@@ -7,12 +7,12 @@ import {
   useOptionalChatStream,
   useOptionalChatPrefs,
 } from "@/web/components/chat/context.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
+} from "@decocms/ui/components/tooltip.tsx";
 
 import type { ToolDefinition } from "@decocms/mesh-sdk";
 import { useMCPClient, useProjectContext } from "@decocms/mesh-sdk";

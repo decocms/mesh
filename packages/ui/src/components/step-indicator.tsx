@@ -1,6 +1,6 @@
 import { Check } from "@untitledui/icons";
 
-import { cn } from "@deco/ui/lib/utils.ts";
+import { cn } from "@decocms/ui/lib/utils.ts";
 
 interface Step {
   id: string;

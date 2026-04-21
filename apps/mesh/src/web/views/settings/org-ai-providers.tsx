@@ -14,15 +14,15 @@ import {
   RefreshCw01,
 } from "@untitledui/icons";
 import { Page } from "@/web/components/page";
-import { Button } from "@deco/ui/components/button.tsx";
-import { Card } from "@deco/ui/components/card.tsx";
-import { Input } from "@deco/ui/components/input.tsx";
+import { Button } from "@decocms/ui/components/button.tsx";
+import { Card } from "@decocms/ui/components/card.tsx";
+import { Input } from "@decocms/ui/components/input.tsx";
 import {
   ToggleGroup,
   ToggleGroupItem,
-} from "@deco/ui/components/toggle-group.tsx";
-import { Skeleton } from "@deco/ui/components/skeleton.tsx";
-import { Avatar } from "@deco/ui/components/avatar.tsx";
+} from "@decocms/ui/components/toggle-group.tsx";
+import { Skeleton } from "@decocms/ui/components/skeleton.tsx";
+import { Avatar } from "@decocms/ui/components/avatar.tsx";
 import {
   Dialog,
   DialogContent,
@@ -30,7 +30,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@deco/ui/components/dialog.tsx";
+} from "@decocms/ui/components/dialog.tsx";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,7 +40,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@deco/ui/components/alert-dialog.tsx";
+} from "@decocms/ui/components/alert-dialog.tsx";
 import {
   useAiProviders,
   useAiProviderKeys,
@@ -52,7 +52,7 @@ import {
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import { KEYS } from "@/web/lib/query-keys";
-import { cn } from "@deco/ui/lib/utils.ts";
+import { cn } from "@decocms/ui/lib/utils.ts";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 
 function ErrorFallback({ error }: { error: Error }) {
