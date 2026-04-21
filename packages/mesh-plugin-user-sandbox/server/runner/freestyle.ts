@@ -1,4 +1,5 @@
 import { freestyle } from "freestyle-sandboxes";
+import { gitIdentityScript, shellQuote } from "../../shared";
 import type { RunnerStateStore } from "./state-store";
 import type {
   EnsureOptions,
@@ -189,8 +190,7 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     repo: NonNullable<EnsureOptions["repo"]>,
   ): Promise<void> {
     const cmds = [
-      `git config --global user.name ${shellQuote(repo.userName)}`,
-      `git config --global user.email ${shellQuote(repo.userEmail)}`,
+      gitIdentityScript(repo.userName, repo.userEmail),
       `git clone ${shellQuote(repo.cloneUrl)} ${shellQuote(workdir)}`,
     ].join(" && ");
     const result = await this.execRaw(vmId, cmds);
@@ -292,10 +292,6 @@ function wrapCommand(
         .join(" ") + " "
     : "";
   return `cd ${shellQuote(cwd)} && ${envPrefix}bash -lc ${shellQuote(command)}`;
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 function shEnvName(name: string): string {

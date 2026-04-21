@@ -9,17 +9,16 @@ import { DEFAULT_WORKDIR, runDocker, shellQuote } from "./docker";
 
 const PROBE_TIMEOUT_MS = 30_000;
 
+/** Run `bash -lc <script>` inside the builder with the probe timeout. */
+function runProbe(handle: string, script: string) {
+  return runDocker(["exec", handle, "bash", "-lc", script], PROBE_TIMEOUT_MS);
+}
+
 /** List entries in the workdir (including dotfiles) as a Set. */
 export async function listWorkdir(handle: string): Promise<Set<string>> {
-  const probe = await runDocker(
-    [
-      "exec",
-      handle,
-      "bash",
-      "-lc",
-      `cd ${shellQuote(DEFAULT_WORKDIR)} && ls -1a`,
-    ],
-    PROBE_TIMEOUT_MS,
+  const probe = await runProbe(
+    handle,
+    `cd ${shellQuote(DEFAULT_WORKDIR)} && ls -1a`,
   );
   if (probe.code !== 0) {
     throw new Error(
@@ -42,10 +41,9 @@ export async function listWorkdir(handle: string): Promise<Set<string>> {
 export async function probeLockfileHash(
   handle: string,
 ): Promise<string | null> {
-  const script = `cd ${shellQuote(DEFAULT_WORKDIR)} && for f in bun.lockb bun.lock pnpm-lock.yaml yarn.lock package-lock.json deno.lock; do if [ -f "$f" ]; then sha256sum "$f" | awk '{print $1}'; exit 0; fi; done; echo ''`;
-  const result = await runDocker(
-    ["exec", handle, "bash", "-lc", script],
-    PROBE_TIMEOUT_MS,
+  const result = await runProbe(
+    handle,
+    `cd ${shellQuote(DEFAULT_WORKDIR)} && for f in bun.lockb bun.lock pnpm-lock.yaml yarn.lock package-lock.json deno.lock; do if [ -f "$f" ]; then sha256sum "$f" | awk '{print $1}'; exit 0; fi; done; echo ''`,
   );
   if (result.code !== 0) return null;
   const hash = result.stdout.trim();
@@ -54,10 +52,9 @@ export async function probeLockfileHash(
 
 /** Current git HEAD of the cloned workdir. Null if not a git repo. */
 export async function probeHeadSha(handle: string): Promise<string | null> {
-  const script = `cd ${shellQuote(DEFAULT_WORKDIR)} && (git rev-parse HEAD 2>/dev/null || echo '')`;
-  const result = await runDocker(
-    ["exec", handle, "bash", "-lc", script],
-    PROBE_TIMEOUT_MS,
+  const result = await runProbe(
+    handle,
+    `cd ${shellQuote(DEFAULT_WORKDIR)} && (git rev-parse HEAD 2>/dev/null || echo '')`,
   );
   if (result.code !== 0) return null;
   const sha = result.stdout.trim();
@@ -76,10 +73,9 @@ export async function probeDenoTask(
 ): Promise<boolean> {
   const workdir = shellQuote(DEFAULT_WORKDIR);
   const quoted = shellQuote(`"${name}"[[:space:]]*:`);
-  const script = `cd ${workdir} && (cat deno.json 2>/dev/null || cat deno.jsonc 2>/dev/null) | grep -Eq ${quoted}`;
-  const result = await runDocker(
-    ["exec", handle, "bash", "-lc", script],
-    PROBE_TIMEOUT_MS,
+  const result = await runProbe(
+    handle,
+    `cd ${workdir} && (cat deno.json 2>/dev/null || cat deno.jsonc 2>/dev/null) | grep -Eq ${quoted}`,
   );
   return result.code === 0;
 }

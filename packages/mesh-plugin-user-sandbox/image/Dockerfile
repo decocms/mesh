@@ -33,6 +33,7 @@ ENV LANG=en_US.UTF-8 \
 
 WORKDIR /app
 COPY daemon.mjs /opt/sandbox-daemon/daemon.mjs
+COPY daemon/ /opt/sandbox-daemon/daemon/
 
 # Tell claude-code it's running in a sandbox so --permission-mode
 # bypassPermissions doesn't refuse because PID 1 is root. We ARE root in this

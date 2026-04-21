@@ -28,7 +28,7 @@
  * caller (prep worker) owns persistence and the row lifecycle.
  */
 
-import { CLAUDE_IMAGE, DEFAULT_IMAGE } from "../../shared";
+import { CLAUDE_IMAGE, DEFAULT_IMAGE, gitIdentityScript } from "../../shared";
 import {
   commitBuilder,
   DEFAULT_WORKDIR,
@@ -193,14 +193,12 @@ export async function bakePrepImage(
 function cloneScript(input: BakeInput): string {
   const q = shellQuote;
   const workdir = q(DEFAULT_WORKDIR);
+  // Clone into /tmp first when /app is non-empty (base image seeded it),
+  // then move the .git directory and tracked files over. In practice /app
+  // is empty here, so the direct clone path wins.
   return [
     `mkdir -p ${workdir}`,
-    `git config --global user.name ${q(input.gitUserName)}`,
-    `git config --global user.email ${q(input.gitUserEmail)}`,
-    // Clone into /tmp first so we can detect an existing /app that happens
-    // to be non-empty (e.g. base image seeded it), then move the .git
-    // directory and tracked files over. In practice /app is empty here, so
-    // the direct clone path wins.
+    gitIdentityScript(input.gitUserName, input.gitUserEmail),
     `if [ -z "$(ls -A ${workdir} 2>/dev/null)" ]; then git clone ${q(input.cloneUrl)} ${workdir}; else echo "workdir not empty, cloning into tmp" && rm -rf /tmp/prep-clone && git clone ${q(input.cloneUrl)} /tmp/prep-clone && cp -a /tmp/prep-clone/. ${workdir}/ && rm -rf /tmp/prep-clone; fi`,
   ].join(" && ");
 }
