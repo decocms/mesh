@@ -90,10 +90,16 @@ function stripResponseHeaders(headers: Headers): Headers {
  * (OAuth, CDN) pass through untouched. Relative Location values are already
  * resolved by the browser against the current frame URL, so they're fine.
  */
-function rewriteLocationHeader(headers: Headers, handle: string): void {
+function rewriteLocationHeader(
+  headers: Headers,
+  handle: string,
+  threadId?: string,
+): void {
   const location = headers.get("location");
   if (!location) return;
-  const proxyPrefix = `/api/sandbox/${handle}/preview`;
+  const proxyPrefix = threadId
+    ? `/api/sandbox/${handle}/thread/${encodeURIComponent(threadId)}/preview`
+    : `/api/sandbox/${handle}/preview`;
 
   // Absolute URL: `http://localhost:<port>/foo` → `/api/sandbox/<handle>/preview/foo`
   try {
@@ -141,12 +147,13 @@ async function proxyWithPort(
   auth: { handle: string; runner: DockerSandboxRunner },
   port: number,
   subPath: string,
+  threadId?: string,
 ): Promise<Response> {
   // The `/_decopilot_vm/events` SSE stream is a daemon-level endpoint — it
   // doesn't live behind `/proxy/<port>`. Route it separately so the UI can
   // keep its existing `${previewUrl}/_decopilot_vm/events` URL shape.
   if (subPath === "/_decopilot_vm/events") {
-    return proxyDaemonPath(c, auth, "/_decopilot_vm/events");
+    return proxyDaemonPath(c, auth, "/_decopilot_vm/events", { threadId });
   }
 
   const url = new URL(c.req.url);
@@ -159,10 +166,10 @@ async function proxyWithPort(
   // If the dev server isn't listening yet (daemon returns 502) and this looks
   // like the initial preview load, render a friendly loading page instead.
   if (upstream.status === 502 && wantsHtml(c)) {
-    return loadingHtmlResponse(auth.handle);
+    return loadingHtmlResponse(auth.handle, threadId);
   }
   const outHeaders = stripResponseHeaders(upstream.headers);
-  rewriteLocationHeader(outHeaders, auth.handle);
+  rewriteLocationHeader(outHeaders, auth.handle, threadId);
   return new Response(upstream.body, {
     status: upstream.status,
     statusText: upstream.statusText,
@@ -174,15 +181,23 @@ async function proxyDaemonPath(
   c: Context<{ Variables: { meshContext: MeshContext } }>,
   auth: { handle: string; runner: DockerSandboxRunner },
   path: string,
+  opts: { threadId?: string } = {},
 ): Promise<Response> {
   const url = new URL(c.req.url);
+  const daemonUrl = withThreadParam(`${path}${url.search}`, opts.threadId);
+  const body =
+    c.req.method === "POST" &&
+    opts.threadId &&
+    (path === "/dev/start" || path === "/dev/stop")
+      ? await injectThreadIdIntoBody(c, opts.threadId)
+      : c.req.raw.body;
   const upstream = await auth.runner.proxyDaemonRequest(
     auth.handle,
-    `${path}${url.search}`,
+    daemonUrl,
     {
       method: c.req.method,
       headers: c.req.raw.headers,
-      body: c.req.raw.body,
+      body,
     },
   );
   return new Response(upstream.body, {
@@ -190,6 +205,32 @@ async function proxyDaemonPath(
     statusText: upstream.statusText,
     headers: stripResponseHeaders(upstream.headers),
   });
+}
+
+/** Append `threadId=<id>` to the query string when the path is thread-scoped. */
+function withThreadParam(pathWithSearch: string, threadId?: string): string {
+  if (!threadId) return pathWithSearch;
+  const sep = pathWithSearch.includes("?") ? "&" : "?";
+  return `${pathWithSearch}${sep}threadId=${encodeURIComponent(threadId)}`;
+}
+
+/**
+ * `/dev/start` and `/dev/stop` take the threadId in the JSON body (the daemon
+ * only reads it from the body, not from query params). Parse/merge so mesh
+ * callers routed through thread-scoped URLs inject it automatically.
+ */
+async function injectThreadIdIntoBody(
+  c: Context<{ Variables: { meshContext: MeshContext } }>,
+  threadId: string,
+): Promise<BodyInit | null> {
+  let parsed: Record<string, unknown> = {};
+  try {
+    const text = await c.req.raw.clone().text();
+    parsed = text ? JSON.parse(text) : {};
+  } catch {
+    parsed = {};
+  }
+  return JSON.stringify({ ...parsed, threadId });
 }
 
 /**
@@ -200,14 +241,16 @@ async function proxyAutoPort(
   c: Context<{ Variables: { meshContext: MeshContext } }>,
   auth: { handle: string; runner: DockerSandboxRunner },
   subPath: string,
+  threadId?: string,
 ): Promise<Response> {
   if (subPath === "/_decopilot_vm/events") {
-    return proxyDaemonPath(c, auth, "/_decopilot_vm/events");
+    return proxyDaemonPath(c, auth, "/_decopilot_vm/events", { threadId });
   }
 
+  const statusPath = withThreadParam("/dev/status", threadId);
   const statusRes = await auth.runner.proxyDaemonRequest(
     auth.handle,
-    "/dev/status",
+    statusPath,
     { method: "GET", headers: new Headers(), body: null },
   );
   const status = (await statusRes.json().catch(() => null)) as {
@@ -216,10 +259,10 @@ async function proxyAutoPort(
   } | null;
 
   if (!status?.port) {
-    if (wantsHtml(c)) return loadingHtmlResponse(auth.handle);
+    if (wantsHtml(c)) return loadingHtmlResponse(auth.handle, threadId);
     return c.json({ error: "Dev server not ready", phase: status?.phase }, 503);
   }
-  return proxyWithPort(c, auth, status.port, subPath);
+  return proxyWithPort(c, auth, status.port, subPath, threadId);
 }
 
 function wantsHtml(
@@ -238,9 +281,13 @@ function wantsHtml(
  * so the two don't echo each other. Dependency-free HTML so it can't break
  * when the dev server is also broken.
  */
-function loadingHtmlResponse(handle: string): Response {
-  const statusUrl = `/api/sandbox/${handle}/dev/status`;
+function loadingHtmlResponse(handle: string, threadId?: string): Response {
+  const threadQs = threadId ? `?threadId=${encodeURIComponent(threadId)}` : "";
+  const statusUrl = `/api/sandbox/${handle}/dev/status${threadQs}`;
   const startUrl = `/api/sandbox/${handle}/dev/start`;
+  const startBody = threadId
+    ? JSON.stringify({ restart: true, threadId })
+    : JSON.stringify({ restart: true });
   const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -294,7 +341,7 @@ function loadingHtmlResponse(handle: string): Response {
   }
   restartBtn.addEventListener("click", () => {
     restartBtn.hidden = true;
-    fetch(START, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ restart: true }) }).catch(() => {});
+    fetch(START, { method: "POST", headers: { "content-type": "application/json" }, body: ${JSON.stringify(startBody)} }).catch(() => {});
   });
   tick();
   setInterval(tick, 1000);
@@ -336,6 +383,46 @@ export function createSandboxPreviewRoutes() {
     devForward("/_decopilot_vm/events"),
   );
 
+  // ── Thread-scoped dev control + SSE ─────────────────────────────────────
+  // Mirrors the routes above but forwards the threadId from the URL segment
+  // into the daemon call so each thread's dev lifecycle is addressable
+  // independently. `/dev/*` daemon endpoints still key off the JSON body
+  // for POSTs and the query string for GETs — `proxyDaemonPath` merges both.
+  const threadDevForward =
+    (path: string) =>
+    async (c: Context<{ Variables: { meshContext: MeshContext } }>) => {
+      const auth = await authorizeSandbox(c);
+      if (auth instanceof Response) return auth;
+      const threadId = c.req.param("threadId");
+      if (!threadId) return c.json({ error: "threadId required" }, 400);
+      return proxyDaemonPath(c, auth, path, { threadId });
+    };
+
+  app.get(
+    "/api/sandbox/:handle/thread/:threadId/dev/status",
+    threadDevForward("/dev/status"),
+  );
+  app.post(
+    "/api/sandbox/:handle/thread/:threadId/dev/start",
+    threadDevForward("/dev/start"),
+  );
+  app.post(
+    "/api/sandbox/:handle/thread/:threadId/dev/stop",
+    threadDevForward("/dev/stop"),
+  );
+  app.get(
+    "/api/sandbox/:handle/thread/:threadId/dev/logs",
+    threadDevForward("/dev/logs"),
+  );
+  app.get(
+    "/api/sandbox/:handle/thread/:threadId/dev/scripts",
+    threadDevForward("/dev/scripts"),
+  );
+  app.get(
+    "/api/sandbox/:handle/thread/:threadId/_decopilot_vm/events",
+    threadDevForward("/_decopilot_vm/events"),
+  );
+
   // ── Preview (explicit port) ─────────────────────────────────────────────
   const explicitPortRoute = async (
     c: Context<{ Variables: { meshContext: MeshContext } }>,
@@ -370,6 +457,53 @@ export function createSandboxPreviewRoutes() {
   app.all("/api/sandbox/:handle/preview/*", autoPortRoute);
   app.all("/api/sandbox/:handle/preview", autoPortRoute);
 
+  // ── Thread-scoped preview (explicit port) ───────────────────────────────
+  const threadExplicitPortRoute = async (
+    c: Context<{ Variables: { meshContext: MeshContext } }>,
+  ) => {
+    const auth = await authorizeSandbox(c);
+    if (auth instanceof Response) return auth;
+    const threadId = c.req.param("threadId");
+    if (!threadId) return c.json({ error: "threadId required" }, 400);
+    const port = Number(c.req.param("port"));
+    if (!Number.isInteger(port) || port <= 0) {
+      return c.json({ error: "Invalid port" }, 400);
+    }
+    const prefix = `/api/sandbox/${auth.handle}/thread/${encodeURIComponent(threadId)}/preview/${port}`;
+    const tail = c.req.path.startsWith(prefix)
+      ? c.req.path.slice(prefix.length)
+      : "";
+    return proxyWithPort(c, auth, port, normalizeSubPath(tail), threadId);
+  };
+  app.all(
+    "/api/sandbox/:handle/thread/:threadId/preview/:port{[0-9]+}/*",
+    threadExplicitPortRoute,
+  );
+  app.all(
+    "/api/sandbox/:handle/thread/:threadId/preview/:port{[0-9]+}",
+    threadExplicitPortRoute,
+  );
+
+  // ── Thread-scoped preview (port-less) ───────────────────────────────────
+  const threadAutoPortRoute = async (
+    c: Context<{ Variables: { meshContext: MeshContext } }>,
+  ) => {
+    const auth = await authorizeSandbox(c);
+    if (auth instanceof Response) return auth;
+    const threadId = c.req.param("threadId");
+    if (!threadId) return c.json({ error: "threadId required" }, 400);
+    const prefix = `/api/sandbox/${auth.handle}/thread/${encodeURIComponent(threadId)}/preview`;
+    const tail = c.req.path.startsWith(prefix)
+      ? c.req.path.slice(prefix.length)
+      : "";
+    return proxyAutoPort(c, auth, normalizeSubPath(tail), threadId);
+  };
+  app.all(
+    "/api/sandbox/:handle/thread/:threadId/preview/*",
+    threadAutoPortRoute,
+  );
+  app.all("/api/sandbox/:handle/thread/:threadId/preview", threadAutoPortRoute);
+
   return app;
 }
 
@@ -389,6 +523,8 @@ export interface SandboxWsTarget {
   port: number;
   /** Sub-path after `/preview[/<port>]`. Always starts with `/`. */
   subPath: string;
+  /** Thread the preview belongs to, when the URL used the per-thread shape. */
+  threadId?: string;
 }
 
 /**
@@ -406,26 +542,64 @@ export interface SandboxWsTarget {
  */
 export function extractSandboxHandleFromReferer(
   referer: string | null,
-): string | null {
+): { handle: string; threadId?: string } | null {
   if (!referer) return null;
   try {
     const u = new URL(referer);
+    const threadMatch =
+      /^\/api\/sandbox\/([^/]+)\/thread\/([^/]+)\/preview(?:\/|$)/.exec(
+        u.pathname,
+      );
+    if (threadMatch) {
+      return {
+        handle: threadMatch[1]!,
+        threadId: decodeURIComponent(threadMatch[2]!),
+      };
+    }
     const match = /^\/api\/sandbox\/([^/]+)\/preview(?:\/|$)/.exec(u.pathname);
-    return match ? match[1]! : null;
+    return match ? { handle: match[1]! } : null;
   } catch {
     return null;
   }
 }
 
-export function parseSandboxPreviewUrl(
-  pathname: string,
-): { handle: string; port: number | null; subPath: string } | null {
+export function parseSandboxPreviewUrl(pathname: string): {
+  handle: string;
+  threadId: string | null;
+  port: number | null;
+  subPath: string;
+} | null {
+  // Thread-scoped shape wins over the legacy `/preview/<port>` one because the
+  // `/thread/<threadId>` segment appears between `<handle>` and `/preview`.
+  const threadWithPort =
+    /^\/api\/sandbox\/([^/]+)\/thread\/([^/]+)\/preview\/(\d+)(\/.*)?$/.exec(
+      pathname,
+    );
+  if (threadWithPort) {
+    return {
+      handle: threadWithPort[1]!,
+      threadId: decodeURIComponent(threadWithPort[2]!),
+      port: Number(threadWithPort[3]!),
+      subPath: threadWithPort[4] ?? "/",
+    };
+  }
+  const threadNoPort =
+    /^\/api\/sandbox\/([^/]+)\/thread\/([^/]+)\/preview(\/.*)?$/.exec(pathname);
+  if (threadNoPort) {
+    return {
+      handle: threadNoPort[1]!,
+      threadId: decodeURIComponent(threadNoPort[2]!),
+      port: null,
+      subPath: threadNoPort[3] ?? "/",
+    };
+  }
   const withPort = /^\/api\/sandbox\/([^/]+)\/preview\/(\d+)(\/.*)?$/.exec(
     pathname,
   );
   if (withPort) {
     return {
       handle: withPort[1]!,
+      threadId: null,
       port: Number(withPort[2]!),
       subPath: withPort[3] ?? "/",
     };
@@ -434,6 +608,7 @@ export function parseSandboxPreviewUrl(
   if (noPort) {
     return {
       handle: noPort[1]!,
+      threadId: null,
       port: null,
       subPath: noPort[2] ?? "/",
     };
@@ -447,7 +622,12 @@ export function parseSandboxPreviewUrl(
  */
 export async function resolveSandboxWsTarget(
   request: Request,
-  parsed: { handle: string; port: number | null; subPath: string },
+  parsed: {
+    handle: string;
+    threadId?: string | null;
+    port: number | null;
+    subPath: string;
+  },
 ): Promise<SandboxWsTarget | { error: string; status: number }> {
   const ctx = await ContextFactory.create(request).catch(() => null);
   if (!ctx) return { error: "Unauthorized", status: 401 };
@@ -473,9 +653,12 @@ export async function resolveSandboxWsTarget(
 
   let port = parsed.port;
   if (port == null) {
+    const statusPath = parsed.threadId
+      ? `/dev/status?threadId=${encodeURIComponent(parsed.threadId)}`
+      : "/dev/status";
     const statusRes = await runner.proxyDaemonRequest(
       parsed.handle,
-      "/dev/status",
+      statusPath,
       { method: "GET", headers: new Headers(), body: null },
     );
     const status = (await statusRes.json().catch(() => null)) as {
@@ -501,5 +684,6 @@ export async function resolveSandboxWsTarget(
     daemonToken: token,
     port,
     subPath: parsed.subPath,
+    threadId: parsed.threadId ?? undefined,
   };
 }

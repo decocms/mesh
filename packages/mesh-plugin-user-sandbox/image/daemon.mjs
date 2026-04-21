@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import net from "node:net";
+import os from "node:os";
 import path from "node:path";
 
 const PORT = Number(process.env.DAEMON_PORT ?? 9000);
@@ -10,6 +12,22 @@ const TOKEN = process.env.DAEMON_TOKEN;
 const WORKDIR = process.env.WORKDIR ?? "/app";
 const DENO_INSTALL_DIR = "/opt/deno";
 const DENO_BIN = `${DENO_INSTALL_DIR}/bin/deno`;
+
+// Claude Code CLI is lazy-installed by /claude-code/query on first use. The
+// version here stays in lockstep with the pinned constant in shared.ts — bump
+// both (and the translator fixtures) in the same PR.
+const CLAUDE_CODE_VERSION = process.env.CLAUDE_CODE_VERSION ?? "2.1.116";
+const CLAUDE_BIN = "/usr/local/bin/claude";
+const CLAUDE_CREDS_PATH = "/root/.claude/.credentials.json";
+
+// Worktree isolation: when cwd points at a per-thread git worktree, claude
+// is spawned in a private mount namespace with that path bind-mounted onto
+// /app. The agent's view of /app becomes its thread's files only — no
+// `/app/workspaces/thread-<uuid>` leaking into tool output, and stray
+// absolute-path writes (/CLAUDE.md, /tmp is shared but /app is private)
+// don't pollute sibling threads. Falls back to a plain spawn if unshare
+// or the bind mount errors.
+const WORKTREE_PATH_RE = /^\/app\/workspaces\/thread-[A-Za-z0-9_-]+\/?$/;
 
 if (!TOKEN) {
   console.error("[sandbox-daemon] DAEMON_TOKEN not set; refusing to start");
@@ -48,11 +66,11 @@ function sendText(
 
 // ─── Bash (legacy, still used for one-shot commands) ─────────────────────────
 
-function runBash(command, timeoutMs) {
+function runBash(command, timeoutMs, cwd = WORKDIR) {
   return new Promise((resolve) => {
     const env = { ...process.env };
     delete env.DAEMON_TOKEN;
-    const child = spawn("bash", ["-lc", command], { cwd: WORKDIR, env });
+    const child = spawn("bash", ["-lc", command], { cwd, env });
     let stdout = "";
     let stderr = "";
     let timedOut = false;
@@ -77,62 +95,157 @@ function runBash(command, timeoutMs) {
   });
 }
 
-// ─── Dev lifecycle ───────────────────────────────────────────────────────────
+// ─── Log ring ────────────────────────────────────────────────────────────────
+//
+// Two rings: a shared `daemonLogRing` for events that aren't tied to any one
+// thread (container setup, claude-code invocations, daemon lifecycle), and
+// per-thread rings kept on each DevState. Log readers and SSE replays merge
+// both so a thread-scoped viewer still sees setup/install chatter that
+// happened before its dev process spawned.
 
 const LOG_RING_CAP = 2000;
-const logRing = []; // { source: string, line: string, ts: number }
+const DAEMON_LOG_CAP = 500;
 
-function appendLog(source, chunk) {
-  // Split on newline; each logical line goes into the ring + subscribers.
+const daemonLogRing = []; // { source, line, ts }
+
+function appendLog(source, chunk, threadId) {
   const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
   const lines = text.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (line.length === 0 && i === lines.length - 1) continue;
     const entry = { source, line, ts: Date.now() };
-    logRing.push(entry);
-    if (logRing.length > LOG_RING_CAP) logRing.shift();
-    broadcast("log", { source, data: line + "\n" });
+    if (threadId) {
+      const dev = getDev(threadId);
+      dev.logRing.push(entry);
+      if (dev.logRing.length > LOG_RING_CAP) dev.logRing.shift();
+    } else {
+      daemonLogRing.push(entry);
+      if (daemonLogRing.length > DAEMON_LOG_CAP) daemonLogRing.shift();
+    }
+    broadcast("log", { source, data: line + "\n" }, threadId ?? null);
+    // Mirror to stdout with a short thread tag so `docker logs` stays greppable
+    // per thread when multiple dev processes are running.
+    const tag =
+      threadId && threadId !== DEFAULT_THREAD
+        ? `${source}/${shortTid(threadId)}`
+        : source;
+    console.log(`[${tag}] ${line}`);
   }
 }
 
-const state = {
-  phase: "idle", // idle | installing | starting | ready | exited | crashed
-  pid: null,
-  exitCode: null,
-  port: null,
-  pm: null,
-  script: null,
-  baselinePorts: new Set(),
-  startedAt: null,
-  /**
-   * Port the caller wants the mesh preview iframe to land on. Used when the
-   * dev process binds multiple ports (e.g. API + Vite) — whichever matches
-   * wins. Null means "first non-baseline wins after a short settle window".
-   */
-  preferredPort: null,
-};
+function shortTid(tid) {
+  return tid.replace(/^thrd_/, "").slice(0, 8);
+}
 
-function currentStatusPayload() {
+// ─── Per-thread dev state ────────────────────────────────────────────────────
+//
+// Each thread ID maps to an independent DevState. When no `threadId` is
+// supplied by the caller (legacy single-dev path) we fall back to the
+// DEFAULT_THREAD key so old container images / callers keep working.
+
+const DEFAULT_THREAD = "_default";
+
+/** Map<threadKey, DevState> */
+const devByThread = new Map();
+
+/**
+ * Set of ports currently bound by a dev child across all threads. Used by the
+ * port-poll loop to exclude other threads' ports from its candidate set so
+ * two near-simultaneous starts don't fight over the same LISTEN port.
+ */
+const ownedPorts = new Set();
+
+function makeDevState(key) {
   return {
-    ready: state.phase === "ready",
-    htmlSupport: state.phase === "ready",
-    phase: state.phase,
-    pid: state.pid,
-    port: state.port,
-    pm: state.pm,
-    script: state.script,
-    exitCode: state.exitCode,
+    threadId: key,
+    cwd: WORKDIR,
+    phase: "idle", // idle | installing | starting | ready | exited | crashed
+    pid: null,
+    exitCode: null,
+    port: null,
+    pm: null,
+    script: null,
+    baselinePorts: new Set(),
+    startedAt: null,
+    preferredPort: null,
+    child: null,
+    portPollTimer: null,
+    stopInFlight: null,
+    logRing: [], // { source, line, ts }
+    // Crash-loop backoff: consecutive fast crashes (exit < FAST_CRASH_MS
+    // after spawn) accumulate here. `/dev/start` refuses until the
+    // computed backoff window elapses, so a persistent startup failure
+    // (missing dep, bad config) doesn't turn into hundreds of respawns
+    // driven by UI polling. Cleared on `ready` and on `restart: true`.
+    crashCount: 0,
+    lastCrashAt: null,
   };
 }
 
-function setPhase(next) {
-  if (state.phase === next) return;
-  state.phase = next;
-  broadcast("status", currentStatusPayload());
-  broadcast("processes", {
-    active: state.pid ? [String(state.pid)] : [],
-  });
+const FAST_CRASH_MS = 10_000;
+const MAX_BACKOFF_MS = 60_000;
+
+function computeCrashBackoffMs(dev) {
+  if (!dev.crashCount) return 0;
+  return Math.min(MAX_BACKOFF_MS, 1000 * 2 ** (dev.crashCount - 1));
+}
+
+function crashBackoffRemainingMs(dev) {
+  if (!dev.crashCount || !dev.lastCrashAt) return 0;
+  const elapsed = Date.now() - dev.lastCrashAt;
+  const backoff = computeCrashBackoffMs(dev);
+  return Math.max(0, backoff - elapsed);
+}
+
+function getDev(threadId) {
+  const key = threadId || DEFAULT_THREAD;
+  let dev = devByThread.get(key);
+  if (!dev) {
+    dev = makeDevState(key);
+    devByThread.set(key, dev);
+  }
+  return dev;
+}
+
+function currentStatusPayload(threadId) {
+  const dev = getDev(threadId);
+  const backoffRemainingMs = crashBackoffRemainingMs(dev);
+  return {
+    ready: dev.phase === "ready",
+    htmlSupport: dev.phase === "ready",
+    phase: dev.phase,
+    pid: dev.pid,
+    port: dev.port,
+    pm: dev.pm,
+    script: dev.script,
+    exitCode: dev.exitCode,
+    threadId: dev.threadId === DEFAULT_THREAD ? null : dev.threadId,
+    cwd: dev.cwd,
+    // Non-zero when a fast-crash streak is active. Callers that auto-poke
+    // `/dev/start` on crashed phase should skip while this is > 0; bypass
+    // with `{ restart: true }` to force a manual retry.
+    crashBackoffRemainingMs: backoffRemainingMs,
+    crashCount: dev.crashCount,
+  };
+}
+
+function setPhase(dev, next) {
+  if (dev.phase === next) return;
+  dev.phase = next;
+  // Success clears the crash-loop streak so the next bad start gets a full
+  // backoff budget instead of immediately hitting the cap.
+  if (next === "ready") {
+    dev.crashCount = 0;
+    dev.lastCrashAt = null;
+  }
+  const tidForBroadcast = dev.threadId === DEFAULT_THREAD ? null : dev.threadId;
+  broadcast("status", currentStatusPayload(dev.threadId), tidForBroadcast);
+  broadcast(
+    "processes",
+    { active: dev.pid ? [String(dev.pid)] : [] },
+    tidForBroadcast,
+  );
 }
 
 // ─── Package manager detection ────────────────────────────────────────────────
@@ -269,6 +382,439 @@ function ensureDenoInstalled() {
   return denoInstallPromise;
 }
 
+// ─── Claude Code lazy install ────────────────────────────────────────────────
+
+let claudeInstallPromise = null;
+
+/**
+ * Fallback install of Claude Code CLI when the image doesn't ship it. The
+ * `mesh-sandbox:claude` variant bakes this in at build time and the binary
+ * check short-circuits; this path only runs when someone points
+ * `/claude-code/query` at a container built from the plain base image.
+ *
+ * Uses bun (already on PATH from the base image) rather than npm — bun's
+ * install is ~5× faster for this package and symlinks the binary into
+ * /usr/local/bun/bin, matching the bake-time layout.
+ */
+function ensureClaudeCodeInstalled() {
+  if (fs.existsSync(CLAUDE_BIN)) return Promise.resolve(true);
+  if (claudeInstallPromise) return claudeInstallPromise;
+  claudeInstallPromise = new Promise((resolve) => {
+    appendLog(
+      "setup",
+      `[setup] installing @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} via bun\n`,
+    );
+    const env = { ...process.env };
+    delete env.DAEMON_TOKEN;
+    const child = spawn(
+      "bun",
+      ["install", "-g", `@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}`],
+      { cwd: WORKDIR, env, stdio: ["ignore", "pipe", "pipe"] },
+    );
+    child.stdout.on("data", (d) => appendLog("setup", d));
+    child.stderr.on("data", (d) => appendLog("setup", d));
+    child.on("close", (code) => {
+      // bun install -g drops shims in /root/.bun/bin by default (regardless
+      // of BUN_INSTALL, which only controls where bun itself lives). Symlink
+      // into CLAUDE_BIN so spawn() and `which claude` both work.
+      if (code === 0 && !fs.existsSync(CLAUDE_BIN)) {
+        try {
+          fs.symlinkSync("/root/.bun/bin/claude", CLAUDE_BIN);
+        } catch (err) {
+          appendLog(
+            "setup",
+            `[setup] failed to symlink claude into ${CLAUDE_BIN}: ${String(err)}\n`,
+          );
+        }
+      }
+      const ok = code === 0 && fs.existsSync(CLAUDE_BIN);
+      if (!ok) {
+        appendLog(
+          "setup",
+          `[setup] claude-code install failed (exit ${code})\n`,
+        );
+      }
+      claudeInstallPromise = null;
+      resolve(ok);
+    });
+    child.on("error", (err) => {
+      appendLog(
+        "setup",
+        `[setup] claude-code install spawn error: ${String(err)}\n`,
+      );
+      claudeInstallPromise = null;
+      resolve(false);
+    });
+  });
+  return claudeInstallPromise;
+}
+
+// ─── Claude Code query ───────────────────────────────────────────────────────
+
+/**
+ * Buffer bytes from an IncomingMessage until the first LF. Returns the line
+ * (without the LF) plus any bytes that came after it on the same chunk — the
+ * caller is expected to pipe the rest of the request body onward. On EOF
+ * without an LF, resolves with the whole buffer as `line` and null `rest`.
+ *
+ * Uses on('data') rather than `for await`: async iteration calls
+ * iterator.return() when we break out of the loop, which destroys the stream.
+ * We need the stream to stay alive so the caller can pipe remaining bytes to
+ * claude's stdin.
+ */
+function readFirstLine(req) {
+  return new Promise((resolve, reject) => {
+    let buffer = Buffer.alloc(0);
+    const onData = (chunk) => {
+      buffer = Buffer.concat([buffer, chunk]);
+      const idx = buffer.indexOf(0x0a);
+      if (idx === -1) return;
+      cleanup();
+      req.pause();
+      resolve({
+        line: buffer.subarray(0, idx).toString("utf8"),
+        rest: idx + 1 < buffer.length ? buffer.subarray(idx + 1) : null,
+      });
+    };
+    const onEnd = () => {
+      cleanup();
+      resolve({ line: buffer.toString("utf8"), rest: null });
+    };
+    const onError = (err) => {
+      cleanup();
+      reject(err);
+    };
+    const cleanup = () => {
+      req.off("data", onData);
+      req.off("end", onEnd);
+      req.off("error", onError);
+    };
+    req.on("data", onData);
+    req.on("end", onEnd);
+    req.on("error", onError);
+  });
+}
+
+/**
+ * Allow-list for env vars forwarded from the mesh-side SpawnOptions.env.
+ * Everything else is noise for this container (HOME, PATH, and a pile of
+ * ANTHROPIC_CLI_* metrics vars for the host's claude install). We keep the
+ * CLAUDE_* / ANTHROPIC_* families since they carry auth and behavior flags.
+ */
+const CLAUDE_ENV_PREFIXES = ["CLAUDE_", "ANTHROPIC_"];
+
+function filterClaudeEnv(env) {
+  const out = {};
+  if (!env || typeof env !== "object") return out;
+  for (const [k, v] of Object.entries(env)) {
+    if (typeof v !== "string") continue;
+    if (CLAUDE_ENV_PREFIXES.some((p) => k.startsWith(p))) out[k] = v;
+  }
+  return out;
+}
+
+/**
+ * Materialize `files` ({ "/container/path": contents }) into the container.
+ * Used to shuttle `--mcp-config` / `--settings` JSON from the mesh adapter
+ * into a file path claude can read. Paths must be absolute and rooted in
+ * /tmp so a compromised mesh process can't clobber container state outside
+ * its own ephemeral scratch area.
+ */
+function writeContainerFiles(files) {
+  const written = [];
+  for (const [p, contents] of Object.entries(files ?? {})) {
+    if (typeof p !== "string" || !p.startsWith("/tmp/")) {
+      throw new Error(`refusing to write outside /tmp: ${p}`);
+    }
+    if (typeof contents !== "string") {
+      throw new Error(`file contents for ${p} must be a string`);
+    }
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, contents, { mode: 0o600 });
+    written.push(p);
+  }
+  return written;
+}
+
+/**
+ * Same as writeContainerFiles but for state that must survive the child's
+ * exit — notably `CLAUDE_CONFIG_DIR/.credentials.json`, which doubles as the
+ * root for session history (`projects/<cwd>/<sessionId>.jsonl`). Wiping
+ * these between turns broke `--resume`, so they're written without joining
+ * the per-turn unlink set.
+ */
+function writePersistentFiles(files) {
+  for (const [p, contents] of Object.entries(files ?? {})) {
+    if (typeof p !== "string" || !p.startsWith("/tmp/")) {
+      throw new Error(`refusing to write outside /tmp: ${p}`);
+    }
+    if (typeof contents !== "string") {
+      throw new Error(`file contents for ${p} must be a string`);
+    }
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, contents, { mode: 0o600 });
+  }
+}
+
+/**
+ * Build the (bin, args, cwd) triple used to spawn claude. For per-thread
+ * worktrees we wrap the invocation in `unshare --user --map-root-user
+ * --mount` so a private mount namespace bind-mounts the worktree onto
+ * `/app`. Net effect:
+ *   - the agent's `/app` IS its thread's worktree
+ *   - stray absolute-path writes (e.g. the Write tool writing `/CLAUDE.md`
+ *     when the user said "create CLAUDE.md") don't leak into sibling
+ *     threads' worktrees
+ *   - `/app/workspaces/thread-<uuid>` never surfaces in tool output; the
+ *     agent works in what looks like a clean `/app` root
+ *
+ * Non-worktree spawns (blank sandboxes, legacy threads) pass through
+ * unchanged — no container-wide change in behavior for existing flows.
+ */
+function buildClaudeInvocation(bin, args, cwd) {
+  if (!WORKTREE_PATH_RE.test(cwd)) {
+    return { cmd: bin, cmdArgs: args, spawnCwd: cwd, isolated: false };
+  }
+  // Shell-escape cwd for the inline `sh -c`. The regex above already
+  // rejects anything outside `[A-Za-z0-9_-]` plus the fixed prefix, so
+  // the escape is a belt-and-braces guard against future regex loosening.
+  const safeCwd = cwd.replace(/'/g, `'\\''`);
+  // `propagation=private` so the bind is local to our namespace — no chance
+  // of leaking back to host or peer namespaces. `cd /app` before exec so
+  // claude's own `process.cwd()` resolves to the neutral `/app` rather than
+  // the worktree's real path.
+  const script =
+    `mount --make-rprivate / 2>/dev/null; ` +
+    `mount --bind '${safeCwd}' /app && cd /app && exec "$@"`;
+  return {
+    cmd: "unshare",
+    cmdArgs: [
+      "--user",
+      "--map-root-user",
+      "--mount",
+      "sh",
+      "-c",
+      script,
+      "--",
+      bin,
+      ...args,
+    ],
+    // Node's spawn cwd must exist and be reachable pre-namespace. The
+    // shell wrapper will `cd /app` after the bind mount, so this value
+    // is effectively a placeholder — but it still has to be a real path
+    // that exists outside the namespace.
+    spawnCwd: "/app",
+    isolated: true,
+  };
+}
+
+/**
+ * POST /claude-code/query — remote SpawnedProcess over HTTP.
+ *
+ * Backs `@anthropic-ai/claude-agent-sdk`'s `spawnClaudeCodeProcess` hook.
+ * The SDK on the mesh side builds the full claude CLI invocation (args,
+ * env, cwd); this endpoint runs it inside the container, streaming stdin
+ * and stdout between the two processes.
+ *
+ * Wire protocol:
+ *   Request (ndjson body):
+ *     line 1: { "args": string[], "env"?: {...}, "cwd"?: string, "files"?: {...} }
+ *     lines 2+: bytes piped into claude stdin
+ *   Response:
+ *     200, content-type: application/x-ndjson
+ *     Body: claude stdout, byte-for-byte
+ *     Trailer: X-Claude-Exit = <exit code>
+ *
+ * The `command` field in SpawnOptions is ignored — we always run CLAUDE_BIN.
+ * Mesh-side callers should set `pathToClaudeCodeExecutable: "claude"` so the
+ * SDK's own ChildProcess fallback stays consistent with what we do here.
+ *
+ * Credentials come from /root/.claude/.credentials.json, bind-mounted from
+ * the host. The CLI refreshes the access token in-place during long turns,
+ * so the mount is read-write.
+ *
+ * Personal MCP servers and skills attached to the credentialed OAuth
+ * identity are NOT suppressed — self-hosted, single-user tool; the user is
+ * running their own claude against their own mesh thread.
+ */
+async function handleClaudeCodeQuery(req, res) {
+  const installed = await ensureClaudeCodeInstalled();
+  if (!installed) {
+    send(res, 500, {
+      error: "claude-code CLI install failed — check /dev/logs?source=setup",
+    });
+    return;
+  }
+  // Creds can come from either the legacy bind-mount at CLAUDE_CREDS_PATH
+  // (/root/.claude/.credentials.json) OR per-spawn via the inline `files`
+  // map + `CLAUDE_CONFIG_DIR` env. We don't pre-check here anymore — if
+  // both paths are missing, claude itself surfaces the auth error in its
+  // first stream chunk, which mesh forwards to the user verbatim.
+
+  let first;
+  try {
+    first = await readFirstLine(req);
+  } catch (err) {
+    send(res, 400, { error: `failed to read request body: ${String(err)}` });
+    return;
+  }
+  let config;
+  try {
+    config = JSON.parse(first.line);
+  } catch {
+    send(res, 400, {
+      error: "first body line must be JSON { args, env?, cwd?, files? }",
+    });
+    return;
+  }
+  if (!Array.isArray(config.args)) {
+    send(res, 400, { error: "config.args must be a string[]" });
+    return;
+  }
+
+  let writtenFiles = [];
+  try {
+    writtenFiles = writeContainerFiles(config.files);
+    writePersistentFiles(config.persistentFiles);
+  } catch (err) {
+    send(res, 400, { error: String(err) });
+    return;
+  }
+
+  const env = { ...process.env, ...filterClaudeEnv(config.env) };
+  delete env.DAEMON_TOKEN;
+
+  const rawCwd = typeof config.cwd === "string" ? config.cwd : WORKDIR;
+  const { cmd, cmdArgs, spawnCwd, isolated } = buildClaudeInvocation(
+    CLAUDE_BIN,
+    config.args,
+    rawCwd,
+  );
+
+  appendLog(
+    "claude-code",
+    `[sandbox-daemon] spawning ${cmd} ${cmdArgs.join(" ")}` +
+      `${isolated ? " (isolated: /app ← " + rawCwd + ")" : ""}\n`,
+  );
+
+  const child = spawn(cmd, cmdArgs, {
+    cwd: spawnCwd,
+    env,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+
+  res.writeHead(200, {
+    "content-type": "application/x-ndjson",
+    "transfer-encoding": "chunked",
+    trailer: "x-claude-exit, x-claude-stderr",
+  });
+
+  // Capture stderr both in the daemon log AND inline in the response trailer
+  // area so the mesh can surface claude errors to the user. We buffer the
+  // last 2KB of stderr and emit it as a trailer on non-zero exit.
+  let stderrTail = "";
+  const STDERR_TAIL_LIMIT = 2048;
+  child.stderr.on("data", (d) => {
+    const s = d.toString("utf8");
+    appendLog("claude-code", s);
+    stderrTail = (stderrTail + s).slice(-STDERR_TAIL_LIMIT);
+  });
+
+  // Claude stdout → HTTP response body. We pipe without `end: true` so we
+  // can attach the exit-code trailer on child exit.
+  child.stdout.pipe(res, { end: false });
+  child.stdout.on("data", (d) =>
+    appendLog(
+      "claude-code",
+      `[stdout ${d.length}B] ${d.toString("utf8").slice(0, 200)}\n`,
+    ),
+  );
+
+  // Stream the remaining request body into claude's stdin. Anything that
+  // came on the same chunk as the config line goes in first; `req.pipe`
+  // will call child.stdin.end() on request end, which signals EOF to
+  // claude.
+  if (first.rest) {
+    appendLog(
+      "claude-code",
+      `[sandbox-daemon] prepended ${first.rest.length}B from first chunk to stdin\n`,
+    );
+    child.stdin.write(first.rest);
+  }
+  let stdinBytes = 0;
+  req.on("data", (chunk) => {
+    stdinBytes += chunk.length;
+  });
+  req.on("end", () => {
+    appendLog(
+      "claude-code",
+      `[sandbox-daemon] stdin ended after ${stdinBytes}B\n`,
+    );
+  });
+  req.pipe(child.stdin, { end: true });
+
+  // Client aborts (browser/agent went away) → kill the child so we don't
+  // orphan a headless claude chewing through the account's rate limit.
+  //
+  // `close` fires for BOTH normal end-of-request (after 'end') and abnormal
+  // disconnect. We only want to kill on abnormal — if `req.complete` is true
+  // at close time, the body flowed fully and claude is just finishing up.
+  // Killing here would SIGTERM claude mid-response and strip the final
+  // `result` event from the stream.
+  req.on("close", () => {
+    if (req.complete) {
+      appendLog(
+        "claude-code",
+        `[sandbox-daemon] req closed normally, letting claude finish\n`,
+      );
+      return;
+    }
+    if (child.exitCode == null && !child.killed) {
+      appendLog(
+        "claude-code",
+        `[sandbox-daemon] req aborted (complete=false), SIGTERM child\n`,
+      );
+      child.kill("SIGTERM");
+      setTimeout(() => {
+        if (child.exitCode == null) child.kill("SIGKILL");
+      }, 2_000).unref?.();
+    }
+  });
+
+  const cleanup = () => {
+    for (const p of writtenFiles) fs.unlink(p, () => {});
+  };
+
+  child.on("exit", (code) => {
+    appendLog(
+      "claude-code",
+      `[sandbox-daemon] claude exited code=${code ?? "null"} stderr_tail=${JSON.stringify(stderrTail)}\n`,
+    );
+    try {
+      const trailers = { "x-claude-exit": String(code ?? -1) };
+      if (stderrTail) {
+        trailers["x-claude-stderr"] = Buffer.from(stderrTail, "utf8").toString(
+          "base64",
+        );
+      }
+      res.addTrailers(trailers);
+      res.end();
+    } catch {}
+    cleanup();
+  });
+  child.on("error", (err) => {
+    appendLog(
+      "claude-code",
+      `[sandbox-daemon] claude spawn error: ${String(err)}\n`,
+    );
+    try {
+      res.addTrailers({ "x-claude-exit": "-1" });
+      res.end();
+    } catch {}
+    cleanup();
+  });
+}
+
 // ─── Port discovery ──────────────────────────────────────────────────────────
 
 /**
@@ -302,55 +848,58 @@ function snapshotListenPorts() {
 const PORT_POLL_INTERVAL_MS = 250;
 const PORT_POLL_MAX_MS = 120_000;
 
-let portPollTimer = null;
-
-function stopPortPoll() {
-  if (portPollTimer) {
-    clearInterval(portPollTimer);
-    portPollTimer = null;
-  }
-}
-
 /**
  * How long to keep polling *after* we first see a candidate port bind. Lets
  * the dev server settle on its actual listening port before we lock in —
  * relevant for projects that run more than one process (e.g. API on :8080 and
- * Vite on :5173) where the wrong one may bind first. If `state.preferredPort`
+ * Vite on :5173) where the wrong one may bind first. If `dev.preferredPort`
  * matches any candidate during this window, it wins.
  */
 const PORT_SETTLE_MS = 1500;
 
-function startPortPoll() {
-  stopPortPoll();
+function stopPortPoll(dev) {
+  if (dev.portPollTimer) {
+    clearInterval(dev.portPollTimer);
+    dev.portPollTimer = null;
+  }
+}
+
+function startPortPoll(dev) {
+  stopPortPoll(dev);
   const started = Date.now();
   let firstCandidateAt = null;
   let firstCandidate = null;
-  portPollTimer = setInterval(() => {
-    if (state.phase !== "starting") {
-      stopPortPoll();
+  dev.portPollTimer = setInterval(() => {
+    if (dev.phase !== "starting") {
+      stopPortPoll(dev);
       return;
     }
     if (Date.now() - started > PORT_POLL_MAX_MS) {
-      stopPortPoll();
+      stopPortPoll(dev);
       appendLog(
         "daemon",
         `[sandbox-daemon] timed out waiting for dev server to bind a port\n`,
+        dev.threadId === DEFAULT_THREAD ? null : dev.threadId,
       );
       return;
     }
     const candidates = [];
     for (const p of snapshotListenPorts()) {
       if (p === PORT) continue;
-      if (state.baselinePorts.has(p)) continue;
+      if (dev.baselinePorts.has(p)) continue;
+      // Exclude ports owned by another thread's dev child so simultaneous
+      // starts don't cross-wire (A's poll locking onto B's Vite port).
+      if (ownedPorts.has(p)) continue;
       candidates.push(p);
     }
     if (candidates.length === 0) return;
 
     // User-configured port wins as soon as it appears — no need to wait.
-    if (state.preferredPort && candidates.includes(state.preferredPort)) {
-      state.port = state.preferredPort;
-      setPhase("ready");
-      stopPortPoll();
+    if (dev.preferredPort && candidates.includes(dev.preferredPort)) {
+      dev.port = dev.preferredPort;
+      ownedPorts.add(dev.port);
+      setPhase(dev, "ready");
+      stopPortPoll(dev);
       return;
     }
 
@@ -361,38 +910,35 @@ function startPortPoll() {
       firstCandidate = candidates[0];
       firstCandidateAt = Date.now();
     }
-    if (
-      !state.preferredPort ||
-      Date.now() - firstCandidateAt >= PORT_SETTLE_MS
-    ) {
-      state.port = firstCandidate;
-      setPhase("ready");
-      stopPortPoll();
+    if (!dev.preferredPort || Date.now() - firstCandidateAt >= PORT_SETTLE_MS) {
+      dev.port = firstCandidate;
+      ownedPorts.add(dev.port);
+      setPhase(dev, "ready");
+      stopPortPoll(dev);
       return;
     }
   }, PORT_POLL_INTERVAL_MS);
-  portPollTimer.unref?.();
+  dev.portPollTimer.unref?.();
 }
 
 // ─── Dev process management ──────────────────────────────────────────────────
 
-let devChild = null;
-
-function killDev(signal = "SIGTERM") {
-  if (!devChild || devChild.pid == null) return;
+function killDev(dev, signal = "SIGTERM") {
+  if (!dev.child || dev.child.pid == null) return;
   try {
-    // Use negative PID to signal the entire process group (detached=true).
-    process.kill(-devChild.pid, signal);
-  } catch {
-    try {
-      devChild.kill(signal);
-    } catch {}
-  }
+    // Signal the script runner directly (not the process group). Runners like
+    // `deno task`, `bun run`, and `pnpm run` trap SIGTERM and forward it to
+    // their child; if we also broadcast to the pgid, the user's server sees
+    // the signal twice — once from the pgid kill, once from the runner's
+    // forward. `waitForExit` still escalates to a pgid SIGKILL after the
+    // grace window, so orphaned descendants are caught on the way out.
+    dev.child.kill(signal);
+  } catch {}
 }
 
-async function waitForExit(graceMs) {
-  if (!devChild) return;
-  const child = devChild;
+async function waitForExit(dev, graceMs) {
+  if (!dev.child) return;
+  const child = dev.child;
   await new Promise((resolve) => {
     const timer = setTimeout(() => {
       try {
@@ -407,28 +953,28 @@ async function waitForExit(graceMs) {
   });
 }
 
-function runInstall(cmd, args) {
+function runInstall(cmd, args, cwd, threadId) {
   return new Promise((resolve) => {
     const env = { ...process.env };
     delete env.DAEMON_TOKEN;
     const child = spawn(cmd, args, {
-      cwd: WORKDIR,
+      cwd,
       env,
       stdio: ["ignore", "pipe", "pipe"],
     });
-    child.stdout.on("data", (d) => appendLog("setup", d));
-    child.stderr.on("data", (d) => appendLog("setup", d));
+    child.stdout.on("data", (d) => appendLog("setup", d, threadId));
+    child.stderr.on("data", (d) => appendLog("setup", d, threadId));
     child.on("close", (code) => resolve(code ?? -1));
     child.on("error", (err) => {
-      appendLog("setup", `[install] ${String(err)}\n`);
+      appendLog("setup", `[install] ${String(err)}\n`, threadId);
       resolve(-1);
     });
   });
 }
 
-function hasNodeModules() {
+function hasNodeModules(workdir) {
   try {
-    const entries = fs.readdirSync(path.join(WORKDIR, "node_modules"));
+    const entries = fs.readdirSync(path.join(workdir, "node_modules"));
     return entries.length > 0;
   } catch {
     return false;
@@ -436,58 +982,97 @@ function hasNodeModules() {
 }
 
 async function startDev({
+  threadId,
+  cwd,
   script: requestedScript,
   restart,
   preferredPort,
   runtime: runtimeHint,
 } = {}) {
+  const key = threadId || DEFAULT_THREAD;
+  const dev = getDev(key);
+  const workdir =
+    typeof cwd === "string" && cwd.length > 0 ? cwd : dev.cwd || WORKDIR;
+  dev.cwd = workdir;
+
+  // Broadcast threadId is null when this is the legacy/default thread so
+  // callers that subscribe without a threadId keep getting its events.
+  const broadcastTid = key === DEFAULT_THREAD ? null : key;
+
   const parsedPreferred =
     preferredPort == null
       ? null
       : Number.isFinite(Number(preferredPort))
         ? Number(preferredPort)
         : null;
-  state.preferredPort = parsedPreferred;
+  dev.preferredPort = parsedPreferred;
   if (
     !restart &&
-    (state.phase === "installing" ||
-      state.phase === "starting" ||
-      state.phase === "ready")
+    (dev.phase === "installing" ||
+      dev.phase === "starting" ||
+      dev.phase === "ready")
   ) {
     return;
   }
-  if (devChild) {
-    killDev("SIGTERM");
-    await waitForExit(5_000);
-    devChild = null;
+  // Crash-loop guard: a non-forcing caller (e.g. UI polling loop) that asks
+  // us to start while we're still in the backoff window after a fast-crash
+  // streak is refused. `restart: true` bypasses so a human-triggered
+  // "restart dev server" button or a code fix still works. Without this,
+  // UI polls hammer `/dev/start` every few seconds when the dev script
+  // has a persistent startup failure (missing dep, bad config) and the
+  // container burns CPU respawning a process that can't possibly boot.
+  if (!restart && dev.phase === "crashed") {
+    const wait = crashBackoffRemainingMs(dev);
+    if (wait > 0) {
+      const err = new Error(
+        `dev crash-loop backoff: ${dev.crashCount} consecutive fast crashes, retry in ${Math.ceil(wait / 1000)}s`,
+      );
+      err.code = "DEV_CRASH_LOOP";
+      err.retryAfterMs = wait;
+      throw err;
+    }
+  }
+  if (restart) {
+    // Explicit restart trusts the caller — a fresh chance means a fresh
+    // counter. Covers the "user clicked restart after fixing their code"
+    // path, which should not inherit prior crash history.
+    dev.crashCount = 0;
+    dev.lastCrashAt = null;
+  }
+  if (dev.child) {
+    await stopDev(key);
   }
 
-  state.pid = null;
-  state.port = null;
-  state.exitCode = null;
-  state.startedAt = Date.now();
+  dev.pid = null;
+  if (dev.port != null) {
+    ownedPorts.delete(dev.port);
+  }
+  dev.port = null;
+  dev.exitCode = null;
+  dev.startedAt = Date.now();
 
   // Caller's hint wins; otherwise sniff the workdir. Deno wins over Node when
   // both `package.json` and `deno.json` exist (common in deco-sites repos).
   const runtime =
     runtimeHint === "deno" || runtimeHint === "bun" || runtimeHint === "node"
       ? runtimeHint
-      : detectRuntime(WORKDIR);
+      : detectRuntime(workdir);
 
-  const pkg = readPackageJson(WORKDIR);
-  const denoConfig = runtime === "deno" ? readDenoConfig(WORKDIR) : null;
-  const pm = runtime === "deno" ? "deno" : detectPackageManager(WORKDIR);
+  const pkg = readPackageJson(workdir);
+  const denoConfig = runtime === "deno" ? readDenoConfig(workdir) : null;
+  const pm = runtime === "deno" ? "deno" : detectPackageManager(workdir);
   const script = requestedScript ?? pickScript(runtime, pkg, denoConfig);
-  state.pm = pm;
-  state.script = script ?? null;
+  dev.pm = pm;
+  dev.script = script ?? null;
 
   if (!script) {
     const where = runtime === "deno" ? "deno.json tasks" : "package.json";
     appendLog(
       "daemon",
-      `[sandbox-daemon] no "dev" or "start" script in ${where} — cannot auto-start\n`,
+      `[sandbox-daemon] no "dev" or "start" script in ${where} (${workdir}) — cannot auto-start\n`,
+      broadcastTid,
     );
-    setPhase("crashed");
+    setPhase(dev, "crashed");
     return;
   }
 
@@ -497,27 +1082,39 @@ async function startDev({
   // (pre-2.0 it's a script-installer, 2.x it's a project-installer) to be a
   // reliable warm-up call here.
   if (runtime === "deno") {
-    setPhase("installing");
+    setPhase(dev, "installing");
     const ok = await ensureDenoInstalled();
     if (!ok) {
-      setPhase("crashed");
+      setPhase(dev, "crashed");
       return;
     }
-  } else if (!hasNodeModules()) {
-    setPhase("installing");
-    appendLog("setup", `[setup] running ${pm} install in ${WORKDIR}\n`);
-    const code = await runInstall(pm, ["install"]);
+  } else if (!hasNodeModules(workdir)) {
+    setPhase(dev, "installing");
+    appendLog(
+      "setup",
+      `[setup] running ${pm} install in ${workdir}\n`,
+      broadcastTid,
+    );
+    const code = await runInstall(pm, ["install"], workdir, broadcastTid);
     if (code !== 0) {
-      appendLog("setup", `[setup] ${pm} install failed (exit ${code})\n`);
-      setPhase("crashed");
+      appendLog(
+        "setup",
+        `[setup] ${pm} install failed (exit ${code})\n`,
+        broadcastTid,
+      );
+      setPhase(dev, "crashed");
       return;
     }
-    appendLog("setup", `[setup] ${pm} install completed\n`);
+    appendLog("setup", `[setup] ${pm} install completed\n`, broadcastTid);
   }
 
-  // Baseline LISTEN ports BEFORE spawn so we can diff after.
-  state.baselinePorts = snapshotListenPorts();
-  setPhase("starting");
+  // Baseline LISTEN ports BEFORE spawn so we can diff after. Merge in ports
+  // owned by other threads too — this thread must only claim ports it bound
+  // itself, never a sibling's.
+  const baseline = snapshotListenPorts();
+  for (const p of ownedPorts) baseline.add(p);
+  dev.baselinePorts = baseline;
+  setPhase(dev, "starting");
 
   const env = { ...process.env };
   delete env.DAEMON_TOKEN;
@@ -535,13 +1132,13 @@ async function startDev({
       : [pm, ["run", script], `${pm} run ${script}`];
 
   const child = spawn(cmd, cmdArgs, {
-    cwd: WORKDIR,
+    cwd: workdir,
     env,
     detached: true,
     stdio: ["ignore", "pipe", "pipe"],
   });
-  devChild = child;
-  state.pid = child.pid ?? null;
+  dev.child = child;
+  dev.pid = child.pid ?? null;
 
   // Tag dev process output with the script name so the UI's per-script tab
   // (which keys off the `source` field) actually picks up the logs. Daemon
@@ -549,55 +1146,116 @@ async function startDev({
   const scriptSource = script;
   appendLog(
     "daemon",
-    `[sandbox-daemon] spawned ${humanCmd} (pid ${child.pid})\n`,
+    `[sandbox-daemon] spawned ${humanCmd} (pid ${child.pid}, cwd ${workdir})\n`,
+    broadcastTid,
   );
 
-  child.stdout.on("data", (d) => appendLog(scriptSource, d));
-  child.stderr.on("data", (d) => appendLog(scriptSource, d));
+  child.stdout.on("data", (d) => appendLog(scriptSource, d, broadcastTid));
+  child.stderr.on("data", (d) => appendLog(scriptSource, d, broadcastTid));
   child.on("exit", (code, signal) => {
-    state.exitCode = code ?? null;
+    dev.exitCode = code ?? null;
     appendLog(
       "daemon",
       `[sandbox-daemon] dev process exited (code=${code}, signal=${signal})\n`,
+      broadcastTid,
     );
-    stopPortPoll();
-    if (devChild === child) devChild = null;
-    setPhase(code === 0 ? "exited" : "crashed");
-    state.pid = null;
+    stopPortPoll(dev);
+    if (dev.port != null) {
+      ownedPorts.delete(dev.port);
+      dev.port = null;
+    }
+    if (dev.child === child) dev.child = null;
+    // Fast-crash bookkeeping: only non-zero exits that happen within
+    // FAST_CRASH_MS of startup count toward the backoff streak. A dev
+    // server that ran fine for an hour and then got SIGKILLed shouldn't
+    // be punished.
+    if (code !== 0 && code != null) {
+      const ranFor = dev.startedAt ? Date.now() - dev.startedAt : Infinity;
+      if (ranFor < FAST_CRASH_MS) {
+        dev.crashCount = (dev.crashCount || 0) + 1;
+      } else {
+        dev.crashCount = 1;
+      }
+      dev.lastCrashAt = Date.now();
+    }
+    setPhase(dev, code === 0 ? "exited" : "crashed");
+    dev.pid = null;
   });
   child.on("error", (err) => {
-    appendLog("daemon", `[sandbox-daemon] spawn error: ${String(err)}\n`);
-    stopPortPoll();
-    if (devChild === child) devChild = null;
-    setPhase("crashed");
-    state.pid = null;
+    appendLog(
+      "daemon",
+      `[sandbox-daemon] spawn error: ${String(err)}\n`,
+      broadcastTid,
+    );
+    stopPortPoll(dev);
+    if (dev.port != null) {
+      ownedPorts.delete(dev.port);
+      dev.port = null;
+    }
+    if (dev.child === child) dev.child = null;
+    setPhase(dev, "crashed");
+    dev.pid = null;
   });
 
-  startPortPoll();
+  startPortPoll(dev);
 }
 
-async function stopDev() {
-  if (!devChild) {
-    if (state.phase === "ready" || state.phase === "starting") {
-      setPhase("exited");
+async function stopDev(threadId) {
+  const key = threadId || DEFAULT_THREAD;
+  const dev = devByThread.get(key);
+  if (!dev) return;
+  if (dev.stopInFlight) return dev.stopInFlight;
+  dev.stopInFlight = (async () => {
+    if (!dev.child) {
+      if (dev.phase === "ready" || dev.phase === "starting") {
+        setPhase(dev, "exited");
+      }
+      return;
     }
-    return;
+    killDev(dev, "SIGTERM");
+    await waitForExit(dev, 5_000);
+    dev.child = null;
+    dev.pid = null;
+    if (dev.port != null) {
+      ownedPorts.delete(dev.port);
+      dev.port = null;
+    }
+    setPhase(dev, "exited");
+  })();
+  try {
+    await dev.stopInFlight;
+  } finally {
+    dev.stopInFlight = null;
   }
-  killDev("SIGTERM");
-  await waitForExit(5_000);
-  devChild = null;
-  state.pid = null;
-  state.port = null;
-  setPhase("exited");
 }
 
 // ─── SSE subscribers (for /_decopilot_vm/events) ─────────────────────────────
 
-const subscribers = new Set();
+/** Map<res, { threadId: string | null }> */
+const subscribers = new Map();
 
-function broadcast(event, payload) {
-  const line = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
-  for (const res of subscribers) {
+/**
+ * Fan out an event. `threadId === null` means daemon-wide (claude-code,
+ * boot chatter) — every subscriber gets it. A string `threadId` is scoped:
+ * only subscribers that registered the same threadId (or the default-thread
+ * subscribers when the event is for DEFAULT_THREAD) receive it.
+ */
+function broadcast(event, payload, threadId) {
+  const tid = threadId ?? null;
+  const envelope =
+    payload && typeof payload === "object"
+      ? { ...payload, threadId: tid }
+      : { value: payload, threadId: tid };
+  const line = `event: ${event}\ndata: ${JSON.stringify(envelope)}\n\n`;
+  for (const [res, meta] of subscribers) {
+    if (tid !== null) {
+      const subbedTid = meta.threadId ?? null;
+      // Subscribers filter strictly: no threadId registered → only default-
+      // thread events (tid === null when the scoped thread is DEFAULT, but
+      // we pass null explicitly for default via broadcastTid). Scoped subs
+      // see only their own thread's events.
+      if (subbedTid !== tid) continue;
+    }
     try {
       res.write(line);
     } catch {
@@ -606,30 +1264,51 @@ function broadcast(event, payload) {
   }
 }
 
-function replayTo(res) {
+function readMergedLogs(threadId, source) {
+  const key = threadId || DEFAULT_THREAD;
+  const threadRing = devByThread.get(key)?.logRing ?? [];
+  const merged = [];
+  for (const ring of [daemonLogRing, threadRing]) {
+    for (const e of ring) {
+      if (source && e.source !== source) continue;
+      merged.push(e);
+    }
+  }
+  merged.sort((a, b) => a.ts - b.ts);
+  return merged;
+}
+
+function replayTo(res, threadId) {
+  const tid = threadId ?? null;
   res.write(
-    `event: status\ndata: ${JSON.stringify(currentStatusPayload())}\n\n`,
+    `event: status\ndata: ${JSON.stringify(currentStatusPayload(threadId))}\n\n`,
   );
-  const replayRuntime = detectRuntime(WORKDIR);
-  const pkg = readPackageJson(WORKDIR);
-  const denoConfig = replayRuntime === "deno" ? readDenoConfig(WORKDIR) : null;
+  const replayCwd = threadId ? getDev(threadId).cwd : WORKDIR;
+  const replayRuntime = detectRuntime(replayCwd);
+  const pkg = readPackageJson(replayCwd);
+  const denoConfig =
+    replayRuntime === "deno" ? readDenoConfig(replayCwd) : null;
   res.write(
     `event: scripts\ndata: ${JSON.stringify({
       scripts: listScripts(replayRuntime, pkg, denoConfig),
+      threadId: tid,
     })}\n\n`,
   );
+  const dev = devByThread.get(threadId || DEFAULT_THREAD);
   res.write(
     `event: processes\ndata: ${JSON.stringify({
-      active: state.pid ? [String(state.pid)] : [],
+      active: dev?.pid ? [String(dev.pid)] : [],
+      threadId: tid,
     })}\n\n`,
   );
   // Replay the tail of logs so newly-connected clients see recent output.
-  const tail = logRing.slice(-200);
+  const tail = readMergedLogs(threadId, null).slice(-200);
   for (const entry of tail) {
     res.write(
       `event: log\ndata: ${JSON.stringify({
         source: entry.source,
         data: entry.line + "\n",
+        threadId: tid,
       })}\n\n`,
     );
   }
@@ -701,15 +1380,17 @@ const server = http.createServer(async (req, res) => {
 
   // Dev SSE — browser-visible via the mesh proxy. Auth already checked above
   // (the mesh forwards the bearer on our behalf).
-  if (req.method === "GET" && url === "/_decopilot_vm/events") {
+  if (req.method === "GET" && url.startsWith("/_decopilot_vm/events")) {
+    const u = new URL(url, "http://local");
+    const threadId = u.searchParams.get("threadId") || null;
     res.writeHead(200, {
       "content-type": "text/event-stream; charset=utf-8",
       "cache-control": "no-cache, no-transform",
       connection: "keep-alive",
       "x-accel-buffering": "no",
     });
-    subscribers.add(res);
-    replayTo(res);
+    subscribers.set(res, { threadId });
+    replayTo(res, threadId);
     const heartbeat = setInterval(() => {
       try {
         res.write(`: heartbeat\n\n`);
@@ -726,25 +1407,38 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Dev lifecycle.
+  // Dev lifecycle. All endpoints accept an optional `threadId` (query for
+  // GETs, body for POSTs). Omitted → DEFAULT_THREAD for backward compat.
   if (req.method === "POST" && url === "/dev/start") {
     const body = await readJson(req).catch(() => ({}));
     startDev(body).catch((err) => {
       appendLog(
         "daemon",
         `[sandbox-daemon] /dev/start error: ${String(err)}\n`,
+        body?.threadId || null,
       );
     });
-    send(res, 202, currentStatusPayload());
+    send(res, 202, currentStatusPayload(body?.threadId));
     return;
   }
   if (req.method === "POST" && url === "/dev/stop") {
-    await stopDev().catch(() => {});
-    send(res, 200, currentStatusPayload());
+    const body = await readJson(req).catch(() => ({}));
+    await stopDev(body?.threadId).catch(() => {});
+    send(res, 200, currentStatusPayload(body?.threadId));
     return;
   }
-  if (req.method === "GET" && url === "/dev/status") {
-    send(res, 200, currentStatusPayload());
+  if (req.method === "GET" && url.startsWith("/dev/status")) {
+    const u = new URL(url, "http://local");
+    if (u.searchParams.get("all") === "1") {
+      const threads = {};
+      for (const k of devByThread.keys()) {
+        threads[k] = currentStatusPayload(k);
+      }
+      send(res, 200, { threads });
+      return;
+    }
+    const threadId = u.searchParams.get("threadId") || null;
+    send(res, 200, currentStatusPayload(threadId));
     return;
   }
   if (req.method === "GET" && url.startsWith("/dev/logs")) {
@@ -754,22 +1448,52 @@ const server = http.createServer(async (req, res) => {
       Math.min(LOG_RING_CAP, Number(u.searchParams.get("tail") ?? 200)),
     );
     const source = u.searchParams.get("source");
-    const entries = logRing
-      .filter((e) => !source || e.source === source)
+    const threadId = u.searchParams.get("threadId") || null;
+    const entries = readMergedLogs(threadId, source)
       .slice(-tail)
       .map((e) => e.line)
       .join("\n");
     sendText(res, 200, entries + (entries ? "\n" : ""));
     return;
   }
-  if (req.method === "GET" && url === "/dev/scripts") {
-    const scriptsRuntime = detectRuntime(WORKDIR);
-    const pkg = readPackageJson(WORKDIR);
+  if (req.method === "GET" && url.startsWith("/dev/scripts")) {
+    const u = new URL(url, "http://local");
+    const threadId = u.searchParams.get("threadId") || null;
+    const cwdParam = u.searchParams.get("cwd");
+    const scriptsCwd =
+      cwdParam && cwdParam.length > 0
+        ? cwdParam
+        : threadId
+          ? getDev(threadId).cwd
+          : WORKDIR;
+    const scriptsRuntime = detectRuntime(scriptsCwd);
+    const pkg = readPackageJson(scriptsCwd);
     const denoConfig =
-      scriptsRuntime === "deno" ? readDenoConfig(WORKDIR) : null;
+      scriptsRuntime === "deno" ? readDenoConfig(scriptsCwd) : null;
     send(res, 200, {
       scripts: listScripts(scriptsRuntime, pkg, denoConfig),
-      pm: scriptsRuntime === "deno" ? "deno" : detectPackageManager(WORKDIR),
+      pm: scriptsRuntime === "deno" ? "deno" : detectPackageManager(scriptsCwd),
+      cwd: scriptsCwd,
+    });
+    return;
+  }
+
+  // Claude Code streaming query — see handleClaudeCodeQuery for the wire
+  // protocol. Kept above the generic /proxy catch-all so the path isn't
+  // mistaken for a dev-server proxy.
+  if (req.method === "POST" && url === "/claude-code/query") {
+    await handleClaudeCodeQuery(req, res).catch((err) => {
+      appendLog(
+        "claude-code",
+        `[sandbox-daemon] /claude-code/query error: ${String(err)}\n`,
+      );
+      if (!res.headersSent) {
+        send(res, 500, { error: String(err) });
+      } else {
+        try {
+          res.end();
+        } catch {}
+      }
     });
     return;
   }
@@ -788,12 +1512,12 @@ const server = http.createServer(async (req, res) => {
   // Legacy bash endpoint — kept for one-shot commands.
   if (req.method === "POST" && url === "/bash") {
     try {
-      const { command, timeoutMs = 60_000 } = await readJson(req);
+      const { command, timeoutMs = 60_000, cwd } = await readJson(req);
       if (typeof command !== "string" || command.length === 0) {
         send(res, 400, { error: "command is required" });
         return;
       }
-      const result = await runBash(command, Number(timeoutMs));
+      const result = await runBash(command, Number(timeoutMs), cwd);
       send(res, 200, result);
     } catch (err) {
       send(res, 500, { error: String(err) });
@@ -873,7 +1597,9 @@ server.listen(PORT, "0.0.0.0", () => {
 
 for (const sig of ["SIGINT", "SIGTERM"]) {
   process.on(sig, async () => {
-    await stopDev().catch(() => {});
+    await Promise.all(
+      Array.from(devByThread.keys()).map((k) => stopDev(k).catch(() => {})),
+    );
     server.close(() => process.exit(0));
   });
 }

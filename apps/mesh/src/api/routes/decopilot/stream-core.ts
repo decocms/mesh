@@ -50,10 +50,20 @@ import type { ChatMessage, ModelInfo, ModelsConfig } from "./types";
 import type { CancelBroadcast } from "./cancel-broadcast";
 import { ThreadMessage } from "@/storage/types";
 import type { MeshProvider } from "@/ai-providers/types";
+import { resolveClaudeCodeModelId } from "@/ai-providers/adapters/claude-code";
+import { createClaudeCodeModelForRequest } from "@/ai-providers/coding-agents/claude-code";
+import { defaultClaudeCodeCredsSource } from "@/ai-providers/coding-agents/claude-code/creds-source";
+import { resolveClaudeCodeCreds } from "mesh-plugin-user-sandbox/creds/claude-code";
 import {
-  createClaudeCodeModel,
-  resolveClaudeCodeModelId,
-} from "@/ai-providers/adapters/claude-code";
+  DockerSandboxRunner,
+  ensureSandbox,
+} from "mesh-plugin-user-sandbox/runner";
+import { ensureThreadWorkspace } from "mesh-plugin-user-sandbox/worktree";
+import { CLAUDE_IMAGE } from "mesh-plugin-user-sandbox/shared";
+import { readFile } from "node:fs/promises";
+import { getSharedRunner } from "@/sandbox/shared-runner";
+import { buildCloneInfo } from "@/shared/github-clone-info";
+import { resolvePrepImage } from "@/sandbox/prep-enqueue";
 import {
   createCodexModel,
   resolveCodexModelId,
@@ -394,10 +404,16 @@ async function streamCoreInner(
         // Declared here (before closeClients) to avoid Temporal Dead Zone
         // if the abort signal fires before the codex branch is reached.
         let codexProvider: { close(): Promise<void> } | undefined;
+        // Claude Code sandbox mode materializes host creds into a per-turn
+        // tempfile bind-mounted at /root/.claude/.credentials.json. The
+        // cleanup runs after the stream settles (or on abort) so the
+        // refreshed-token copy of the creds doesn't outlive this turn.
+        let claudeCredsCleanup: (() => Promise<void>) | undefined;
 
         closeClients = () => {
           passthroughClient.close().catch(() => {});
           codexProvider?.close().catch(() => {});
+          claudeCredsCleanup?.().catch(() => {});
         };
 
         const { tools: passthroughTools, nameMap: passthroughNameMap } =
@@ -600,6 +616,10 @@ async function streamCoreInner(
 
         let reasoningStartAt: Date | null = null;
         let lastProviderMetadata: Record<string, unknown> | undefined;
+        let lastStepTotalTokens: number | undefined;
+        let claudeCodeModelLimits:
+          | { contextWindow: number; maxOutputTokens: number }
+          | undefined;
         let codingAgentSessionId: string | undefined;
         let codingAgentProvider: string | undefined;
         llmCallStartTime = Date.now();
@@ -622,22 +642,173 @@ async function streamCoreInner(
           });
 
           const mcpUrl = `${getInternalUrl()}/mcp/virtual-mcp/${input.agent.id}`;
-          languageModel = createClaudeCodeModel(
-            resolveClaudeCodeModelId(input.models.thinking.id),
-            {
-              mcpServers: {
-                cms: {
-                  type: "http",
-                  url: mcpUrl,
-                  headers: {
-                    Authorization: `Bearer ${apiKey.key}`,
-                    "x-org-id": input.organizationId,
+          const mcpServers = {
+            cms: {
+              type: "http" as const,
+              url: mcpUrl,
+              headers: {
+                Authorization: `Bearer ${apiKey.key}`,
+                "x-org-id": input.organizationId,
+              },
+            },
+          };
+
+          // Sandbox mode: opt-in via MESH_CLAUDE_CODE_IN_SANDBOX. Requires
+          // the thread to already have a sandbox_ref (created on VM_START
+          // or the first sandbox_bash call). If anything in the sandbox
+          // setup fails we fall back to the local-spawn path rather than
+          // blowing up the turn — the user loses isolation but still gets
+          // a response.
+          const sandboxRef = mem.thread.sandbox_ref;
+          const runner =
+            process.env.MESH_CLAUDE_CODE_IN_SANDBOX === "1" && sandboxRef
+              ? getSharedRunner(ctx)
+              : null;
+
+          let sandboxTarget: Parameters<
+            typeof createClaudeCodeModelForRequest
+          >[1]["sandbox"] = null;
+
+          if (runner instanceof DockerSandboxRunner && sandboxRef) {
+            try {
+              // Materialize host creds, then immediately read+drop the
+              // tempfile — we ship the contents inline per spawn instead
+              // of bind-mounting them, so the host tempfile only exists
+              // long enough to copy into memory. This lets a shared
+              // (user, agent) container handle parallel turns safely.
+              const creds = await resolveClaudeCodeCreds(
+                defaultClaudeCodeCredsSource(),
+              );
+              const credsContents = await readFile(creds.tempPath, "utf8");
+              await creds.cleanup();
+              // Keep the cleanup hook around in case an early throw needs
+              // to no-op (cleanup is idempotent). New per-spawn creds
+              // injection lives in the daemon-side /tmp lifecycle.
+              claudeCredsCleanup = async () => {};
+
+              const repo = virtualMcpMetadata?.githubRepo ?? null;
+              const resolvedRepo = repo
+                ? await buildCloneInfo(
+                    repo.connectionId,
+                    repo.owner,
+                    repo.name,
+                    ctx.db,
+                    ctx.vault,
+                  )
+                : null;
+              const userEnv = await ctx.storage.sandboxEnv.resolve(sandboxRef);
+              const prepImage =
+                resolvedRepo && ctx.auth.user?.id
+                  ? await resolvePrepImage(ctx, ctx.auth.user.id, {
+                      connectionId: repo!.connectionId,
+                      owner: repo!.owner,
+                      name: repo!.name,
+                    })
+                  : null;
+
+              const sandbox = await ensureSandbox(ctx, runner, {
+                sandboxRef,
+                repo: resolvedRepo
+                  ? {
+                      cloneUrl: resolvedRepo.cloneUrl,
+                      userName: resolvedRepo.gitUserName,
+                      userEmail: resolvedRepo.gitUserEmail,
+                    }
+                  : undefined,
+                env: { ...userEnv },
+                // When no prep image exists (thread without a repo), use
+                // the claude-baked variant so the first turn doesn't pay
+                // the CLI install. Prep images still extend from the plain
+                // base — the daemon's bun-based lazy install is ~2s, fine
+                // as a fallback when prep is in use.
+                image: prepImage ?? CLAUDE_IMAGE,
+                // Host gateway is requested on fresh provision. Existing
+                // sandboxes (provisioned earlier by preview polling or
+                // VM_START) may not have it — but since the daemon calls
+                // back to the host via the same hostname, those sandboxes
+                // still work as long as mesh is reachable at
+                // host.docker.internal. This is the case on macOS Docker
+                // Desktop (default). On Linux w/o host-gateway the sandbox
+                // must have been provisioned with --network=host.
+                addHostGateway: true,
+              });
+
+              // Per-thread workspace inside the (possibly shared) container.
+              // First call adds a git worktree at /app/workspaces/thread-<id>
+              // and symlinks node_modules from /app; subsequent calls hit
+              // the in-process cache. When the container has no repo
+              // (blank sandbox), this returns /app and threads share the
+              // workdir — claude still works, just without isolation.
+              const workspace = await ensureThreadWorkspace(
+                runner,
+                sandbox.handle,
+                mem.thread.id,
+              );
+
+              const [daemonUrl, daemonToken, hostAccessMode] =
+                await Promise.all([
+                  runner.resolveDaemonUrl(sandbox.handle),
+                  runner.resolveDaemonToken(sandbox.handle),
+                  runner.resolveHostAccessMode(),
+                ]);
+              if (!daemonUrl || !daemonToken) {
+                throw new Error(
+                  "sandbox daemon did not expose url/token — cannot route claude-code through container",
+                );
+              }
+              sandboxTarget = {
+                daemon: {
+                  daemonUrl,
+                  daemonToken,
+                  containerCwd: workspace.cwd,
+                  inlineCreds: { contents: credsContents },
+                  // claude-cli aggregates `result.usage` across every API
+                  // call in the turn, which double-counts cached reads and
+                  // inflates the "context used" number 5–10×. Each
+                  // `assistant` message in the stream carries the single
+                  // API call's usage — the LAST one before `result` is
+                  // what's actually sitting in the context window.
+                  onAssistantUsage: ({
+                    inputTokens,
+                    cacheReadTokens,
+                    cacheCreationTokens,
+                    outputTokens,
+                  }) => {
+                    lastStepTotalTokens =
+                      inputTokens +
+                      cacheReadTokens +
+                      cacheCreationTokens +
+                      outputTokens;
+                  },
+                  // Pulls the real per-model context window the CLI was
+                  // running with (same source the claude input-bar gauge
+                  // reads) so the UI ring doesn't depend on static model
+                  // catalog entries.
+                  onModelLimits: (limits) => {
+                    claudeCodeModelLimits = limits;
                   },
                 },
-              },
+                rewriteLocalhost: hostAccessMode === "add-host",
+              };
+            } catch (err) {
+              console.warn(
+                "[decopilot:stream] claude-code sandbox setup failed, falling back to local spawn:",
+                err,
+              );
+              await claudeCredsCleanup?.().catch(() => {});
+              claudeCredsCleanup = undefined;
+              sandboxTarget = null;
+            }
+          }
+
+          languageModel = createClaudeCodeModelForRequest(
+            resolveClaudeCodeModelId(input.models.thinking.id),
+            {
+              mcpServers,
               toolApprovalLevel: input.toolApprovalLevel,
               isPlanMode: modeConfig.isPlanMode,
               resume: resumeSessionId,
+              sandbox: sandboxTarget,
             },
           );
         } else if (isCodex) {
@@ -915,6 +1086,20 @@ async function streamCoreInner(
 
             if (part.type === "finish-step") {
               lastProviderMetadata = part.providerMetadata;
+              // Per-step usage on TextStreamPart["finish-step"] (not the
+              // public UIMessageChunk variant, which is empty). For
+              // multi-step ai-sdk flows this overwrites on each step so
+              // the final value reflects end-of-turn context. Skip for
+              // claude-code: its "single step" usage is the turn-aggregated
+              // sum and would clobber the per-call value we capture from
+              // stream-json via onAssistantUsage.
+              if (!isClaudeCode) {
+                const stepUsage = (part as { usage?: { totalTokens?: number } })
+                  .usage;
+                if (stepUsage?.totalTokens != null) {
+                  lastStepTotalTokens = stepUsage.totalTokens;
+                }
+              }
               if (isClaudeCode && part.providerMetadata?.["claude-code"]) {
                 codingAgentSessionId = (
                   part.providerMetadata["claude-code"] as {
@@ -947,6 +1132,9 @@ async function streamCoreInner(
                     outputTokens: totalUsage.outputTokens ?? 0,
                     reasoningTokens: totalUsage.reasoningTokens ?? undefined,
                     totalTokens: totalUsage.totalTokens ?? 0,
+                    ...(lastStepTotalTokens != null && {
+                      contextTokens: lastStepTotalTokens,
+                    }),
                     providerMetadata: sanitizeProviderMetadata(
                       provider && providerMeta
                         ? {
@@ -963,6 +1151,9 @@ async function streamCoreInner(
 
               return {
                 ...(usage && { usage }),
+                ...(claudeCodeModelLimits && {
+                  modelLimits: claudeCodeModelLimits,
+                }),
                 ...(codingAgentSessionId && { codingAgentSessionId }),
                 ...(codingAgentProvider && { codingAgentProvider }),
               };

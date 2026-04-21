@@ -101,9 +101,26 @@ export interface Metadata {
     outputTokens?: number;
     totalTokens?: number;
     reasoningTokens?: number;
+    /**
+     * Last API-call total tokens for the turn — what's actually in the
+     * context window at end-of-turn. Used for the context % ring.
+     * Sibling `totalTokens` remains cumulative across steps (billed tokens).
+     */
+    contextTokens?: number;
     providerMetadata?: {
       [key: string]: unknown;
     };
+  };
+  /**
+   * Real per-model limits reported by the underlying runtime (currently
+   * populated by the Claude Code sandbox, which reads them from the CLI's
+   * result message). Takes precedence over the static model catalog's
+   * `limits` when present so the UI can ring correctly for providers that
+   * don't advertise limits upfront.
+   */
+  modelLimits?: {
+    contextWindow: number;
+    maxOutputTokens: number;
   };
 }
 

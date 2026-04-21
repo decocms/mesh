@@ -10,6 +10,7 @@ export type {
   EnsureOptions,
   ExecInput,
   ExecOutput,
+  Mount,
   Sandbox,
   SandboxId,
   SandboxRunner,
