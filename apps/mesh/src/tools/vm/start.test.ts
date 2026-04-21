@@ -101,11 +101,20 @@ const mockTokenGet = mock(
   }),
 );
 
+// Load the real class first so our mock can extend it — otherwise this
+// mock.module leaks a class that only has `get()` into every test file that
+// loads after this one.
+const { DownstreamTokenStorage: RealDownstreamTokenStorage } = await import(
+  "../../storage/downstream-token"
+);
+
 mock.module("../../storage/downstream-token", () => ({
-  DownstreamTokenStorage: class MockDownstreamTokenStorage {
-    constructor(_db: unknown, _vault: unknown) {}
-    get(connectionId: string) {
-      return mockTokenGet(connectionId);
+  DownstreamTokenStorage: class MockDownstreamTokenStorage extends RealDownstreamTokenStorage {
+    override async get(connectionId: string) {
+      if (connectionId === "conn_github_1") {
+        return mockTokenGet(connectionId);
+      }
+      return super.get(connectionId);
     }
   },
 }));

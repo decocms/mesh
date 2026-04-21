@@ -1,8 +1,42 @@
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
+import { refreshAccessToken } from "@/oauth/token-refresh";
 import { DownstreamTokenStorage } from "../../storage/downstream-token";
+import type { DownstreamToken } from "../../storage/types";
 
 const GITHUB_API = "https://api.github.com";
+const PROACTIVE_REFRESH_BUFFER_MS = 5 * 60 * 1000;
+
+const RECONNECT_ERROR =
+  "GitHub token refresh failed — reconnect the mcp-github integration.";
+
+function canRefresh(token: DownstreamToken): boolean {
+  return !!token.refreshToken && !!token.tokenEndpoint && !!token.clientId;
+}
+
+async function refreshAndStore(
+  token: DownstreamToken,
+  tokenStorage: DownstreamTokenStorage,
+): Promise<string | null> {
+  const result = await refreshAccessToken(token);
+  if (!result.success || !result.accessToken) {
+    await tokenStorage.delete(token.connectionId);
+    return null;
+  }
+  await tokenStorage.upsert({
+    connectionId: token.connectionId,
+    accessToken: result.accessToken,
+    refreshToken: result.refreshToken ?? token.refreshToken,
+    scope: result.scope ?? token.scope,
+    expiresAt: result.expiresIn
+      ? new Date(Date.now() + result.expiresIn * 1000)
+      : null,
+    clientId: token.clientId,
+    clientSecret: token.clientSecret,
+    tokenEndpoint: token.tokenEndpoint,
+  });
+  return result.accessToken;
+}
 
 export const GITHUB_LIST_USER_ORGS = defineTool({
   name: "GITHUB_LIST_USER_ORGS",
@@ -34,20 +68,29 @@ export const GITHUB_LIST_USER_ORGS = defineTool({
     await ctx.access.check();
 
     const tokenStorage = new DownstreamTokenStorage(ctx.db, ctx.vault);
-    const token = await tokenStorage.get(input.connectionId);
+    let token = await tokenStorage.get(input.connectionId);
     if (!token) {
       throw new Error(
         "No GitHub token found. Ensure the mcp-github connection is authenticated.",
       );
     }
 
-    const headers = {
-      Authorization: `Bearer ${token.accessToken}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-    };
+    let accessToken = token.accessToken;
 
-    // GitHub App tokens use /user/installations instead of /user/orgs
+    // Proactive refresh: if the cached token is (about to be) expired and we
+    // have refresh credentials, swap it for a fresh one before hitting GitHub.
+    if (
+      canRefresh(token) &&
+      tokenStorage.isExpired(token, PROACTIVE_REFRESH_BUFFER_MS)
+    ) {
+      const refreshed = await refreshAndStore(token, tokenStorage);
+      if (!refreshed) {
+        throw new Error(RECONNECT_ERROR);
+      }
+      accessToken = refreshed;
+      token = (await tokenStorage.get(input.connectionId)) ?? token;
+    }
+
     const installations: Array<{
       installationId: number;
       login: string;
@@ -59,11 +102,42 @@ export const GITHUB_LIST_USER_ORGS = defineTool({
     let page = 1;
     const perPage = 100;
 
-    while (true) {
-      const res = await fetch(
+    const fetchPage = async (token: string) =>
+      fetch(
         `${GITHUB_API}/user/installations?per_page=${perPage}&page=${page}`,
-        { headers },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+          },
+        },
       );
+
+    while (true) {
+      let res = await fetchPage(accessToken);
+
+      // Reactive refresh: GitHub rejected the token (revoked, rotated, or
+      // expired before our clock said so). Try one refresh + retry before
+      // giving up. Applies to any page — a token can be invalidated
+      // between pages of a long installations listing.
+      if (res.status === 401) {
+        const current = await tokenStorage.get(input.connectionId);
+        if (!current || !canRefresh(current)) {
+          await tokenStorage.delete(input.connectionId);
+          throw new Error(RECONNECT_ERROR);
+        }
+        const refreshed = await refreshAndStore(current, tokenStorage);
+        if (!refreshed) {
+          throw new Error(RECONNECT_ERROR);
+        }
+        accessToken = refreshed;
+        res = await fetchPage(accessToken);
+        if (res.status === 401) {
+          await tokenStorage.delete(input.connectionId);
+          throw new Error(RECONNECT_ERROR);
+        }
+      }
 
       if (!res.ok) {
         throw new Error(`GitHub /user/installations failed: ${res.status}`);
