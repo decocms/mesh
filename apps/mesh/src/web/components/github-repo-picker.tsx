@@ -23,7 +23,12 @@ import {
 import type { ConnectionEntity } from "@decocms/mesh-sdk";
 import { KEYS } from "@/web/lib/query-keys";
 import { toast } from "sonner";
-import { ArrowLeft, Loading01, Lock01, LockUnlocked01 } from "@untitledui/icons";
+import {
+  ArrowLeft,
+  Loading01,
+  Lock01,
+  LockUnlocked01,
+} from "@untitledui/icons";
 import { useAutoInstallGitHub } from "@/web/hooks/use-auto-install-github";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { usePreferences } from "@/web/hooks/use-preferences.ts";
@@ -45,7 +50,6 @@ interface Repo {
   description: string | null;
   updatedAt: string;
 }
-
 
 export function GitHubRepoPicker({
   open,
@@ -491,7 +495,9 @@ function InstallationPicker({
   if (installationsQuery.isError) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <p className="text-sm text-destructive">Failed to load GitHub accounts</p>
+        <p className="text-sm text-destructive">
+          Failed to load GitHub accounts
+        </p>
       </div>
     );
   }
@@ -515,33 +521,33 @@ function InstallationPicker({
       )}
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable]">
-      {data.installations.map((inst) => (
-        <button
-          key={inst.installationId}
-          type="button"
-          onClick={() => onSelect(inst)}
-          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-accent transition-colors text-left group"
-        >
-          <img
-            src={inst.avatarUrl}
-            alt={inst.login}
-            className="size-7 rounded-full shrink-0 ring-1 ring-border"
-          />
-          <div className="flex flex-col min-w-0 flex-1">
-            <span className="text-sm font-medium leading-none">
-              {inst.login}
-            </span>
-            {inst.type === "User" && (
-              <span className="text-xs text-muted-foreground mt-1">
-                Personal account
+        {data.installations.map((inst) => (
+          <button
+            key={inst.installationId}
+            type="button"
+            onClick={() => onSelect(inst)}
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-accent transition-colors text-left group"
+          >
+            <img
+              src={inst.avatarUrl}
+              alt={inst.login}
+              className="size-7 rounded-full shrink-0 ring-1 ring-border"
+            />
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-sm font-medium leading-none">
+                {inst.login}
               </span>
-            )}
-          </div>
-          <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-            Select →
-          </span>
-        </button>
-      ))}
+              {inst.type === "User" && (
+                <span className="text-xs text-muted-foreground mt-1">
+                  Personal account
+                </span>
+              )}
+            </div>
+            <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              Select →
+            </span>
+          </button>
+        ))}
       </div>
 
       <div className="px-4 py-3 border-t border-border shrink-0">
@@ -708,11 +714,7 @@ function RepoList({
             <span className="text-sm font-medium truncate">{repo.name}</span>
           </div>
           <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground border border-border rounded px-1.5 py-0.5 shrink-0 leading-none">
-            {repo.private ? (
-              <Lock01 size={10} />
-            ) : (
-              <LockUnlocked01 size={10} />
-            )}
+            {repo.private ? <Lock01 size={10} /> : <LockUnlocked01 size={10} />}
             {repo.private ? "Private" : "Public"}
           </span>
         </button>
