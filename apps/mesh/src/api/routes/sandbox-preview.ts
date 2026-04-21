@@ -233,13 +233,13 @@ function wantsHtml(
 
 /**
  * Minimal loading shell the iframe renders while the dev server is booting.
- * Polls /dev/status every 1s and reloads once ready. Shows last-known logs
- * in a pre. Intentionally dependency-free HTML so it can't break when the
- * dev server is also broken.
+ * Polls /dev/status every 1s and reloads once ready. Log output lives in the
+ * terminal panel next to the preview — this page is intentionally status-only
+ * so the two don't echo each other. Dependency-free HTML so it can't break
+ * when the dev server is also broken.
  */
 function loadingHtmlResponse(handle: string): Response {
   const statusUrl = `/api/sandbox/${handle}/dev/status`;
-  const logsUrl = `/api/sandbox/${handle}/dev/logs?tail=200`;
   const startUrl = `/api/sandbox/${handle}/dev/start`;
   const html = `<!doctype html>
 <html lang="en">
@@ -248,54 +248,48 @@ function loadingHtmlResponse(handle: string): Response {
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Starting dev server…</title>
 <style>
-  html, body { margin: 0; padding: 0; height: 100%; background: #0b0d10; color: #d6dde5; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .wrap { display: flex; flex-direction: column; height: 100%; padding: 16px 20px; box-sizing: border-box; }
-  .row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: #f5c518; box-shadow: 0 0 8px #f5c51880; animation: pulse 1.2s ease-in-out infinite; }
-  .dot.crashed { background: #ef4444; animation: none; }
-  @keyframes pulse { 0%,100% { opacity: .6 } 50% { opacity: 1 } }
-  h1 { font-size: 13px; font-weight: 600; margin: 0; color: #e5e7eb; }
-  .sub { color: #9aa4b2; }
-  pre { flex: 1; margin: 0; padding: 10px 12px; background: #0e1115; border: 1px solid #1f242b; border-radius: 6px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
-  button { background: #1f2937; color: #e5e7eb; border: 1px solid #374151; border-radius: 6px; padding: 4px 10px; font: inherit; cursor: pointer; }
-  button:hover { background: #293242; }
+  :root { color-scheme: light dark; --fg: #111827; --sub: #6b7280; --bg: #ffffff; --accent: #111827; --danger: #dc2626; --btn-bg: #f3f4f6; --btn-bg-hover: #e5e7eb; --btn-border: #d1d5db; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg: #e5e7eb; --sub: #9ca3af; --bg: #0b0d10; --accent: #e5e7eb; --danger: #f87171; --btn-bg: #1f2937; --btn-bg-hover: #293242; --btn-border: #374151; }
+  }
+  html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--fg); font: 13px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; height: 100%; padding: 24px; box-sizing: border-box; text-align: center; }
+  .spinner { width: 28px; height: 28px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--fg) 15%, transparent); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
+  .spinner.crashed { border: 2px solid color-mix(in srgb, var(--danger) 30%, transparent); border-top-color: var(--danger); animation: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  h1 { font-size: 14px; font-weight: 600; margin: 0; color: var(--fg); }
+  .sub { font-size: 12px; color: var(--sub); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  button { margin-top: 6px; background: var(--btn-bg); color: var(--fg); border: 1px solid var(--btn-border); border-radius: 6px; padding: 6px 14px; font: inherit; font-size: 12px; cursor: pointer; }
+  button:hover { background: var(--btn-bg-hover); }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="row">
-    <span id="dot" class="dot"></span>
-    <h1 id="phase">Starting dev server…</h1>
-    <span class="sub" id="sub"></span>
-    <span style="flex:1"></span>
-    <button id="restart" hidden>Restart</button>
-  </div>
-  <pre id="log">(loading…)</pre>
+  <div id="spinner" class="spinner" aria-hidden="true"></div>
+  <h1 id="phase">Starting dev server…</h1>
+  <div class="sub" id="sub"></div>
+  <button id="restart" hidden>Restart</button>
 </div>
 <script>
   const STATUS = ${JSON.stringify(statusUrl)};
-  const LOGS = ${JSON.stringify(logsUrl)};
   const START = ${JSON.stringify(startUrl)};
   const phaseEl = document.getElementById("phase");
   const subEl = document.getElementById("sub");
-  const dotEl = document.getElementById("dot");
-  const logEl = document.getElementById("log");
+  const spinnerEl = document.getElementById("spinner");
   const restartBtn = document.getElementById("restart");
   async function tick() {
     try {
-      const [s, l] = await Promise.all([
-        fetch(STATUS, { cache: "no-store" }).then(r => r.ok ? r.json() : null),
-        fetch(LOGS, { cache: "no-store" }).then(r => r.ok ? r.text() : ""),
-      ]);
-      if (l) logEl.textContent = l;
+      const r = await fetch(STATUS, { cache: "no-store" });
+      if (!r.ok) return;
+      const s = await r.json();
       if (!s) return;
       const labels = { idle: "Waiting…", installing: "Installing dependencies…", starting: "Starting dev server…", ready: "Ready — reloading…", exited: "Exited", crashed: "Crashed" };
       phaseEl.textContent = labels[s.phase] ?? s.phase ?? "Starting…";
-      subEl.textContent = s.pm ? "(" + s.pm + " run " + (s.script || "dev") + ")" : "";
-      dotEl.classList.toggle("crashed", s.phase === "crashed" || s.phase === "exited");
+      subEl.textContent = s.pm ? s.pm + " run " + (s.script || "dev") : "";
+      const bad = s.phase === "crashed" || s.phase === "exited";
+      spinnerEl.classList.toggle("crashed", bad);
       if (s.phase === "ready") { location.reload(); return; }
-      if (s.phase === "crashed" || s.phase === "exited") restartBtn.hidden = false;
-      else restartBtn.hidden = true;
+      restartBtn.hidden = !bad;
     } catch {}
   }
   restartBtn.addEventListener("click", () => {

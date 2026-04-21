@@ -37,7 +37,15 @@ class ChunkBuffer {
   }
 }
 
-const MAX_DISCONNECT_MS = 45_000;
+/**
+ * Time the connection must stay down before we declare the VM "suspended".
+ * Previously we inferred suspension from SSE event silence, but a ready-state
+ * dev server legitimately has nothing to emit — that fired false positives
+ * while the user was actively viewing. The daemon ships an SSE comment every
+ * 15s which keeps TCP warm and makes `EventSource.onerror` fire promptly when
+ * the VM actually goes away, so we key off connection state instead.
+ */
+const SUSPENDED_AFTER_ERROR_MS = 60_000;
 
 /** Base reconnect delay in ms */
 const BASE_RECONNECT_DELAY_MS = 1_000;
@@ -61,7 +69,6 @@ export function useVmEvents(
   // `hasData` during render see fresh data — buffer mutation alone doesn't
   // trigger a re-render.
   const [, setLogTick] = useState(0);
-  const disconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onChunkRef = useRef(onChunk);
   onChunkRef.current = onChunk;
   const buffers = useRef(new Map<string, ChunkBuffer>());
@@ -89,21 +96,17 @@ export function useVmEvents(
     let disposed = false;
     let reconnectAttempt = 0;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let suspendTimer: ReturnType<typeof setTimeout> | null = null;
     let es: EventSource | null = null;
 
-    const handler = (e: MessageEvent) => {
-      // Any event received means we're connected — clear suspension timer
-      if (disconnectTimer.current) {
-        clearTimeout(disconnectTimer.current);
-        disconnectTimer.current = null;
+    const clearSuspendTimer = () => {
+      if (suspendTimer) {
+        clearTimeout(suspendTimer);
+        suspendTimer = null;
       }
-      setSuspended(false);
+    };
 
-      // Restart the disconnect timer
-      disconnectTimer.current = setTimeout(() => {
-        setSuspended(true);
-      }, MAX_DISCONNECT_MS);
-
+    const handler = (e: MessageEvent) => {
       try {
         const data = JSON.parse(e.data);
 
@@ -138,10 +141,20 @@ export function useVmEvents(
 
       es.onopen = () => {
         reconnectAttempt = 0;
+        clearSuspendTimer();
+        setSuspended(false);
       };
 
       es.onerror = () => {
         if (es?.readyState === EventSource.CLOSED) {
+          // Start (or keep running) the suspend timer only while we're
+          // actively disconnected. If we reconnect before it fires, the next
+          // onopen clears it.
+          if (!suspendTimer) {
+            suspendTimer = setTimeout(() => {
+              setSuspended(true);
+            }, SUSPENDED_AFTER_ERROR_MS);
+          }
           scheduleReconnect();
         }
       };
@@ -170,18 +183,11 @@ export function useVmEvents(
 
     connect();
 
-    disconnectTimer.current = setTimeout(() => {
-      setSuspended(true);
-    }, MAX_DISCONNECT_MS);
-
     return () => {
       disposed = true;
       es?.close();
       if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (disconnectTimer.current) {
-        clearTimeout(disconnectTimer.current);
-        disconnectTimer.current = null;
-      }
+      clearSuspendTimer();
     };
   }, [previewUrl]);
 
