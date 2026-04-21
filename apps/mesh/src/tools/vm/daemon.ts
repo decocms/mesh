@@ -22,6 +22,13 @@ export interface DaemonConfig {
   bootstrapScript: string;
   gitUserName: string;
   gitUserEmail: string;
+  /**
+   * Branch to check out after clone. If provided, the daemon tries to
+   * `git checkout <branch>` (attaching to the remote ref if it exists);
+   * otherwise it creates the branch locally with `git checkout -b`.
+   * If null/undefined, the daemon falls back to a generated branch name.
+   */
+  injectedBranch?: string | null;
 }
 
 export function buildDaemonScript(config: DaemonConfig): string {
@@ -36,6 +43,7 @@ export function buildDaemonScript(config: DaemonConfig): string {
     bootstrapScript,
     gitUserName,
     gitUserEmail,
+    injectedBranch,
   } = config;
 
   if (!/^\d+$/.test(upstreamPort)) {
@@ -58,6 +66,7 @@ const PORT = ${JSON.stringify(port)};
 const PATH_PREFIX = ${JSON.stringify(pathPrefix)};
 const GIT_USER_NAME = ${JSON.stringify(gitUserName)};
 const GIT_USER_EMAIL = ${JSON.stringify(gitUserEmail)};
+const INJECTED_BRANCH = ${JSON.stringify(injectedBranch ?? null)};
 
 const ADJECTIVES = ["amber","bold","bright","calm","crimson","coral","daring","deep","dusty","eager","faint","fierce","frozen","gentle","golden","grand","green","hollow","iron","ivory","keen","lasting","lunar","mellow","misty","noble","olive","pale","prime","quiet","rapid","rustic","serene","sharp","silver","sleek","solar","stark","still","swift","tawny","tender","thin","true","vast","velvet","warm","wild","young","zen"];
 const NOUNS = ["anchor","birch","brook","cedar","cliff","cove","crane","dune","echo","ember","falcon","fern","flint","forge","frost","glade","grove","harbor","hawk","iris","jade","lark","maple","marsh","mesa","opal","orbit","peak","pine","plume","quartz","rapids","reef","ridge","river","sage","shore","slate","spruce","stone","summit","thorn","tide","trail","vale","wren","aspen","delta","crest","spark"];
@@ -248,17 +257,34 @@ function runSetup() {
       return;
     }
 
-    // Configure git identity and create branch
+    // Configure git identity and branch.
+    // Precedence: injected branch (from VM_START caller) > random.
+    // For an injected branch, try to attach to origin/<branch> first; if that
+    // ref does not exist, create a new local branch.
     try {
       execSync("git config user.name " + JSON.stringify(GIT_USER_NAME), { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
       execSync("git config user.email " + JSON.stringify(GIT_USER_EMAIL), { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
-      const branch = randomBranch();
-      execSync("git checkout -b " + branch, { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
-      broadcastChunk("setup", "\\r\\n$ git checkout -b " + branch + "\\r\\n");
-      log("created branch " + branch);
+      const branch = INJECTED_BRANCH || randomBranch();
+      let attached = false;
+      if (INJECTED_BRANCH) {
+        try {
+          execSync("git show-ref --verify --quiet refs/remotes/origin/" + branch, { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
+          execSync("git checkout " + branch, { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
+          broadcastChunk("setup", "\\r\\n$ git checkout " + branch + "\\r\\n");
+          log("checked out existing branch " + branch);
+          attached = true;
+        } catch {
+          // remote ref absent — fall through to create a new local branch
+        }
+      }
+      if (!attached) {
+        execSync("git checkout -b " + branch, { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
+        broadcastChunk("setup", "\\r\\n$ git checkout -b " + branch + "\\r\\n");
+        log("created branch " + branch);
+      }
     } catch (e) {
       log("git branch setup failed:", e.message);
-      broadcastChunk("setup", "\\r\\nWarning: could not create branch\\r\\n");
+      broadcastChunk("setup", "\\r\\nWarning: could not set up branch\\r\\n");
     }
 
     if (!PM) {
