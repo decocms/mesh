@@ -177,7 +177,14 @@ function GitTabContent(props: ContentProps) {
             size="sm"
             disabled={isStreaming}
             onClick={() =>
-              send(tpl.mergeSquash({ prNumber: pr.number, base: pr.base }))
+              send(
+                tpl.mergeSquash({
+                  owner,
+                  repo,
+                  prNumber: pr.number,
+                  base: pr.base,
+                }),
+              )
             }
           >
             Squash & merge
@@ -186,7 +193,9 @@ function GitTabContent(props: ContentProps) {
             size="sm"
             variant="outline"
             disabled={isStreaming}
-            onClick={() => send(tpl.rebaseOnBase({ branch, base: pr.base }))}
+            onClick={() =>
+              send(tpl.rebaseOnBase({ owner, repo, branch, base: pr.base }))
+            }
           >
             Rebase on {pr.base}
           </Button>
@@ -194,7 +203,9 @@ function GitTabContent(props: ContentProps) {
             size="sm"
             variant="ghost"
             disabled={isStreaming}
-            onClick={() => send(tpl.closePr({ prNumber: pr.number }))}
+            onClick={() =>
+              send(tpl.closePr({ owner, repo, prNumber: pr.number }))
+            }
           >
             Close PR
           </Button>
@@ -221,7 +232,7 @@ function GitTabContent(props: ContentProps) {
         <Button
           size="sm"
           disabled={isStreaming}
-          onClick={() => send(tpl.createPr({ branch, base }))}
+          onClick={() => send(tpl.createPr({ owner, repo, branch, base }))}
         >
           Create PR
         </Button>
