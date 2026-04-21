@@ -191,7 +191,15 @@ interface TaskProviderInternals {
 const ChatStreamCtx = createContext<ChatStreamContextValue | null>(null);
 const ChatTaskCtx = createContext<ChatTaskContextValue | null>(null);
 const ChatPrefsCtx = createContext<ChatPrefsContextValue | null>(null);
-const ChatBridgeCtx = createContext<ChatBridgeValue>(BRIDGE_NOOP);
+/**
+ * ChatBridgeCtx holds a RefObject (not a value) so consumers outside
+ * ActiveTaskProvider always read the latest sendMessage/isStreaming via
+ * `.current` at call time — avoids stale closures when ActiveTaskProvider
+ * mutates the ref after initial render.
+ */
+const ChatBridgeCtx = createContext<React.RefObject<ChatBridgeValue>>({
+  current: BRIDGE_NOOP,
+});
 
 /** Internal context for passing TaskProvider internals to ActiveTaskProvider */
 const TaskInternalsCtx = createContext<TaskProviderInternals | null>(null);
@@ -539,7 +547,7 @@ export function ChatContextProvider({
   return (
     <ChatTaskCtx.Provider value={taskValue}>
       <ChatPrefsCtx.Provider value={prefsValue}>
-        <ChatBridgeCtx.Provider value={bridgeRef.current}>
+        <ChatBridgeCtx.Provider value={bridgeRef}>
           <TaskInternalsCtx.Provider value={internals}>
             {children}
           </TaskInternalsCtx.Provider>
@@ -878,5 +886,15 @@ export function useOptionalChatPrefs(): ChatPrefsContextValue | null {
 }
 
 export function useChatBridge(): ChatBridgeValue {
-  return useContext(ChatBridgeCtx);
+  const ref = useContext(ChatBridgeCtx);
+  // Return wrappers that read .current at call time. Destructuring
+  // `{ sendMessage }` still sees the latest implementation even when the
+  // ref is mutated after this hook call (which is the case when
+  // ActiveTaskProvider registers sendMessage after the consumer mounts).
+  return {
+    sendMessage: (params) => ref.current.sendMessage(params),
+    get isStreaming() {
+      return ref.current.isStreaming;
+    },
+  };
 }
