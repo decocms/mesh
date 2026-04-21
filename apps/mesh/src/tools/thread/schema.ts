@@ -74,6 +74,11 @@ export const ThreadEntitySchema = z.object({
     .string()
     .optional()
     .describe("Virtual MCP (agent) this thread was initiated with"),
+  branch: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Git branch this thread is pinned to (GitHub-linked vms only)"),
   metadata: ThreadMetadataSchema.optional().describe(
     "Free-form per-thread UI state (e.g. expanded_tools)",
   ),
@@ -97,6 +102,10 @@ export const ThreadCreateDataSchema = z.object({
   id: z.string().optional().describe("Optional custom ID for the thread"),
   title: z.string().describe("Thread title"),
   description: z.string().nullish().describe("Thread description"),
+  branch: z
+    .string()
+    .nullish()
+    .describe("Git branch to pin this thread to (GitHub-linked vms only)"),
 });
 
 export type ThreadCreateData = z.infer<typeof ThreadCreateDataSchema>;
@@ -114,6 +123,7 @@ export const ThreadUpdateDataSchema = z.object({
   metadata: ThreadMetadataSchema.optional().describe(
     "Full replacement of the thread's metadata object",
   ),
+  branch: z.string().nullish().describe("New git branch for this thread"),
 });
 
 export type ThreadUpdateData = z.infer<typeof ThreadUpdateDataSchema>;

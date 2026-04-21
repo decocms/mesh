@@ -63,6 +63,7 @@ export const COLLECTION_THREADS_CREATE = defineTool({
       organization_id: organization.id,
       title: input.data.title,
       description: input.data.description,
+      branch: input.data.branch ?? null,
       created_by: userId,
     });
 
