@@ -31,8 +31,11 @@ import { buildCloneInfo } from "../../shared/github-clone-info";
 import { buildDaemonScript } from "./daemon";
 import type { MeshContext } from "../../core/mesh-context";
 import { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
+import { CLAUDE_IMAGE } from "mesh-plugin-user-sandbox/shared";
+import { ensureThreadWorkspace } from "mesh-plugin-user-sandbox/worktree";
 import { getSharedRunner } from "../../sandbox/shared-runner";
 import { resolvePrepImage } from "../../sandbox/prep-enqueue";
+import { mintSandboxRef } from "../../sandbox/sandbox-ref";
 
 const PROXY_PORT = 9000;
 
@@ -283,17 +286,21 @@ async function dockerStart(
   // that point the thread row doesn't exist yet. Create it eagerly with a
   // fresh sandbox_ref so VM_START works in the zero-message case. If the row
   // already exists but sandbox_ref is null (legacy thread), populate it now.
+  //
+  // `mintSandboxRef` must match the one in createMemory — both can race to
+  // create the same thread row, and a mismatched ref would spawn an orphan
+  // container before the DB write settled.
   let thread = await ctx.storage.threads.get(input.threadId);
   if (!thread) {
     thread = await ctx.storage.threads.create({
       id: input.threadId,
       created_by: userId,
       virtual_mcp_id: input.virtualMcpId,
-      sandbox_ref: crypto.randomUUID(),
+      sandbox_ref: mintSandboxRef(userId, input.virtualMcpId),
     });
   } else if (!thread.sandbox_ref) {
     thread = await ctx.storage.threads.update(thread.id, {
-      sandbox_ref: crypto.randomUUID(),
+      sandbox_ref: mintSandboxRef(userId, input.virtualMcpId),
     });
   }
   const sandboxRef = thread.sandbox_ref;
@@ -349,7 +356,15 @@ async function dockerStart(
           }
         : undefined,
       env: { ...userEnv },
-      image: prepImage ?? undefined,
+      // When claude-in-sandbox is on, prefer the claude-baked image as the
+      // fallback. Otherwise the bare base image wins, and any later claude
+      // attach to this same sandbox_ref pays ~18s of lazy install per turn
+      // because `image:` is ignored on subsequent ensure() calls.
+      image:
+        prepImage ??
+        (process.env.MESH_CLAUDE_CODE_IN_SANDBOX === "1"
+          ? CLAUDE_IMAGE
+          : undefined),
     },
   );
 
@@ -358,6 +373,26 @@ async function dockerStart(
   // already starting/installing/ready, so repeated calls from page polls
   // (see decopilot/routes.ts) are safe. Skipped for repo-less spins: no
   // package.json means nothing to run.
+  const perThreadDev = process.env.MESH_SANDBOX_PER_THREAD_DEV === "1";
+  let threadCwd: string | undefined;
+  if (perThreadDev && runner instanceof DockerSandboxRunner) {
+    // Ensure the worktree exists up front so `/dev/start` can root against
+    // it. Without this, the preview iframe would target /app while bash/
+    // claude writes go to the per-thread worktree — same HMR-blind bug the
+    // whole per-thread-dev plan exists to fix.
+    try {
+      const ws = await ensureThreadWorkspace(
+        runner,
+        sandbox.handle,
+        input.threadId,
+      );
+      threadCwd = ws.cwd;
+    } catch (err) {
+      console.warn(
+        `[VM_START] ensureThreadWorkspace failed for ${sandbox.handle}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
   if (repo && runner instanceof DockerSandboxRunner) {
     // `runtime` tells the sandbox daemon which toolchain to use. Deno in
     // particular is lazy-installed into the container on first use, and the
@@ -366,14 +401,19 @@ async function dockerStart(
     const preferredPort = Number.isFinite(preferredPortNum)
       ? preferredPortNum
       : undefined;
+    const devBody: Record<string, unknown> = {
+      preferredPort,
+      runtime: runtime ?? undefined,
+    };
+    if (perThreadDev) {
+      devBody.threadId = input.threadId;
+      if (threadCwd) devBody.cwd = threadCwd;
+    }
     runner
       .proxyDaemonRequest(sandbox.handle, "/dev/start", {
         method: "POST",
         headers: new Headers({ "content-type": "application/json" }),
-        body: JSON.stringify({
-          preferredPort,
-          runtime: runtime ?? undefined,
-        }),
+        body: JSON.stringify(devBody),
       })
       .catch((err) => {
         console.error(
@@ -384,8 +424,11 @@ async function dockerStart(
 
   // Port-less URL — the preview proxy resolves the actual port via the
   // daemon's /dev/status. The dev server can bind to 127.0.0.1 or any port
-  // and it still works.
-  const previewUrl = `/api/sandbox/${sandbox.handle}/preview/`;
+  // and it still works. When per-thread dev is on, route through the
+  // thread-scoped prefix so each preview lands on its own dev process.
+  const previewUrl = perThreadDev
+    ? `/api/sandbox/${sandbox.handle}/thread/${encodeURIComponent(input.threadId)}/preview/`
+    : `/api/sandbox/${sandbox.handle}/preview/`;
   const entry: VmEntry = {
     vmId: sandbox.handle,
     previewUrl,

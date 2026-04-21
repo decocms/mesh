@@ -1,4 +1,9 @@
-import type { EnsureOptions, Sandbox, SandboxRunner } from "./runner/types";
+import type {
+  EnsureOptions,
+  Mount,
+  Sandbox,
+  SandboxRunner,
+} from "./runner/types";
 
 /**
  * Minimal structural shape we need from the tool context to claim a sandbox.
@@ -35,6 +40,17 @@ export interface EnsureSandboxOptions {
    * on fresh provision; existing containers are unaffected.
    */
   image?: string;
+  /**
+   * Extra bind mounts + named volumes to attach at provision time. Only
+   * applied on fresh provision — existing containers keep their original
+   * mount set.
+   */
+  mounts?: Mount[];
+  /**
+   * Add `--add-host=host.docker.internal:host-gateway`. Set when code inside
+   * the container must reach services bound on the host loopback.
+   */
+  addHostGateway?: boolean;
 }
 
 /**
@@ -70,6 +86,12 @@ export async function ensureSandbox(
       userId,
       projectRef,
     },
-    { repo: opts.repo, env: opts.env, image: opts.image },
+    {
+      repo: opts.repo,
+      env: opts.env,
+      image: opts.image,
+      mounts: opts.mounts,
+      addHostGateway: opts.addHostGateway,
+    },
   );
 }

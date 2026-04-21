@@ -38,6 +38,7 @@ import type { SqlThreadStorage } from "@/storage/threads";
 import { getPodId } from "@/core/pod-identity";
 import { getSharedRunner } from "@/sandbox/shared-runner";
 import { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
+import { ensureThreadWorkspace } from "mesh-plugin-user-sandbox/worktree";
 
 // ============================================================================
 // Request Validation
@@ -444,30 +445,71 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
     // endpoint on every poll is safe. Phase "idle" happens after a daemon
     // restart (container still alive but never saw a /dev/start yet).
     const runner = getSharedRunner(ctx);
+    const perThreadDev = process.env.MESH_SANDBOX_PER_THREAD_DEV === "1";
     let phase: string | undefined;
     let serverUp = false;
+    let crashBackoffRemainingMs = 0;
     if (runner instanceof DockerSandboxRunner) {
+      const statusPath = perThreadDev
+        ? `/dev/status?threadId=${encodeURIComponent(taskId)}`
+        : "/dev/status";
       try {
-        const res = await runner.proxyDaemonRequest(row.handle, "/dev/status", {
+        const res = await runner.proxyDaemonRequest(row.handle, statusPath, {
           method: "GET",
           headers: new Headers(),
           body: null,
         });
         if (res.ok) {
-          const status = (await res.json()) as { phase?: string };
+          const status = (await res.json()) as {
+            phase?: string;
+            crashBackoffRemainingMs?: number;
+          };
           phase = status.phase;
           serverUp = status.phase === "ready";
+          crashBackoffRemainingMs = status.crashBackoffRemainingMs ?? 0;
         }
       } catch {
         serverUp = false;
       }
 
-      if (phase === "idle" || phase === "exited" || phase === "crashed") {
+      // Crash-loop backoff: when the daemon reports it's in backoff after
+      // consecutive fast crashes, skip the auto-restart poke. Without this,
+      // every preview-panel poll would fire /dev/start on a dev script
+      // that can't boot (missing dep, bad config), burning CPU forever.
+      // The user's "restart" button sends `restart: true` which bypasses
+      // the backoff on the daemon side.
+      const inCrashBackoff = phase === "crashed" && crashBackoffRemainingMs > 0;
+      if (
+        !inCrashBackoff &&
+        (phase === "idle" || phase === "exited" || phase === "crashed")
+      ) {
+        // Build the restart body. When per-thread dev is on we resolve the
+        // thread's worktree cwd first so the relaunch roots in the right
+        // place; `ensureThreadWorkspace` is cached in-process so repeated
+        // polls hit memory, not the runner.
+        let cwdForRestart: string | undefined;
+        if (perThreadDev) {
+          try {
+            const ws = await ensureThreadWorkspace(runner, row.handle, taskId);
+            cwdForRestart = ws.cwd;
+          } catch {
+            // Non-fatal — daemon will fall back to WORKDIR.
+          }
+        }
+        // Auto-poll never sends `restart: true` — that flag resets the
+        // daemon's crash-loop counter, so polling in a crash scenario would
+        // hold the backoff at the shortest window forever. Human-triggered
+        // restarts go through a separate UI path that sets restart:true.
+        const startBody: Record<string, unknown> = { restart: false };
+        if (perThreadDev) {
+          startBody.threadId = taskId;
+          if (cwdForRestart) startBody.cwd = cwdForRestart;
+        }
         runner
           .proxyDaemonRequest(row.handle, "/dev/start", {
             method: "POST",
             headers: new Headers({ "content-type": "application/json" }),
-            body: JSON.stringify({ restart: phase !== "idle" }),
+            body: JSON.stringify(startBody),
           })
           .catch(() => {
             // Fire-and-forget — the UI will re-poll /dev/status.
@@ -475,11 +517,14 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
       }
     }
 
+    const previewUrl = perThreadDev
+      ? `/api/sandbox/${row.handle}/thread/${encodeURIComponent(taskId)}/preview/`
+      : `/api/sandbox/${row.handle}/preview/`;
     return c.json({
       threadExists: true,
       sandboxRef,
       handle: row.handle,
-      previewUrl: `/api/sandbox/${row.handle}/preview/`,
+      previewUrl,
       serverUp,
       phase: phase ?? null,
     });

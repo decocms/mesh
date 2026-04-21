@@ -84,9 +84,20 @@ export async function startBuilder(baseImage: string): Promise<string> {
   return handle;
 }
 
+export interface CommitOptions {
+  /**
+   * Extra `LABEL key=value` entries baked into the committed image. Used to
+   * stamp provenance / feature markers (e.g. `mesh.claude=1` when the prep
+   * derives from `mesh-sandbox:claude`) so callers can cheaply verify
+   * without inspecting layers.
+   */
+  labels?: Record<string, string>;
+}
+
 export async function commitBuilder(
   handle: string,
   tag: string,
+  opts: CommitOptions = {},
 ): Promise<void> {
   // The builder was launched with `--entrypoint /bin/sleep`, so the source
   // container carries that entrypoint and commit inherits it. `docker commit`
@@ -95,6 +106,10 @@ export async function commitBuilder(
   // command directly and leave CMD empty. Without this, thread containers
   // spawned from the prep image run `/bin/sleep node /opt/...daemon.mjs`,
   // which exits 1 immediately and produces a port-readback timeout upstream.
+  const labelChanges = Object.entries(opts.labels ?? {}).flatMap(([k, v]) => [
+    "--change",
+    `LABEL ${k}=${JSON.stringify(v)}`,
+  ]);
   const result = await runDocker([
     "commit",
     "--change",
@@ -103,6 +118,7 @@ export async function commitBuilder(
     "CMD []",
     "--change",
     `EXPOSE ${DAEMON_PORT}`,
+    ...labelChanges,
     handle,
     tag,
   ]);

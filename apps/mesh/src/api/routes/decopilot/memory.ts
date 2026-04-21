@@ -7,6 +7,7 @@
 
 import type { OrgScopedThreadStorage } from "@/storage/threads";
 import type { Thread, ThreadMessage } from "@/storage/types";
+import { mintSandboxRef } from "@/sandbox/sandbox-ref";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 /**
@@ -98,11 +99,12 @@ export async function createMemory(
 
   let thread: Thread;
 
-  // TODO: sandbox sharing across threads. Today a fresh sandbox_ref is
-  // always minted for newly-created threads; a picker UI + explicit
-  // `sandbox_ref` on thread creation will let users reuse an existing
-  // container. Intentionally deferred — don't prompt here.
-  const freshSandboxRef = () => crypto.randomUUID();
+  // Shared-container scope lives in `mintSandboxRef`: when a virtualMcpId is
+  // present, all threads for the same (user, agent) converge on one Docker
+  // container; thread isolation inside is handled by a git worktree per
+  // thread. Legacy threads keep whatever `sandbox_ref` they were created
+  // with — no migration.
+  const freshSandboxRef = () => mintSandboxRef(userId, virtualMcpId);
 
   if (!thread_id) {
     // Create new thread

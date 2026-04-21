@@ -4,6 +4,8 @@ import {
   type EnsureOptions,
   ensureSandbox,
 } from "mesh-plugin-user-sandbox/runner";
+import { CLAUDE_IMAGE } from "mesh-plugin-user-sandbox/shared";
+import { ensureThreadWorkspace } from "mesh-plugin-user-sandbox/worktree";
 import { z } from "zod";
 import type { MeshContext } from "@/core/mesh-context";
 import { buildCloneInfo } from "@/shared/github-clone-info";
@@ -143,28 +145,60 @@ export function createSandboxBashTool(
         repo && ctx.auth.user?.id
           ? await resolvePrepImage(ctx, ctx.auth.user.id, repo)
           : null;
+      // Image fallback chain on fresh provision:
+      //   prep image → CLAUDE_IMAGE (when claude-in-sandbox is on) → runner default.
+      // Without the CLAUDE_IMAGE step, this path provisions a `mesh-sandbox:local`
+      // container; if claude-code attaches to it later (same sandbox_ref), the
+      // daemon eats ~18s of lazy install. Mirrors stream-core's claude branch
+      // so the *first* path to provision wins with the right image.
+      const claudeFallback =
+        process.env.MESH_CLAUDE_CODE_IN_SANDBOX === "1"
+          ? CLAUDE_IMAGE
+          : undefined;
       const sandbox = await ensureSandbox(ctx, runner, {
         sandboxRef,
         repo: resolved ?? undefined,
         env: { ...userEnv },
-        image: prepImage ?? undefined,
+        image: prepImage ?? claudeFallback,
       });
+      // When the sandbox is shared across threads (agent-scoped sandbox_ref),
+      // each thread gets its own git worktree under /app/workspaces/.
+      // For per-thread sandbox_refs the helper still runs but typically
+      // returns /app (no isolation needed when nothing else shares the
+      // container). Skipped when no threadId is in scope (callers from
+      // outside a decopilot turn).
+      const threadId = ctx.metadata?.threadId;
+      const cwd = threadId
+        ? (await ensureThreadWorkspace(runner, sandbox.handle, threadId)).cwd
+        : undefined;
       // Warm up the dev server in the background when a repo is attached, so
       // the preview is ready by the time the user opens it. Fire-and-forget —
       // `ensureSandbox` has already waited for the clone, and `/dev/start` is
       // idempotent on subsequent calls.
+      //
+      // When per-thread dev is on, the warm-up targets this thread's worktree
+      // (`cwd`) and keys the daemon's dev state by threadId so siblings don't
+      // share one dev process. Without the flag, the daemon falls back to the
+      // default thread as before.
       if (resolved && runner instanceof DockerSandboxRunner) {
+        const perThread = process.env.MESH_SANDBOX_PER_THREAD_DEV === "1";
+        const devBody: Record<string, unknown> = {};
+        if (perThread && threadId) {
+          devBody.threadId = threadId;
+          if (cwd) devBody.cwd = cwd;
+        }
         runner
           .proxyDaemonRequest(sandbox.handle, "/dev/start", {
             method: "POST",
             headers: new Headers({ "content-type": "application/json" }),
-            body: JSON.stringify({}),
+            body: JSON.stringify(devBody),
           })
           .catch(() => {});
       }
       const result = await runner.exec(sandbox.handle, {
         command: input.command,
         timeoutMs,
+        cwd,
       });
       return maybeTruncate(result, toolOutputMap);
     },

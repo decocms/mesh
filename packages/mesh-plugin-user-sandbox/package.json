@@ -10,7 +10,9 @@
   "exports": {
     "./shared": "./shared.ts",
     "./runner": "./server/runner/index.ts",
-    "./prep": "./server/prep/bake.ts"
+    "./prep": "./server/prep/bake.ts",
+    "./creds/claude-code": "./server/creds/claude-code.ts",
+    "./worktree": "./server/ensure-worktree.ts"
   },
   "dependencies": {
     "freestyle-sandboxes": "^0.1.46"
