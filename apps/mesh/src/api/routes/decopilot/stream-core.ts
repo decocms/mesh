@@ -101,6 +101,11 @@ export interface StreamCoreInput {
   windowSize?: number;
   abortSignal?: AbortSignal;
   isResume?: boolean;
+  /**
+   * Git branch to pin the thread to (GitHub-linked virtualmcps only).
+   * Persisted onto the thread row on first-message thread creation.
+   */
+  branch?: string | null;
 }
 
 export interface StreamCoreDeps {
@@ -206,6 +211,7 @@ async function streamCoreInner(
         defaultWindowSize: windowSize,
         triggerId: input.triggerId,
         virtualMcpId: input.agent.id,
+        branch: input.branch ?? null,
       }),
     ]);
 
