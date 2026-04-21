@@ -496,7 +496,7 @@ function InstallationPicker({
           key={inst.installationId}
           type="button"
           onClick={() => onSelect(inst)}
-          className="flex items-center gap-3 px-4 py-3 hover:bg-accent transition-colors text-left group"
+          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-accent transition-colors text-left group"
         >
           <img
             src={inst.avatarUrl}
