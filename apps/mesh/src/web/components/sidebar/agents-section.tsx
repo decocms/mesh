@@ -407,7 +407,7 @@ function PinAgentPopoverContent({
             className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <div className="w-12 h-12 rounded-xl border-2 border-dashed border-border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
-              <Plus size={18} className="text-muted-foreground" />
+              <Plus size={16} className="text-muted-foreground" />
             </div>
             <span className="text-xs leading-tight text-center text-muted-foreground group-hover:text-foreground">
               Create new

@@ -51,7 +51,7 @@ export function TasksSection({
 
   return (
     <div className="flex flex-col gap-0.5">
-      <div className="px-2 h-7 flex items-center justify-between text-xs font-medium text-muted-foreground">
+      <div className="px-2 h-7 flex items-center justify-between text-xs font-medium text-muted-foreground mb-1">
         <span>{title}</span>
         <div className="flex items-center gap-0.5">
           <DropdownMenu>
@@ -64,7 +64,7 @@ export function TasksSection({
                   filter !== "all" && "text-foreground",
                 )}
               >
-                <FilterLines size={14} />
+                <FilterLines size={16} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -87,7 +87,7 @@ export function TasksSection({
               aria-label={`New ${title.toLowerCase()}`}
               className="flex size-8 items-center justify-center rounded-md hover:bg-muted hover:text-foreground"
             >
-              <Edit05 size={14} />
+              <Edit05 size={16} />
             </button>
           )}
         </div>
