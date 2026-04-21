@@ -27,7 +27,11 @@ import {
   SidebarProvider,
   useSidebar,
 } from "@decocms/ui/components/sidebar.tsx";
-import { Sheet, SheetContent, SheetTitle } from "@decocms/ui/components/sheet.tsx";
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+} from "@decocms/ui/components/sheet.tsx";
 import {
   Tooltip,
   TooltipContent,
