@@ -1,3 +1,4 @@
+import { shellQuote } from "../shared";
 import type { SandboxRunner } from "./runner/types";
 
 /**
@@ -194,8 +195,4 @@ export async function removeThreadWorkspace(
  */
 function sanitizeThreadId(id: string): string {
   return id.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64);
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
 }

@@ -1,8 +1,13 @@
-import { spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
 import * as net from "node:net";
-import { DAEMON_PORT, DEFAULT_IMAGE } from "../../shared";
+import {
+  DAEMON_PORT,
+  DEFAULT_IMAGE,
+  gitIdentityScript,
+  shellQuote,
+} from "../../shared";
+import { dockerExec, type DockerResult } from "../docker-cli";
 import type { RunnerStateStore } from "./state-store";
 import type {
   EnsureOptions,
@@ -26,11 +31,16 @@ const READINESS_INTERVAL_MS = 200;
 const READINESS_REQUEST_TIMEOUT_MS = 500;
 const DEFAULT_EXEC_TIMEOUT_MS = 60_000;
 
-export interface ExecResult {
-  stdout: string;
-  stderr: string;
-  code: number;
-}
+/**
+ * Dev convenience: bind-mount the host's daemon source over the image's
+ * baked copy and run it under `node --watch`, so edits to `image/daemon.mjs`
+ * or `image/daemon/*.mjs` hot-restart the daemon inside the container. Set
+ * to the absolute path of `packages/mesh-plugin-user-sandbox/image`.
+ * Unset in prod → `docker run` args are unchanged.
+ */
+const DEV_DAEMON_DIR = process.env.MESH_SANDBOX_DEV_DAEMON_DIR;
+
+export type ExecResult = DockerResult;
 
 export interface DockerExec {
   (args: string[]): Promise<ExecResult>;
@@ -357,6 +367,21 @@ export class DockerSandboxRunner implements SandboxRunner {
     // daemon's /proxy/:port/* endpoint, which reaches container loopback — so
     // the dev server can bind to 127.0.0.1 without a --host flag and it still
     // works.
+    //
+    // Dev hot-reload: when MESH_SANDBOX_DEV_DAEMON_DIR is set, the host's
+    // daemon source is bind-mounted over `/opt/sandbox-daemon` and the
+    // entrypoint is overridden to `node --watch`. Saving a `.mjs` on the
+    // host restarts the daemon inside the container — no rebuild, no manual
+    // restart, works for every image variant (base, claude, prep) because
+    // the mount wins over whatever was baked.
+    const devEntrypointArgs = DEV_DAEMON_DIR ? ["--entrypoint", "node"] : [];
+    const devMountArgs = DEV_DAEMON_DIR
+      ? ["-v", `${DEV_DAEMON_DIR}:/opt/sandbox-daemon:ro`]
+      : [];
+    const devCmdArgs = DEV_DAEMON_DIR
+      ? ["--watch", "/opt/sandbox-daemon/daemon.mjs"]
+      : [];
+
     const args = [
       "run",
       "-d",
@@ -366,12 +391,15 @@ export class DockerSandboxRunner implements SandboxRunner {
       `${this.labelPrefix}=1`,
       "--label",
       `${LABEL_ID}=${labelId}`,
+      ...devEntrypointArgs,
       ...hostArgs,
       ...networkArgs,
       ...mountArgs,
+      ...devMountArgs,
       ...portPublishArgs,
       ...Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
       image,
+      ...devCmdArgs,
     ];
     const result = await this.exec_(args);
     if (result.code !== 0) {
@@ -524,23 +552,19 @@ export class DockerSandboxRunner implements SandboxRunner {
     });
 
     const headers: Record<string, string> = {};
-    const addHeader = (k: string, v: string) => {
-      headers[k] = v;
-    };
     if (clientHeaders instanceof Headers) {
-      clientHeaders.forEach((value, key) => addHeader(key, value));
+      clientHeaders.forEach((value, key) => {
+        headers[key] = value;
+      });
     } else {
       for (const [k, v] of Object.entries(clientHeaders)) {
         if (v == null) continue;
-        if (Array.isArray(v)) {
-          for (const vv of v) addHeader(k, vv);
-        } else {
-          addHeader(k, v);
-        }
+        // Multi-value headers collapse to last-wins in a Record.
+        for (const vv of Array.isArray(v) ? v : [v]) headers[k] = vv;
       }
     }
-    delete headers["host"];
-    delete headers["authorization"];
+    // Overwrite the client's host/auth with ours — the daemon only accepts
+    // bearer auth and must see its own loopback host in the Host header.
     headers["host"] = `127.0.0.1:${daemonHost.port}`;
     headers["authorization"] = `Bearer ${rec.token}`;
 
@@ -564,52 +588,47 @@ export class DockerSandboxRunner implements SandboxRunner {
     if (!this.stateStore) return null;
     const persisted = await this.stateStore.getByHandle(RUNNER_KIND, handle);
     if (!persisted) return null;
-    const state = persisted.state as Partial<PersistedDockerState>;
-    if (!state.token || !state.daemonUrl) return null;
-    try {
-      const networkHost = state.networkHost ?? false;
-      // In --network=host mode there is no `-p` mapping to re-read: the
-      // daemon binds directly to the persisted URL's port for the life of
-      // the container, so trust it. In add-host mode we re-read docker's
-      // ephemeral port assignment in case mesh restarted with stale memory.
-      const daemonUrl = networkHost
-        ? state.daemonUrl
-        : `http://127.0.0.1:${await this.readPort(handle, DAEMON_PORT)}`;
-      const rec: DockerRecord = {
-        handle,
-        daemonUrl,
-        token: state.token,
-        workdir: state.workdir ?? DEFAULT_WORKDIR,
-        id: persisted.id,
-        repoAttached: state.repoAttached ?? false,
-        ownedVolumes: state.ownedVolumes ?? [],
-        networkHost,
-      };
-      this.byHandle.set(handle, rec);
-      return rec;
-    } catch {
-      return null;
-    }
+    const rec = await this.hydratePersisted(persisted.id, persisted);
+    if (rec) this.byHandle.set(handle, rec);
+    return rec;
   }
 
   private async probePersisted(
     id: SandboxId,
     record: { handle: string; state: Record<string, unknown> },
   ): Promise<DockerRecord | null> {
+    const rec = await this.hydratePersisted(id, record);
+    if (!rec) return null;
+    try {
+      const res = await fetch(`${rec.daemonUrl}/health`, {
+        signal: AbortSignal.timeout(READINESS_REQUEST_TIMEOUT_MS),
+      });
+      return res.ok ? rec : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Rehydrate a DockerRecord from a persisted state-store row. Returns null
+   * on malformed rows (missing token/daemonUrl) or when re-reading the
+   * docker port mapping throws.
+   *
+   * In --network=host mode the persisted URL is authoritative — no `-p`
+   * mapping to inspect. In add-host mode we re-read the ephemeral port
+   * docker picked, since mesh may have restarted with stale memory.
+   */
+  private async hydratePersisted(
+    id: SandboxId,
+    record: { handle: string; state: Record<string, unknown> },
+  ): Promise<DockerRecord | null> {
     const state = record.state as Partial<PersistedDockerState>;
     if (!state.token || !state.daemonUrl) return null;
+    const networkHost = state.networkHost ?? false;
     try {
-      const networkHost = state.networkHost ?? false;
-      // In --network=host mode trust the persisted URL (no `-p` mapping to
-      // inspect). In add-host mode re-read the docker port assignment to
-      // catch cases where mesh restarted with stale memory.
       const daemonUrl = networkHost
         ? state.daemonUrl
         : `http://127.0.0.1:${await this.readPort(record.handle, DAEMON_PORT)}`;
-      const res = await fetch(`${daemonUrl}/health`, {
-        signal: AbortSignal.timeout(READINESS_REQUEST_TIMEOUT_MS),
-      });
-      if (!res.ok) return null;
       return {
         handle: record.handle,
         daemonUrl,
@@ -649,36 +668,38 @@ export class DockerSandboxRunner implements SandboxRunner {
     id: SandboxId,
     handle: string,
   ): Promise<DockerRecord | null> {
-    const env = await this.exec_([
+    // One `docker inspect` covering env + NetworkMode. First output line is
+    // the container's NetworkMode (`host` | `bridge` | `default` | named
+    // net), remaining lines are `KEY=value` env entries.
+    const r = await this.exec_([
       "inspect",
       "--format",
-      "{{range .Config.Env}}{{println .}}{{end}}",
+      "{{.HostConfig.NetworkMode}}\n{{range .Config.Env}}{{println .}}{{end}}",
       handle,
     ]);
-    if (env.code !== 0) return null;
+    if (r.code !== 0) return null;
+    const [networkModeLine = "", ...envLines] = r.stdout.split("\n");
+    const networkHost = networkModeLine.trim() === "host";
     let token: string | null = null;
     let workdir = DEFAULT_WORKDIR;
-    for (const line of env.stdout.split("\n")) {
+    let daemonPort = DAEMON_PORT;
+    for (const line of envLines) {
       if (line.startsWith("DAEMON_TOKEN=")) {
         token = line.slice("DAEMON_TOKEN=".length);
       } else if (line.startsWith("WORKDIR=")) {
         workdir = line.slice("WORKDIR=".length);
+      } else if (line.startsWith("DAEMON_PORT=")) {
+        const n = Number(line.slice("DAEMON_PORT=".length));
+        if (Number.isFinite(n)) daemonPort = n;
       }
     }
     if (!token) return null;
-    // Detect --network=host from docker inspect so recovered records match
-    // the daemon's actual URL scheme. NetworkMode is "default" | "bridge" |
-    // "host" | named-network; we only care about "host" here.
-    const networkHost = await this.inspectNetworkMode(handle);
-    let daemonUrl: string;
-    if (networkHost) {
-      // In host-network mode the DAEMON_PORT env is the port on the host —
-      // no docker port mapping to re-read.
-      daemonUrl = `http://127.0.0.1:${daemonPortFromEnv(env.stdout) ?? DAEMON_PORT}`;
-    } else {
-      const hostPort = await this.readPort(handle, DAEMON_PORT);
-      daemonUrl = `http://127.0.0.1:${hostPort}`;
-    }
+    // In host-network mode the DAEMON_PORT env is the authoritative host
+    // port — no `-p` mapping to re-read. Otherwise ask docker for the
+    // ephemeral port it picked.
+    const daemonUrl = networkHost
+      ? `http://127.0.0.1:${daemonPort}`
+      : `http://127.0.0.1:${await this.readPort(handle, DAEMON_PORT)}`;
     try {
       const res = await fetch(`${daemonUrl}/health`, {
         signal: AbortSignal.timeout(READINESS_REQUEST_TIMEOUT_MS),
@@ -701,16 +722,6 @@ export class DockerSandboxRunner implements SandboxRunner {
       ownedVolumes: [],
       networkHost,
     };
-  }
-
-  private async inspectNetworkMode(handle: string): Promise<boolean> {
-    const r = await this.exec_([
-      "inspect",
-      "--format",
-      "{{.HostConfig.NetworkMode}}",
-      handle,
-    ]);
-    return r.code === 0 && r.stdout.trim() === "host";
   }
 
   private async findExisting(labelId: string): Promise<string | null> {
@@ -793,21 +804,6 @@ function mountToArgs(m: Mount): string[] {
   return ["-v", `${m.source}:${m.target}${suffix}`];
 }
 
-/**
- * Parse `DAEMON_PORT=<n>` out of `docker inspect --format '{{range .Config.Env}}...{{end}}'`
- * output. Only used when recovering a --network=host container without state
- * store metadata, so we can rebuild the daemon URL from the container's env.
- */
-function daemonPortFromEnv(stdout: string): number | null {
-  for (const line of stdout.split("\n")) {
-    if (line.startsWith("DAEMON_PORT=")) {
-      const n = Number(line.slice("DAEMON_PORT=".length));
-      if (Number.isFinite(n)) return n;
-    }
-  }
-  return null;
-}
-
 async function pickFreePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const srv = net.createServer();
@@ -884,8 +880,7 @@ async function bootstrapRepo(
   // `shopt -s dotglob nullglob` lets the glob expand to dotfiles and to
   // nothing when the dir is empty, so `mv` never sees `*` literally.
   const cmd = [
-    `git config --global user.name ${shellQuote(repo.userName)}`,
-    `git config --global user.email ${shellQuote(repo.userEmail)}`,
+    gitIdentityScript(repo.userName, repo.userEmail),
     `if [ -d ${qWorkdir}/.git ]; then echo "workdir already a git repo, skipping clone"; elif [ -z "$(ls -A ${qWorkdir} 2>/dev/null)" ]; then git clone ${shellQuote(repo.cloneUrl)} ${qWorkdir}; else BACKUP=${qWorkdir}.prelink.$(date +%s) && mkdir -p "$BACKUP" && ( shopt -s dotglob nullglob && mv ${qWorkdir}/* "$BACKUP"/ ) && echo "moved pre-link contents to $BACKUP" && git clone ${shellQuote(repo.cloneUrl)} ${qWorkdir}; fi`,
   ].join(" && ");
   // git clone for medium repos can easily exceed the default 60s exec timeout.
@@ -898,10 +893,6 @@ async function bootstrapRepo(
       `docker sandbox repo bootstrap failed (exit ${result.exitCode}): ${result.stderr || result.stdout}`,
     );
   }
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 function hashId(id: SandboxId): string {
@@ -923,29 +914,4 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-const defaultDockerExec: DockerExec = (args) =>
-  new Promise((resolve, reject) => {
-    const child = spawn("docker", args, { stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (d) => {
-      stdout += d.toString();
-    });
-    child.stderr.on("data", (d) => {
-      stderr += d.toString();
-    });
-    child.on("error", (err) => {
-      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-        reject(
-          new Error(
-            "docker CLI not found on PATH. Install Docker Desktop (macOS) or Docker Engine (Linux).",
-          ),
-        );
-        return;
-      }
-      reject(err);
-    });
-    child.on("close", (code) => {
-      resolve({ stdout, stderr, code: code ?? -1 });
-    });
-  });
+const defaultDockerExec: DockerExec = dockerExec;

@@ -17,3 +17,18 @@ export const CLAUDE_IMAGE = "mesh-sandbox:claude";
  * was built with (see Dockerfile.claude).
  */
 export const CLAUDE_CODE_CLI_VERSION = "2.1.116";
+
+/** Shell-quote a value for safe inclusion in a `bash -lc` script. */
+export function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+/**
+ * Shell snippet that sets global git identity. Prepend to any shell script
+ * that then clones a repo — the per-call-site clone strategy (empty-dir,
+ * backup-then-clone, tmp-fallback) is owned by the caller since they differ
+ * meaningfully.
+ */
+export function gitIdentityScript(userName: string, userEmail: string): string {
+  return `git config --global user.name ${shellQuote(userName)} && git config --global user.email ${shellQuote(userEmail)}`;
+}

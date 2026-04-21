@@ -7,55 +7,24 @@
  * commit.
  */
 
-import { spawn } from "node:child_process";
 import { DAEMON_PORT } from "../../shared";
+import { dockerExec, type DockerResult } from "../docker-cli";
+
+export { shellQuote } from "../../shared";
+export type { DockerResult } from "../docker-cli";
 
 export const DEFAULT_WORKDIR = "/app";
 const BUILDER_LABEL = "mesh-sandbox-prep-builder";
+const DEFAULT_PREP_TIMEOUT_MS = 60_000;
 
 export type BakeLogger = (line: string) => void;
 
-export interface DockerResult {
-  stdout: string;
-  stderr: string;
-  code: number;
-}
-
+/** Run `docker <args>` with prep's default 60s timeout. */
 export function runDocker(
   args: string[],
-  timeoutMs = 60_000,
+  timeoutMs = DEFAULT_PREP_TIMEOUT_MS,
 ): Promise<DockerResult> {
-  return new Promise((resolve, reject) => {
-    const child = spawn("docker", args, { stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    const timer = setTimeout(() => {
-      stderr += `\n[docker ${args[0]}] timed out after ${timeoutMs}ms`;
-      child.kill("SIGKILL");
-    }, timeoutMs);
-    child.stdout.on("data", (d) => {
-      stdout += d.toString();
-    });
-    child.stderr.on("data", (d) => {
-      stderr += d.toString();
-    });
-    child.on("error", (err) => {
-      clearTimeout(timer);
-      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-        reject(
-          new Error(
-            "docker CLI not found on PATH. Install Docker Desktop (macOS) or Docker Engine (Linux).",
-          ),
-        );
-        return;
-      }
-      reject(err);
-    });
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      resolve({ stdout, stderr, code: code ?? -1 });
-    });
-  });
+  return dockerExec(args, timeoutMs);
 }
 
 export async function startBuilder(baseImage: string): Promise<string> {
@@ -168,9 +137,4 @@ export async function execIn(
     }
     throw new Error(`prep ${opts.label} failed (exit ${result.code}): ${tail}`);
   }
-}
-
-/** Shell-quote a value for safe inclusion in a `bash -lc` script. */
-export function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
