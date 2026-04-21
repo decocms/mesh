@@ -1,0 +1,27 @@
+{
+  "name": "@decocms/deco-flights",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Flight research MCP agent for Deco Studio",
+  "scripts": {
+    "dev": "bun run --hot server/index.ts",
+    "start": "bun run server/index.ts",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@decocms/runtime": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.27.1",
+    "fast-flights-ts": "4.1.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
+  },
+  "exports": {
+    ".": "./server/index.ts"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

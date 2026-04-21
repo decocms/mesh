@@ -17,6 +17,7 @@ import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.t
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
 import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
+import { DecoFlightsRecruitModal } from "@/web/components/home/deco-flights-recruit-modal.tsx";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,6 +57,7 @@ export default function AgentsListPage() {
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
   const [studioPackModalOpen, setStudioPackModalOpen] = useState(false);
   const [leanCanvasModalOpen, setLeanCanvasModalOpen] = useState(false);
+  const [decoFlightsModalOpen, setDecoFlightsModalOpen] = useState(false);
 
   const lowerSearch = search.toLowerCase();
 
@@ -91,6 +93,12 @@ export default function AgentsListPage() {
       (a as { metadata?: { type?: string } }).metadata?.type === "lean-canvas",
   );
 
+  // Find existing recruited Deco Flights agent
+  const existingDecoFlights = agents.find(
+    (a) =>
+      (a as { metadata?: { type?: string } }).metadata?.type === "deco-flights",
+  );
+
   const handleTemplateClick = (templateId: string) => {
     if (templateId === "site-editor") {
       setImportDecoOpen(true);
@@ -105,6 +113,12 @@ export default function AgentsListPage() {
         navigateToAgent(existingLeanCanvas.id);
       } else {
         setLeanCanvasModalOpen(true);
+      }
+    } else if (templateId === "deco-flights") {
+      if (existingDecoFlights) {
+        navigateToAgent(existingDecoFlights.id);
+      } else {
+        setDecoFlightsModalOpen(true);
       }
     } else if (templateId === "studio-pack") {
       setStudioPackModalOpen(true);
@@ -275,6 +289,11 @@ export default function AgentsListPage() {
         open={leanCanvasModalOpen}
         onOpenChange={setLeanCanvasModalOpen}
         existingAgent={existingLeanCanvas}
+      />
+      <DecoFlightsRecruitModal
+        open={decoFlightsModalOpen}
+        onOpenChange={setDecoFlightsModalOpen}
+        existingAgent={existingDecoFlights}
       />
       <StudioPackRecruitModal
         open={studioPackModalOpen}

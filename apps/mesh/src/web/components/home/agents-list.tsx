@@ -29,6 +29,7 @@ import { ChevronRight, Plus, Users03 } from "@untitledui/icons";
 import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
+import { DecoFlightsRecruitModal } from "@/web/components/home/deco-flights-recruit-modal.tsx";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { Suspense, useState } from "react";
@@ -161,6 +162,7 @@ function AgentsListContent() {
   const [importDecoOpen, setImportDecoOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
   const [leanCanvasModalOpen, setLeanCanvasModalOpen] = useState(false);
+  const [decoFlightsModalOpen, setDecoFlightsModalOpen] = useState(false);
   const navigateToAgent = useNavigateToAgent();
 
   const siteEditorAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
@@ -171,6 +173,9 @@ function AgentsListContent() {
   )!;
   const leanCanvasAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
     (t) => t.id === "lean-canvas",
+  )!;
+  const decoFlightsAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "deco-flights",
   )!;
 
   const recentIds = readRecentAgentIds(locator);
@@ -211,6 +216,15 @@ function AgentsListContent() {
         a.title === leanCanvasAgent.title),
   );
 
+  // Check if Deco Flights agent already exists
+  const existingDecoFlights = virtualMcps.find(
+    (a): a is typeof a & { id: string } =>
+      a.id !== null &&
+      ((a as { metadata?: { type?: string } }).metadata?.type ===
+        decoFlightsAgent.id ||
+        a.title === decoFlightsAgent.title),
+  );
+
   const hasAgents = agents.length > 0;
 
   return (
@@ -240,11 +254,21 @@ function AgentsListContent() {
                 : () => setLeanCanvasModalOpen(true)
             }
           />
+          <AgentPreview
+            key={decoFlightsAgent.id}
+            agent={existingDecoFlights ?? decoFlightsAgent}
+            onSpecialClick={
+              existingDecoFlights
+                ? () => navigateToAgent(existingDecoFlights.id)
+                : () => setDecoFlightsModalOpen(true)
+            }
+          />
           {agents
             .filter(
               (a) =>
                 a.id !== existingDiagnostics?.id &&
-                a.id !== existingLeanCanvas?.id,
+                a.id !== existingLeanCanvas?.id &&
+                a.id !== existingDecoFlights?.id,
             )
             .map((agent) => (
               <AgentPreview
@@ -273,6 +297,12 @@ function AgentsListContent() {
         open={leanCanvasModalOpen}
         onOpenChange={setLeanCanvasModalOpen}
         existingAgent={existingLeanCanvas}
+      />
+
+      <DecoFlightsRecruitModal
+        open={decoFlightsModalOpen}
+        onOpenChange={setDecoFlightsModalOpen}
+        existingAgent={existingDecoFlights}
       />
     </>
   );

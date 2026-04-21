@@ -288,6 +288,12 @@ export const StudioPackAgentId = {
 /**
  * Check if a connection or virtual MCP ID is a Studio Pack agent.
  */
+export function isDecoFlights(id: string | null | undefined): string | null {
+  if (!id) return null;
+  const match = id.match(/^deco-flights_(.+)$/);
+  return match?.[1] ?? null;
+}
+
 export function isStudioPackAgent(id: string | null | undefined): boolean {
   if (!id) return false;
   return (
@@ -332,6 +338,12 @@ export const WELL_KNOWN_AGENT_TEMPLATES = [
     title: "Studio Pack",
     icon: "icon://Package?color=blue",
     type: "pack" as const,
+  },
+  {
+    id: "deco-flights",
+    title: "Flights",
+    icon: "icon://Compass03?color=sky",
+    type: "registry-agent" as const,
   },
 ] as const;
 
