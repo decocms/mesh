@@ -3,7 +3,7 @@
  * Provides quick schedule presets and custom cron input.
  */
 
-import { useAutomationTriggerAdd } from "@/web/hooks/use-automations";
+import { useAutomationActions } from "@/web/hooks/use-automations";
 import { SCHEDULE_UNITS } from "@/web/lib/cron-utils.ts";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -32,7 +32,7 @@ export function AddStarterPopover({
   onCustomSelect?: () => void;
   onEventSelect?: () => void;
 }) {
-  const addTrigger = useAutomationTriggerAdd();
+  const { triggerAdd: addTrigger } = useAutomationActions();
   const [internalOpen, setInternalOpen] = useState(false);
 
   const isOpen = open ?? internalOpen;

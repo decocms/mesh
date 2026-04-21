@@ -9,7 +9,13 @@ import type { Kysely } from "kysely";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import { DEFAULT_THREAD_TITLE } from "@/api/routes/decopilot/constants";
 import type { ThreadStoragePort } from "./ports";
-import type { Database, Thread, ThreadMessage, ThreadStatus } from "./types";
+import type {
+  Database,
+  Thread,
+  ThreadMessage,
+  ThreadMetadata,
+  ThreadStatus,
+} from "./types";
 
 function toIsoString(v: Date | string): string {
   return typeof v === "string" ? v : v.toISOString();
@@ -76,6 +82,8 @@ export class OrgScopedThreadStorage {
       search?: string;
       status?: string;
       agentId?: string;
+      includeArchived?: boolean;
+      hasTrigger?: boolean;
     },
   ): Promise<{ threads: Thread[]; total: number }> {
     return this.inner.list(this.requireOrg(), createdBy, options);
@@ -141,6 +149,9 @@ export class SqlThreadStorage implements ThreadStoragePort {
       updated_at: now,
       created_by: data.created_by,
       updated_by: data.updated_by ?? null,
+      ...(data.metadata !== undefined
+        ? { metadata: JSON.stringify(data.metadata) }
+        : {}),
     };
 
     const result = await this.db
@@ -203,6 +214,9 @@ export class SqlThreadStorage implements ThreadStoragePort {
     if (data.run_started_at !== undefined) {
       updateData.run_started_at = data.run_started_at;
     }
+    if (data.metadata !== undefined) {
+      updateData.metadata = JSON.stringify(data.metadata);
+    }
 
     await this.db
       .updateTable("threads")
@@ -255,13 +269,16 @@ export class SqlThreadStorage implements ThreadStoragePort {
       search?: string;
       status?: string;
       agentId?: string;
+      includeArchived?: boolean;
+      hasTrigger?: boolean;
     },
   ): Promise<{ threads: Thread[]; total: number }> {
+    const archived = options?.includeArchived === true;
     let query = this.db
       .selectFrom("threads")
       .selectAll()
       .where("organization_id", "=", organizationId)
-      .where("hidden", "=", false)
+      .where("hidden", "=", archived)
       .orderBy("updated_at", "desc");
 
     if (createdBy) {
@@ -270,6 +287,11 @@ export class SqlThreadStorage implements ThreadStoragePort {
     const virtualMcpFilter = options?.virtualMcpId ?? options?.agentId;
     if (virtualMcpFilter) {
       query = query.where("virtual_mcp_id", "=", virtualMcpFilter);
+    }
+    if (options?.hasTrigger === true) {
+      query = query.where("trigger_id", "is not", null);
+    } else if (options?.hasTrigger === false) {
+      query = query.where("trigger_id", "is", null);
     }
     if (options?.startDate) {
       // updated_at is stored as ISO text — string comparison is correct for ISO dates
@@ -297,13 +319,18 @@ export class SqlThreadStorage implements ThreadStoragePort {
       .selectFrom("threads")
       .select((eb) => eb.fn.count("id").as("count"))
       .where("organization_id", "=", organizationId)
-      .where("hidden", "=", false);
+      .where("hidden", "=", archived);
 
     if (createdBy) {
       countQuery = countQuery.where("created_by", "=", createdBy);
     }
     if (virtualMcpFilter) {
       countQuery = countQuery.where("virtual_mcp_id", "=", virtualMcpFilter);
+    }
+    if (options?.hasTrigger === true) {
+      countQuery = countQuery.where("trigger_id", "is not", null);
+    } else if (options?.hasTrigger === false) {
+      countQuery = countQuery.where("trigger_id", "is", null);
     }
     if (options?.startDate) {
       countQuery = countQuery.where(
@@ -632,12 +659,30 @@ export class SqlThreadStorage implements ThreadStoragePort {
     run_config?: Record<string, unknown> | null;
     run_started_at?: Date | string | null;
     virtual_mcp_id?: string | null;
+    metadata?: ThreadMetadata | string | null;
     created_at: Date | string;
     updated_at: Date | string;
     created_by: string;
     updated_by: string | null;
     hidden: boolean | number | null;
   }): Thread {
+    let metadata: ThreadMetadata = {};
+    if (row.metadata != null) {
+      if (typeof row.metadata === "string") {
+        try {
+          metadata = JSON.parse(row.metadata) as ThreadMetadata;
+        } catch (e) {
+          console.error(
+            `Failed to parse metadata for thread ${row.id}:`,
+            row.metadata,
+            e,
+          );
+        }
+      } else {
+        metadata = row.metadata;
+      }
+    }
+
     return {
       id: row.id,
       organization_id: row.organization_id,
@@ -652,6 +697,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
         ? toIsoString(row.run_started_at)
         : null,
       virtual_mcp_id: row.virtual_mcp_id ?? "",
+      metadata,
       created_at: toIsoString(row.created_at),
       updated_at: toIsoString(row.updated_at),
       created_by: row.created_by,

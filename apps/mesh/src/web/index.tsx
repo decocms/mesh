@@ -181,34 +181,44 @@ const agentShellLayout = createRoute({
   getParentRoute: () => orgLayout,
   id: "agent-shell",
   component: lazyRouteComponent(
-    () => import("./layouts/agent-shell-layout.tsx"),
+    () => import("./layouts/agent-shell-layout/index.tsx"),
   ),
 });
 
 // ============================================
-// ORG-LEVEL ROUTES (children of agentShellLayout)
+// UNIFIED CHAT ROUTES (/$org/$taskId)
 // ============================================
 
-// Org home - the default view when entering an org
-const orgHomeRoute = createRoute({
+const unifiedChatSearchSchema = z.object({
+  virtualmcpid: z.string().optional(),
+  tab: z.string().optional(),
+  main: z.string().optional(),
+  id: z.string().optional(),
+  toolName: z.string().optional(),
+  tasks: z.number().optional(),
+  mainOpen: z.number().optional(),
+  chat: z.number().optional(),
+});
+
+const unifiedChatRoute = createRoute({
+  getParentRoute: () => agentShellLayout,
+  path: "/$taskId",
+  validateSearch: unifiedChatSearchSchema,
+  component: () => null,
+});
+
+// Org index redirects to a fresh decopilot task
+const orgIndexRoute = createRoute({
   getParentRoute: () => agentShellLayout,
   path: "/",
-  validateSearch: z.object({
-    taskId: z
-      .string()
-      .optional()
-      .transform((v) => v ?? crypto.randomUUID()),
-    view: z.string().optional(),
-    main: z.string().optional(),
-    id: z.string().optional(),
-    toolName: z.string().optional(),
-    virtualMcpOverride: z.string().optional(),
-    tasks: z.number().optional(),
-    mainOpen: z.number().optional(),
-    chat: z.number().optional(),
-    env: z.number().optional(),
-  }),
-  component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
+  beforeLoad: ({ params }) => {
+    const taskId = crypto.randomUUID();
+    throw redirect({
+      to: "/$org/$taskId",
+      params: { org: params.org, taskId },
+    });
+  },
+  component: () => null,
 });
 
 // ============================================
@@ -391,7 +401,7 @@ const settingsWorkflowDetailRoute = createRoute({
   ),
 });
 
-// Org-level plugin route (mirrors /$org/$virtualMcpId/$pluginId for org-admin)
+// Org-level plugin route (for org-admin)
 const orgPluginRoute = createRoute({
   getParentRoute: () => agentShellLayout,
   path: "/plugins/$pluginId",
@@ -401,7 +411,7 @@ const orgPluginRoute = createRoute({
 });
 
 // ============================================
-// AGENTS (sidebar agents with chat)
+// UNIFIED CHAT SUB-ROUTES
 // ============================================
 
 // Agents list (view all)
@@ -411,61 +421,17 @@ const settingsAgentsRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/agents-list.tsx")),
 });
 
-// Agents layout (/$org/$virtualMcpId)
-const agentsLayout = createRoute({
-  getParentRoute: () => agentShellLayout,
-  path: "/$virtualMcpId",
-  component: Outlet,
-});
-
-// Agent home - empty center, sidebar chat is the interaction point
-const agentHomeRoute = createRoute({
-  getParentRoute: () => agentsLayout,
-  path: "/",
-  validateSearch: z.object({
-    taskId: z
-      .string()
-      .optional()
-      .transform((v) => v ?? crypto.randomUUID()),
-    main: z.string().optional(),
-    id: z.string().optional(),
-    toolName: z.string().optional(),
-    virtualMcpOverride: z.string().optional(),
-    tasks: z.number().optional(),
-    mainOpen: z.number().optional(),
-    chat: z.number().optional(),
-    env: z.number().optional(),
-  }),
-  component: lazyRouteComponent(() => import("./routes/agent-home.tsx")),
-});
-
-// Agent app view
-const agentAppViewRoute = createRoute({
-  getParentRoute: () => agentsLayout,
-  path: "/apps/$connectionId/$toolName",
-  component: lazyRouteComponent(() => import("./routes/project-app-view.tsx")),
-});
-
-// Agent workflows
-const agentWorkflowsRoute = createRoute({
-  getParentRoute: () => agentsLayout,
-  path: "/workflows",
-  component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
-});
-
-// Agent automations
-const agentAutomationsRoute = createRoute({
-  getParentRoute: () => agentsLayout,
+const settingsAutomationsRoute = createRoute({
+  getParentRoute: () => settingsLayout,
   path: "/automations",
-  validateSearch: z.object({ id: z.string().optional() }),
   component: lazyRouteComponent(
-    () => import("./views/automations/agent-automations.tsx"),
+    () => import("./routes/orgs/settings/automations.tsx"),
   ),
 });
 
-// Agent plugin layout
-const agentPluginLayoutRoute = createRoute({
-  getParentRoute: () => agentsLayout,
+// Plugin sub-route under unified chat
+const unifiedPluginRoute = createRoute({
+  getParentRoute: () => unifiedChatRoute,
   path: "/$pluginId",
   component: lazyRouteComponent(
     () => import("./layouts/dynamic-plugin-layout.tsx"),
@@ -506,7 +472,7 @@ sourcePlugins.forEach((plugin: AnyClientPlugin) => {
   if (!plugin.setup) return;
 
   const context: PluginSetupContext = {
-    parentRoute: agentPluginLayoutRoute as AnyRoute,
+    parentRoute: unifiedPluginRoute as AnyRoute,
     routing: {
       createRoute: createRoute,
       lazyRouteComponent: lazyRouteComponent,
@@ -525,9 +491,8 @@ sourcePlugins.forEach((plugin: AnyClientPlugin) => {
   plugin.setup(context);
 });
 
-// Add all plugin routes as children of the agent plugin layout
-const agentPluginWithChildren =
-  agentPluginLayoutRoute.addChildren(pluginRoutes);
+// Add all plugin routes as children of the unified plugin route
+const unifiedPluginWithChildren = unifiedPluginRoute.addChildren(pluginRoutes);
 
 // ============================================
 // ROUTE TREE
@@ -539,6 +504,7 @@ const settingsWithChildren = settingsLayout.addChildren([
   connectionDetailRoute,
   collectionDetailRoute,
   settingsAgentsRoute,
+  settingsAutomationsRoute,
   monitoringRoute,
   settingsGeneralRoute,
   settingsFeaturesRoute,
@@ -554,17 +520,13 @@ const settingsWithChildren = settingsLayout.addChildren([
   settingsWorkflowDetailRoute,
 ]);
 
-const agentsWithChildren = agentsLayout.addChildren([
-  agentHomeRoute,
-  agentAppViewRoute,
-  agentWorkflowsRoute,
-  agentAutomationsRoute,
-  agentPluginWithChildren,
+const unifiedChatWithChildren = unifiedChatRoute.addChildren([
+  unifiedPluginWithChildren,
 ]);
 
 const agentShellWithChildren = agentShellLayout.addChildren([
-  orgHomeRoute,
-  agentsWithChildren,
+  orgIndexRoute,
+  unifiedChatWithChildren,
   orgPluginRoute,
 ]);
 

@@ -5,8 +5,6 @@
  * Each status has a "verb" — what this means for you as a manager.
  */
 
-import type { Task } from "@/web/components/chat/task/types";
-import type { ChatMessage } from "@/web/components/chat/types";
 import {
   AlertCircle,
   CheckCircle,
@@ -81,79 +79,4 @@ const UNKNOWN: StatusConfig = {
 
 export function getStatusConfig(status: string | undefined): StatusConfig {
   return STATUS_CONFIG[(status ?? "completed") as StatusKey] ?? UNKNOWN;
-}
-
-/** Statuses that can be manually set by the user (excludes virtual `expired`). */
-export const SETTABLE_STATUSES: StatusKey[] = [
-  "requires_action",
-  "in_progress",
-  "failed",
-  "completed",
-];
-
-// ============================================================================
-// "Needs your answer" detection from cached messages
-// ============================================================================
-
-/**
- * Check if a task has a pending user_ask tool call (unanswered question).
- * Only works when messages are cached in the store.
- */
-function hasPendingUserAsk(messages: ChatMessage[] | undefined): boolean {
-  if (!messages || messages.length === 0) return false;
-  const last = messages.at(-1);
-  if (!last || last.role !== "assistant") return false;
-  return last.parts.some(
-    (part) =>
-      "type" in part &&
-      part.type === "tool-user_ask" &&
-      "state" in part &&
-      part.state === "input-available",
-  );
-}
-
-/**
- * Check if a task has a pending tool approval request.
- * Only works when messages are cached in the store.
- */
-function hasPendingApproval(messages: ChatMessage[] | undefined): boolean {
-  if (!messages || messages.length === 0) return false;
-  const last = messages.at(-1);
-  if (!last || last.role !== "assistant") return false;
-  return last.parts.some(
-    (part) => "state" in part && part.state === "approval-requested",
-  );
-}
-
-/**
- * Get the display verb for a task, considering cached message state.
- * Returns null when no verb should be shown (normal in_progress/completed).
- * Only shows a verb when the task actually needs attention:
- * - Pending user_ask → "Needs your answer"
- * - Pending approval → "Needs approval"
- * - Failed/expired → "Something went wrong" / "Stopped responding"
- */
-export function getTaskVerb(
-  task: Task,
-  cachedMessages?: ChatMessage[],
-): { verb: string; labelColor: string } | null {
-  const config = getStatusConfig(task.status);
-
-  if (task.status === "requires_action") {
-    if (hasPendingUserAsk(cachedMessages)) {
-      return { verb: "Needs your answer", labelColor: config.labelColor };
-    }
-    if (hasPendingApproval(cachedMessages)) {
-      return { verb: "Needs approval", labelColor: config.labelColor };
-    }
-    // No specific action detected — don't show a generic verb
-    return null;
-  }
-
-  if (task.status === "failed" || task.status === "expired") {
-    return { verb: config.verb, labelColor: config.labelColor };
-  }
-
-  // in_progress, completed — no verb needed
-  return null;
 }

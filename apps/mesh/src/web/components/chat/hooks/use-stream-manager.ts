@@ -31,7 +31,7 @@ export function useStreamManager(
   }
 
   const invalidateThreadList = () => {
-    queryClient.invalidateQueries({ queryKey: KEYS.tasks(locator) });
+    queryClient.invalidateQueries({ queryKey: KEYS.tasksPrefix(locator) });
   };
 
   const invalidateMessages = () => {

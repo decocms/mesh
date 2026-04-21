@@ -200,7 +200,7 @@ function VirtualMCPPopoverContentInner({
 /**
  * Suspense-wrapped popover content — lazy-loads the agent list on open.
  */
-export function VirtualMCPPopoverContent(props: VirtualMCPPopoverContentProps) {
+function VirtualMCPPopoverContent(props: VirtualMCPPopoverContentProps) {
   return (
     <Suspense fallback={<PopoverContentLoading />}>
       <VirtualMCPPopoverContentInner {...props} />

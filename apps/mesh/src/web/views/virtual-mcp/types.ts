@@ -11,6 +11,9 @@ import type { UseFormReturn } from "react-hook-form";
  */
 export const VirtualMcpFormSchema = VirtualMCPEntitySchema.pick({
   status: true,
+  title: true,
+  description: true,
+  icon: true,
   metadata: true,
   connections: true,
 });

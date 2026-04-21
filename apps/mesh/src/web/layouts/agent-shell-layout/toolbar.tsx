@@ -1,0 +1,138 @@
+/**
+ * Toolbar — vertical shell containing a fixed header row plus a body slot.
+ *
+ * The header hosts back/forward buttons plus three portal targets:
+ *   - Toolbar.LeftSlot      — contextual label (e.g. virtual MCP icon + title)
+ *   - Toolbar.TabsSlot      — main-panel tab bar (scrollable)
+ *   - Toolbar.TogglesSlot   — tasks/chat toggle buttons
+ *
+ * Consumers live inside the inner Suspense and render into the slots via
+ * <Toolbar.Left> / <Toolbar.Tabs> / <Toolbar.Toggles> (createPortal).
+ * Never suspends itself.
+ */
+
+import { createContext, use, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { ChevronLeft, ChevronRight } from "@untitledui/icons";
+
+type ToolbarCtx = {
+  togglesEl: HTMLDivElement | null;
+  setTogglesEl: (el: HTMLDivElement | null) => void;
+  tabsEl: HTMLDivElement | null;
+  setTabsEl: (el: HTMLDivElement | null) => void;
+  leftEl: HTMLDivElement | null;
+  setLeftEl: (el: HTMLDivElement | null) => void;
+};
+
+const ToolbarContext = createContext<ToolbarCtx | null>(null);
+
+function useToolbarCtx(): ToolbarCtx {
+  const ctx = use(ToolbarContext);
+  if (!ctx) throw new Error("Toolbar.* must be used inside <Toolbar>");
+  return ctx;
+}
+
+export function Toolbar({ children }: { children?: ReactNode }) {
+  const [togglesEl, setTogglesEl] = useState<HTMLDivElement | null>(null);
+  const [tabsEl, setTabsEl] = useState<HTMLDivElement | null>(null);
+  const [leftEl, setLeftEl] = useState<HTMLDivElement | null>(null);
+  return (
+    <ToolbarContext
+      value={{
+        togglesEl,
+        setTogglesEl,
+        tabsEl,
+        setTabsEl,
+        leftEl,
+        setLeftEl,
+      }}
+    >
+      <div className="flex flex-col h-full min-h-0">{children}</div>
+    </ToolbarContext>
+  );
+}
+
+function ToolbarHeader({ children }: { children?: ReactNode }) {
+  return (
+    <div className="shrink-0 flex items-center justify-between pl-1 pr-2 pt-0.25 h-10">
+      {children}
+    </div>
+  );
+}
+
+function ToolbarNav() {
+  return (
+    <div className="flex items-center gap-0.5 min-w-0">
+      <button
+        type="button"
+        onClick={() => window.history.back()}
+        className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+        title="Go back"
+      >
+        <ChevronLeft size={16} />
+      </button>
+      <button
+        type="button"
+        onClick={() => window.history.forward()}
+        className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+        title="Go forward"
+      >
+        <ChevronRight size={16} />
+      </button>
+    </div>
+  );
+}
+
+function ToolbarLeftSlot() {
+  const { setLeftEl } = useToolbarCtx();
+  return (
+    <div ref={setLeftEl} className="flex items-center gap-2 min-w-0 shrink" />
+  );
+}
+
+function ToolbarLeft({ children }: { children: ReactNode }) {
+  const { leftEl } = useToolbarCtx();
+  if (!leftEl) return null;
+  return createPortal(children, leftEl);
+}
+
+function ToolbarTabsSlot() {
+  const { setTabsEl } = useToolbarCtx();
+  return (
+    <div
+      ref={setTabsEl}
+      className="flex-1 min-w-0 flex items-center overflow-x-auto"
+    />
+  );
+}
+
+function ToolbarTabs({ children }: { children: ReactNode }) {
+  const { tabsEl } = useToolbarCtx();
+  if (!tabsEl) return null;
+  return createPortal(children, tabsEl);
+}
+
+function ToolbarTogglesSlot() {
+  const { setTogglesEl } = useToolbarCtx();
+  return (
+    <div
+      ref={setTogglesEl}
+      className="flex items-center justify-end gap-0.5 shrink-0"
+    />
+  );
+}
+
+function ToolbarToggles({ children }: { children: ReactNode }) {
+  const { togglesEl } = useToolbarCtx();
+  if (!togglesEl) return null;
+  return createPortal(children, togglesEl);
+}
+
+Toolbar.Header = ToolbarHeader;
+Toolbar.Nav = ToolbarNav;
+Toolbar.LeftSlot = ToolbarLeftSlot;
+Toolbar.Left = ToolbarLeft;
+Toolbar.TabsSlot = ToolbarTabsSlot;
+Toolbar.Tabs = ToolbarTabs;
+Toolbar.TogglesSlot = ToolbarTogglesSlot;
+Toolbar.Toggles = ToolbarToggles;

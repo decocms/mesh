@@ -220,7 +220,6 @@ export function LeanCanvasRecruitModal({
                 id: connectionId,
                 toolName: "lean_canvas",
               },
-              chatDefaultOpen: false,
             },
           },
         },

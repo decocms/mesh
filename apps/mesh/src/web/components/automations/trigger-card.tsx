@@ -4,8 +4,7 @@
  */
 
 import {
-  useAutomationTriggerAdd,
-  useAutomationTriggerRemove,
+  useAutomationActions,
   type AutomationTrigger,
 } from "@/web/hooks/use-automations";
 import {
@@ -39,8 +38,8 @@ export function TriggerCard({
   automationId: string;
   connectionName?: string;
 }) {
-  const removeTrigger = useAutomationTriggerRemove();
-  const addTrigger = useAutomationTriggerAdd();
+  const { triggerAdd: addTrigger, triggerRemove: removeTrigger } =
+    useAutomationActions();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const interval = trigger.cron_expression

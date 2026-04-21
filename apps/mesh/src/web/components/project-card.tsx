@@ -1,7 +1,5 @@
-import { Link } from "@tanstack/react-router";
 import { DotsVertical, Settings02, Trash01 } from "@untitledui/icons";
 import { formatDistanceToNow } from "date-fns";
-import { useProjectContext } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
@@ -20,7 +18,6 @@ interface ProjectCardProps {
 }
 
 export function ProjectCard({ project, onDeleteClick }: ProjectCardProps) {
-  const { org } = useProjectContext();
   const navigateToAgent = useNavigateToAgent();
 
   return (
@@ -52,15 +49,15 @@ export function ProjectCard({ project, onDeleteClick }: ProjectCardProps) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem asChild>
-                    <Link
-                      to="/$org/$virtualMcpId"
-                      params={{ org: org.slug, virtualMcpId: project.id }}
-                      search={{ main: "settings" }}
-                    >
-                      <Settings02 size={16} />
-                      Settings
-                    </Link>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      navigateToAgent(project.id, {
+                        search: { main: "settings" },
+                      })
+                    }
+                  >
+                    <Settings02 size={16} />
+                    Settings
                   </DropdownMenuItem>
                   {onDeleteClick && (
                     <DropdownMenuItem

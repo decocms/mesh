@@ -142,9 +142,10 @@ export function PreviewContent() {
                     className="shrink-0 h-5 w-5 p-0"
                     onClick={() => {
                       if (previewIframeRef.current) {
-                        // oxlint-disable-next-line no-self-assign — intentional: reloads the iframe by re-assigning its src
-                        previewIframeRef.current.src =
-                          previewIframeRef.current.src;
+                        const iframe = previewIframeRef.current;
+                        // biome-ignore lint/correctness/noSelfAssign: reloads the iframe
+                        // oxlint-disable-next-line no-self-assign
+                        iframe.src = iframe.src;
                       }
                     }}
                   >

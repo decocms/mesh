@@ -76,14 +76,12 @@ interface ToolsPopoverProps {
   disabled?: boolean;
   onOpenConnections: () => void;
   virtualMcpId: string | null;
-  isAgentContext?: boolean;
 }
 
 export function ToolsPopover({
   disabled,
   onOpenConnections,
   virtualMcpId,
-  isAgentContext = false,
 }: ToolsPopoverProps) {
   const [open, setOpen] = useState(false);
   const playSwitchSound = useSound(switch005Sound);
@@ -426,15 +424,13 @@ export function ToolsPopover({
             </DropdownMenuSubContent>
           </DropdownMenuSub>
 
-          {!isAgentContext && (
-            <DropdownMenuItem onClick={handleConnections}>
-              <Link01 size={16} />
-              <span className="flex-1">Connections</span>
-              <Suspense>
-                <ConnectionIcons />
-              </Suspense>
-            </DropdownMenuItem>
-          )}
+          <DropdownMenuItem onClick={handleConnections}>
+            <Link01 size={16} />
+            <span className="flex-1">Connections</span>
+            <Suspense>
+              <ConnectionIcons />
+            </Suspense>
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 

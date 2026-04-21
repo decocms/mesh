@@ -27,7 +27,12 @@ import {
   type ConnectionEntity,
 } from "@decocms/mesh-sdk";
 import { authClient } from "@/web/lib/auth-client";
-import { Outlet, useParams, Link } from "@tanstack/react-router";
+import {
+  Outlet,
+  useParams,
+  useNavigate,
+  useSearch,
+} from "@tanstack/react-router";
 import { Loading01, Settings02 } from "@untitledui/icons";
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -94,13 +99,16 @@ export function PluginLayout({
   renderEmptyState,
 }: PluginLayoutProps) {
   const { org, project } = useProjectContext();
+  const navigate = useNavigate();
   const {
     org: orgParam,
-    virtualMcpId,
+    taskId,
     pluginId,
   } = useParams({
     strict: false,
-  }) as { org: string; virtualMcpId: string; pluginId: string };
+  }) as { org: string; taskId: string; pluginId: string };
+  const search = useSearch({ strict: false }) as { virtualmcpid?: string };
+  const virtualMcpId = search.virtualmcpid;
   // Server-side binding filter — no need to load all connections
   const validConnections = useConnections({ binding: bindingName });
   const { data: authSession } = authClient.useSession();
@@ -211,17 +219,22 @@ export function PluginLayout({
               settings to select which integration to use.
             </p>
           </div>
-          <Button asChild>
-            <Link
-              to="/$org/$virtualMcpId/"
-              params={{
-                org: orgParam ?? org.slug,
-                virtualMcpId: virtualMcpId ?? project.id ?? "",
-              }}
-              search={{ view: "settings" }}
-            >
-              Go to Project Settings
-            </Link>
+          <Button
+            onClick={() => {
+              const targetOrg = orgParam ?? org.slug;
+              const targetVirtualMcp = virtualMcpId ?? project.id ?? "";
+              const targetTaskId = taskId ?? crypto.randomUUID();
+              navigate({
+                to: "/$org/$taskId",
+                params: { org: targetOrg, taskId: targetTaskId },
+                search: {
+                  virtualmcpid: targetVirtualMcp,
+                  main: "settings",
+                },
+              });
+            }}
+          >
+            Go to Project Settings
           </Button>
         </div>
       </PluginContextProvider>

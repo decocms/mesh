@@ -15,20 +15,29 @@ export const KEYS = {
   authConfig: () => ["authConfig"] as const,
   session: () => ["session"] as const,
 
-  // Task queries (ownerFilter + userId scope the cache entry)
-  // userId is included when ownerFilter is "me" to prevent cross-user cache pollution
+  // Task queries (filters scope the cache entry)
+  // userId is included when owner is "me" to prevent cross-user cache pollution
   tasks: (
     locator: string,
-    ownerFilter?: "me" | "everyone",
-    userId?: string | null,
-    virtualMcpId?: string,
-  ): unknown[] => {
-    const key: unknown[] = ["tasks", locator];
-    if (ownerFilter !== undefined) key.push(ownerFilter);
-    if (ownerFilter === "me") key.push(userId ?? null);
-    if (virtualMcpId) key.push(virtualMcpId);
-    return key;
-  },
+    filters: {
+      owner: "me" | "automation" | "all";
+      status: "open" | "archived";
+      virtualMcpId?: string;
+      userId?: string | null;
+      hasTrigger?: boolean | null;
+    },
+  ) =>
+    [
+      "tasks",
+      locator,
+      filters.owner,
+      filters.status,
+      filters.virtualMcpId ?? null,
+      filters.userId ?? null,
+      filters.hasTrigger ?? null,
+    ] as const,
+  // Prefix for broad invalidation of all task queries for a locator
+  tasksPrefix: (locator: string) => ["tasks", locator] as const,
   messages: (locator: string) => ["messages", locator] as const,
 
   // Organizations list
@@ -162,6 +171,8 @@ export const KEYS = {
     ["threads", "messages", locator, threadId] as const,
   threadModelLogs: (locator: string, dateKey: string) =>
     ["threads", "model-logs", locator, dateKey] as const,
+  threadMetadata: (threadId: string) =>
+    ["threads", "metadata", threadId] as const,
 
   // Virtual MCP tools (for tool definition lookup in chat)
   // null virtualMcpId means default virtual MCP

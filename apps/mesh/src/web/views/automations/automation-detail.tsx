@@ -11,9 +11,8 @@ import {
 import { ModelSelector } from "@/web/components/chat/select-model.tsx";
 import { User } from "@/web/components/user/user.tsx";
 import {
-  useAutomationDetail,
-  useAutomationUpdate,
-  useAutomationTriggerAdd,
+  useAutomation,
+  useAutomationActions,
   useTriggerList,
   type TriggerDefinition,
 } from "@/web/hooks/use-automations";
@@ -62,7 +61,6 @@ import {
 interface SettingsFormData {
   name: string;
   active: boolean;
-  agent_id: string;
   credential_id: string;
   model_id: string;
 }
@@ -97,7 +95,7 @@ function EventTriggerForm({
   const [connectionId, setConnectionId] = useState<string | undefined>();
   const [eventType, setEventType] = useState<string | undefined>();
   const [params, setParams] = useState<Record<string, string>>({});
-  const addTrigger = useAutomationTriggerAdd();
+  const { triggerAdd: addTrigger } = useAutomationActions();
   const { data: triggerDefs, isLoading: isLoadingTriggers } =
     useTriggerList(connectionId);
 
@@ -275,18 +273,20 @@ function EventTriggerForm({
 export function SettingsTab({
   automationId,
   automation,
-  fixedAgentId,
+  virtualMcpId,
   onBack,
   onDelete,
 }: {
   automationId: string;
-  automation: NonNullable<ReturnType<typeof useAutomationDetail>["data"]>;
-  fixedAgentId?: string;
+  automation: NonNullable<ReturnType<typeof useAutomation>["data"]>;
+  virtualMcpId: string;
   onBack?: () => void;
   onDelete?: () => void;
 }) {
+  const agentId = automation.agent?.id ?? virtualMcpId;
   const { org } = useProjectContext();
-  const updateMutation = useAutomationUpdate();
+  const { update: updateMutation, triggerAdd: addTrigger } =
+    useAutomationActions();
   const allConnections = useConnections();
   const connectionNameMap = new Map(allConnections.map((c) => [c.id, c.title]));
 
@@ -309,7 +309,6 @@ export function SettingsTab({
   const [showCustomCron, setShowCustomCron] = useState(false);
   const [cronInput, setCronInput] = useState("");
   const [showEventForm, setShowEventForm] = useState(false);
-  const addTrigger = useAutomationTriggerAdd();
   const editorInitializedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tiptapDirtyRef = useRef(false);
@@ -346,14 +345,12 @@ export function SettingsTab({
     defaultValues: {
       name: automation.name,
       active: automation.active,
-      agent_id: fixedAgentId ?? automation.agent?.id ?? "",
       credential_id: defaultCredentialId,
       model_id: defaultModelId,
     },
   });
 
   const watchActive = form.watch("active");
-  const watchAgentId = form.watch("agent_id");
   const watchConnectionId = form.watch("credential_id");
   const watchModelId = form.watch("model_id");
 
@@ -380,7 +377,7 @@ export function SettingsTab({
         name: values.name,
         active: values.active,
         agent: {
-          id: fixedAgentId ?? values.agent_id,
+          id: agentId,
         },
         models: {
           credentialId: coercedCredentialId,
@@ -400,7 +397,6 @@ export function SettingsTab({
       return true;
     } catch {
       tiptapDirtyRef.current = true;
-      toast.error("Failed to save automation");
       return false;
     }
   };
@@ -444,9 +440,7 @@ export function SettingsTab({
       return;
     }
 
-    const values = form.getValues();
-
-    setVirtualMcpId((fixedAgentId ?? values.agent_id) || null);
+    setVirtualMcpId(agentId || null);
     if (selectedModel && watchConnectionId) {
       setModel({ ...selectedModel, keyId: watchConnectionId });
     }
@@ -678,7 +672,7 @@ export function SettingsTab({
           >
             <div className="rounded-xl border border-border min-h-[120px] flex flex-col">
               <TiptapInput
-                virtualMcpId={(fixedAgentId ?? watchAgentId) || null}
+                virtualMcpId={agentId || null}
                 className="max-h-[45vh]"
               />
 
@@ -707,6 +701,7 @@ export function SettingsTab({
                       variant="default"
                       className="h-8 gap-1.5 rounded-md px-3 text-sm font-medium"
                       onClick={handleRunClick}
+                      disabled={!agentId}
                     >
                       <ArrowUp size={16} />
                       Test

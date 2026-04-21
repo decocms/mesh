@@ -1,5 +1,4 @@
 import { Suspense, useState, useRef } from "react";
-import { CreateAgentDropdownContent } from "@/web/components/create-agent-dropdown";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
@@ -40,7 +39,7 @@ import {
 } from "@deco/ui/components/drawer.tsx";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { CollectionSearch } from "@deco/ui/components/collection-search.tsx";
-import { FolderPlus, Plus, Settings02, X } from "@untitledui/icons";
+import { Plus, Settings02, X } from "@untitledui/icons";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -61,30 +60,22 @@ import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useCreateTaskAndNavigate } from "@/web/hooks/use-create-task-and-navigate";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { AgentAvatar } from "@/web/components/agent-icon";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-} from "@deco/ui/components/dropdown-menu.tsx";
+import { GitHubIcon } from "@/web/components/icons/github-icon";
+import { usePreferences } from "@/web/hooks/use-preferences.ts";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.tsx";
 import { GitHubRepoPicker } from "@/web/components/github-repo-picker.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
 import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
-import { useAgentBadges } from "@/web/hooks/use-agent-badges";
-
 function AgentListItem({
   agent,
   org,
-  hasBadge,
-  onMarkSeen,
   onUnpin,
   isDragging,
 }: {
   agent: VirtualMCPEntity;
   org: string;
-  hasBadge?: boolean;
-  onMarkSeen?: () => void;
   onUnpin: () => void;
   isDragging?: boolean;
 }) {
@@ -142,7 +133,6 @@ function AgentListItem({
             tooltip={buttonRect ? undefined : agent.title}
             isActive={isActive}
             onClick={() => {
-              onMarkSeen?.();
               navigateToNewTask(agent.id);
               if (isMobile) setOpenMobile(false);
             }}
@@ -155,19 +145,17 @@ function AgentListItem({
               size="xs"
               className="w-full h-full [&_svg]:w-1/2 [&_svg]:h-1/2"
             />
-            {hasBadge && !isActive && (
-              <span className="absolute top-0.5 right-0.5 size-2 rounded-full bg-primary ring-2 ring-sidebar pointer-events-none" />
-            )}
           </SidebarMenuButton>
         </ContextMenuTrigger>
 
         <ContextMenuContent>
           <ContextMenuItem
             onClick={() => {
-              onMarkSeen?.();
+              const taskId = crypto.randomUUID();
               navigate({
-                to: "/$org/$virtualMcpId",
-                params: { org, virtualMcpId: agent.id },
+                to: "/$org/$taskId",
+                params: { org, taskId },
+                search: { virtualmcpid: agent.id },
               });
             }}
           >
@@ -233,8 +221,6 @@ function AgentListItem({
 function SortableAgentListItem(props: {
   agent: VirtualMCPEntity;
   org: string;
-  hasBadge?: boolean;
-  onMarkSeen?: () => void;
   onUnpin: () => void;
 }) {
   const {
@@ -318,6 +304,7 @@ function PinAgentPopoverContent({
   const { createVirtualMCP, isCreating } = useCreateVirtualMCP({
     navigateOnCreate: true,
   });
+  const [preferences] = usePreferences();
 
   const navigateToNewTask = useCreateTaskAndNavigate();
   const navigateToAgent = useNavigateToAgent();
@@ -403,31 +390,10 @@ function PinAgentPopoverContent({
       {/* Scrollable content */}
       <div className="overflow-y-auto flex-1 min-h-0 px-3 pb-3">
         {/* Agents section */}
-        <div className="px-1 pt-3 pb-2 flex items-center justify-between">
+        <div className="px-1 pt-3 pb-2">
           <span className="text-xs font-medium text-muted-foreground">
             Agents
           </span>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="flex items-center justify-center size-5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              >
-                <FolderPlus size={14} />
-              </button>
-            </DropdownMenuTrigger>
-            <CreateAgentDropdownContent
-              onCreateFromScratch={async () => {
-                await createVirtualMCP();
-                onClose();
-              }}
-              onImportGitHub={onOpenGithubImport}
-              onImportDeco={onOpenImportDeco}
-              isCreating={isCreating}
-              side="right"
-              align="start"
-            />
-          </DropdownMenu>
         </div>
         <div className="grid grid-cols-3 gap-1">
           {/* Create new button */}
@@ -447,6 +413,44 @@ function PinAgentPopoverContent({
               Create new
             </span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              onOpenImportDeco();
+              onClose();
+            }}
+            className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group"
+          >
+            <div className="w-12 h-12 rounded-xl border-2 border-border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+              <img
+                src="/logos/deco%20logo.svg"
+                alt="deco.cx"
+                className="size-5"
+              />
+            </div>
+            <span className="text-xs leading-tight text-center text-muted-foreground group-hover:text-foreground">
+              Import deco.cx
+            </span>
+          </button>
+
+          {preferences.experimental_vibecode && (
+            <button
+              type="button"
+              onClick={() => {
+                onOpenGithubImport();
+                onClose();
+              }}
+              className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group"
+            >
+              <div className="w-12 h-12 rounded-xl border-2 border-border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+                <GitHubIcon className="size-5 text-muted-foreground" />
+              </div>
+              <span className="text-xs leading-tight text-center text-muted-foreground group-hover:text-foreground">
+                Import GitHub
+              </span>
+            </button>
+          )}
 
           {userAgents.map((agent) => (
             <AgentGridItem
@@ -628,8 +632,6 @@ function AgentsSectionContent() {
     .map((id) => agentMap.get(id))
     .filter((a): a is VirtualMCPEntity => !!a);
 
-  const { badges, markSeen } = useAgentBadges(pinnedAgents.map((s) => s.id));
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, {
@@ -669,8 +671,6 @@ function AgentsSectionContent() {
                   key={agent.id}
                   agent={agent}
                   org={org.slug}
-                  hasBadge={badges[agent.id]}
-                  onMarkSeen={() => markSeen(agent.id)}
                   onUnpin={() => unpin(agent.id)}
                 />
               ))}

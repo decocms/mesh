@@ -19,10 +19,14 @@ export {
   VirtualMCPEntitySchema,
   VirtualMCPCreateDataSchema,
   VirtualMCPUpdateDataSchema,
+  VirtualMcpUILayoutSchema,
+  VirtualMcpUILayoutTabSchema,
   type VirtualMCPEntity,
   type VirtualMCPCreateData,
   type VirtualMCPUpdateData,
   type VirtualMCPConnection,
+  type VirtualMcpUILayout,
+  type VirtualMcpUILayoutTab,
   type GithubRepo,
 } from "./virtual-mcp";
 

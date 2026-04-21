@@ -58,6 +58,50 @@ const VirtualMcpPinnedViewSchema = z.object({
 export type VirtualMcpPinnedView = z.infer<typeof VirtualMcpPinnedViewSchema>;
 
 /**
+ * A single tab declared by an agent in `metadata.ui.layout.tabs`. Rendered
+ * after the fixed system tabs (Instructions / Connections / Layout / Env)
+ * in the unified chat layout's right panel.
+ */
+export const VirtualMcpUILayoutTabSchema = z.object({
+  id: z.string().describe("Stable id; used as React key and ?tab= value"),
+  title: z.string().describe("Tab label"),
+  icon: z.string().optional().describe("Optional lucide icon name"),
+  view: z.object({
+    type: z.literal("ext-app"),
+    appId: z.string(),
+    args: z.record(z.string(), z.unknown()).optional(),
+  }),
+});
+
+export type VirtualMcpUILayoutTab = z.infer<typeof VirtualMcpUILayoutTabSchema>;
+
+/**
+ * Layout-specific settings stored under `metadata.ui.layout`. Controls which
+ * main view opens by default and which additional right-panel tabs are
+ * permanently available for the agent.
+ */
+export const VirtualMcpUILayoutSchema = z.object({
+  defaultMainView: z
+    .object({
+      type: z.string(),
+      id: z.string().optional(),
+      toolName: z.string().optional(),
+    })
+    .nullable()
+    .optional(),
+  /**
+   * When true, the chat panel is open alongside the main view on first
+   * load. Ignored when `defaultMainView.type === "chat"` (chat is always
+   * open in that case). Absent / null / false → chat is closed unless the
+   * default view is chat.
+   */
+  chatDefaultOpen: z.boolean().nullable().optional(),
+  tabs: z.array(VirtualMcpUILayoutTabSchema).optional(),
+});
+
+export type VirtualMcpUILayout = z.infer<typeof VirtualMcpUILayoutSchema>;
+
+/**
  * Virtual MCP UI customization schema
  */
 const VirtualMcpUISchema = z.object({
@@ -66,20 +110,7 @@ const VirtualMcpUISchema = z.object({
   icon: z.string().nullable().optional(),
   themeColor: z.string().nullable().optional(),
   pinnedViews: z.array(VirtualMcpPinnedViewSchema).nullable().optional(),
-  layout: z
-    .object({
-      defaultMainView: z
-        .object({
-          type: z.string(),
-          id: z.string().optional(),
-          toolName: z.string().optional(),
-        })
-        .nullable()
-        .optional(),
-      chatDefaultOpen: z.boolean().nullable().optional(),
-    })
-    .nullable()
-    .optional(),
+  layout: VirtualMcpUILayoutSchema.nullable().optional(),
 });
 
 export type VirtualMcpUI = z.infer<typeof VirtualMcpUISchema>;

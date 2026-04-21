@@ -22,6 +22,8 @@ export interface Task {
   status?: ThreadDisplayStatus;
   /** Virtual MCP (agent) this task was initiated with */
   virtual_mcp_id?: string;
+  /** True when this task was triggered by an automation */
+  fromAutomation?: boolean;
 }
 
 export type { ChatMessage } from "../types.ts";

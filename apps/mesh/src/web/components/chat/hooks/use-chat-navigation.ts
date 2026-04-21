@@ -1,7 +1,7 @@
 /**
  * useChatNavigation — URL-driven chat state.
  *
- * Reads virtualMcpId from route params and taskId from search params.
+ * Reads taskId from path params and virtualmcpid from search params.
  * virtualMcpId is never null — defaults to the well-known decopilot virtual MCP.
  * virtualMcpOverride is an optional search param for ephemeral per-task agent switching.
  */
@@ -14,7 +14,7 @@ import { useProjectContext } from "@decocms/mesh-sdk";
 export interface ChatNavigation {
   virtualMcpId: string;
   virtualMcpOverride: string | undefined;
-  /** Always defined — the router's validateSearch seeds a UUID if absent. */
+  /** Always defined — resolved from the `/$org/$taskId` path param. */
   taskId: string;
   navigateToTask: (
     taskId: string,
@@ -27,39 +27,30 @@ export function useChatNavigation(): ChatNavigation {
   const navigate = useNavigate();
   const { org } = useProjectContext();
   const search = useSearch({ strict: false }) as {
-    taskId?: string;
+    virtualmcpid?: string;
     virtualMcpOverride?: string;
   };
 
-  // useParams instead of useMatch — useMatch can't see child routes through
-  // the pathless agent-shell layout.
   const routeParams = useParams({ strict: false }) as {
     org?: string;
-    virtualMcpId?: string;
+    taskId?: string;
   };
-  const isAgentRoute = !!routeParams.virtualMcpId;
 
   const virtualMcpId =
-    routeParams.virtualMcpId ?? getWellKnownDecopilotVirtualMCP(org.id).id;
+    search.virtualmcpid ?? getWellKnownDecopilotVirtualMCP(org.id).id;
 
   const navigateToTask = (
     taskId: string,
     opts?: { virtualMcpOverride?: string },
   ) => {
-    // Reset all panel state — only preserve taskId + tasks panel visibility.
+    // Reset panel state — only preserve virtualmcpid + tasks panel visibility.
     // This ensures panel layout defaults kick in for the new task.
-    const routeBase = isAgentRoute
-      ? ("/$org/$virtualMcpId/" as const)
-      : ("/$org/" as const);
-    const params = isAgentRoute
-      ? { org: org.slug, virtualMcpId }
-      : { org: org.slug };
-
     navigate({
-      to: routeBase,
-      params,
+      to: "/$org/$taskId",
+      params: { org: org.slug, taskId },
       search: (prev: Record<string, unknown>) => {
-        const next: Record<string, unknown> = { taskId };
+        const next: Record<string, unknown> = {};
+        if (prev.virtualmcpid) next.virtualmcpid = prev.virtualmcpid;
         if (prev.tasks) next.tasks = prev.tasks;
         if (opts?.virtualMcpOverride) {
           next.virtualMcpOverride = opts.virtualMcpOverride;
@@ -83,11 +74,11 @@ export function useChatNavigation(): ChatNavigation {
     } as never);
   };
 
-  // On agent routes the router's validateSearch seeds taskId automatically.
+  // On unified chat routes the taskId is a path param.
   // On other routes (e.g. settings) Chat.Provider still mounts but taskId is
   // absent — fall back to a stable generated ID so the provider works everywhere.
   const fallbackRef = useRef(crypto.randomUUID());
-  const taskId = search.taskId ?? fallbackRef.current;
+  const taskId = routeParams.taskId ?? fallbackRef.current;
 
   return {
     virtualMcpId,

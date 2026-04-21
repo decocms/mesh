@@ -87,33 +87,29 @@ function ShellProjectProvider({
 export function usePanelActions() {
   const navigate = useNavigate();
 
-  // useParams instead of useMatch — useMatch can't see child routes through
-  // the pathless agent-shell layout.
   const params = useParams({ strict: false }) as {
     org?: string;
-    virtualMcpId?: string;
+    taskId?: string;
   };
   const orgSlug = params.org ?? "";
-  const isAgentRoute = !!params.virtualMcpId;
-  const virtualMcpId = params.virtualMcpId ?? "";
+  const currentTaskId = params.taskId ?? "";
 
-  const routeBase = isAgentRoute
-    ? ("/$org/$virtualMcpId/" as const)
-    : ("/$org/" as const);
-  const routeParams = isAgentRoute
-    ? { org: orgSlug, virtualMcpId }
-    : { org: orgSlug };
-
-  const nav = (
+  const navWith = (
+    taskId: string,
     searchFn: (prev: Record<string, unknown>) => Record<string, unknown>,
     replace = true,
   ) =>
     navigate({
-      to: routeBase,
-      params: routeParams,
+      to: "/$org/$taskId",
+      params: { org: orgSlug, taskId },
       search: searchFn,
       replace,
     });
+
+  const nav = (
+    searchFn: (prev: Record<string, unknown>) => Record<string, unknown>,
+    replace = true,
+  ) => navWith(currentTaskId, searchFn, replace);
 
   const setChatOpen = (open: boolean) =>
     nav((prev) => ({ ...prev, chat: open ? 1 : 0 }));
@@ -121,60 +117,35 @@ export function usePanelActions() {
   const setTasksOpen = (open: boolean) =>
     nav((prev) => ({ ...prev, tasks: open ? 1 : 0 }));
 
-  const setTaskId = (id: string) =>
-    nav((prev) => {
-      const next: Record<string, unknown> = { taskId: id, chat: 1 };
-      if (prev.tasks) next.tasks = prev.tasks;
-      return next;
-    }, false);
-
-  const createNewTask = () => {
-    const newTaskId = crypto.randomUUID();
-    nav((prev) => {
-      const next: Record<string, unknown> = {
-        taskId: newTaskId,
-        chat: 1,
-      };
-      if (prev.tasks) next.tasks = prev.tasks;
-      return next;
-    }, false);
-  };
-
-  const openMainView = (
-    view: string,
-    opts?: { id?: string; toolName?: string },
-  ) => {
-    if (view === "default") {
-      nav((prev) => {
-        const next: Record<string, unknown> = {};
-        if (prev.taskId) next.taskId = prev.taskId;
+  const setTaskId = (id: string, virtualMcpId?: string) =>
+    navWith(
+      id,
+      (prev) => {
+        const next: Record<string, unknown> = { chat: 1 };
+        if (virtualMcpId) next.virtualmcpid = virtualMcpId;
+        else if (prev.virtualmcpid) next.virtualmcpid = prev.virtualmcpid;
         if (prev.tasks) next.tasks = prev.tasks;
-        if (prev.chat) next.chat = prev.chat;
-        next.mainOpen = 0;
         return next;
-      });
-      return;
-    }
+      },
+      false,
+    );
 
-    nav((prev) => {
-      const next: Record<string, unknown> = {
-        ...prev,
-        main: view,
-        mainOpen: 1,
-      };
-      if (opts?.id) next.id = opts.id;
-      if (opts?.toolName) next.toolName = opts.toolName;
-      return next;
-    });
-  };
+  const createNewTask = () => setTaskId(crypto.randomUUID());
 
-  const closeMainView = () =>
+  const openTab = (tabId: string) =>
+    navWith(currentTaskId || crypto.randomUUID(), (prev) => ({
+      ...prev,
+      main: tabId,
+    }));
+
+  const toggleMain = () =>
     nav((prev) => {
-      const next: Record<string, unknown> = {};
-      if (prev.taskId) next.taskId = prev.taskId;
-      if (prev.tasks) next.tasks = prev.tasks;
-      if (prev.chat) next.chat = prev.chat;
-      next.mainOpen = 0;
+      const isOpen = prev.main !== undefined && prev.main !== "0";
+      if (isOpen) {
+        return { ...prev, main: "0" };
+      }
+      const next: Record<string, unknown> = { ...prev };
+      delete next.main;
       return next;
     });
 
@@ -183,8 +154,8 @@ export function usePanelActions() {
     setTasksOpen,
     setTaskId,
     createNewTask,
-    openMainView,
-    closeMainView,
+    openTab,
+    toggleMain,
   };
 }
 

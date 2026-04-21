@@ -356,4 +356,40 @@ describe("SqlThreadStorage", () => {
       });
     });
   });
+
+  describe("metadata", () => {
+    it("create() defaults metadata to empty object", async () => {
+      const thread = await storage.create({
+        organization_id: "org_1",
+        created_by: "user_1",
+      });
+      expect(thread.metadata).toEqual({});
+    });
+
+    it("update() can patch metadata.expanded_tools", async () => {
+      const thread = await storage.create({
+        organization_id: "org_1",
+        created_by: "user_1",
+      });
+      const updated = await storage.update(thread.id, "org_1", {
+        metadata: {
+          expanded_tools: [
+            {
+              toolName: "my_tool",
+              appId: "app_1",
+              args: { foo: "bar" },
+              expandedAt: "2026-04-17T00:00:00Z",
+            },
+          ],
+        },
+      });
+      expect(updated.metadata.expanded_tools).toHaveLength(1);
+      expect(updated.metadata.expanded_tools?.[0]!.toolName).toBe("my_tool");
+      const loaded = await storage.get(thread.id, "org_1");
+      expect(loaded?.metadata.expanded_tools).toHaveLength(1);
+      expect(loaded?.metadata.expanded_tools?.[0]!.args).toEqual({
+        foo: "bar",
+      });
+    });
+  });
 });

@@ -54,9 +54,11 @@ function AgentPreview({
     if (onSpecialClick) {
       onSpecialClick();
     } else {
+      const taskId = crypto.randomUUID();
       navigate({
-        to: "/$org/$virtualMcpId",
-        params: { org: org.slug, virtualMcpId: agent.id },
+        to: "/$org/$taskId",
+        params: { org: org.slug, taskId },
+        search: { virtualmcpid: agent.id },
       });
     }
   };

@@ -726,10 +726,24 @@ export interface ThreadTable {
   >;
   /** Virtual MCP (agent) this thread was initiated with */
   virtual_mcp_id: string;
+  /** Per-task UI state (e.g., expanded_tools for right-panel tabs) */
+  metadata: ColumnType<ThreadMetadata, string | undefined, string>;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
   created_by: string; // User ID;
   updated_by: string | null;
+}
+
+export interface ThreadExpandedTool {
+  toolName: string;
+  appId: string;
+  args: Record<string, unknown>;
+  expandedAt: string;
+}
+
+export interface ThreadMetadata {
+  expanded_tools?: ThreadExpandedTool[];
+  [key: string]: unknown;
 }
 
 export interface Thread {
@@ -750,6 +764,7 @@ export interface Thread {
   run_started_at: string | null;
   /** Virtual MCP (agent) this thread was initiated with */
   virtual_mcp_id: string;
+  metadata: ThreadMetadata;
 }
 
 export interface ThreadMessageTable {

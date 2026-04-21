@@ -233,7 +233,6 @@ export function SiteDiagnosticsRecruitModal({
                 id: connectionId,
                 toolName: "diagnose",
               },
-              chatDefaultOpen: false,
             },
           },
         },

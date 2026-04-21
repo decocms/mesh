@@ -23,7 +23,6 @@ export const LOCALSTORAGE_KEYS = {
   assistantChatActiveTask: (locator: ProjectLocator) =>
     `mesh:assistant-chat:active-task:${locator}`,
   decoChatPanelWidth: () => `mesh:decochat:panel-width`,
-  decoTasksPanelWidth: () => `mesh:decotasks:panel-width`,
   sidebarOpen: () => `mesh:sidebar-open`,
   orgHomeQuickstart: (org: string) => `mesh:org-home:quickstart:${org}`,
   storeShowStdio: () => `mesh:store:show-stdio`,
@@ -36,6 +35,4 @@ export const LOCALSTORAGE_KEYS = {
   connectionsTab: (org: string) => `mesh:connections:tab:${org}`,
   taskLastViewed: (locator: ProjectLocator) =>
     `mesh:chat:task-last-viewed:${locator}`,
-  agentLastSeen: (orgId: string) => `mesh:agent:last-seen:${orgId}`,
-  agentLastUpdated: (orgId: string) => `mesh:agent:last-updated:${orgId}`,
 } as const;
