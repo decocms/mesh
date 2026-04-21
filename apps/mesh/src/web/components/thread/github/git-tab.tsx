@@ -15,7 +15,7 @@
 import { useProjectContext, useVirtualMCP } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import { GitBranch01, LinkExternal01 } from "@untitledui/icons";
-import { useOptionalChatStream } from "../../chat/chat-context.tsx";
+import { useChatBridge } from "../../chat/chat-context.tsx";
 import { useChatNavigation } from "../../chat/hooks/use-chat-navigation.ts";
 import { usePrByBranch } from "./use-pr-data.ts";
 import * as tpl from "./message-templates.ts";
@@ -26,15 +26,7 @@ export function GitTab({ virtualMcpId }: { virtualMcpId: string }) {
   const { branch } = useChatNavigation();
 
   const githubRepo = vm?.metadata?.githubRepo ?? null;
-  const chat = useOptionalChatStream();
-
-  if (!chat) {
-    return (
-      <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
-        Chat context is not ready.
-      </div>
-    );
-  }
+  const chat = useChatBridge();
 
   if (!githubRepo?.connectionId) {
     return (
@@ -69,15 +61,15 @@ export function GitTab({ virtualMcpId }: { virtualMcpId: string }) {
   );
 }
 
+import type { ChatBridgeValue } from "../../chat/chat-context.tsx";
+
 interface ContentProps {
   orgId: string;
   connectionId: string;
   owner: string;
   repo: string;
   branch: string;
-  sendMessage: (params: {
-    parts: Array<{ type: "text"; text: string }>;
-  }) => Promise<void>;
+  sendMessage: ChatBridgeValue["sendMessage"];
   isStreaming: boolean;
 }
 
