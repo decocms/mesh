@@ -74,6 +74,7 @@ export function MainPanelContent({
         }
       >
         <AppViewContent
+          key={activeTab}
           connectionId={pinnedView.connectionId}
           toolName={pinnedView.toolName}
         />
@@ -95,6 +96,7 @@ export function MainPanelContent({
         }
       >
         <AppViewContent
+          key={activeTab}
           connectionId={agentTab.view.appId}
           toolName={agentTab.id}
         />
