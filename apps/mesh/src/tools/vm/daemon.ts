@@ -23,12 +23,10 @@ export interface DaemonConfig {
   gitUserName: string;
   gitUserEmail: string;
   /**
-   * Branch to check out after clone. If provided, the daemon tries to
-   * `git checkout <branch>` (attaching to the remote ref if it exists);
-   * otherwise it creates the branch locally with `git checkout -b`.
-   * If null/undefined, the daemon falls back to a generated branch name.
+   * Branch to check out after clone. Required, non-empty. The daemon clones
+   * with `-b <branch>` so origin/<branch> points at the intended commit.
    */
-  injectedBranch?: string | null;
+  branch: string;
 }
 
 export function buildDaemonScript(config: DaemonConfig): string {
@@ -43,11 +41,14 @@ export function buildDaemonScript(config: DaemonConfig): string {
     bootstrapScript,
     gitUserName,
     gitUserEmail,
-    injectedBranch,
+    branch,
   } = config;
 
   if (!/^\d+$/.test(upstreamPort)) {
     throw new Error(`Invalid upstream port: ${upstreamPort}`);
+  }
+  if (typeof branch !== "string" || branch.length === 0) {
+    throw new Error("DaemonConfig.branch is required and must be non-empty");
   }
 
   return `const http = require("http");
@@ -66,16 +67,7 @@ const PORT = ${JSON.stringify(port)};
 const PATH_PREFIX = ${JSON.stringify(pathPrefix)};
 const GIT_USER_NAME = ${JSON.stringify(gitUserName)};
 const GIT_USER_EMAIL = ${JSON.stringify(gitUserEmail)};
-const INJECTED_BRANCH = ${JSON.stringify(injectedBranch ?? null)};
-
-const ADJECTIVES = ["amber","bold","bright","calm","crimson","coral","daring","deep","dusty","eager","faint","fierce","frozen","gentle","golden","grand","green","hollow","iron","ivory","keen","lasting","lunar","mellow","misty","noble","olive","pale","prime","quiet","rapid","rustic","serene","sharp","silver","sleek","solar","stark","still","swift","tawny","tender","thin","true","vast","velvet","warm","wild","young","zen"];
-const NOUNS = ["anchor","birch","brook","cedar","cliff","cove","crane","dune","echo","ember","falcon","fern","flint","forge","frost","glade","grove","harbor","hawk","iris","jade","lark","maple","marsh","mesa","opal","orbit","peak","pine","plume","quartz","rapids","reef","ridge","river","sage","shore","slate","spruce","stone","summit","thorn","tide","trail","vale","wren","aspen","delta","crest","spark"];
-
-function randomBranch() {
-  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
-  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
-  return "decopilot/" + adj + "-" + noun;
-}
+const BRANCH = ${JSON.stringify(branch)};
 
 const APP_ROOT = "/app";
 const DECO_UID = 1000;
@@ -237,17 +229,17 @@ function discoverScripts() {
 }
 
 function runSetup() {
-  // If an injected branch is provided, ask git to clone it directly with -b
-  // so origin/<branch> actually points at the intended commit. A plain
-  // --single-branch clone only fetches the remote default branch, so
-  // origin/<injected> would not exist and any subsequent checkout would
-  // resolve to the default branch HEAD (i.e. the wrong commit).
+  // Clone directly with -b <branch> so origin/<branch> points at the intended
+  // commit. A plain --single-branch clone only fetches the remote default
+  // branch, which would break subsequent checkouts against a non-default ref.
+  // BRANCH is always non-empty — validated at daemon build time.
   const branchNameOk = (b) => /^[A-Za-z0-9._/-]+$/.test(b) && !b.startsWith("-");
-  const injectedBranchSafe = INJECTED_BRANCH && branchNameOk(INJECTED_BRANCH) ? INJECTED_BRANCH : null;
-  if (INJECTED_BRANCH && !injectedBranchSafe) {
-    log("ignoring invalid injected branch: " + INJECTED_BRANCH);
+  if (!branchNameOk(BRANCH)) {
+    broadcastChunk("setup", "\\r\\nInvalid branch name: " + BRANCH + "\\r\\n");
+    log("invalid branch name: " + BRANCH);
+    return;
   }
-  const branchFlag = injectedBranchSafe ? " -b " + JSON.stringify(injectedBranchSafe) : "";
+  const branchFlag = " -b " + JSON.stringify(BRANCH);
   const cloneCmd = "git clone --depth 1 --single-branch" + branchFlag + " " + CLONE_URL + " /app";
   const cloneLabel = "$ git clone --depth 1 --single-branch" + branchFlag + " " + REPO_NAME + " /app";
   broadcastChunk("setup", cloneLabel + "\\r\\n");
@@ -268,28 +260,16 @@ function runSetup() {
       return;
     }
 
-    // Configure git identity and branch.
-    // Precedence: injected branch (from VM_START caller) > random.
-    // If we cloned with -b <injected>, we are already on that branch
-    // tracking origin/<injected> — no further checkout needed. Otherwise,
-    // create a new local branch from HEAD.
+    // Configure git identity. Branch is already checked out by the -b flag
+    // on the clone — nothing to do here. If the remote ref did not exist the
+    // clone itself would have failed; this code path runs only on success.
     try {
       execSync("git config user.name " + JSON.stringify(GIT_USER_NAME), { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
       execSync("git config user.email " + JSON.stringify(GIT_USER_EMAIL), { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
-      if (injectedBranchSafe) {
-        log("already on injected branch " + injectedBranchSafe + " from clone -b");
-      } else {
-        const branch = randomBranch();
-        if (!branchNameOk(branch)) {
-          throw new Error("Invalid branch name");
-        }
-        execSync("git checkout -b " + branch, { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
-        broadcastChunk("setup", "\\r\\n$ git checkout -b " + branch + "\\r\\n");
-        log("created branch " + branch);
-      }
+      log("on branch " + BRANCH);
     } catch (e) {
-      log("git branch setup failed:", e.message);
-      broadcastChunk("setup", "\\r\\nWarning: could not set up branch\\r\\n");
+      log("git identity setup failed:", e.message);
+      broadcastChunk("setup", "\\r\\nWarning: could not set up git identity\\r\\n");
     }
 
     if (!PM) {
