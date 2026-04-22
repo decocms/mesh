@@ -4,9 +4,9 @@
  * Listens for SSE events on the active task and resumes disconnected streams.
  */
 
-import { useRef } from "react";
+import { useRef, useSyncExternalStore } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useProjectContext } from "@decocms/mesh-sdk";
+import { useProjectContext, type ThreadDisplayStatus } from "@decocms/mesh-sdk";
 import type { UseChatHelpers } from "@ai-sdk/react";
 import { useDecopilotEvents } from "../../../hooks/use-decopilot-events";
 import { KEYS } from "../../../lib/query-keys";
@@ -18,16 +18,24 @@ export function useStreamManager(
   threadId: string,
   orgId: string,
   chat: UseChatHelpers<ChatMessage>,
+  threadStatus: ThreadDisplayStatus | undefined,
 ) {
   const { locator } = useProjectContext();
   const queryClient = useQueryClient();
 
-  const hasResumedRef = useRef<string | null>(null);
+  // Per-mount in-flight guard. Must NOT be module-scoped: useChat creates a
+  // fresh Chat instance per mount (not shared by id), so each mount's
+  // resumeStream() populates its own chat state. In React StrictMode dev, the
+  // double-mount will fire /attach twice — that's harmless (the server treats
+  // concurrent attaches as idempotent JetStream reads) and in production
+  // StrictMode isn't applied so only one fires.
+  const resumeInFlightRef = useRef(false);
   const resumeFailCountRef = useRef(0);
   const prevThreadIdRef = useRef(threadId);
   if (prevThreadIdRef.current !== threadId) {
     prevThreadIdRef.current = threadId;
     resumeFailCountRef.current = 0;
+    resumeInFlightRef.current = false;
   }
 
   const invalidateThreadList = () => {
@@ -51,20 +59,67 @@ export function useStreamManager(
     chat.status === "submitted" || chat.status === "streaming";
 
   const tryResumeStream = (reason: string) => {
-    if (!threadId || hasResumedRef.current === threadId) return;
+    if (!threadId) return;
+    if (resumeInFlightRef.current) return;
     if (resumeFailCountRef.current >= MAX_RESUME_RETRIES) return;
     if (isChatActive()) return;
-    hasResumedRef.current = threadId;
+    resumeInFlightRef.current = true;
 
     console.log(`[chat] resumeStream (${reason})`, threadId);
-    chat.resumeStream().catch((err: unknown) => {
-      console.error("[chat] resumeStream error", err);
-      resumeFailCountRef.current++;
-      hasResumedRef.current = null;
-      invalidateThreadList();
-      invalidateMessages();
-    });
+    chat
+      .resumeStream()
+      .then(() => {
+        resumeInFlightRef.current = false;
+        resumeFailCountRef.current = 0;
+      })
+      .catch((err: unknown) => {
+        console.error("[chat] resumeStream error", err);
+        resumeFailCountRef.current++;
+        resumeInFlightRef.current = false;
+        invalidateThreadList();
+        invalidateMessages();
+      });
   };
+
+  // Auto-resume on mount / task switch. If we land on an in-flight thread
+  // before the first SSE step arrives (e.g. the model is still inside its
+  // first completion), nothing would trigger /attach. "expired" is the virtual
+  // status for stuck in-progress runs — resuming those either picks up the
+  // orphaned run or force-fails it server-side.
+  //
+  // Trigger via useSyncExternalStore's subscribe so the resume kick-off runs
+  // post-mount. Calling chat.resumeStream() from a render-scheduled microtask
+  // can land /attach's onFinish inside the next render phase in StrictMode
+  // (when the server returns 204 fast), which trips React's "state update on
+  // a component that hasn't mounted yet" warning.
+  //
+  // The subscribe function identity must be stable per-threadId (otherwise
+  // React would re-fire the trigger every render). tryResumeStream itself is
+  // read through a ref so subscribe always sees the latest closure.
+  const tryResumeStreamRef = useRef(tryResumeStream);
+  tryResumeStreamRef.current = tryResumeStream;
+  const threadStatusRef = useRef(threadStatus);
+  threadStatusRef.current = threadStatus;
+
+  const autoResumeSubscribeRef = useRef<
+    ((onChange: () => void) => () => void) | null
+  >(null);
+  const autoResumeSubscribeThreadRef = useRef<string | null>(null);
+  if (autoResumeSubscribeThreadRef.current !== threadId) {
+    autoResumeSubscribeThreadRef.current = threadId;
+    autoResumeSubscribeRef.current = (_onChange: () => void) => {
+      const s = threadStatusRef.current;
+      if (threadId && (s === "in_progress" || s === "expired")) {
+        tryResumeStreamRef.current("auto-mount-or-status");
+      }
+      return () => {};
+    };
+  }
+  useSyncExternalStore(
+    autoResumeSubscribeRef.current!,
+    () => threadId,
+    () => threadId,
+  );
 
   // Task-scoped SSE (for stream resume on this specific task)
   useDecopilotEvents({
@@ -73,7 +128,7 @@ export function useStreamManager(
     onStep: () => tryResumeStream("sse-step"),
     onFinish: () => {
       if (!isChatActive()) {
-        hasResumedRef.current = null;
+        resumeInFlightRef.current = false;
         resumeFailCountRef.current = 0;
         invalidateThreadList();
         setTimeout(invalidateMessages, 2000);

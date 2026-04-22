@@ -334,7 +334,27 @@ export function PreviewContent() {
 
         {suspended && (
           <div className="absolute inset-0 z-30 bg-background/80 backdrop-blur-sm">
-            <VmSuspendedState onResume={openEnv} />
+            <VmSuspendedState
+              onResume={() => {
+                if (!virtualMcpId || !taskId) {
+                  // Fall back to opening the env panel so the user has a
+                  // surface to retry from manually.
+                  openEnv();
+                  return;
+                }
+                mcpClient
+                  .callTool({
+                    name: "VM_START",
+                    arguments: { virtualMcpId, threadId: taskId },
+                  })
+                  .catch((err) => {
+                    console.error("[preview] resume VM_START failed", err);
+                    // Surface the env panel so the user sees the full error
+                    // state + retry button rendered by env.tsx.
+                    openEnv();
+                  });
+              }}
+            />
           </div>
         )}
 
