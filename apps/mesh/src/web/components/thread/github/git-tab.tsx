@@ -16,11 +16,9 @@ import { useProjectContext, useVirtualMCP } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import { GitBranch01, LinkExternal01 } from "@untitledui/icons";
 import { MemoizedMarkdown } from "../../chat/markdown.tsx";
-import { useChatBridge } from "../../chat/chat-context.tsx";
 import { useChatNavigation } from "../../chat/hooks/use-chat-navigation.ts";
 import { decodeHtmlEntities } from "./decode-html-entities.ts";
 import { usePrByBranch } from "./use-pr-data.ts";
-import * as tpl from "./message-templates.ts";
 
 export function GitTab({ virtualMcpId }: { virtualMcpId: string }) {
   const { org } = useProjectContext();
@@ -28,7 +26,6 @@ export function GitTab({ virtualMcpId }: { virtualMcpId: string }) {
   const { branch } = useChatNavigation();
 
   const githubRepo = vm?.metadata?.githubRepo ?? null;
-  const chat = useChatBridge();
 
   if (!githubRepo?.connectionId) {
     return (
@@ -57,13 +54,9 @@ export function GitTab({ virtualMcpId }: { virtualMcpId: string }) {
       owner={githubRepo.owner}
       repo={githubRepo.name}
       branch={branch}
-      sendMessage={chat.sendMessage}
-      isStreaming={chat.isStreaming}
     />
   );
 }
-
-import type { ChatBridgeValue } from "../../chat/chat-context.tsx";
 
 interface ContentProps {
   orgId: string;
@@ -71,13 +64,10 @@ interface ContentProps {
   owner: string;
   repo: string;
   branch: string;
-  sendMessage: ChatBridgeValue["sendMessage"];
-  isStreaming: boolean;
 }
 
 function GitTabContent(props: ContentProps) {
-  const { orgId, connectionId, owner, repo, branch, sendMessage, isStreaming } =
-    props;
+  const { orgId, connectionId, owner, repo, branch } = props;
 
   const {
     data: pr,
@@ -90,10 +80,6 @@ function GitTabContent(props: ContentProps) {
     repo,
     branch,
   });
-
-  const send = async (text: string) => {
-    await sendMessage({ parts: [{ type: "text", text }] });
-  };
 
   const openExt = (url: string) => {
     window.open(url, "_blank", "noopener,noreferrer");
@@ -113,7 +99,6 @@ function GitTabContent(props: ContentProps) {
     );
   }
 
-  const base = pr?.base ?? "main";
   const branchUrl = `https://github.com/${owner}/${repo}/tree/${branch}`;
 
   // State D: merged / closed
@@ -184,44 +169,6 @@ function GitTabContent(props: ContentProps) {
             />
           </div>
         )}
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            disabled={isStreaming}
-            onClick={() =>
-              send(
-                tpl.mergeSquash({
-                  owner,
-                  repo,
-                  prNumber: pr.number,
-                  base: pr.base,
-                }),
-              )
-            }
-          >
-            Squash & merge
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={isStreaming}
-            onClick={() =>
-              send(tpl.rebaseOnBase({ owner, repo, branch, base: pr.base }))
-            }
-          >
-            Rebase on {pr.base}
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={isStreaming}
-            onClick={() =>
-              send(tpl.closePr({ owner, repo, prNumber: pr.number }))
-            }
-          >
-            Close PR
-          </Button>
-        </div>
       </div>
     );
   }
@@ -241,13 +188,6 @@ function GitTabContent(props: ContentProps) {
         of the branch.
       </div>
       <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          disabled={isStreaming}
-          onClick={() => send(tpl.createPr({ owner, repo, branch, base }))}
-        >
-          Create PR
-        </Button>
         <Button size="sm" variant="outline" onClick={() => openExt(branchUrl)}>
           <LinkExternal01 className="mr-1.5 h-4 w-4" />
           Open branch on GitHub
