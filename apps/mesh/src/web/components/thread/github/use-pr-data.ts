@@ -23,6 +23,8 @@ export interface PrSummary {
   mergedAt: string | null;
   base: string;
   head: string;
+  /** SHA of the PR head commit — used to fetch check runs. */
+  headSha: string;
   htmlUrl: string;
   author: string;
 }
@@ -50,6 +52,23 @@ export interface PrFile {
   additions: number;
   deletions: number;
   blobUrl: string | null;
+}
+
+export interface CheckRun {
+  id: string;
+  name: string;
+  status: "queued" | "in_progress" | "completed";
+  conclusion:
+    | "success"
+    | "failure"
+    | "neutral"
+    | "cancelled"
+    | "skipped"
+    | "timed_out"
+    | "action_required"
+    | null;
+  htmlUrl: string;
+  durationMs: number | null;
 }
 
 
@@ -93,6 +112,7 @@ export function usePrByBranch(args: RepoArgs & { branch: string | null }) {
         mergedAt: (p.merged_at as string | null) ?? null,
         base: (base?.ref as string) ?? "main",
         head: (head?.ref as string) ?? "",
+        headSha: (head?.sha as string) ?? "",
         htmlUrl: (p.html_url as string) ?? "",
         author: (user?.login as string) ?? "",
       };
@@ -139,6 +159,65 @@ export function usePrFiles(
           blobUrl: typeof f.blob_url === "string" ? f.blob_url : null,
         }),
       );
+    },
+  });
+}
+
+/**
+ * Fetches CI check runs for a specific commit SHA (the PR's head).
+ *
+ * If the downstream server exposes `list_check_runs` with a different
+ * argument shape, adjust `toolArguments` below — github-mcp-server's
+ * common arg is `ref: <sha>`.
+ */
+export function useChecks(
+  args: RepoArgs & { headSha: string | null | undefined },
+) {
+  const client = useMCPClient({
+    connectionId: args.connectionId,
+    orgId: args.orgId,
+  });
+
+  return useMCPToolCallQuery<CheckRun[]>({
+    client,
+    toolName: "list_check_runs",
+    toolArguments: {
+      owner: args.owner,
+      repo: args.repo,
+      ref: args.headSha ?? "",
+    },
+    enabled: !!args.headSha,
+    refetchInterval: POLL,
+    refetchIntervalInBackground: false,
+    staleTime: STALE,
+    select: (r) => {
+      // github-mcp-server typically wraps check runs as { check_runs: [...] }.
+      // Accept both that envelope and a raw array for resilience.
+      const raw = extractToolJson<
+        { check_runs?: Record<string, unknown>[] } | Record<string, unknown>[]
+      >(r);
+      const runs = Array.isArray(raw) ? raw : (raw?.check_runs ?? []);
+      return runs.map((c): CheckRun => {
+        const startedAt = (c as { started_at?: string }).started_at;
+        const completedAt = (c as { completed_at?: string }).completed_at;
+        const durationMs =
+          startedAt && completedAt
+            ? new Date(completedAt).getTime() - new Date(startedAt).getTime()
+            : null;
+        return {
+          id: String((c as { id?: unknown }).id ?? ""),
+          name: String((c as { name?: unknown }).name ?? ""),
+          status:
+            ((c as { status?: unknown }).status as CheckRun["status"]) ??
+            "completed",
+          conclusion:
+            ((c as { conclusion?: unknown }).conclusion as
+              | CheckRun["conclusion"]
+              | undefined) ?? null,
+          htmlUrl: String((c as { html_url?: unknown }).html_url ?? ""),
+          durationMs,
+        };
+      });
     },
   });
 }
