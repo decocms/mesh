@@ -99,12 +99,10 @@ export async function createMemory(
 
   let thread: Thread;
 
-  // Shared-container scope lives in `mintSandboxRef`: when a virtualMcpId is
-  // present, all threads for the same (user, agent) converge on one Docker
-  // container; thread isolation inside is handled by a git worktree per
-  // thread. Legacy threads keep whatever `sandbox_ref` they were created
-  // with — no migration.
-  const freshSandboxRef = () => mintSandboxRef(userId, virtualMcpId);
+  // Pod-per-thread: every thread gets its own container, so the ref is a
+  // random UUID. Legacy threads keep whatever `sandbox_ref` they were
+  // created with — no migration.
+  const freshSandboxRef = () => mintSandboxRef();
 
   if (!thread_id) {
     // Create new thread

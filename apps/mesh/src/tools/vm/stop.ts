@@ -103,7 +103,7 @@ export const VM_DELETE = defineTool({
           // the container teardown forcibly kills everything.
           if (runner instanceof DockerSandboxRunner) {
             await runner
-              .proxyDaemonRequest(row.handle, "/dev/stop", {
+              .proxyDaemonRequest(row.handle, "/_daemon/dev/stop", {
                 method: "POST",
                 headers: new Headers(),
                 body: null,

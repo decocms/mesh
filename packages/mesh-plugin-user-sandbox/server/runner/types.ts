@@ -75,6 +75,15 @@ export interface SandboxRunner {
   alive(handle: string): Promise<boolean>;
   sweepOrphans(): Promise<number>;
   /**
+   * Reconcile the platform-level ingress that routes
+   * `<handle>.sandboxes.<root>/*` and `/_daemon/*` to the pod's :3000 / :9000
+   * ports. Optional — Docker uses a local forwarder bound on the mesh host,
+   * so this is a no-op there. TODO(kubernetes-runner): implement for the
+   * k8s runner (create an Ingress with two path rules hitting two service
+   * ports on the same pod).
+   */
+  ensureIngress?(handle: string): Promise<void>;
+  /**
    * Return a base URL the mesh process can use to reach the sandbox daemon.
    * All dev-server traffic is proxied through the daemon via its `/proxy/:port/*`
    * endpoint — no extra host ports are published. Returns null for runners

@@ -4,7 +4,6 @@ import {
   type EnsureOptions,
   ensureSandbox,
 } from "mesh-plugin-user-sandbox/runner";
-import { ensureThreadWorkspace } from "mesh-plugin-user-sandbox/worktree";
 import { z } from "zod";
 import type { MeshContext } from "@/core/mesh-context";
 import { buildCloneInfo } from "@/shared/github-clone-info";
@@ -150,44 +149,22 @@ export function createSandboxBashTool(
         env: { ...userEnv },
         image: prepImage ?? undefined,
       });
-      // When the sandbox is shared across threads (agent-scoped sandbox_ref),
-      // each thread gets its own git worktree under /app/workspaces/.
-      // For per-thread sandbox_refs the helper still runs but typically
-      // returns /app (no isolation needed when nothing else shares the
-      // container). Skipped when no threadId is in scope (callers from
-      // outside a decopilot turn).
-      const threadId = ctx.metadata?.threadId;
-      const cwd = threadId
-        ? (await ensureThreadWorkspace(runner, sandbox.handle, threadId)).cwd
-        : undefined;
-      // Warm up the dev server in the background when a repo is attached, so
-      // the preview is ready by the time the user opens it. Fire-and-forget —
-      // `ensureSandbox` has already waited for the clone, and `/dev/start` is
-      // idempotent on subsequent calls.
-      //
-      // When per-thread dev is on, the warm-up targets this thread's worktree
-      // (`cwd`) and keys the daemon's dev state by threadId so siblings don't
-      // share one dev process. Without the flag, the daemon falls back to the
-      // default thread as before.
+      // Warm up the dev server in the background when a repo is attached so
+      // the preview is ready by the time the user opens it. Fire-and-forget:
+      // `ensureSandbox` already waited for the clone, and `/_daemon/dev/start`
+      // is idempotent on subsequent calls.
       if (resolved && runner instanceof DockerSandboxRunner) {
-        const perThread = process.env.MESH_SANDBOX_PER_THREAD_DEV === "1";
-        const devBody: Record<string, unknown> = {};
-        if (perThread && threadId) {
-          devBody.threadId = threadId;
-          if (cwd) devBody.cwd = cwd;
-        }
         runner
-          .proxyDaemonRequest(sandbox.handle, "/dev/start", {
+          .proxyDaemonRequest(sandbox.handle, "/_daemon/dev/start", {
             method: "POST",
             headers: new Headers({ "content-type": "application/json" }),
-            body: JSON.stringify(devBody),
+            body: JSON.stringify({}),
           })
           .catch(() => {});
       }
       const result = await runner.exec(sandbox.handle, {
         command: input.command,
         timeoutMs,
-        cwd,
       });
       return maybeTruncate(result, toolOutputMap);
     },

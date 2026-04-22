@@ -1,11 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { IncomingHttpHeaders } from "node:http";
 import * as net from "node:net";
 import { DAEMON_PORT, DEFAULT_IMAGE } from "../../shared";
 import {
   bootstrapRepo,
   daemonBash,
-  openDaemonUpgrade as openDaemonUpgradeClient,
   probeDaemonHealth,
   proxyDaemonRequest as proxyDaemonRequestClient,
   waitForDaemonReady,
@@ -85,6 +83,8 @@ type HostAccessMode = "add-host" | "network-host";
  */
 const ALLOW_HOST_NETWORK = process.env.MESH_SANDBOX_ALLOW_HOST_NETWORK === "1";
 
+const DEV_PORT = 3000;
+
 /** Private per-handle record. Never escapes the runner. */
 interface DockerRecord {
   handle: string;
@@ -92,6 +92,10 @@ interface DockerRecord {
   token: string;
   workdir: string;
   id: SandboxId;
+  /** Host-side port mapped to container :3000 (user's dev server). */
+  devPort: number;
+  /** Host-side port mapped to container :9000 (daemon). */
+  daemonPort: number;
   /**
    * True once we've attempted a repo bootstrap in this container. Covers both
    * successful clones and skipped-because-workdir-was-not-empty outcomes —
@@ -116,6 +120,8 @@ interface PersistedDockerState {
   token: string;
   workdir: string;
   daemonUrl: string;
+  devPort?: number;
+  daemonPort?: number;
   repoAttached?: boolean;
   ownedVolumes?: string[];
   networkHost?: boolean;
@@ -359,28 +365,49 @@ export class DockerSandboxRunner implements SandboxRunner {
 
     // Host-access resolution. Runs only when the caller asks for it — probe
     // is ~1s cold, no reason to pay the tax on plain sandboxes.
+    //
+    // Publish both ports on every provision:
+    //   - :DAEMON_PORT (9000) → daemon control plane
+    //   - :DEV_PORT    (3000) → user's dev server, reached directly
+    // In `--network=host` mode both ports live on the host namespace so the
+    // container-side bind already is the host-side port; there's nothing to
+    // publish.
     let hostArgs: string[] = [];
     let networkArgs: string[] = [];
     let portPublishArgs: string[] = [];
     let daemonUrl: string | null = null;
     let networkHost = false;
     let daemonPort = DAEMON_PORT;
+    let devPort: number | null = null;
 
     if (opts.addHostGateway) {
       const mode = await this.getHostAccessMode();
       if (mode === "add-host") {
         hostArgs = ["--add-host=host.docker.internal:host-gateway"];
-        portPublishArgs = ["-p", `127.0.0.1:0:${DAEMON_PORT}`];
+        portPublishArgs = [
+          "-p",
+          `127.0.0.1:0:${DAEMON_PORT}`,
+          "-p",
+          `127.0.0.1:0:${DEV_PORT}`,
+        ];
       } else {
         // In --network=host the `-p` flag is ignored, so we pick a free host
-        // port mesh-side and have the daemon bind directly to it.
+        // port mesh-side and have the daemon bind directly to it. The dev
+        // server still binds :3000 inside the container which == host :3000
+        // in this mode — single-tenant only, see HostAccessMode.
         networkArgs = ["--network=host"];
         networkHost = true;
         daemonPort = await pickFreePort();
         daemonUrl = `http://127.0.0.1:${daemonPort}`;
+        devPort = DEV_PORT;
       }
     } else {
-      portPublishArgs = ["-p", `127.0.0.1:0:${DAEMON_PORT}`];
+      portPublishArgs = [
+        "-p",
+        `127.0.0.1:0:${DAEMON_PORT}`,
+        "-p",
+        `127.0.0.1:0:${DEV_PORT}`,
+      ];
     }
 
     const env: Record<string, string> = {
@@ -448,6 +475,10 @@ export class DockerSandboxRunner implements SandboxRunner {
     if (!daemonUrl) {
       const hostPort = await this.readPort(handle, DAEMON_PORT);
       daemonUrl = `http://127.0.0.1:${hostPort}`;
+      daemonPort = hostPort;
+    }
+    if (devPort === null) {
+      devPort = await this.readPort(handle, DEV_PORT);
     }
     await this.waitForReady(daemonUrl, handle);
     return {
@@ -456,6 +487,8 @@ export class DockerSandboxRunner implements SandboxRunner {
       token,
       workdir,
       id,
+      devPort,
+      daemonPort,
       repoAttached: false,
       ownedVolumes,
       networkHost,
@@ -515,12 +548,9 @@ export class DockerSandboxRunner implements SandboxRunner {
   }
 
   /**
-   * HTTP passthrough to the sandbox daemon. The route handler calls this to
-   * reach either:
-   *   - dev-server traffic via `/proxy/:port/<subPath>`, or
-   *   - dev-lifecycle endpoints (`/dev/*`, `/_decopilot_vm/events`).
-   *
-   * The bearer token never leaves this class — the caller gets back a native
+   * HTTP passthrough to the sandbox daemon's `/_daemon/*` control plane.
+   * Caller passes the full daemon path (e.g. `/_daemon/dev/status`). The
+   * bearer token never leaves this class — the caller gets back a native
    * `Response` with the body streamed from the daemon.
    */
   async proxyDaemonRequest(
@@ -543,26 +573,16 @@ export class DockerSandboxRunner implements SandboxRunner {
     return proxyDaemonRequestClient(rec.daemonUrl, rec.token, path, init);
   }
 
-  /**
-   * Open a raw TCP upgrade to the daemon's `/proxy/:port/*` endpoint with the
-   * bearer attached. Caller is responsible for piping bytes to/from the
-   * browser socket.
-   */
-  async openDaemonUpgrade(
-    handle: string,
-    path: string,
-    clientHeaders: IncomingHttpHeaders | Headers,
-  ): Promise<net.Socket> {
+  /** Host-side port mapped to the sandbox's dev server (container :3000). */
+  async resolveDevPort(handle: string): Promise<number | null> {
     const rec = await this.lookupRecord(handle);
-    if (!rec) {
-      throw new Error(`sandbox not found: ${handle}`);
-    }
-    return openDaemonUpgradeClient(
-      rec.daemonUrl,
-      rec.token,
-      path,
-      clientHeaders,
-    );
+    return rec?.devPort ?? null;
+  }
+
+  /** Host-side port mapped to the sandbox daemon (container :9000). */
+  async resolveDaemonPort(handle: string): Promise<number | null> {
+    const rec = await this.lookupRecord(handle);
+    return rec?.daemonPort ?? null;
   }
 
   /**
@@ -607,15 +627,23 @@ export class DockerSandboxRunner implements SandboxRunner {
     if (!state.token || !state.daemonUrl) return null;
     const networkHost = state.networkHost ?? false;
     try {
+      const daemonPort = networkHost
+        ? (state.daemonPort ?? parseDaemonPortFromUrl(state.daemonUrl))
+        : await this.readPort(record.handle, DAEMON_PORT);
       const daemonUrl = networkHost
         ? state.daemonUrl
-        : `http://127.0.0.1:${await this.readPort(record.handle, DAEMON_PORT)}`;
+        : `http://127.0.0.1:${daemonPort}`;
+      const devPort = networkHost
+        ? DEV_PORT
+        : await this.readPort(record.handle, DEV_PORT);
       return {
         handle: record.handle,
         daemonUrl,
         token: state.token,
         workdir: state.workdir ?? DEFAULT_WORKDIR,
         id,
+        devPort,
+        daemonPort,
         repoAttached: state.repoAttached ?? false,
         ownedVolumes: state.ownedVolumes ?? [],
         networkHost,
@@ -667,10 +695,14 @@ export class DockerSandboxRunner implements SandboxRunner {
     // In host-network mode the DAEMON_PORT env is the authoritative host
     // port — no `-p` mapping to re-read. Otherwise ask docker for the
     // ephemeral port it picked.
-    const daemonUrl = networkHost
-      ? `http://127.0.0.1:${daemonPort}`
-      : `http://127.0.0.1:${await this.readPort(handle, DAEMON_PORT)}`;
+    const resolvedDaemonPort = networkHost
+      ? daemonPort
+      : await this.readPort(handle, DAEMON_PORT);
+    const daemonUrl = `http://127.0.0.1:${resolvedDaemonPort}`;
     if (!(await probeDaemonHealth(daemonUrl))) return null;
+    const devPort = networkHost
+      ? DEV_PORT
+      : await this.readPort(handle, DEV_PORT);
     // Recovered via docker inspect — state store is empty so we don't know
     // whether a repo was previously attached, nor which volumes the runner
     // owned. Leave both empty; the next ensure() will re-stamp them, and
@@ -681,6 +713,8 @@ export class DockerSandboxRunner implements SandboxRunner {
       token,
       workdir,
       id,
+      devPort,
+      daemonPort: resolvedDaemonPort,
       repoAttached: false,
       ownedVolumes: [],
       networkHost,
@@ -754,11 +788,21 @@ export class DockerSandboxRunner implements SandboxRunner {
       token: rec.token,
       workdir: rec.workdir,
       daemonUrl: rec.daemonUrl,
+      devPort: rec.devPort,
+      daemonPort: rec.daemonPort,
       repoAttached: rec.repoAttached,
       ownedVolumes: rec.ownedVolumes,
       networkHost: rec.networkHost,
     };
     await this.stateStore.put(id, RUNNER_KIND, { handle: rec.handle, state });
+  }
+}
+
+function parseDaemonPortFromUrl(url: string): number {
+  try {
+    return Number(new URL(url).port) || DAEMON_PORT;
+  } catch {
+    return DAEMON_PORT;
   }
 }
 

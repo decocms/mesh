@@ -1,14 +1,14 @@
 /**
  * Wire-protocol helpers for the sandbox daemon's HTTP API.
  *
+ * All control-plane routes live under `/_daemon/*` on the daemon's port.
+ * Callers pass the full path (including the `/_daemon` prefix) — the helpers
+ * don't magic it in, so each call site is greppable.
+ *
  * Pure functions parameterised by `(daemonUrl, token, …)` — no class state,
- * no docker CLI. Reusable from any runner (docker, k8s, freestyle…) that
- * targets the same daemon image, and mirrors the module split on the
- * container side under `image/daemon/*`.
+ * no docker CLI. Reusable from any runner that targets the same daemon image.
  */
 
-import * as net from "node:net";
-import type { IncomingHttpHeaders } from "node:http";
 import { gitIdentityScript, shellQuote } from "../../shared";
 import type { EnsureOptions, ExecInput, ExecOutput } from "./types";
 
@@ -42,14 +42,14 @@ export async function waitForDaemonReady(daemonUrl: string): Promise<void> {
   );
 }
 
-/** POST /bash — run a shell command inside the container. */
+/** POST /_daemon/bash — run a shell command inside the container. */
 export async function daemonBash(
   daemonUrl: string,
   token: string,
   input: ExecInput,
 ): Promise<ExecOutput> {
   const timeoutMs = input.timeoutMs ?? DEFAULT_EXEC_TIMEOUT_MS;
-  const response = await fetch(`${daemonUrl}/bash`, {
+  const response = await fetch(`${daemonUrl}/_daemon/bash`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -66,7 +66,7 @@ export async function daemonBash(
   if (!response.ok) {
     const body = await response.text().catch(() => "");
     throw new Error(
-      `sandbox daemon /bash returned ${response.status}${body ? `: ${body}` : ""}`,
+      `sandbox daemon /_daemon/bash returned ${response.status}${body ? `: ${body}` : ""}`,
     );
   }
   const json = (await response.json()) as {
@@ -99,8 +99,6 @@ export async function bootstrapRepo(
   repo: NonNullable<EnsureOptions["repo"]>,
 ): Promise<void> {
   const qWorkdir = shellQuote(workdir);
-  // `shopt -s dotglob nullglob` lets the glob expand to dotfiles and to
-  // nothing when the dir is empty, so `mv` never sees `*` literally.
   const cmd = [
     gitIdentityScript(repo.userName, repo.userEmail),
     `if [ -d ${qWorkdir}/.git ]; then echo "workdir already a git repo, skipping clone"; elif [ -z "$(ls -A ${qWorkdir} 2>/dev/null)" ]; then git clone ${shellQuote(repo.cloneUrl)} ${qWorkdir}; else BACKUP=${qWorkdir}.prelink.$(date +%s) && mkdir -p "$BACKUP" && ( shopt -s dotglob nullglob && mv ${qWorkdir}/* "$BACKUP"/ ) && echo "moved pre-link contents to $BACKUP" && git clone ${shellQuote(repo.cloneUrl)} ${qWorkdir}; fi`,
@@ -119,11 +117,9 @@ export async function bootstrapRepo(
 
 /**
  * Headers that must never flow from the browser through mesh into the user
- * sandbox. The browser attaches the mesh session cookie to every same-origin
- * request (including `/api/sandbox/<handle>/preview/*`), so without this the
- * user's dev server sees the caller's mesh session. Also covers hop-by-hop
- * headers per RFC 7230 — except `connection`/`upgrade`, which the WS upgrade
- * path needs intact and handles separately.
+ * sandbox. The browser attaches the mesh session cookie to same-origin
+ * requests; without this strip the daemon would see the caller's session.
+ * Also covers hop-by-hop headers per RFC 7230.
  */
 const STRIP_REQUEST_HEADERS = [
   "cookie",
@@ -140,16 +136,15 @@ const STRIP_REQUEST_HEADERS = [
 ];
 
 /**
- * HTTP passthrough to the daemon — the caller's bearer is overwritten with
- * ours and hop-by-hop + session-cookie headers are dropped. Returns the
- * native `Response` so the body streams through without buffering.
+ * HTTP passthrough to the daemon. Caller passes the full daemon path
+ * (e.g. `/_daemon/dev/status`). The browser's cookies + auth header are
+ * dropped and replaced with the bearer. Returns the native `Response` so the
+ * body streams through without buffering.
  *
  * `signal` must be the client's AbortSignal (e.g. `c.req.raw.signal` in
- * Hono). For long-lived streams — especially the SSE endpoint — the browser
- * closing the connection has to cascade all the way to the daemon so it can
- * drop the subscriber. Without this forwarding, daemon-side SSE
- * subscriptions leak and eventually trip the `MAX_SSE_CLIENTS` cap with
- * 429s.
+ * Hono). For long-lived streams — especially SSE — the browser closing the
+ * connection has to cascade all the way to the daemon so it can drop the
+ * subscriber.
  */
 export async function proxyDaemonRequest(
   daemonUrl: string,
@@ -176,60 +171,6 @@ export async function proxyDaemonRequest(
     // @ts-expect-error Bun/Undici-only: allow streaming request body.
     duplex: hasBody ? "half" : undefined,
   });
-}
-
-/**
- * Raw TCP upgrade to the daemon with bearer attached. Caller pipes bytes
- * to/from the browser socket. We write the HTTP/1.1 request line by hand
- * instead of using `http.request` so the upstream socket is ours from before
- * the 101 handshake — needed to forward the full response verbatim.
- */
-export async function openDaemonUpgrade(
-  daemonUrl: string,
-  token: string,
-  path: string,
-  clientHeaders: IncomingHttpHeaders | Headers,
-): Promise<net.Socket> {
-  const daemonHost = new URL(daemonUrl);
-  const socket = net.connect(
-    Number(daemonHost.port || 80),
-    daemonHost.hostname,
-  );
-  await new Promise<void>((resolve, reject) => {
-    socket.once("connect", () => resolve());
-    socket.once("error", reject);
-  });
-
-  const headers: Record<string, string> = {};
-  if (clientHeaders instanceof Headers) {
-    clientHeaders.forEach((value, key) => {
-      headers[key] = value;
-    });
-  } else {
-    for (const [k, v] of Object.entries(clientHeaders)) {
-      if (v == null) continue;
-      // Multi-value headers collapse to last-wins in a Record.
-      for (const vv of Array.isArray(v) ? v : [v]) headers[k] = vv;
-    }
-  }
-  // Strip the browser's mesh session cookie before handing off to the user
-  // sandbox. See STRIP_REQUEST_HEADERS rationale on proxyDaemonRequest; here
-  // we keep `connection`/`upgrade` because they're part of the WS handshake.
-  delete headers["cookie"];
-  delete headers["proxy-authenticate"];
-  delete headers["proxy-authorization"];
-  // Overwrite the client's host/auth with ours — the daemon only accepts
-  // bearer auth and must see its own loopback host in the Host header.
-  headers["host"] = `127.0.0.1:${daemonHost.port}`;
-  headers["authorization"] = `Bearer ${token}`;
-
-  const lines = [`GET ${path.startsWith("/") ? path : `/${path}`} HTTP/1.1`];
-  for (const [k, v] of Object.entries(headers)) {
-    lines.push(`${k}: ${v}`);
-  }
-  lines.push("", "");
-  socket.write(lines.join("\r\n"));
-  return socket;
 }
 
 function sleep(ms: number): Promise<void> {

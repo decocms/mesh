@@ -49,7 +49,7 @@ import oauthProxyRoutes, {
 } from "./routes/oauth-proxy";
 import openaiCompatRoutes from "./routes/openai-compat";
 import proxyRoutes from "./routes/proxy";
-import { createSandboxPreviewRoutes } from "./routes/sandbox-preview";
+import { createSandboxDaemonRoutes } from "./routes/sandbox-daemon";
 import { createKVRoutes } from "./routes/kv";
 import { createTriggerCallbackRoutes } from "./routes/trigger-callback";
 import publicConfigRoutes from "./routes/public-config";
@@ -1381,10 +1381,11 @@ export async function createApp(options: CreateAppOptions = {}) {
   });
   app.route("/api", decopilotRoutes);
 
-  // Browser-facing reverse-proxy for Docker-backed sandbox dev servers.
-  // Mounted at root: the route module defines the full `/api/sandbox/...`
-  // path so session middleware still applies.
-  app.route("/", createSandboxPreviewRoutes());
+  // Daemon control-plane passthrough for Docker-backed sandboxes.
+  // Dev-server traffic does NOT flow through mesh — pods expose their dev
+  // server directly on their public URL. Only daemon control (bash, dev
+  // lifecycle, fs ops, SSE logs) goes through the session-authed mesh route.
+  app.route("/", createSandboxDaemonRoutes());
 
   // Stable file redirect endpoint (resolves mesh-storage: URIs to presigned URLs)
   app.route("/api", filesRoutes);

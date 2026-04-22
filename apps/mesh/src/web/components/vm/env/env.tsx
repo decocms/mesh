@@ -184,10 +184,17 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     }
   };
 
-  const vmEvents = useVmEvents(
-    status === "running" ? (vmDataRef.current?.previewUrl ?? null) : null,
-    handleChunk,
-  );
+  // Docker → session-authed mesh passthrough (bearer stays server-side).
+  // Freestyle → VM-internal daemon served from the VM's own domain.
+  const sseUrl =
+    status !== "running"
+      ? null
+      : sandbox?.kind === "docker"
+        ? `/api/sandbox/${sandbox.handle}/_daemon/_decopilot_vm/events`
+        : vmDataRef.current?.previewUrl
+          ? `${vmDataRef.current.previewUrl}/_decopilot_vm/events`
+          : null;
+  const vmEvents = useVmEvents(sseUrl, handleChunk);
 
   // When scripts are discovered, auto-open well-known starters
   const scriptsAppliedRef = useRef(false);
@@ -217,33 +224,22 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     );
   };
 
-  // Docker sandboxes expose lifecycle via the new /api/sandbox/<handle>/dev/*
-  // routes (daemon-backed). Freestyle VMs still use the legacy
-  // <previewUrl>/_decopilot_vm/exec|kill endpoints. Pick the right URL + body
-  // shape based on which path produced vmDataRef.
+  // Docker sandboxes drive lifecycle through the session-authed mesh
+  // passthrough `/api/sandbox/<handle>/_daemon/dev/*`. Freestyle VMs hit
+  // `<previewUrl>/_decopilot_vm/exec|kill` — no daemon token in that path.
   const buildLifecycleRequest = (
     verb: "start" | "stop",
     scriptName: string,
   ): { url: string; init: RequestInit } => {
     if (sandbox?.kind === "docker") {
       const path = verb === "start" ? "dev/start" : "dev/stop";
-      // Forward the user-configured port so the daemon can pick it over any
-      // other listener the dev process binds (API + Vite is the canonical
-      // case). Ignored by the daemon when absent.
-      const preferredPortRaw = runtime?.port ? Number(runtime.port) : null;
-      const preferredPort =
-        preferredPortRaw && Number.isFinite(preferredPortRaw)
-          ? preferredPortRaw
-          : undefined;
       return {
-        url: `/api/sandbox/${sandbox.handle}/${path}`,
+        url: `/api/sandbox/${sandbox.handle}/_daemon/${path}`,
         init: {
           method: "POST",
           headers: { "content-type": "application/json" },
           body:
-            verb === "start"
-              ? JSON.stringify({ script: scriptName, preferredPort })
-              : "{}",
+            verb === "start" ? JSON.stringify({ script: scriptName }) : "{}",
         },
       };
     }

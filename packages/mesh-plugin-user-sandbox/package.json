@@ -10,8 +10,7 @@
   "exports": {
     "./shared": "./shared.ts",
     "./runner": "./server/runner/index.ts",
-    "./prep": "./server/prep/bake.ts",
-    "./worktree": "./server/ensure-worktree.ts"
+    "./prep": "./server/prep/bake.ts"
   },
   "dependencies": {
     "freestyle-sandboxes": "^0.1.46"

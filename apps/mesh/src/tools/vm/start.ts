@@ -31,12 +31,37 @@ import { buildCloneInfo } from "../../shared/github-clone-info";
 import { buildDaemonScript } from "./daemon";
 import type { MeshContext } from "../../core/mesh-context";
 import { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
-import { ensureThreadWorkspace } from "mesh-plugin-user-sandbox/worktree";
 import { getSharedRunner } from "../../sandbox/shared-runner";
 import { resolvePrepImage } from "../../sandbox/prep-enqueue";
 import { mintSandboxRef } from "../../sandbox/sandbox-ref";
 
 const PROXY_PORT = 9000;
+
+/**
+ * Compose the pod-public sandbox URL for a given handle. Reads
+ * `SANDBOX_ROOT_URL` at call time so deploys can rewrite it without a build.
+ * Default: `http://<handle>.sandboxes.localhost:<SANDBOX_INGRESS_PORT|7000>/`.
+ */
+export function composeSandboxUrl(handle: string): string {
+  const root = process.env.SANDBOX_ROOT_URL;
+  if (root) {
+    const base = root.replace(/\/+$/, "");
+    // Template: `{handle}` placeholder lets prod use something like
+    // `https://{handle}.sandboxes.example.com` without shell escaping.
+    if (base.includes("{handle}"))
+      return `${base.replace("{handle}", handle)}/`;
+    // Absent placeholder, inject as a leading subdomain.
+    try {
+      const u = new URL(base);
+      u.hostname = `${handle}.${u.hostname}`;
+      return `${u.toString()}/`;
+    } catch {
+      // Fall through to local default below.
+    }
+  }
+  const ingressPort = Number(process.env.SANDBOX_INGRESS_PORT ?? 7000);
+  return `http://${handle}.sandboxes.localhost:${ingressPort}/`;
+}
 
 function resolveRunnerKind(): "docker" | "freestyle" {
   const raw = process.env.MESH_SANDBOX_RUNNER;
@@ -295,11 +320,11 @@ async function dockerStart(
       id: input.threadId,
       created_by: userId,
       virtual_mcp_id: input.virtualMcpId,
-      sandbox_ref: mintSandboxRef(userId, input.virtualMcpId),
+      sandbox_ref: mintSandboxRef(),
     });
   } else if (!thread.sandbox_ref) {
     thread = await ctx.storage.threads.update(thread.id, {
-      sandbox_ref: mintSandboxRef(userId, input.virtualMcpId),
+      sandbox_ref: mintSandboxRef(),
     });
   }
   const sandboxRef = thread.sandbox_ref;
@@ -339,8 +364,7 @@ async function dockerStart(
         connectionId: repo.connectionId,
       })
     : null;
-  const { port: preferredPortRaw, runtime } = resolveRuntimeConfig(metadata);
-  const preferredPortNum = preferredPortRaw ? Number(preferredPortRaw) : NaN;
+  const { runtime } = resolveRuntimeConfig(metadata);
   const sandbox = await runner.ensure(
     {
       userId,
@@ -360,48 +384,20 @@ async function dockerStart(
   );
 
   // Kick off the dev server now that `ensure()` has guaranteed the clone is
-  // complete. Idempotent — the daemon's `/dev/start` no-ops when phase is
-  // already starting/installing/ready, so repeated calls from page polls
-  // (see decopilot/routes.ts) are safe. Skipped for repo-less spins: no
-  // package.json means nothing to run.
-  const perThreadDev = process.env.MESH_SANDBOX_PER_THREAD_DEV === "1";
-  let threadCwd: string | undefined;
-  if (perThreadDev && runner instanceof DockerSandboxRunner) {
-    // Ensure the worktree exists up front so `/dev/start` can root against
-    // it. Without this, the preview iframe would target /app while bash
-    // writes go to the per-thread worktree — same HMR-blind bug the
-    // whole per-thread-dev plan exists to fix.
-    try {
-      const ws = await ensureThreadWorkspace(
-        runner,
-        sandbox.handle,
-        input.threadId,
-      );
-      threadCwd = ws.cwd;
-    } catch (err) {
-      console.warn(
-        `[VM_START] ensureThreadWorkspace failed for ${sandbox.handle}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-  }
+  // complete. Idempotent — the daemon's `/_daemon/dev/start` no-ops when
+  // phase is already starting/installing/ready, so repeated calls from page
+  // polls (see decopilot/routes.ts) are safe. Skipped for repo-less spins:
+  // no package.json means nothing to run.
   if (repo && runner instanceof DockerSandboxRunner) {
     // `runtime` tells the sandbox daemon which toolchain to use. Deno in
     // particular is lazy-installed into the container on first use, and the
     // daemon reads tasks from `deno.json` instead of `package.json.scripts`
     // — so a wrong guess here means the dev server never starts.
-    const preferredPort = Number.isFinite(preferredPortNum)
-      ? preferredPortNum
-      : undefined;
     const devBody: Record<string, unknown> = {
-      preferredPort,
       runtime: runtime ?? undefined,
     };
-    if (perThreadDev) {
-      devBody.threadId = input.threadId;
-      if (threadCwd) devBody.cwd = threadCwd;
-    }
     runner
-      .proxyDaemonRequest(sandbox.handle, "/dev/start", {
+      .proxyDaemonRequest(sandbox.handle, "/_daemon/dev/start", {
         method: "POST",
         headers: new Headers({ "content-type": "application/json" }),
         body: JSON.stringify(devBody),
@@ -413,13 +409,10 @@ async function dockerStart(
       });
   }
 
-  // Port-less URL — the preview proxy resolves the actual port via the
-  // daemon's /dev/status. The dev server can bind to 127.0.0.1 or any port
-  // and it still works. When per-thread dev is on, route through the
-  // thread-scoped prefix so each preview lands on its own dev process.
-  const previewUrl = perThreadDev
-    ? `/api/sandbox/${sandbox.handle}/thread/${encodeURIComponent(input.threadId)}/preview/`
-    : `/api/sandbox/${sandbox.handle}/preview/`;
+  // Preview URL points at the pod's own public host (no mesh in the middle
+  // for dev traffic). Local dev resolves via dnsmasq + the local ingress
+  // forwarder bound in index.ts; prod resolves via the wildcard ingress.
+  const previewUrl = composeSandboxUrl(sandbox.handle);
   const entry: VmEntry = {
     vmId: sandbox.handle,
     previewUrl,

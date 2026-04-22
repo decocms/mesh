@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 /**
- * Sandbox daemon entry: builds the HTTP server, routes incoming requests to
- * feature modules, wires the WebSocket upgrade handler, and tears down the
- * dev process on SIGINT/SIGTERM.
+ * Sandbox daemon entry: builds the HTTP server, routes control-plane requests
+ * under `/_daemon/*`, and tears down the dev process on SIGINT/SIGTERM.
  *
- * Each concern lives in `./daemon/<name>.mjs` — this file is intentionally
- * just the dispatch table so the routes read as a straight list.
+ * Port layout inside the container:
+ *   - `:DEV_PORT` (3000)  — the user's dev server, bound directly. Pods
+ *     expose this port externally; the daemon does NOT proxy dev traffic.
+ *   - `:DAEMON_PORT` (9000) — this daemon. Everything is under `/_daemon/*`
+ *     and bearer-authed. Anything else on 9000 returns 404.
  */
 
 import { spawn } from "node:child_process";
@@ -35,10 +37,9 @@ import {
 } from "./daemon/fs-ops.mjs";
 import { readJson, send, sendText } from "./daemon/http-helpers.mjs";
 import { childEnv } from "./daemon/lazy-install.mjs";
-import { handleUpgrade, parseProxyUrl, proxyHttp } from "./daemon/proxy.mjs";
 import { inspectWorkdir } from "./daemon/workdir.mjs";
 
-// ─── Legacy bash endpoint ───────────────────────────────────────────────────
+const DAEMON_PREFIX = "/_daemon";
 
 function runBash(command, timeoutMs, cwd = WORKDIR) {
   return new Promise((resolve) => {
@@ -67,24 +68,71 @@ function runBash(command, timeoutMs, cwd = WORKDIR) {
   });
 }
 
-// ─── Server ─────────────────────────────────────────────────────────────────
+/**
+ * Reject any request that still carries a `threadId` param, so stale callers
+ * surface as 400s instead of being silently accepted. Pod-per-thread → the
+ * daemon has no thread concept any more.
+ */
+async function rejectsThreadId(req, res, url) {
+  const u = new URL(url, "http://local");
+  if (u.searchParams.has("threadId")) {
+    send(res, 400, {
+      error:
+        "threadId is no longer supported — pod-per-thread; one sandbox, one dev process",
+    });
+    return true;
+  }
+  if (req.method === "POST") {
+    const ctype = (req.headers["content-type"] ?? "").toLowerCase();
+    if (ctype.includes("application/json")) {
+      const body = await readJson(req).catch(() => null);
+      if (body && typeof body === "object" && "threadId" in body) {
+        send(res, 400, {
+          error:
+            "threadId is no longer supported — pod-per-thread; one sandbox, one dev process",
+        });
+        return true;
+      }
+      // Stash the already-parsed body so route handlers don't re-read the
+      // stream (Node's IncomingMessage only yields its data once).
+      req._parsedBody = body ?? {};
+    }
+  }
+  return false;
+}
+
+async function parsedBody(req) {
+  if (req._parsedBody !== undefined) return req._parsedBody;
+  return (await readJson(req).catch(() => ({}))) ?? {};
+}
 
 const server = http.createServer(async (req, res) => {
   // Health is intentionally unauthenticated — runner probes it before a
-  // token is in play.
+  // token is in play. No /_daemon prefix because this is the only non-
+  // /_daemon route the daemon answers.
   if (req.method === "GET" && req.url === "/health") {
     send(res, 200, { ok: true });
     return;
   }
 
-  const url = req.url ?? "/";
+  const rawUrl = req.url ?? "/";
+
+  // Everything else must be under /_daemon/*. Anything else is 404.
+  if (!rawUrl.startsWith(`${DAEMON_PREFIX}/`) && rawUrl !== DAEMON_PREFIX) {
+    send(res, 404, { error: "not found" });
+    return;
+  }
+
+  // Sub-path after the daemon prefix, with query preserved.
+  const sub = rawUrl.slice(DAEMON_PREFIX.length);
+  const subUrl = sub.length === 0 ? "/" : sub;
 
   // CORS preflight for daemon-direct routes. Mesh normally proxies these
   // server-to-server so preflight rarely fires in practice, but browsers
   // that hit the daemon directly (dev loops, tools) still need the OK.
   if (
     req.method === "OPTIONS" &&
-    (url.startsWith("/fs/") || url.startsWith("/_decopilot_vm/"))
+    (subUrl.startsWith("/fs/") || subUrl.startsWith("/_decopilot_vm/"))
   ) {
     res.writeHead(204, {
       "access-control-allow-origin": "*",
@@ -100,7 +148,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (req.method === "GET" && url.startsWith("/_decopilot_vm/events")) {
+  if (await rejectsThreadId(req, res, subUrl)) return;
+
+  if (req.method === "GET" && subUrl.startsWith("/_decopilot_vm/events")) {
     if (subscribers.size >= MAX_SSE_CLIENTS) {
       send(res, 429, { error: "too many SSE subscribers" });
       return;
@@ -129,8 +179,8 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (req.method === "POST" && url === "/dev/start") {
-    const body = await readJson(req).catch(() => ({}));
+  if (req.method === "POST" && subUrl === "/dev/start") {
+    const body = await parsedBody(req);
     startDev(body).catch((err) => {
       appendLog(
         "daemon",
@@ -140,17 +190,17 @@ const server = http.createServer(async (req, res) => {
     send(res, 202, currentStatusPayload());
     return;
   }
-  if (req.method === "POST" && url === "/dev/stop") {
+  if (req.method === "POST" && subUrl === "/dev/stop") {
     await stopDev().catch(() => {});
     send(res, 200, currentStatusPayload());
     return;
   }
-  if (req.method === "GET" && url.startsWith("/dev/status")) {
+  if (req.method === "GET" && subUrl.startsWith("/dev/status")) {
     send(res, 200, currentStatusPayload());
     return;
   }
-  if (req.method === "GET" && url.startsWith("/dev/logs")) {
-    const u = new URL(url, "http://local");
+  if (req.method === "GET" && subUrl.startsWith("/dev/logs")) {
+    const u = new URL(subUrl, "http://local");
     const tail = Math.max(
       1,
       Math.min(LOG_RING_CAP, Number(u.searchParams.get("tail") ?? 200)),
@@ -163,8 +213,8 @@ const server = http.createServer(async (req, res) => {
     sendText(res, 200, entries + (entries ? "\n" : ""));
     return;
   }
-  if (req.method === "GET" && url.startsWith("/dev/scripts")) {
-    const u = new URL(url, "http://local");
+  if (req.method === "GET" && subUrl.startsWith("/dev/scripts")) {
+    const u = new URL(subUrl, "http://local");
     const cwdParam = u.searchParams.get("cwd");
     const scriptsCwd =
       cwdParam && cwdParam.length > 0 ? cwdParam : dev.cwd || WORKDIR;
@@ -173,34 +223,21 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Typed file ops. Plain JSON bodies, paths rooted at /app (or body.cwd).
-  if (req.method === "POST" && url === "/fs/read")
+  if (req.method === "POST" && subUrl === "/fs/read")
     return handleFsRead(req, res);
-  if (req.method === "POST" && url === "/fs/write")
+  if (req.method === "POST" && subUrl === "/fs/write")
     return handleFsWrite(req, res);
-  if (req.method === "POST" && url === "/fs/edit")
+  if (req.method === "POST" && subUrl === "/fs/edit")
     return handleFsEdit(req, res);
-  if (req.method === "POST" && url === "/fs/grep")
+  if (req.method === "POST" && subUrl === "/fs/grep")
     return handleFsGrep(req, res);
-  if (req.method === "POST" && url === "/fs/glob")
+  if (req.method === "POST" && subUrl === "/fs/glob")
     return handleFsGlob(req, res);
 
-  // HTTP proxy to container loopback. Legacy — dev-server traffic migrates
-  // to its own host-mapped port in a follow-up commit.
-  if (url.startsWith("/proxy/")) {
-    const parsed = parseProxyUrl(url);
-    if (!parsed) {
-      send(res, 400, { error: "Invalid proxy URL" });
-      return;
-    }
-    proxyHttp(req, res, parsed);
-    return;
-  }
-
-  // Legacy bash endpoint — kept for one-shot commands.
-  if (req.method === "POST" && url === "/bash") {
+  if (req.method === "POST" && subUrl === "/bash") {
     try {
-      const { command, timeoutMs = 60_000, cwd } = await readJson(req);
+      const body = await parsedBody(req);
+      const { command, timeoutMs = 60_000, cwd } = body;
       if (typeof command !== "string" || command.length === 0) {
         send(res, 400, { error: "command is required" });
         return;
@@ -215,8 +252,6 @@ const server = http.createServer(async (req, res) => {
 
   send(res, 404, { error: "not found" });
 });
-
-server.on("upgrade", handleUpgrade);
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(

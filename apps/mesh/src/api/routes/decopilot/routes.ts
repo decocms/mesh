@@ -39,7 +39,7 @@ import type { SqlThreadStorage } from "@/storage/threads";
 import { getPodId } from "@/core/pod-identity";
 import { getSharedRunner } from "@/sandbox/shared-runner";
 import { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
-import { ensureThreadWorkspace } from "mesh-plugin-user-sandbox/worktree";
+import { composeSandboxUrl } from "@/tools/vm/start";
 
 // ============================================================================
 // Request Validation
@@ -457,20 +457,20 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
       // endpoint on every poll is safe. Phase "idle" happens after a daemon
       // restart (container still alive but never saw a /dev/start yet).
       const runner = getSharedRunner(ctx);
-      const perThreadDev = process.env.MESH_SANDBOX_PER_THREAD_DEV === "1";
       let phase: string | undefined;
       let serverUp = false;
       let crashBackoffRemainingMs = 0;
       if (runner instanceof DockerSandboxRunner) {
-        const statusPath = perThreadDev
-          ? `/dev/status?threadId=${encodeURIComponent(taskId)}`
-          : "/dev/status";
         try {
-          const res = await runner.proxyDaemonRequest(row.handle, statusPath, {
-            method: "GET",
-            headers: new Headers(),
-            body: null,
-          });
+          const res = await runner.proxyDaemonRequest(
+            row.handle,
+            "/_daemon/dev/status",
+            {
+              method: "GET",
+              headers: new Headers(),
+              body: null,
+            },
+          );
           if (res.ok) {
             const status = (await res.json()) as {
               phase?: string;
@@ -496,33 +496,15 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           !inCrashBackoff &&
           (phase === "idle" || phase === "exited" || phase === "crashed")
         ) {
-          let cwdForRestart: string | undefined;
-          if (perThreadDev) {
-            try {
-              const ws = await ensureThreadWorkspace(
-                runner,
-                row.handle,
-                taskId,
-              );
-              cwdForRestart = ws.cwd;
-            } catch {
-              // Non-fatal — daemon will fall back to WORKDIR.
-            }
-          }
           // Auto-poll never sends `restart: true` — that flag resets the
           // daemon's crash-loop counter, so polling in a crash scenario would
           // hold the backoff at the shortest window forever. Human-triggered
           // restarts go through a separate UI path that sets restart:true.
-          const startBody: Record<string, unknown> = { restart: false };
-          if (perThreadDev) {
-            startBody.threadId = taskId;
-            if (cwdForRestart) startBody.cwd = cwdForRestart;
-          }
           runner
-            .proxyDaemonRequest(row.handle, "/dev/start", {
+            .proxyDaemonRequest(row.handle, "/_daemon/dev/start", {
               method: "POST",
               headers: new Headers({ "content-type": "application/json" }),
-              body: JSON.stringify(startBody),
+              body: JSON.stringify({ restart: false }),
             })
             .catch(() => {
               // Fire-and-forget — the UI will re-poll /dev/status.
@@ -530,9 +512,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
         }
       }
 
-      const previewUrl = perThreadDev
-        ? `/api/sandbox/${row.handle}/thread/${encodeURIComponent(taskId)}/preview/`
-        : `/api/sandbox/${row.handle}/preview/`;
+      const previewUrl = composeSandboxUrl(row.handle);
 
       const body: ThreadSandboxResponse = {
         sandbox: {

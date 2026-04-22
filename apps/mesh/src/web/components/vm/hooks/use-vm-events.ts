@@ -55,7 +55,7 @@ const MAX_RECONNECT_DELAY_MS = 30_000;
 const EVENT_TYPES = ["log", "status", "scripts", "processes"] as const;
 
 export function useVmEvents(
-  previewUrl: string | null,
+  sseUrl: string | null,
   onChunk: ChunkHandler | null,
 ) {
   const [status, setStatus] = useState<VmStatus>({
@@ -84,7 +84,7 @@ export function useVmEvents(
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — SSE subscription lifecycle requires cleanup on unmount; direct EventSource with reconnect logic
   useEffect(() => {
-    if (!previewUrl) return;
+    if (!sseUrl) return;
 
     // Reset state for new connection
     setStatus({ ready: false, htmlSupport: false });
@@ -135,9 +135,9 @@ export function useVmEvents(
     };
 
     function connect() {
-      if (disposed) return;
+      if (disposed || !sseUrl) return;
 
-      es = new EventSource(`${previewUrl}/_decopilot_vm/events`);
+      es = new EventSource(sseUrl);
 
       es.onopen = () => {
         reconnectAttempt = 0;
@@ -189,7 +189,7 @@ export function useVmEvents(
       if (reconnectTimer) clearTimeout(reconnectTimer);
       clearSuspendTimer();
     };
-  }, [previewUrl]);
+  }, [sseUrl]);
 
   return {
     status,

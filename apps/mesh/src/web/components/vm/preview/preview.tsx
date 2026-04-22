@@ -165,7 +165,13 @@ export function PreviewContent() {
     !!threadSandbox &&
     (threadSandbox.thread.exists || autoStartFailed);
 
-  const vmEvents = useVmEvents(previewUrl, null);
+  const sseUrl =
+    sandbox?.kind === "docker"
+      ? `/api/sandbox/${sandbox.handle}/_daemon/_decopilot_vm/events`
+      : previewUrl
+        ? `${previewUrl}/_decopilot_vm/events`
+        : null;
+  const vmEvents = useVmEvents(sseUrl, null);
   const hasHtmlPreview = vmEvents.status.htmlSupport;
   const suspended = vmEvents.suspended;
 
