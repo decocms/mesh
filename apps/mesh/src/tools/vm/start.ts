@@ -20,7 +20,7 @@ import { VmNodeJs } from "@freestyle-sh/with-nodejs";
 import { requireVmEntry, resolveRuntimeConfig } from "./helpers";
 import { DownstreamTokenStorage } from "../../storage/downstream-token";
 import { buildDaemonScript } from "./daemon";
-import { generateBranchName } from "./branch-name";
+import { generateBranchName } from "../../shared/branch-name";
 import { removeVmMapEntry, setVmMapEntry } from "./vm-map";
 
 const PROXY_PORT = 9000;

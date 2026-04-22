@@ -51,6 +51,8 @@ import {
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useStatusSounds } from "../../hooks/use-status-sounds";
+import { useChatNavigation } from "@/web/components/chat/hooks/use-chat-navigation";
+import { generateBranchName } from "@/shared/branch-name";
 import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "@/web/components/empty-state";
 import { useChatMainPanelState } from "@/web/hooks/use-layout-state";
@@ -203,6 +205,18 @@ function AgentInsetProvider() {
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, []);
+
+  // Auto-assign a branch to the thread when the virtualMCP has a GitHub repo
+  // and the URL has no `?branch=` yet. Guarantees every github-linked thread
+  // has a branch before any VM is started, so the header branch picker never
+  // renders the "Select branch…" empty state for connected repos.
+  const { branch: urlBranch, setBranch } = useChatNavigation();
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — one-shot side effect that sets a URL search param; TanStack Router navigation has no render-time equivalent
+  useEffect(() => {
+    if (urlBranch) return;
+    if (!hasActiveGithubRepo) return;
+    setBranch(generateBranchName());
+  }, [urlBranch, hasActiveGithubRepo, setBranch]);
 
   const chatVirtualMcpId = virtualMcpId;
 
