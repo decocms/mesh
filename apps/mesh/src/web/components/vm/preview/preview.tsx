@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import { authClient } from "@/web/lib/auth-client";
 import { useToggleEnvPanel } from "@/web/hooks/use-toggle-env-panel";
+import { useChatNavigation } from "@/web/components/chat/hooks/use-chat-navigation";
 import {
   CursorClick01,
   LinkExternal01,
@@ -53,17 +54,20 @@ export function PreviewContent() {
     useState<VisualEditorPayload | null>(null);
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Read VM data from entity metadata
+  // Read VM data from entity metadata, keyed by the thread's current branch.
+  // vmMap[userId][branch] -> { vmId, previewUrl }
+  const { branch } = useChatNavigation();
   const userId = session?.user?.id;
   const metadata = inset?.entity?.metadata as
     | {
-        activeVms?: Record<
+        vmMap?: Record<
           string,
-          { previewUrl: string; vmId: string; terminalUrl: string | null }
+          Record<string, { previewUrl: string; vmId: string }>
         >;
       }
     | undefined;
-  const vmEntry = userId ? metadata?.activeVms?.[userId] : undefined;
+  const vmEntry =
+    userId && branch ? metadata?.vmMap?.[userId]?.[branch] : undefined;
   const previewUrl = vmEntry?.previewUrl ?? null;
 
   const vmEvents = useVmEvents(previewUrl, null);
