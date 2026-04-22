@@ -65,10 +65,9 @@ export async function probeHeadSha(handle: string): Promise<string | null> {
 
 /**
  * True iff the deno config file in the workdir defines a task named `name`.
- * Reads `deno.json` (preferring that over `deno.jsonc`) and parses it in
- * Node, so "tasks" matches on the object shape and not a stray colon
- * inside a comment or unrelated key. Any read/parse error returns false —
- * the caller is always `tolerateExit`-wrapped.
+ * Cats the file out and parses it; regex-strips comments for the jsonc case.
+ * Falls back to grep only if parsing throws — the caller `tolerateExit`-wraps
+ * us either way, but we'd rather give the right answer when we can.
  */
 export async function probeDenoTask(
   handle: string,
@@ -82,68 +81,26 @@ export async function probeDenoTask(
   );
   const text = probe.stdout.trim();
   if (!text) return false;
-  const parsed = parseJsonOrJsonc(text);
-  if (!parsed || typeof parsed !== "object") return false;
-  const tasks = (parsed as { tasks?: unknown }).tasks;
-  return (
-    tasks !== null &&
-    typeof tasks === "object" &&
-    Object.prototype.hasOwnProperty.call(tasks, name)
-  );
-}
-
-function parseJsonOrJsonc(text: string): unknown {
   try {
-    return JSON.parse(text);
+    // Strip /* block */ and // line comments for the jsonc case. Imperfect
+    // (a // inside a string would be mangled) but good enough for config
+    // files; any real mangling is caught by the JSON.parse throw below.
+    const stripped = text
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:"])\/\/[^\n]*/g, "$1");
+    const parsed = JSON.parse(stripped) as { tasks?: Record<string, unknown> };
+    return (
+      parsed.tasks != null &&
+      typeof parsed.tasks === "object" &&
+      Object.prototype.hasOwnProperty.call(parsed.tasks, name)
+    );
   } catch {
-    try {
-      return JSON.parse(stripJsoncComments(text));
-    } catch {
-      return null;
-    }
+    const quoted = shellQuote(`"${name}"[[:space:]]*:`);
+    const fallback = await execInContainer(
+      handle,
+      `cd ${workdir} && (cat deno.json 2>/dev/null || cat deno.jsonc 2>/dev/null) | grep -Eq ${quoted}`,
+      PROBE_OPTS,
+    );
+    return fallback.code === 0;
   }
-}
-
-/**
- * Strip `//` line and `/* … *\/` block comments while leaving string
- * contents intact. Small state machine instead of a dep: deno config files
- * are tiny, and a regex-only approach would mangle a `//` inside a string.
- */
-function stripJsoncComments(s: string): string {
-  let out = "";
-  let i = 0;
-  let inString = false;
-  while (i < s.length) {
-    const c = s[i];
-    if (inString) {
-      out += c;
-      if (c === "\\" && i + 1 < s.length) {
-        out += s[i + 1];
-        i += 2;
-        continue;
-      }
-      if (c === '"') inString = false;
-      i++;
-      continue;
-    }
-    if (c === '"') {
-      inString = true;
-      out += c;
-      i++;
-      continue;
-    }
-    if (c === "/" && s[i + 1] === "/") {
-      while (i < s.length && s[i] !== "\n") i++;
-      continue;
-    }
-    if (c === "/" && s[i + 1] === "*") {
-      i += 2;
-      while (i < s.length - 1 && !(s[i] === "*" && s[i + 1] === "/")) i++;
-      i += 2;
-      continue;
-    }
-    out += c;
-    i++;
-  }
-  return out;
 }
