@@ -122,7 +122,7 @@ function ToolbarTogglesSlot() {
   return (
     <div
       ref={setTogglesEl}
-      className="flex items-center justify-end gap-0.5 shrink-0 ml-2"
+      className="flex items-center justify-end gap-0.5 shrink-0 ml-1"
     />
   );
 }
