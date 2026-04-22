@@ -58,25 +58,6 @@ export function rebaseOnBase(
   return `On repo \`${repoRef(ctx)}\`, rebase branch \`${ctx.branch}\` on the latest \`${ctx.base}\` using the BASH tool and git CLI in the vm's working tree. Run \`git fetch origin\`, \`git checkout ${ctx.branch}\`, \`git rebase origin/${ctx.base}\`, then \`git push --force-with-lease\`. Do NOT use the GitHub \`update_pull_request_branch\` MCP tool — it performs a merge-of-base, not a true rebase. ${GIT_CLI_PREAMBLE}`;
 }
 
-export function resolveConflicts(
-  ctx: Pick<TemplateContext, "owner" | "repo" | "branch" | "base">,
-): string {
-  return `On repo \`${repoRef(ctx)}\`, resolve the merge conflicts between \`${ctx.branch}\` and \`${ctx.base}\` using the BASH tool and git CLI in the vm's working tree. Start with \`git fetch origin && git checkout ${ctx.branch} && git merge origin/${ctx.base}\` (or rebase, if the original PR was rebased-based). Edit the conflicted files directly, then \`git add\` the resolutions, finish the merge/rebase, and force-push when rebasing. ${GIT_CLI_PREAMBLE}`;
-}
-
-export function fixErrors(
-  ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber" | "failingChecks">,
-): string {
-  const list = (ctx.failingChecks ?? []).join(", ");
-  return `On repo \`${repoRef(ctx)}\`, the following checks are failing on PR #${ctx.prNumber}: ${list}. Investigate and fix them. Work in the vm's working tree using the BASH tool + git CLI for any code edits, commits, and pushes; use the GitHub MCP tools only to read the check logs and (optionally) leave a PR comment once fixed. ${GIT_CLI_PREAMBLE}`;
-}
-
-export function rerunChecks(
-  ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber">,
-): string {
-  return `On repo \`${repoRef(ctx)}\`, re-run the failing checks on PR #${ctx.prNumber} via the GitHub MCP tools. If the checks require a new commit (e.g., an empty commit to retrigger CI), use the BASH tool with git to create and push it.`;
-}
-
 export function rerunCheck(
   ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber" | "checkName">,
 ): string {

@@ -66,39 +66,3 @@ export async function setVmMapEntry(
     } as VirtualMCPUpdateData["metadata"],
   });
 }
-
-/**
- * Read-modify-write: removes `vmMap[userId][branch]` from the virtualmcp.
- * Drops the user entry entirely when it becomes empty.
- */
-export async function removeVmMapEntry(
-  storage: VirtualMCPStoragePort,
-  virtualMcpId: string,
-  actingUserId: string,
-  targetUserId: string,
-  branch: string,
-): Promise<void> {
-  const virtualMcp = await storage.findById(virtualMcpId);
-  if (!virtualMcp) return;
-
-  const meta = virtualMcp.metadata as VmMetadata;
-  const current = readVmMap(meta);
-  if (!current[targetUserId]?.[branch]) return;
-
-  const userMap = { ...current[targetUserId] };
-  delete userMap[branch];
-
-  const next: VmMap = { ...current };
-  if (Object.keys(userMap).length === 0) {
-    delete next[targetUserId];
-  } else {
-    next[targetUserId] = userMap;
-  }
-
-  await storage.update(virtualMcpId, actingUserId, {
-    metadata: {
-      ...meta,
-      vmMap: next,
-    } as VirtualMCPUpdateData["metadata"],
-  });
-}
