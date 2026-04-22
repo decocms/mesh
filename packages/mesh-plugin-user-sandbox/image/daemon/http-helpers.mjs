@@ -37,7 +37,7 @@ export function sendText(
  * The stream must stay alive so callers can pipe remaining bytes to a child's
  * stdin.
  */
-export function readFirstLine(req) {
+function readFirstLine(req) {
   return new Promise((resolve, reject) => {
     let buffer = Buffer.alloc(0);
     const cleanup = () => {
