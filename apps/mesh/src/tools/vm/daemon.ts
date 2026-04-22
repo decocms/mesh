@@ -237,8 +237,19 @@ function discoverScripts() {
 }
 
 function runSetup() {
-  const cloneCmd = "git clone --depth 1 --single-branch " + CLONE_URL + " /app";
-  const cloneLabel = "$ git clone --depth 1 --single-branch " + REPO_NAME + " /app";
+  // If an injected branch is provided, ask git to clone it directly with -b
+  // so origin/<branch> actually points at the intended commit. A plain
+  // --single-branch clone only fetches the remote default branch, so
+  // origin/<injected> would not exist and any subsequent checkout would
+  // resolve to the default branch HEAD (i.e. the wrong commit).
+  const branchNameOk = (b) => /^[A-Za-z0-9._/-]+$/.test(b) && !b.startsWith("-");
+  const injectedBranchSafe = INJECTED_BRANCH && branchNameOk(INJECTED_BRANCH) ? INJECTED_BRANCH : null;
+  if (INJECTED_BRANCH && !injectedBranchSafe) {
+    log("ignoring invalid injected branch: " + INJECTED_BRANCH);
+  }
+  const branchFlag = injectedBranchSafe ? " -b " + JSON.stringify(injectedBranchSafe) : "";
+  const cloneCmd = "git clone --depth 1 --single-branch" + branchFlag + " " + CLONE_URL + " /app";
+  const cloneLabel = "$ git clone --depth 1 --single-branch" + branchFlag + " " + REPO_NAME + " /app";
   broadcastChunk("setup", cloneLabel + "\\r\\n");
 
   const child = spawn("script", ["-q", "-c", cloneCmd, "/dev/null"], {
@@ -259,25 +270,19 @@ function runSetup() {
 
     // Configure git identity and branch.
     // Precedence: injected branch (from VM_START caller) > random.
-    // For an injected branch, try to attach to origin/<branch> first; if that
-    // ref does not exist, create a new local branch.
+    // If we cloned with -b <injected>, we are already on that branch
+    // tracking origin/<injected> — no further checkout needed. Otherwise,
+    // create a new local branch from HEAD.
     try {
       execSync("git config user.name " + JSON.stringify(GIT_USER_NAME), { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
       execSync("git config user.email " + JSON.stringify(GIT_USER_EMAIL), { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
-      const branch = INJECTED_BRANCH || randomBranch();
-      let attached = false;
-      if (INJECTED_BRANCH) {
-        try {
-          execSync("git show-ref --verify --quiet refs/remotes/origin/" + branch, { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
-          execSync("git checkout " + branch, { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
-          broadcastChunk("setup", "\\r\\n$ git checkout " + branch + "\\r\\n");
-          log("checked out existing branch " + branch);
-          attached = true;
-        } catch {
-          // remote ref absent — fall through to create a new local branch
+      if (injectedBranchSafe) {
+        log("already on injected branch " + injectedBranchSafe + " from clone -b");
+      } else {
+        const branch = randomBranch();
+        if (!branchNameOk(branch)) {
+          throw new Error("Invalid branch name");
         }
-      }
-      if (!attached) {
         execSync("git checkout -b " + branch, { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
         broadcastChunk("setup", "\\r\\n$ git checkout -b " + branch + "\\r\\n");
         log("created branch " + branch);
