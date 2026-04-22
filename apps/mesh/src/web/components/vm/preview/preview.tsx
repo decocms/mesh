@@ -1,18 +1,14 @@
 import { useState, useRef, useEffect } from "react";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
+import { authClient } from "@/web/lib/auth-client";
 import { useToggleEnvPanel } from "@/web/hooks/use-toggle-env-panel";
+import { useChatNavigation } from "@/web/components/chat/hooks/use-chat-navigation";
 import { useChatTask } from "@/web/components/chat/context";
-import {
-  useProjectContext,
-  useMCPClient,
-  SELF_MCP_ALIAS_ID,
-} from "@decocms/mesh-sdk";
-import { useQuery } from "@tanstack/react-query";
-import { KEYS } from "@/web/lib/query-keys";
+import { useMCPClient, SELF_MCP_ALIAS_ID } from "@decocms/mesh-sdk";
+import type { VmMapEntry } from "@decocms/mesh-sdk";
 import {
   CursorClick01,
   LinkExternal01,
-  Loading01,
   Monitor04,
   RefreshCw01,
   Server01,
@@ -35,7 +31,6 @@ import {
 import { VisualEditorPrompt } from "./visual-editor-prompt";
 import { useVmEvents } from "../hooks/use-vm-events";
 import { VmSuspendedState } from "../vm-suspended-state";
-import type { ThreadSandboxResponse } from "@/api/routes/decopilot/sandbox-response";
 
 type PreviewViewMode = "preview" | "visual";
 
@@ -51,9 +46,23 @@ const VIEW_MODE_OPTIONS: [
   },
 ];
 
+/**
+ * Daemon base URL for `/_decopilot_vm/*` calls. Docker goes through the mesh
+ * proxy at `/api/sandbox/<vmId>/_daemon` (bearer token stays server-side);
+ * Freestyle hits the VM's own domain directly.
+ */
+function resolveDaemonBaseUrl(entry: VmMapEntry | undefined): string | null {
+  if (!entry) return null;
+  if (entry.runnerKind === "docker")
+    return `/api/sandbox/${entry.vmId}/_daemon`;
+  return entry.previewUrl;
+}
+
 export function PreviewContent() {
   const inset = useInsetContext();
+  const { data: session } = authClient.useSession();
   const { openEnv } = useToggleEnvPanel();
+  const { taskId } = useChatTask();
 
   // Visual editor state
   const [viewMode, setViewMode] = useState<PreviewViewMode>("preview");
@@ -61,59 +70,48 @@ export function PreviewContent() {
     useState<VisualEditorPayload | null>(null);
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
 
-  // The thread-sandbox endpoint returns a discriminated union that covers
-  // both runtimes — docker resolves via `thread.sandbox_ref`, freestyle via
-  // the Virtual MCP's `activeVms` map. The frontend never reads activeVms
-  // directly: mixing a stale Freestyle URL into the Docker path is the bug
-  // this whole shape exists to prevent.
-  const { org } = useProjectContext();
-  const { taskId } = useChatTask();
-  const { data: threadSandbox } = useQuery<ThreadSandboxResponse | null>({
-    queryKey: KEYS.threadSandbox(org.slug ?? org.id, taskId),
-    enabled: !!taskId,
-    // Keep polling while a Docker dev server is still booting so status/logs
-    // in the proxy's loading page stay fresh. Once `serverUp` flips (or for
-    // Freestyle, which doesn't have that concept), the iframe is already
-    // mounted and picks up the real response on its next request.
-    staleTime: 2_000,
-    refetchInterval: (q) => {
-      const sb = q.state.data?.sandbox;
-      if (!sb) return 2_000;
-      if (sb.kind === "docker" && !sb.serverUp) return 2_000;
-      return false;
-    },
-    queryFn: async () => {
-      const res = await fetch(
-        `/api/${org.slug ?? org.id}/decopilot/threads/${taskId}/sandbox`,
-      );
-      if (!res.ok) return null;
-      return (await res.json()) as ThreadSandboxResponse;
-    },
+  // Read VM data from entity metadata, keyed by (userId, branch).
+  // vmMap[userId][branch] -> { vmId, previewUrl, runnerKind? }
+  const { branch, setBranch } = useChatNavigation();
+  const userId = session?.user?.id;
+  const metadata = inset?.entity?.metadata as
+    | { vmMap?: Record<string, Record<string, VmMapEntry>> }
+    | undefined;
+  const vmEntry =
+    userId && branch ? metadata?.vmMap?.[userId]?.[branch] : undefined;
+  const previewUrl = vmEntry?.previewUrl ?? null;
+
+  // SSE events for suspension detection + HMR-adjacent iframe reload.
+  const daemonBase = resolveDaemonBaseUrl(vmEntry);
+  const sseUrl = daemonBase ? `${daemonBase}/_decopilot_vm/events` : null;
+  const vmEvents = useVmEvents(sseUrl, null, () => {
+    const iframe = previewIframeRef.current;
+    if (!iframe) return;
+    // Reload the preview — used for config edits that framework HMR doesn't
+    // watch. For .ts/.tsx edits the framework's own reload path handles it.
+    // biome-ignore lint/correctness/noSelfAssign: reloads the iframe
+    // oxlint-disable-next-line no-self-assign
+    iframe.src = iframe.src;
   });
+  const hasHtmlPreview = vmEvents.status.htmlSupport;
+  const suspended = vmEvents.suspended;
 
-  const sandbox = threadSandbox?.sandbox ?? null;
-  const previewUrl = sandbox?.previewUrl ?? null;
-
-  // Auto-spin the VM for brand-new threads (no DB row yet). Old threads stay
-  // manual — the env panel's Run button is the entry point for reviving a
-  // dormant sandbox so browsing thread history doesn't spin containers.
+  // Auto-start for github-linked threads when no vmEntry exists. Passes the
+  // URL branch if present; otherwise VM_START generates one and we persist
+  // it back to the URL.
+  const virtualMcpId = inset?.entity?.id ?? null;
   const mcpClient = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
+    orgId: inset?.entity?.organization_id ?? "",
   });
   const autoStartedForTaskRef = useRef<string | null>(null);
   const [autoStartFailed, setAutoStartFailed] = useState(false);
-  const virtualMcpId = inset?.entity?.id ?? null;
-  // Guard on `!sandbox` (no live runtime) rather than `!thread.exists` so the
-  // auto-start also fires for existing threads whose container was evicted
-  // between sessions — e.g. Docker `rm`, mesh restart after the state-store
-  // row went stale. `autoStartedForTaskRef` + `autoStartFailed` still prevent
-  // a retry loop when VM_START itself fails.
   const shouldAutoStart =
     !!taskId &&
     !!virtualMcpId &&
-    !!threadSandbox &&
-    !threadSandbox.sandbox &&
+    !!userId &&
+    !vmEntry &&
+    !autoStartFailed &&
     autoStartedForTaskRef.current !== taskId;
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — 500ms debounced side-effect; no React 19 alternative
   useEffect(() => {
@@ -122,35 +120,31 @@ export function PreviewContent() {
     const timer = setTimeout(() => {
       autoStartedForTaskRef.current = targetTaskId;
       setAutoStartFailed(false);
+      const args: { virtualMcpId: string; branch?: string } = { virtualMcpId };
+      if (branch) args.branch = branch;
       mcpClient
-        .callTool({
-          name: "VM_START",
-          arguments: { virtualMcpId, threadId: targetTaskId },
+        .callTool({ name: "VM_START", arguments: args })
+        .then((result) => {
+          const data = (result as { structuredContent?: { branch?: string } })
+            .structuredContent;
+          if (data?.branch && !branch) setBranch(data.branch);
         })
         .catch((err) => {
-          // Leave the flag set — don't retry on loop. Surface the button so
-          // the user can click the env panel Run button to retry manually.
           console.error("[preview] auto-start VM_START failed", err);
           setAutoStartFailed(true);
         });
     }, 500);
     return () => clearTimeout(timer);
-  }, [shouldAutoStart, taskId, virtualMcpId, mcpClient]);
-  // Reset the failure flag when navigating to a different thread so a new
-  // thread starts with a clean slate.
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — resets per-task state when taskId changes
+  }, [shouldAutoStart, taskId, virtualMcpId, mcpClient, branch, setBranch]);
+  // Reset the failure flag when navigating to a different thread.
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — per-task state reset
   useEffect(() => {
     setAutoStartFailed(false);
   }, [taskId]);
 
-  // Auto-open the env (logs) panel the first time a thread has a running
-  // sandbox. Previously the "Start Server" button was the entry point that
-  // opened it as a side effect — without that button, old threads with
-  // already-running containers had no way to surface logs. Keyed on taskId
-  // so if the user explicitly closes the panel on a thread, we respect that
-  // and don't reopen on the same thread.
+  // Auto-open the env panel the first time a thread has a running sandbox.
   const envAutoOpenedForTaskRef = useRef<string | null>(null);
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — one-shot side-effect per (taskId, first previewUrl)
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — one-shot per (taskId, first previewUrl)
   useEffect(() => {
     if (!taskId || !previewUrl) return;
     if (envAutoOpenedForTaskRef.current === taskId) return;
@@ -158,76 +152,16 @@ export function PreviewContent() {
     openEnv();
   }, [taskId, previewUrl, openEnv]);
 
-  // Empty-state discriminator. While the thread-sandbox query is loading
-  // (threadSandbox === undefined) we render nothing to avoid button flicker.
-  const isAutoSpinning =
-    !previewUrl &&
-    !!threadSandbox &&
-    !threadSandbox.thread.exists &&
-    !autoStartFailed;
-  const showManualStart =
-    !previewUrl &&
-    !!threadSandbox &&
-    (threadSandbox.thread.exists || autoStartFailed);
-
-  // Docker-only. The sandbox row is persisted (so `previewUrl` is populated)
-  // but the dev server inside the container isn't listening yet. Without this
-  // guard the iframe mounts against a port that returns ECONNREFUSED and the
-  // browser paints its own broken-file page over the preview pane.
-  const isDockerBooting =
-    sandbox?.kind === "docker" && sandbox.serverUp === false;
-
-  const bootStageLabel = (() => {
-    if (isAutoSpinning) return "Booting sandbox…";
-    if (sandbox?.kind !== "docker" || sandbox.serverUp) return null;
-    switch (sandbox.phase) {
-      case "installing":
-        return "Installing dependencies…";
-      case "starting":
-        return "Starting dev server…";
-      case "crashed":
-        return "Dev server crashed — retrying…";
-      case "exited":
-        return "Dev server stopped — restarting…";
-      // "idle" and null cover the window where the daemon is up but the
-      // dev-process lifecycle hasn't been kicked off yet (or the clone just
-      // finished). routes.ts auto-fires `/_daemon/dev/start` from this state.
-      default:
-        return "Preparing workspace…";
-    }
-  })();
-
-  const sseUrl =
-    sandbox?.kind === "docker"
-      ? `/api/sandbox/${sandbox.handle}/_daemon/_decopilot_vm/events`
-      : previewUrl
-        ? `${previewUrl}/_decopilot_vm/events`
-        : null;
-  const vmEvents = useVmEvents(sseUrl, null, () => {
-    const iframe = previewIframeRef.current;
-    if (!iframe) return;
-    // Reload the preview — used for .deco JSON edits that Deno HMR doesn't
-    // watch. For .ts/.tsx edits, Fresh's own WS close → reload path handles
-    // it; the daemon suppresses this event while dev is not "ready" so we
-    // don't double-reload.
-    // biome-ignore lint/correctness/noSelfAssign: reloads the iframe
-    // oxlint-disable-next-line no-self-assign
-    iframe.src = iframe.src;
-  });
-  const hasHtmlPreview = vmEvents.status.htmlSupport;
-  const suspended = vmEvents.suspended;
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — postMessage listener requires DOM event subscription; no React 19 alternative
+  // Visual-editor postMessage listener.
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — DOM event subscription
   useEffect(() => {
     if (!previewUrl) return;
-
     let allowedOrigin: string;
     try {
-      allowedOrigin = new URL(previewUrl).origin;
+      allowedOrigin = new URL(previewUrl, window.location.href).origin;
     } catch {
       return;
     }
-
     const handler = (e: MessageEvent) => {
       if (e.origin !== allowedOrigin) return;
       if (e.data?.type !== "visual-editor::element-clicked") return;
@@ -236,7 +170,6 @@ export function PreviewContent() {
         setVisualElement(result.data);
       }
     };
-
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
   }, [previewUrl]);
@@ -268,7 +201,6 @@ export function PreviewContent() {
 
   return (
     <div className="flex flex-col w-full h-full">
-      {/* Unified toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
         {previewUrl && hasHtmlPreview && (
           <ViewModeToggle
@@ -328,18 +260,8 @@ export function PreviewContent() {
         )}
       </div>
 
-      {/* Content area */}
       <div className="flex-1 relative overflow-hidden">
-        {bootStageLabel && (
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-background">
-            <Loading01
-              size={28}
-              className="text-muted-foreground animate-spin"
-            />
-            <h3 className="text-sm font-medium">{bootStageLabel}</h3>
-          </div>
-        )}
-        {showManualStart && (
+        {!previewUrl && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-background">
             <Monitor04 size={48} className="text-muted-foreground/40" />
             <h3 className="text-lg font-medium">Preview</h3>
@@ -355,27 +277,7 @@ export function PreviewContent() {
 
         {suspended && (
           <div className="absolute inset-0 z-30 bg-background/80 backdrop-blur-sm">
-            <VmSuspendedState
-              onResume={() => {
-                if (!virtualMcpId || !taskId) {
-                  // Fall back to opening the env panel so the user has a
-                  // surface to retry from manually.
-                  openEnv();
-                  return;
-                }
-                mcpClient
-                  .callTool({
-                    name: "VM_START",
-                    arguments: { virtualMcpId, threadId: taskId },
-                  })
-                  .catch((err) => {
-                    console.error("[preview] resume VM_START failed", err);
-                    // Surface the env panel so the user sees the full error
-                    // state + retry button rendered by env.tsx.
-                    openEnv();
-                  });
-              }}
-            />
+            <VmSuspendedState onResume={openEnv} />
           </div>
         )}
 
@@ -391,7 +293,7 @@ export function PreviewContent() {
             onDismiss={() => setVisualElement(null)}
           />
         )}
-        {previewUrl && !isDockerBooting && (
+        {previewUrl && (
           <iframe
             ref={previewIframeRef}
             src={previewUrl}

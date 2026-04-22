@@ -1,6 +1,7 @@
 import type { ComponentType, SVGProps } from "react";
 import {
   BookOpen01,
+  GitBranch01,
   Globe01,
   LayoutAlt04,
   Lightning01,
@@ -20,6 +21,7 @@ export type TabIcon =
 
 export type SystemTabId =
   | "instructions"
+  | "git"
   | "connections"
   | "automations"
   | "layout"
@@ -28,6 +30,7 @@ export type SystemTabId =
 
 export const SYSTEM_TAB_ICONS: Record<SystemTabId, IconComponent> = {
   instructions: BookOpen01,
+  git: GitBranch01,
   connections: ZapSquare,
   automations: Lightning01,
   layout: LayoutAlt04,

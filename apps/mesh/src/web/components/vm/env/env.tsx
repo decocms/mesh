@@ -5,8 +5,9 @@ import {
   useMCPClient,
   SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { invalidateVirtualMcpQueries, KEYS } from "@/web/lib/query-keys";
+import type { VmMapEntry } from "@decocms/mesh-sdk";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateVirtualMcpQueries } from "@/web/lib/query-keys";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import {
   Loading01,
@@ -40,25 +41,28 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { useChatBridge, useChatTask } from "@/web/components/chat/context";
+import { useChatBridge } from "@/web/components/chat/context";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { VmErrorState } from "../vm-error-state";
 import { VmSuspendedState } from "../vm-suspended-state";
 import { useVmEvents } from "../hooks/use-vm-events";
 import { VmTerminal } from "./terminal";
 import type { Terminal as XTerminal } from "@xterm/xterm";
+import { EmptyState } from "../../empty-state";
 import { LiveTimer } from "../../live-timer";
 import { useActiveGithubRepo } from "@/web/hooks/use-active-github-repo";
+import { authClient } from "@/web/lib/auth-client";
+import { useChatNavigation } from "@/web/components/chat/hooks/use-chat-navigation";
 import { PACKAGE_MANAGER_CONFIG } from "@/shared/runtime-defaults";
-import type { ThreadSandboxResponse } from "@/api/routes/decopilot/sandbox-response";
 import type { PackageManager } from "@/shared/runtime-defaults";
 import { toast } from "sonner";
 
 interface VmData {
-  terminalUrl: string | null;
   previewUrl: string;
   vmId: string;
+  branch: string;
   isNewVm: boolean;
+  runnerKind?: "docker" | "freestyle";
 }
 
 type ViewStatus =
@@ -71,57 +75,58 @@ type ViewStatus =
 
 const WELL_KNOWN_STARTERS = ["dev", "start"];
 
+/**
+ * Daemon base URL for `/_decopilot_vm/*` calls. Docker goes through the mesh
+ * proxy at `/api/sandbox/<vmId>/_daemon` (bearer token stays server-side);
+ * Freestyle hits the VM's own domain directly.
+ */
+function resolveDaemonBaseUrl(entry: VmMapEntry | undefined): string | null {
+  if (!entry) return null;
+  if (entry.runnerKind === "docker")
+    return `/api/sandbox/${entry.vmId}/_daemon`;
+  return entry.previewUrl;
+}
+
 export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const { org } = useProjectContext();
   const inset = useInsetContext();
   const queryClient = useQueryClient();
-  const { taskId } = useChatTask();
+  const { data: session } = authClient.useSession();
 
-  // Runner-agnostic: the thread-sandbox endpoint returns a discriminated
-  // union ({ kind: "docker" | "freestyle" }) so this panel doesn't have to
-  // know which runner the server was booted with. `sandbox.kind` drives the
-  // lifecycle routes below (`buildLifecycleRequest`).
-  const orgKey = org.slug ?? org.id;
-  const { data: threadSandbox } = useQuery<ThreadSandboxResponse | null>({
-    queryKey: KEYS.threadSandbox(orgKey, taskId),
-    enabled: !!taskId,
-    staleTime: 5_000,
-    queryFn: async () => {
-      const res = await fetch(
-        `/api/${orgKey}/decopilot/threads/${taskId}/sandbox`,
-      );
-      if (!res.ok) return null;
-      return (await res.json()) as ThreadSandboxResponse;
-    },
-  });
+  // Check if there's already a VM for (this user, this thread's branch).
+  const { branch: urlBranch, setBranch } = useChatNavigation();
+  const userId = session?.user?.id;
+  const vmMapMetadata = inset?.entity?.metadata as
+    | { vmMap?: Record<string, Record<string, VmMapEntry>> }
+    | undefined;
+  const existingVm =
+    userId && urlBranch
+      ? vmMapMetadata?.vmMap?.[userId]?.[urlBranch]
+      : undefined;
 
-  const sandbox = threadSandbox?.sandbox ?? null;
-  const existingVm = sandbox
-    ? {
-        previewUrl: sandbox.previewUrl,
-        vmId: sandbox.kind === "docker" ? sandbox.handle : sandbox.vmId,
-        terminalUrl: sandbox.kind === "freestyle" ? sandbox.terminalUrl : null,
-      }
-    : undefined;
+  // Derived VM data — reflects the latest vmMap from the query cache. Any
+  // vmMap update triggers a re-render with the fresh value here.
+  const vmData: VmData | null =
+    existingVm && urlBranch
+      ? {
+          previewUrl: existingVm.previewUrl,
+          vmId: existingVm.vmId,
+          branch: urlBranch,
+          isNewVm: false,
+          runnerKind: existingVm.runnerKind,
+        }
+      : null;
 
-  const [status, setStatus] = useState<ViewStatus>(
-    existingVm ? "running" : "idle",
-  );
+  // Transient override used during user-initiated transitions
+  // ("creating" / "stopping" / "error"). Cleared via effect below once the
+  // derived status catches up.
+  const [override, setOverride] = useState<ViewStatus | null>(null);
+
   const [statusLabel, setStatusLabel] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [execInFlight, setExecInFlight] = useState(false);
   const [killedProcesses, setKilledProcesses] = useState<Set<string>>(
     new Set(),
-  );
-  const vmDataRef = useRef<VmData | null>(
-    existingVm
-      ? {
-          terminalUrl: existingVm.terminalUrl,
-          previewUrl: existingVm.previewUrl,
-          vmId: existingVm.vmId,
-          isNewVm: false,
-        }
-      : null,
   );
   const startingRef = useRef(false);
   const startedAtRef = useRef<number>(Date.now());
@@ -169,39 +174,44 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   });
 
   const handleChunk = (source: string, data: string) => {
-    if (source === "setup") {
-      terminalRefs.current.get("setup")?.write(data);
-      return;
-    }
-    // Dev-process output arrives tagged with the script name (e.g. "dev") or
-    // with "daemon" for lifecycle events (spawn / exit / port-bind errors).
-    // Mirror both into every open script tab so the user sees the full picture
-    // in whichever tab they're viewing.
-    for (const [tab, term] of terminalRefs.current) {
-      if (tab === "setup") continue;
+    const term = terminalRefs.current.get(source);
+    if (term) {
       term.write(data);
     }
   };
 
-  // Docker → session-authed mesh passthrough (bearer stays server-side).
-  // Freestyle → VM-internal daemon served from the VM's own domain.
-  const sseUrl =
-    status !== "running"
-      ? null
-      : sandbox?.kind === "docker"
-        ? `/api/sandbox/${sandbox.handle}/_daemon/_decopilot_vm/events`
-        : vmDataRef.current?.previewUrl
-          ? `${vmDataRef.current.previewUrl}/_decopilot_vm/events`
-          : null;
+  // Subscribe to the VM's SSE stream whenever vmData is known. The stream
+  // auto-reconnects on URL change, so switching branches just works. Docker
+  // routes through the mesh proxy; freestyle hits the VM domain directly.
+  const daemonBase = resolveDaemonBaseUrl(existingVm);
+  const sseUrl = daemonBase ? `${daemonBase}/_decopilot_vm/events` : null;
   const vmEvents = useVmEvents(sseUrl, handleChunk);
 
-  // When scripts are discovered, auto-open well-known starters
+  // Final status = user-initiated override, else derived from (vmData, SSE).
+  const derivedStatus: ViewStatus = vmEvents.suspended
+    ? "suspended"
+    : vmData
+      ? "running"
+      : "idle";
+  const status: ViewStatus = override ?? derivedStatus;
+
+  // Clear the override when the derived state catches up.
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — clears transient override once derivedStatus catches up; no render-time equivalent for "wait for external async state to reach a target"
+  useEffect(() => {
+    if (override === "creating" && derivedStatus === "running") {
+      setOverride(null);
+    }
+    if (override === "stopping" && derivedStatus === "idle") {
+      setOverride(null);
+    }
+  }, [derivedStatus, override]);
+
+  // When scripts are discovered, auto-open well-known starters.
   const scriptsAppliedRef = useRef(false);
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — responds to vmEvents.scripts discovery; drives one-time tab auto-open
   useEffect(() => {
     if (vmEvents.scripts.length > 0 && !scriptsAppliedRef.current) {
       scriptsAppliedRef.current = true;
-      // Only add the first well-known starter (matches daemon auto-start behavior)
       for (const name of WELL_KNOWN_STARTERS) {
         if (vmEvents.scripts.includes(name)) {
           setOpenScriptTabs([name]);
@@ -223,38 +233,15 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     );
   };
 
-  // Docker sandboxes drive lifecycle through the session-authed mesh
-  // passthrough `/api/sandbox/<handle>/_daemon/dev/*`. Freestyle VMs hit
-  // `<previewUrl>/_decopilot_vm/exec|kill` — no daemon token in that path.
-  const buildLifecycleRequest = (
-    verb: "start" | "stop",
-    scriptName: string,
-  ): { url: string; init: RequestInit } => {
-    if (sandbox?.kind === "docker") {
-      const path = verb === "start" ? "dev/start" : "dev/stop";
-      return {
-        url: `/api/sandbox/${sandbox.handle}/_daemon/${path}`,
-        init: {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body:
-            verb === "start" ? JSON.stringify({ script: scriptName }) : "{}",
-        },
-      };
-    }
-    const op = verb === "start" ? "exec" : "kill";
-    return {
-      url: `${vmDataRef.current!.previewUrl}/_decopilot_vm/${op}/${scriptName}`,
-      init: { method: "POST" },
-    };
-  };
-
   const handleExec = async (scriptName: string) => {
-    if (execInFlight || !vmDataRef.current) return;
+    if (execInFlight || !vmData) return;
     setExecInFlight(true);
     try {
-      const { url, init } = buildLifecycleRequest("start", scriptName);
-      const res = await fetch(url, init);
+      const base = resolveDaemonBaseUrl(existingVm);
+      if (!base) throw new Error("No VM");
+      const res = await fetch(`${base}/_decopilot_vm/exec/${scriptName}`, {
+        method: "POST",
+      });
       if (!res.ok) throw new Error(`Exec failed: ${res.statusText}`);
       setKilledProcesses((prev) => {
         const next = new Set(prev);
@@ -267,11 +254,14 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   };
 
   const handleKill = async (scriptName: string) => {
-    if (execInFlight || !vmDataRef.current) return;
+    if (execInFlight || !vmData) return;
     setExecInFlight(true);
     try {
-      const { url, init } = buildLifecycleRequest("stop", scriptName);
-      const res = await fetch(url, init);
+      const base = resolveDaemonBaseUrl(existingVm);
+      if (!base) throw new Error("No VM");
+      const res = await fetch(`${base}/_decopilot_vm/kill/${scriptName}`, {
+        method: "POST",
+      });
       if (!res.ok) throw new Error(`Kill failed: ${res.statusText}`);
       setKilledProcesses((prev) => new Set(prev).add(scriptName));
     } finally {
@@ -291,7 +281,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     if (startingRef.current) return;
     startingRef.current = true;
     startedAtRef.current = Date.now();
-    setStatus("creating");
+    setOverride("creating");
     setStatusLabel("Connecting...");
     setErrorMsg("");
     scriptsAppliedRef.current = false;
@@ -300,21 +290,25 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
 
     try {
       if (!inset?.entity) throw new Error("No virtual MCP context");
-      const data = (await callTool("VM_START", {
+      const args: { virtualMcpId: string; branch?: string } = {
         virtualMcpId: inset.entity.id,
-        threadId: taskId,
-      })) as VmData;
+      };
+      if (urlBranch) args.branch = urlBranch;
+      const data = (await callTool("VM_START", args)) as VmData;
 
-      if (!data.previewUrl || !data.vmId) {
-        throw new Error("Invalid VM response — missing URLs");
+      if (!data.previewUrl || !data.vmId || !data.branch) {
+        throw new Error("Invalid VM response — missing fields");
       }
 
-      vmDataRef.current = data;
-      setStatus("running");
+      // If the server generated a branch (we didn't pass one), persist it
+      // to the URL so subsequent renders find the vm via vmMap[userId][branch].
+      if (!urlBranch) {
+        setBranch(data.branch);
+      }
       setStatusLabel("");
       invalidateVirtualMcpQueries(queryClient);
     } catch (error) {
-      setStatus("error");
+      setOverride("error");
       setErrorMsg(
         error instanceof Error ? error.message : "Failed to start VM",
       );
@@ -324,60 +318,29 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   };
 
   const handleStop = async () => {
-    vmDataRef.current = null;
-    setStatus("stopping");
+    const branchToStop = vmData?.branch ?? urlBranch;
+    setOverride("stopping");
 
     const virtualMcpId = inset?.entity?.id;
-    if (virtualMcpId) {
+    if (virtualMcpId && branchToStop) {
       try {
         await client.callTool({
           name: "VM_DELETE",
-          arguments: { virtualMcpId, threadId: taskId },
+          arguments: { virtualMcpId, branch: branchToStop },
         });
       } catch {
         // Best effort
       }
     }
 
-    setStatus("idle");
     invalidateVirtualMcpQueries(queryClient);
   };
 
-  // Detect suspension via SSE disconnect
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — responds to vmEvents.suspended changing; drives status transition
-  useEffect(() => {
-    if (vmEvents.suspended && status === "running") {
-      setStatus("suspended");
-    }
-    if (!vmEvents.suspended && status === "suspended") {
-      setStatus("running");
-    }
-  }, [vmEvents.suspended, status]);
-
-  // Hydrate status + vmDataRef once the thread-sandbox query resolves after
-  // first mount. The `useState`/`useRef` initializers above run on mount with
-  // `existingVm === undefined` (TanStack Query hasn't fetched yet), so status
-  // would be stuck at "idle" even when a container is already running. When
-  // the fetch lands and a sandbox exists, flip to "running" and backfill the
-  // ref so `vmEvents` picks up the preview URL. Depend on the stable vmId
-  // rather than the `existingVm` object identity to avoid re-running every
-  // render.
-  const existingVmId = existingVm?.vmId;
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — syncs async query result into local state on first arrival
-  useEffect(() => {
-    if (existingVm && status === "idle") {
-      vmDataRef.current = {
-        terminalUrl: existingVm.terminalUrl,
-        previewUrl: existingVm.previewUrl,
-        vmId: existingVm.vmId,
-        isNewVm: false,
-      };
-      setStatus("running");
-    }
-    // oxlint-disable-next-line react-hooks/exhaustive-deps — existingVm is a derived object recreated each render; existingVmId captures the actual identity change
-  }, [existingVmId, status]);
-
   const githubRepo = useActiveGithubRepo();
+
+  if (!githubRepo) {
+    return null;
+  }
 
   const runtime = (
     inset?.entity?.metadata as
@@ -422,33 +385,26 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     return (
       <div className="flex flex-col items-center justify-center w-full h-full p-6">
         <div className="flex flex-col gap-4 w-full max-w-xs">
-          {githubRepo ? (
-            <a
-              href={`https://github.com/${githubRepo.owner}/${githubRepo.name}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors"
-            >
-              <GitHubIcon size={24} />
-              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                <span className="text-sm font-medium truncate">
-                  {githubRepo.owner}/{githubRepo.name}
-                </span>
-                <span className="text-xs text-muted-foreground truncate">
-                  github.com/{githubRepo.owner}/{githubRepo.name}
-                </span>
-              </div>
-              <LinkExternal01
-                size={14}
-                className="text-muted-foreground shrink-0"
-              />
-            </a>
-          ) : (
-            <div className="flex items-center gap-3 p-4 rounded-lg border border-dashed border-border text-muted-foreground">
-              <GitHubIcon size={24} className="opacity-40" />
-              <span className="text-sm">No repo connected</span>
+          <a
+            href={`https://github.com/${githubRepo.owner}/${githubRepo.name}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors"
+          >
+            <GitHubIcon size={24} />
+            <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+              <span className="text-sm font-medium truncate">
+                {githubRepo.owner}/{githubRepo.name}
+              </span>
+              <span className="text-xs text-muted-foreground truncate">
+                github.com/{githubRepo.owner}/{githubRepo.name}
+              </span>
             </div>
-          )}
+            <LinkExternal01
+              size={14}
+              className="text-muted-foreground shrink-0"
+            />
+          </a>
 
           {isDetecting ? (
             <div className="flex items-center justify-center gap-2 w-full">
@@ -535,14 +491,12 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     return <VmSuspendedState onResume={handleStart} />;
   }
 
-  // All tabs: setup + open script tabs + optional daemon.
   const allTabs = [
     "setup",
     ...openScriptTabs,
     ...(daemonOpen ? ["daemon"] : []),
   ];
 
-  // Scripts available to add (not already open)
   const addableScripts = vmEvents.scripts.filter(
     (s) => !openScriptTabs.includes(s),
   );
@@ -550,7 +504,6 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   return (
     <div className="flex flex-col w-full h-full">
       <div className="flex flex-col h-full">
-        {/* Terminal tabs + action bar */}
         <div className="flex items-center border-b border-border px-2 shrink-0">
           {allTabs.map((tab) => (
             <button
@@ -568,7 +521,6 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
             </button>
           ))}
 
-          {/* Add script button */}
           {addableScripts.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -593,7 +545,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
           )}
 
           <div className="flex-1 flex justify-center">
-            {vmDataRef.current?.vmId && (
+            {vmData?.vmId && (
               <div className="flex items-center">
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -601,12 +553,10 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
                       type="button"
                       className="shrink-0 rounded-l bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground cursor-pointer hover:bg-accent hover:text-foreground transition-colors border-r border-border/50"
                       onClick={() =>
-                        navigator.clipboard.writeText(
-                          vmDataRef.current?.vmId ?? "",
-                        )
+                        navigator.clipboard.writeText(vmData?.vmId ?? "")
                       }
                     >
-                      {vmDataRef.current.vmId}
+                      {vmData.vmId}
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">Copy VM ID</TooltipContent>
@@ -631,7 +581,6 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
             )}
           </div>
 
-          {/* Script tab controls (not for setup/daemon) */}
           <div className="flex items-center gap-1">
             {hasSelection && (
               <button
@@ -699,30 +648,46 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
           </div>
         </div>
 
-        {/* Terminal content */}
         <div className="flex-1 overflow-hidden">
           {allTabs.map((tab) => (
             <div
               key={tab}
               className={cn("h-full", activeTab === tab ? "block" : "hidden")}
             >
-              <VmTerminal
-                onReady={(t) => {
-                  terminalRefs.current.set(tab, t);
-                }}
-                onSelectionChange={(has, getText) =>
-                  handleSelectionChange(tab, has, getText)
-                }
-                initialData={
-                  tab === "setup"
-                    ? vmEvents.getBuffer("setup")
-                    : // Script tabs replay the script-named buffer + daemon
-                      // lifecycle log, since dev-process output can land under
-                      // either source depending on where it was emitted.
-                      vmEvents.getBuffer(tab) + vmEvents.getBuffer("daemon")
-                }
-                className="h-full"
-              />
+              {vmEvents.hasData(tab) || tab === "setup" || tab === "daemon" ? (
+                <VmTerminal
+                  onReady={(t) => {
+                    terminalRefs.current.set(tab, t);
+                  }}
+                  onSelectionChange={(has, getText) =>
+                    handleSelectionChange(tab, has, getText)
+                  }
+                  initialData={vmEvents.getBuffer(tab)}
+                  className="h-full"
+                />
+              ) : (
+                <EmptyState
+                  className="h-full"
+                  image={null}
+                  title={`Script "${tab}" not running`}
+                  description={`Click Run to start "${tab}".`}
+                  actions={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={execInFlight}
+                      onClick={() => handleExec(tab)}
+                    >
+                      {execInFlight ? (
+                        <Loading01 size={14} className="animate-spin" />
+                      ) : (
+                        <Play size={14} />
+                      )}
+                      Run
+                    </Button>
+                  }
+                />
+              )}
             </div>
           ))}
         </div>

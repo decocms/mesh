@@ -14,8 +14,8 @@ import { createReadPromptTool } from "./prompts";
 import { createReadResourceTool } from "./resources";
 import { createSandboxTool, type VirtualClient } from "./sandbox";
 import { createVmTools } from "./vm-tools";
-import { createDockerHandleResolver } from "./vm-tools/docker-ensure";
-import type { SandboxRepoRef } from "./vm-tools/docker-ensure";
+import { getSharedRunner } from "@/sandbox/shared-runner";
+import { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
 import { createOpenInAgentTool } from "./open-in-agent";
 import { createSubtaskTool } from "./subtask";
 import { userAskTool } from "./user-ask";
@@ -24,6 +24,15 @@ import { createGenerateImageTool } from "./generate-image";
 import { createWebSearchTool } from "./web-search";
 import type { ModelsConfig } from "../types";
 import type { MeshProvider } from "@/ai-providers/types";
+
+/**
+ * Active VM descriptor — resolved from `vmMap[userId][branch]` on the
+ * Virtual MCP. Both runners flow through the same vmMap surface; the tagged
+ * `runner` field drives transport dispatch.
+ */
+export type ActiveVm =
+  | { runner: "freestyle"; vmBaseUrl: string }
+  | { runner: "docker"; vmId: string };
 
 export interface BuiltinToolParams {
   /** Provider — null for Claude Code (subtask tool is omitted when null) */
@@ -36,21 +45,12 @@ export interface BuiltinToolParams {
   isPlanMode?: boolean;
   toolOutputMap: Map<string, string>;
   passthroughClient: VirtualClient;
-  /** When set, Freestyle VM file tools replace the QuickJS sandbox tool. */
-  activeVm?: { vmBaseUrl: string } | null;
   /**
-   * GitHub repo attached to the agent's Virtual MCP. When set, the Docker
-   * sandbox clones it on first provisioning. Ignored when `activeVm` is set
-   * (the Freestyle VM handles its own cloning).
+   * When set, VM file tools replace the QuickJS sandbox tool. Provisioning
+   * already happened in `VM_START` — tools read the handle directly from
+   * the vmMap entry.
    */
-  sandboxRepo?: SandboxRepoRef | null;
-  /**
-   * Thread's `sandbox_ref` — runner projectRef for the Docker container that
-   * backs both the LLM file tools and the preview iframe. When set on a
-   * Docker runner, the six VM tools register with a lazy resolver that
-   * provisions on first use. Null for legacy threads that predate the column.
-   */
-  sandboxRef?: string | null;
+  activeVm?: ActiveVm | null;
 }
 
 /**
@@ -75,8 +75,6 @@ function buildAllTools(
     toolOutputMap,
     passthroughClient,
     activeVm,
-    sandboxRepo,
-    sandboxRef,
   } = params;
   const approvalOpts = { isPlanMode };
   const tools: Record<string, unknown> = {
@@ -115,22 +113,12 @@ function buildAllTools(
     ),
   };
   // VM file tools — the same six LLM-visible tools across runners (schemas in
-  // vm-tools/schemas.ts). Dispatch order:
-  //   1. Freestyle `activeVm` set → Freestyle transport.
-  //   2. Docker runner + sandboxRef → Docker transport with a lazy resolver
-  //      that provisions on first tool call (no pre-existing handle needed).
-  //   3. Otherwise → QuickJS `sandbox` tool only; neither VM surface applies
-  //      (Freestyle needs an explicit VM_START, Docker needs a sandboxRef).
+  // vm-tools/schemas.ts). Dispatch is driven by the `activeVm` runner tag
+  // resolved from vmMap[userId][branch]. When no entry exists, fall back to
+  // the QuickJS `sandbox` tool — VM_START must run first for file tools.
   const vmNeedsApproval =
     toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false;
-  const dockerResolver =
-    !activeVm && sandboxRef
-      ? createDockerHandleResolver(ctx, {
-          sandboxRef,
-          repo: sandboxRepo ?? null,
-        })
-      : null;
-  if (activeVm) {
+  if (activeVm?.runner === "freestyle") {
     Object.assign(
       tools,
       createVmTools({
@@ -140,17 +128,27 @@ function buildAllTools(
         needsApproval: vmNeedsApproval,
       }),
     );
-  } else if (dockerResolver) {
-    Object.assign(
-      tools,
-      createVmTools({
-        runner: "docker",
-        dockerRunner: dockerResolver.runner,
-        ensureHandle: dockerResolver.ensureHandle,
+  } else if (activeVm?.runner === "docker") {
+    const runner = getSharedRunner(ctx);
+    if (runner instanceof DockerSandboxRunner) {
+      const { vmId } = activeVm;
+      Object.assign(
+        tools,
+        createVmTools({
+          runner: "docker",
+          dockerRunner: runner,
+          ensureHandle: () => Promise.resolve(vmId),
+          toolOutputMap,
+          needsApproval: vmNeedsApproval,
+        }),
+      );
+    } else {
+      tools.sandbox = createSandboxTool({
+        passthroughClient,
         toolOutputMap,
         needsApproval: vmNeedsApproval,
-      }),
-    );
+      });
+    }
   } else {
     tools.sandbox = createSandboxTool({
       passthroughClient,

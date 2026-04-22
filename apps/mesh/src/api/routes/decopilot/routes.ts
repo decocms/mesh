@@ -30,16 +30,12 @@ import {
   parseModelsToMap,
 } from "./model-permissions";
 import { PersistedRunConfigSchema, toModelsConfig } from "./run-config";
-import type { ThreadSandboxResponse } from "./sandbox-response";
 import { StreamRequestSchema } from "./schemas";
 import type { ChatMessage, ModelsConfig } from "./types";
 import { streamCore } from "./stream-core";
 import { RunClaimError } from "./run-reactor";
 import type { SqlThreadStorage } from "@/storage/threads";
 import { getPodId } from "@/core/pod-identity";
-import { getSharedRunner } from "@/sandbox/shared-runner";
-import { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
-import { composeSandboxUrl } from "@/tools/vm/start";
 
 // ============================================================================
 // Request Validation
@@ -157,6 +153,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
         temperature,
         memory: memoryConfig,
         thread_id,
+        branch,
         toolApprovalLevel,
         mode,
       } = await validateRequest(c);
@@ -206,6 +203,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           userId,
           taskId: resolvedThreadId,
           windowSize,
+          branch: branch ?? null,
         },
         ctx,
         { runRegistry, streamBuffer, cancelBroadcast },
@@ -252,6 +250,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
         temperature,
         memory: memoryConfig,
         thread_id,
+        branch,
         toolApprovalLevel,
         mode,
       } = await validateRequest(c);
@@ -301,6 +300,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           userId,
           taskId: resolvedThreadId,
           windowSize,
+          branch: branch ?? null,
         },
         ctx,
         { runRegistry, streamBuffer, cancelBroadcast },
@@ -382,214 +382,6 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
     }
 
     return c.json({ cancelled: true, async: true }, 202);
-  });
-
-  // ============================================================================
-  // Thread Sandbox Endpoint — discriminated-union describing the live sandbox
-  //
-  // Returns `{ sandbox, thread }`. `sandbox` is a tagged union (docker |
-  // freestyle) so the frontend can exhaustively switch on `kind`; a dead
-  // Docker handle can never be served as a Freestyle preview URL, and a
-  // stale `activeVms` entry can never back-fill the Docker path.
-  //
-  // Runner kind is a process-global (MESH_SANDBOX_RUNNER) — we dispatch on
-  // it here so the client doesn't need to know which runner the server was
-  // booted with.
-  // ============================================================================
-
-  app.get("/:org/decopilot/threads/:threadId/sandbox", async (c) => {
-    const ctx = c.get("meshContext");
-    const userId = ctx.auth?.user?.id;
-    if (!userId) {
-      throw new HTTPException(401, { message: "Unauthorized" });
-    }
-    ensureOrganization(c);
-    const taskId = c.req.param("threadId");
-    if (!taskId || /[.*>\s]/.test(taskId)) {
-      throw new HTTPException(400, { message: "Invalid thread ID" });
-    }
-
-    const thread = await ctx.storage.threads.get(taskId);
-    if (!thread) {
-      const body: ThreadSandboxResponse = {
-        sandbox: null,
-        thread: { exists: false, sandboxRef: null },
-      };
-      return c.json(body);
-    }
-
-    const sandboxRef = thread.sandbox_ref;
-    const threadShape = { exists: true, sandboxRef };
-
-    const runnerKind =
-      process.env.MESH_SANDBOX_RUNNER === "docker" ? "docker" : "freestyle";
-
-    if (runnerKind === "docker") {
-      if (!sandboxRef) {
-        const body: ThreadSandboxResponse = {
-          sandbox: null,
-          thread: threadShape,
-        };
-        return c.json(body);
-      }
-      const row = await ctx.db
-        .selectFrom("sandbox_runner_state")
-        .select(["handle"])
-        .where("user_id", "=", userId)
-        .where("project_ref", "=", sandboxRef)
-        .where("runner_kind", "=", "docker")
-        .executeTakeFirst();
-      if (!row) {
-        const body: ThreadSandboxResponse = {
-          sandbox: null,
-          thread: threadShape,
-        };
-        return c.json(body);
-      }
-
-      // Ask the sandbox daemon whether the dev server is actually bound. The
-      // daemon discovers the port itself so we don't need to thread it through
-      // runtime metadata — any framework's default port works.
-      //
-      // If the dev process has exited/crashed, fire-and-forget `/dev/start` so
-      // the server self-heals on page view. The `/dev/start` call is idempotent
-      // when phase is already starting/installing/ready, so hitting this
-      // endpoint on every poll is safe. Phase "idle" happens after a daemon
-      // restart (container still alive but never saw a /dev/start yet).
-      const runner = getSharedRunner(ctx);
-      let phase: string | undefined;
-      let serverUp = false;
-      let crashBackoffRemainingMs = 0;
-      if (runner instanceof DockerSandboxRunner) {
-        let probeFailed = false;
-        try {
-          const res = await runner.proxyDaemonRequest(
-            row.handle,
-            "/_daemon/dev/status",
-            {
-              method: "GET",
-              headers: new Headers(),
-              body: null,
-            },
-          );
-          if (res.ok) {
-            const status = (await res.json()) as {
-              phase?: string;
-              crashBackoffRemainingMs?: number;
-            };
-            phase = status.phase;
-            serverUp = status.phase === "ready";
-            crashBackoffRemainingMs = status.crashBackoffRemainingMs ?? 0;
-          } else {
-            probeFailed = true;
-          }
-        } catch {
-          serverUp = false;
-          probeFailed = true;
-        }
-
-        // Daemon probe failed — the container may have been evicted (docker rm)
-        // leaving a stale sandbox_runner_state row. Verify liveness; if dead,
-        // isHandleAlive purges the stale row and we report sandbox:null so the
-        // client's VM_START auto-start path fires and reprovisions.
-        if (probeFailed) {
-          const alive = await runner.isHandleAlive({
-            userId,
-            projectRef: sandboxRef,
-          });
-          if (!alive) {
-            const body: ThreadSandboxResponse = {
-              sandbox: null,
-              thread: threadShape,
-            };
-            return c.json(body);
-          }
-        }
-
-        // Crash-loop backoff: when the daemon reports it's in backoff after
-        // consecutive fast crashes, skip the auto-restart poke. Without this,
-        // every preview-panel poll would fire /dev/start on a dev script
-        // that can't boot (missing dep, bad config), burning CPU forever.
-        // The user's "restart" button sends `restart: true` which bypasses
-        // the backoff on the daemon side.
-        const inCrashBackoff =
-          phase === "crashed" && crashBackoffRemainingMs > 0;
-        if (
-          !inCrashBackoff &&
-          (phase === "idle" || phase === "exited" || phase === "crashed")
-        ) {
-          // Auto-poll never sends `restart: true` — that flag resets the
-          // daemon's crash-loop counter, so polling in a crash scenario would
-          // hold the backoff at the shortest window forever. Human-triggered
-          // restarts go through a separate UI path that sets restart:true.
-          runner
-            .proxyDaemonRequest(row.handle, "/_daemon/dev/start", {
-              method: "POST",
-              headers: new Headers({ "content-type": "application/json" }),
-              body: JSON.stringify({ restart: false }),
-            })
-            .catch(() => {
-              // Fire-and-forget — the UI will re-poll /dev/status.
-            });
-        }
-      }
-
-      const previewUrl = composeSandboxUrl(row.handle);
-
-      const body: ThreadSandboxResponse = {
-        sandbox: {
-          kind: "docker",
-          previewUrl,
-          handle: row.handle,
-          serverUp,
-          phase: phase ?? null,
-        },
-        thread: threadShape,
-      };
-      return c.json(body);
-    }
-
-    // Freestyle: activeVms is still the source of truth. `patchActiveVms` in
-    // the VM_START/VM_DELETE tools writes the per-user entry; we project it
-    // into the same response shape here so the frontend never reads Virtual
-    // MCP metadata directly.
-    const virtualMcpId = thread.virtual_mcp_id;
-    if (!virtualMcpId) {
-      const body: ThreadSandboxResponse = {
-        sandbox: null,
-        thread: threadShape,
-      };
-      return c.json(body);
-    }
-    const virtualMcp = await ctx.storage.virtualMcps.findById(virtualMcpId);
-    const activeVms = (
-      virtualMcp?.metadata as
-        | {
-            activeVms?: Record<
-              string,
-              { previewUrl: string; vmId: string; terminalUrl: string | null }
-            >;
-          }
-        | undefined
-    )?.activeVms;
-    const entry = activeVms?.[userId];
-    if (!entry) {
-      const body: ThreadSandboxResponse = {
-        sandbox: null,
-        thread: threadShape,
-      };
-      return c.json(body);
-    }
-    const body: ThreadSandboxResponse = {
-      sandbox: {
-        kind: "freestyle",
-        previewUrl: entry.previewUrl,
-        vmId: entry.vmId,
-        terminalUrl: entry.terminalUrl,
-      },
-      thread: threadShape,
-    };
-    return c.json(body);
   });
 
   // ============================================================================

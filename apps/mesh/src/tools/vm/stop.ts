@@ -1,34 +1,25 @@
 /**
  * VM_DELETE Tool
  *
- * Deletes the sandbox for the current user and removes the
- * `activeVms[userId]` entry from the Virtual MCP metadata. App-only tool —
- * not visible to AI models.
+ * Deletes a sandbox keyed by (userId, branch) and removes its entry from
+ * `vmMap[userId][branch]`. App-only tool — not visible to AI models.
  *
- * Dispatches on `MESH_SANDBOX_RUNNER` the same way `VM_START` does:
- *  - "freestyle" → vm.stop() + vm.delete() so the next VM_START re-creates
- *    the VM with fresh systemd config.
- *  - "docker" → runner.delete(handle) to stop and discard the container.
+ * Dispatches on the entry's `runnerKind` (persisted at VM_START time) so a
+ * pod that flips `MESH_SANDBOX_RUNNER` between start and stop still tears
+ * down the right kind of VM.
  */
 
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import { freestyle } from "freestyle-sandboxes";
 import { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
-import { patchActiveVms } from "./types";
 import { requireVmEntry } from "./helpers";
 import { getSharedRunner } from "../../sandbox/shared-runner";
-
-function resolveRunnerKind(): "docker" | "freestyle" {
-  const raw = process.env.MESH_SANDBOX_RUNNER;
-  if (raw === "docker" || raw === "freestyle") return raw;
-  return "freestyle";
-}
+import { removeVmMapEntry } from "./vm-map";
 
 export const VM_DELETE = defineTool({
   name: "VM_DELETE",
-  description:
-    "Delete a sandbox. For the Docker runner the sandbox is resolved by the thread's sandbox_ref; if multiple threads share the same sandbox_ref (future explicit-share feature), deleting from one thread tears it down for all of them.",
+  description: "Delete a sandbox.",
   annotations: {
     title: "Delete VM Preview",
     readOnlyHint: false,
@@ -39,12 +30,10 @@ export const VM_DELETE = defineTool({
   _meta: { ui: { visibility: "app" } },
   inputSchema: z.object({
     virtualMcpId: z.string().describe("Virtual MCP ID that owns this VM"),
-    threadId: z
+    branch: z
       .string()
-      .optional()
-      .describe(
-        "Current thread id. Required for the Docker runner — used to resolve the sandbox via thread.sandbox_ref.",
-      ),
+      .min(1)
+      .describe("Branch whose vm should be deleted (vmMap[userId][branch])"),
   }),
   outputSchema: z.object({
     success: z.boolean(),
@@ -62,64 +51,43 @@ export const VM_DELETE = defineTool({
     }
     const { entry, userId } = vmEntry;
 
-    // Clear the DB entry first so the UI returns to idle immediately.
-    // (activeVms still backs the Freestyle path and is a best-effort cache
-    // for the env panel on the Docker path.)
-    if (entry) {
-      await patchActiveVms(
-        ctx.storage.virtualMcps,
-        input.virtualMcpId,
-        userId,
-        (vms) => {
-          const updated = { ...vms };
-          delete updated[userId];
-          return updated;
-        },
-      );
+    if (!entry) {
+      return { success: true };
     }
 
-    if (resolveRunnerKind() === "docker") {
-      // Resolve the handle through thread.sandbox_ref so a delete hits the
-      // same container bash is using, regardless of which thread's activeVms
-      // last won the last-write race.
-      if (!input.threadId) {
-        throw new Error(
-          "VM_DELETE (docker runner): threadId is required — pass the current thread id so we can resolve the sandbox via thread.sandbox_ref",
+    // Clear the vmMap entry first so the UI returns to idle immediately,
+    // regardless of whether the teardown below succeeds.
+    await removeVmMapEntry(
+      ctx.storage.virtualMcps,
+      input.virtualMcpId,
+      userId,
+      userId,
+      input.branch,
+    );
+
+    if (entry.runnerKind === "docker") {
+      const runner = getSharedRunner(ctx);
+      if (runner instanceof DockerSandboxRunner) {
+        // Graceful: give the dev server a SIGTERM window before the
+        // container teardown forcibly kills everything.
+        await runner
+          .proxyDaemonRequest(entry.vmId, "/_daemon/dev/stop", {
+            method: "POST",
+            headers: new Headers(),
+            body: null,
+          })
+          .catch(() => {});
+      }
+      await runner
+        .delete(entry.vmId)
+        .catch((err) =>
+          console.error(
+            `[VM_DELETE] docker ${entry.vmId}: ${err instanceof Error ? err.message : String(err)}`,
+          ),
         );
-      }
-      const thread = await ctx.storage.threads.get(input.threadId);
-      const sandboxRef = thread?.sandbox_ref ?? null;
-      if (sandboxRef) {
-        const row = await ctx.db
-          .selectFrom("sandbox_runner_state")
-          .select(["handle"])
-          .where("user_id", "=", userId)
-          .where("project_ref", "=", sandboxRef)
-          .where("runner_kind", "=", "docker")
-          .executeTakeFirst();
-        if (row) {
-          const runner = getSharedRunner(ctx);
-          // Graceful: stop the dev process so it gets a SIGTERM window before
-          // the container teardown forcibly kills everything.
-          if (runner instanceof DockerSandboxRunner) {
-            await runner
-              .proxyDaemonRequest(row.handle, "/_daemon/dev/stop", {
-                method: "POST",
-                headers: new Headers(),
-                body: null,
-              })
-              .catch(() => {});
-          }
-          await runner
-            .delete(row.handle)
-            .catch((err) =>
-              console.error(
-                `[VM_DELETE] docker ${row.handle}: ${err instanceof Error ? err.message : String(err)}`,
-              ),
-            );
-        }
-      }
-    } else if (entry) {
+    } else {
+      // Freestyle path — also the fallback for legacy entries that pre-date
+      // `runnerKind` being stored on the vmMap entry.
       const vm = freestyle.vms.ref({ vmId: entry.vmId });
       await Promise.race([
         vm.stop().then(() => vm.delete()),
@@ -127,7 +95,9 @@ export const VM_DELETE = defineTool({
           setTimeout(() => reject(new Error("vm.delete() timed out")), 10_000),
         ),
       ]).catch((err) =>
-        console.error(`[VM_DELETE] ${entry.vmId}: ${err.message}`),
+        console.error(
+          `[VM_DELETE] freestyle ${entry.vmId}: ${err instanceof Error ? err.message : String(err)}`,
+        ),
       );
     }
 

@@ -147,6 +147,7 @@ export interface ChatPrefsContextValue {
 
 export interface ChatBridgeValue {
   sendMessage: (params: SendMessageParams) => Promise<void>;
+  isStreaming: boolean;
 }
 
 // ============================================================================
@@ -163,6 +164,7 @@ const BRIDGE_NOOP: ChatBridgeValue = {
       "[ChatBridge] sendMessage called but ActiveTaskProvider not mounted",
     );
   },
+  isStreaming: false,
 };
 
 /** Internal-only type for cross-provider communication */
@@ -189,7 +191,15 @@ interface TaskProviderInternals {
 const ChatStreamCtx = createContext<ChatStreamContextValue | null>(null);
 const ChatTaskCtx = createContext<ChatTaskContextValue | null>(null);
 const ChatPrefsCtx = createContext<ChatPrefsContextValue | null>(null);
-const ChatBridgeCtx = createContext<ChatBridgeValue>(BRIDGE_NOOP);
+/**
+ * ChatBridgeCtx holds a RefObject (not a value) so consumers outside
+ * ActiveTaskProvider always read the latest sendMessage/isStreaming via
+ * `.current` at call time — avoids stale closures when ActiveTaskProvider
+ * mutates the ref after initial render.
+ */
+const ChatBridgeCtx = createContext<React.RefObject<ChatBridgeValue>>({
+  current: BRIDGE_NOOP,
+});
 
 /** Internal context for passing TaskProvider internals to ActiveTaskProvider */
 const TaskInternalsCtx = createContext<TaskProviderInternals | null>(null);
@@ -537,7 +547,7 @@ export function ChatContextProvider({
   return (
     <ChatTaskCtx.Provider value={taskValue}>
       <ChatPrefsCtx.Provider value={prefsValue}>
-        <ChatBridgeCtx.Provider value={bridgeRef.current}>
+        <ChatBridgeCtx.Provider value={bridgeRef}>
           <TaskInternalsCtx.Provider value={internals}>
             {children}
           </TaskInternalsCtx.Provider>
@@ -586,6 +596,7 @@ export function ActiveTaskProvider({
   } = internals;
 
   const { org } = useProjectContext();
+  const { branch: urlBranch } = useChatNavigation();
 
   // Messages for current task (from React Query / server) — this is what suspends
   const serverMessages = useTaskMessages(taskId || null);
@@ -692,6 +703,7 @@ export function ActiveTaskProvider({
       created_at: new Date().toISOString(),
       thread_id: capturedTaskId,
       agent: { id: capturedVirtualMcpId },
+      ...(urlBranch ? { branch: urlBranch } : {}),
       user: {
         avatar: user?.image ?? undefined,
         name: user?.name ?? "you",
@@ -788,7 +800,10 @@ export function ActiveTaskProvider({
   };
 
   // Register sendMessage on the bridge so TaskProvider-level code can call it
-  bridgeRef.current = { sendMessage: sendMessageInternal };
+  bridgeRef.current = {
+    sendMessage: sendMessageInternal,
+    isStreaming: chat.status === "submitted" || chat.status === "streaming",
+  };
 
   // Consume pending message when this task is the target
   const pendingConsumedRef = useRef<string | null>(null);
@@ -871,5 +886,15 @@ export function useOptionalChatPrefs(): ChatPrefsContextValue | null {
 }
 
 export function useChatBridge(): ChatBridgeValue {
-  return useContext(ChatBridgeCtx);
+  const ref = useContext(ChatBridgeCtx);
+  // Return wrappers that read .current at call time. Destructuring
+  // `{ sendMessage }` still sees the latest implementation even when the
+  // ref is mutated after this hook call (which is the case when
+  // ActiveTaskProvider registers sendMessage after the consumer mounts).
+  return {
+    sendMessage: (params) => ref.current.sendMessage(params),
+    get isStreaming() {
+      return ref.current.isStreaming;
+    },
+  };
 }

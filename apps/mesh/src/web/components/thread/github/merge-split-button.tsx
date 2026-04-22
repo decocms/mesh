@@ -1,0 +1,66 @@
+import { Button } from "@deco/ui/components/button.tsx";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@deco/ui/components/dropdown-menu.tsx";
+import { ChevronDown } from "@untitledui/icons";
+import * as tpl from "./message-templates.ts";
+
+interface Props {
+  owner: string;
+  repo: string;
+  prNumber: number;
+  base: string;
+  disabled: boolean;
+  send: (text: string) => Promise<void> | void;
+}
+
+/**
+ * Split-style merge action: clicking the label fires the default
+ * (Squash & merge); clicking the chevron opens a dropdown with the
+ * alternative strategies. Each choice sends a templated chat message.
+ */
+export function MergeSplitButton({
+  owner,
+  repo,
+  prNumber,
+  base,
+  disabled,
+  send,
+}: Props) {
+  const squash = () => send(tpl.mergeSquash({ owner, repo, prNumber, base }));
+  const rebase = () => send(tpl.mergeRebase({ owner, repo, prNumber, base }));
+  const commit = () => send(tpl.mergeCommit({ owner, repo, prNumber, base }));
+
+  return (
+    <div className="inline-flex items-stretch rounded-md">
+      <Button
+        size="sm"
+        className="rounded-r-none border-r-0"
+        disabled={disabled}
+        onClick={squash}
+      >
+        Squash & merge
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            size="sm"
+            className="rounded-l-none px-2"
+            disabled={disabled}
+            aria-label="Other merge strategies"
+          >
+            <ChevronDown className="h-3.5 w-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={squash}>Squash and merge</DropdownMenuItem>
+          <DropdownMenuItem onClick={rebase}>Rebase and merge</DropdownMenuItem>
+          <DropdownMenuItem onClick={commit}>Merge commit</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}

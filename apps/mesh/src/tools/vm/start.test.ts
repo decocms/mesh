@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, it, expect, mock, beforeEach } from "bun:test";
+import type { VmMap, VmMapEntry } from "@decocms/mesh-sdk";
 import type { MeshContext } from "../../core/mesh-context";
-import type { VmEntry, VmMetadata } from "./types";
 
 // ---------------------------------------------------------------------------
 // Mock freestyle-sandboxes BEFORE importing VM_START (Bun requires this order)
@@ -60,7 +60,6 @@ mock.module("freestyle-sandboxes", () => ({
   },
 }));
 
-// Mock Freestyle integration packages
 mock.module("@freestyle-sh/with-nodejs", () => ({
   VmNodeJs: class VmNodeJs {},
 }));
@@ -70,7 +69,7 @@ mock.module("@freestyle-sh/with-deno", () => ({
 mock.module("@freestyle-sh/with-bun", () => ({
   VmBun: class VmBun {},
 }));
-// Mock downstream token storage to return a test token
+
 const mockTokenGet = mock(
   async (
     _connectionId: string,
@@ -101,9 +100,6 @@ const mockTokenGet = mock(
   }),
 );
 
-// Load the real class first so our mock can extend it — otherwise this
-// mock.module leaks a class that only has `get()` into every test file that
-// loads after this one.
 const { DownstreamTokenStorage: RealDownstreamTokenStorage } = await import(
   "../../storage/downstream-token"
 );
@@ -119,38 +115,40 @@ mock.module("../../storage/downstream-token", () => ({
   },
 }));
 
-// Now import after mocking
 const { VM_START } = await import("./start");
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-// Expected domain key for virtualMcpId="vmcp_1", userId="user_1"
+const BRANCH = "feat/example";
+
 const DOMAIN_KEY = createHash("md5")
-  .update("vmcp_1:user_1")
+  .update(`vmcp_1:user_1:${BRANCH}`)
   .digest("hex")
   .slice(0, 16);
 
-const BASE_METADATA: VmMetadata = {
+type Metadata = {
+  githubRepo: { owner: string; name: string; connectionId: string };
+  runtime: { selected: string; port: string };
+  vmMap?: VmMap;
+};
+
+const BASE_METADATA: Metadata = {
   githubRepo: {
     owner: "acme",
     name: "app",
     connectionId: "conn_github_1",
   },
-  runtime: {
-    selected: "npm",
-    port: "3000",
-  },
+  runtime: { selected: "npm", port: "3000" },
 };
 
-const CACHED_ENTRY: VmEntry = {
+const CACHED_ENTRY: VmMapEntry = {
   vmId: "vm_cached",
-  previewUrl: "https://virtual-mcp-id.deco.studio",
-  terminalUrl: null,
+  previewUrl: `https://${DOMAIN_KEY}.deco.studio`,
 };
 
-function makeVirtualMcp(orgId: string, metadata: VmMetadata, id = "vmcp_1") {
+function makeVirtualMcp(orgId: string, metadata: Metadata, id = "vmcp_1") {
   return {
     id,
     organization_id: orgId,
@@ -181,7 +179,7 @@ function makeCtx(overrides: {
     auth: {
       user: {
         id: userId,
-        email: "[email protected]",
+        email: "test@example.com",
         name: "Test",
         role: "user",
       },
@@ -194,10 +192,7 @@ function makeCtx(overrides: {
       setToolName: () => {},
     },
     storage: {
-      virtualMcps: {
-        findById,
-        update: updateSpy,
-      },
+      virtualMcps: { findById, update: updateSpy },
     } as never,
     timings: {
       measure: async <T>(_name: string, cb: () => Promise<T>) => await cb(),
@@ -267,61 +262,100 @@ describe("VM_START", () => {
     }));
   });
 
-  it("returns cached entry with isNewVm: false when activeVms[userId] is already set", async () => {
-    const metadata: VmMetadata = {
+  it("returns cached entry when vmMap[userId][branch] is already set", async () => {
+    const metadata: Metadata = {
       ...BASE_METADATA,
-      activeVms: { user_1: CACHED_ENTRY },
+      vmMap: { user_1: { [BRANCH]: CACHED_ENTRY } },
     };
     const virtualMcp = makeVirtualMcp("org_1", metadata);
     const ctx = makeCtx({ virtualMcp });
 
-    const result = await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
+    const result = await VM_START.handler(
+      { virtualMcpId: "vmcp_1", branch: BRANCH },
+      ctx,
+    );
 
-    expect(result).toEqual({ ...CACHED_ENTRY, isNewVm: false });
-    expect(result.isNewVm).toBe(false);
+    expect(result).toEqual({
+      ...CACHED_ENTRY,
+      branch: BRANCH,
+      isNewVm: false,
+      runnerKind: "freestyle",
+    });
     expect(mockVmsCreate).not.toHaveBeenCalled();
-    expect(mockVmExec).not.toHaveBeenCalled();
-    expect(mockRoute).not.toHaveBeenCalled();
   });
 
-  it("creates a new VM with isNewVm: true and persists entry when no existing activeVms entry", async () => {
-    const metadata: VmMetadata = {
-      ...BASE_METADATA,
-      activeVms: { other_user: CACHED_ENTRY },
-    };
+  it("creates a new VM and persists entry in vmMap when no existing entry", async () => {
+    const metadata: Metadata = { ...BASE_METADATA };
     const virtualMcp = makeVirtualMcp("org_1", metadata);
     const updateSpy = mock(async () => {});
     const ctx = makeCtx({ virtualMcp, updateSpy });
 
-    const result = await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
+    const result = await VM_START.handler(
+      { virtualMcpId: "vmcp_1", branch: BRANCH },
+      ctx,
+    );
 
-    // Token fetched from downstream_tokens
     expect(mockTokenGet).toHaveBeenCalledWith("conn_github_1");
     expect(mockVmsCreate).toHaveBeenCalledTimes(1);
 
     expect(result.vmId).toBe("vm_xyz");
     expect(result.previewUrl).toBe(`https://${DOMAIN_KEY}.deco.studio`);
-    expect(result.terminalUrl).toBeNull();
+    expect(result.branch).toBe(BRANCH);
     expect(result.isNewVm).toBe(true);
+    // @ts-expect-error — terminalUrl is gone; assert absence at runtime
+    expect(result.terminalUrl).toBeUndefined();
 
-    // storage.update called once: persist new VM entry (patchActiveVms)
     expect(updateSpy).toHaveBeenCalledTimes(1);
-
-    // Update preserves existing entries
     const updateCall = (updateSpy.mock.calls as unknown[][])[0]!;
-    const updatedMetadata = (updateCall[2] as { metadata: VmMetadata })
-      .metadata;
-    expect(updatedMetadata.activeVms?.["other_user"]).toEqual(CACHED_ENTRY);
-    expect(updatedMetadata.activeVms?.["user_1"]).toMatchObject({
+    const updated = (updateCall[2] as { metadata: { vmMap: VmMap } }).metadata;
+    expect(updated.vmMap.user_1?.[BRANCH]).toEqual({
+      vmId: "vm_xyz",
+      previewUrl: `https://${DOMAIN_KEY}.deco.studio`,
+    });
+  });
+
+  it("generates decopilot/* branch when input.branch is omitted", async () => {
+    const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
+    const updateSpy = mock(async () => {});
+    const ctx = makeCtx({ virtualMcp, updateSpy });
+
+    const result = await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
+
+    expect(result.branch.startsWith("decopilot/")).toBe(true);
+    const updateCall = (updateSpy.mock.calls as unknown[][])[0]!;
+    const updated = (updateCall[2] as { metadata: { vmMap: VmMap } }).metadata;
+    expect(updated.vmMap.user_1?.[result.branch]).toMatchObject({
       vmId: "vm_xyz",
     });
   });
 
-  it("only includes daemon in systemd services", async () => {
+  it("clears stale vmMap entry and creates a new VM when vm.start() throws", async () => {
+    mockVmStart.mockRejectedValueOnce(new Error("VM not found"));
+    const metadata: Metadata = {
+      ...BASE_METADATA,
+      vmMap: { user_1: { [BRANCH]: CACHED_ENTRY } },
+    };
+    const virtualMcp = makeVirtualMcp("org_1", metadata);
+    const updateSpy = mock(async () => {});
+    const ctx = makeCtx({ virtualMcp, updateSpy });
+
+    const result = await VM_START.handler(
+      { virtualMcpId: "vmcp_1", branch: BRANCH },
+      ctx,
+    );
+
+    expect(mockVmsCreate).toHaveBeenCalledTimes(1);
+    expect(result.isNewVm).toBe(true);
+    expect(result.vmId).toBe("vm_xyz");
+    // updateSpy: 1 for removeVmMapEntry (stale cleanup) + 1 for setVmMapEntry (new)
+    expect(updateSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("only includes daemon + prep services in systemd services", async () => {
     const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
     const ctx = makeCtx({ virtualMcp });
 
-    await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
+    await VM_START.handler({ virtualMcpId: "vmcp_1", branch: BRANCH }, ctx);
 
     const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
       spec: MockVmSpec;
@@ -335,27 +369,11 @@ describe("VM_START", () => {
     ]);
   });
 
-  it("daemon has no after dependency on dev-server", async () => {
-    const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
-    const ctx = makeCtx({ virtualMcp });
-
-    await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
-
-    const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
-      spec: MockVmSpec;
-    };
-
-    const daemon = createCall.spec._services.find((s) => s.name === "daemon")!;
-    expect((daemon.after as string[] | undefined) ?? []).not.toContain(
-      "dev-server.service",
-    );
-  });
-
   it("passes idleTimeoutSeconds: 1800 to freestyle.vms.create", async () => {
     const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
     const ctx = makeCtx({ virtualMcp });
 
-    await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
+    await VM_START.handler({ virtualMcpId: "vmcp_1", branch: BRANCH }, ctx);
 
     const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
       idleTimeoutSeconds: number;
@@ -363,11 +381,11 @@ describe("VM_START", () => {
     expect(createCall.idleTimeoutSeconds).toBe(1800);
   });
 
-  it("daemon script includes /_decopilot_vm/events SSE endpoint and setup source", async () => {
+  it("daemon script includes /_decopilot_vm/events SSE endpoint and clone with branch", async () => {
     const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
     const ctx = makeCtx({ virtualMcp });
 
-    await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
+    await VM_START.handler({ virtualMcpId: "vmcp_1", branch: BRANCH }, ctx);
 
     const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
       spec: MockVmSpec;
@@ -378,43 +396,19 @@ describe("VM_START", () => {
     expect(daemonJs).toBeDefined();
     expect(daemonJs!.content).toContain("/_decopilot_vm/events");
     expect(daemonJs!.content).toContain("text/event-stream");
-    expect(daemonJs!.content).toContain("/_decopilot_vm/exec/");
-    expect(daemonJs!.content).toContain("git clone");
-    expect(files["/opt/run-daemon.sh"]).toBeDefined();
-  });
-
-  it("clears stale VM entry, creates new VM when vm.start() throws", async () => {
-    mockVmStart.mockRejectedValueOnce(new Error("VM not found"));
-    const metadata: VmMetadata = {
-      ...BASE_METADATA,
-      activeVms: { user_1: CACHED_ENTRY },
-    };
-    const virtualMcp = makeVirtualMcp("org_1", metadata);
-    const updateSpy = mock(async () => {});
-    const ctx = makeCtx({ virtualMcp, updateSpy });
-
-    const result = await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
-
-    expect(mockVmsCreate).toHaveBeenCalledTimes(1);
-    expect(result.isNewVm).toBe(true);
-    expect(result.vmId).toBe("vm_xyz");
-
-    // updateSpy called twice: clear stale + persist new entry
-    expect(updateSpy).toHaveBeenCalledTimes(2);
+    expect(daemonJs!.content).toContain(`const BRANCH = "${BRANCH}"`);
+    expect(daemonJs!.content).not.toContain("randomBranch");
   });
 
   it("passes VmSpec integrations for bun runtime — includes node and bun runtime", async () => {
-    const metadata: VmMetadata = {
+    const metadata: Metadata = {
       ...BASE_METADATA,
-      runtime: {
-        ...BASE_METADATA.runtime,
-        selected: "bun",
-      },
+      runtime: { selected: "bun", port: "3000" },
     };
     const virtualMcp = makeVirtualMcp("org_1", metadata);
     const ctx = makeCtx({ virtualMcp });
 
-    await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
+    await VM_START.handler({ virtualMcpId: "vmcp_1", branch: BRANCH }, ctx);
 
     const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
       spec: MockVmSpec;
@@ -428,7 +422,7 @@ describe("VM_START", () => {
     const ctx = makeCtx({ virtualMcp: null });
 
     await expect(
-      VM_START.handler({ virtualMcpId: "vmcp_missing" }, ctx),
+      VM_START.handler({ virtualMcpId: "vmcp_missing", branch: BRANCH }, ctx),
     ).rejects.toThrow("Virtual MCP not found");
   });
 
@@ -437,7 +431,7 @@ describe("VM_START", () => {
     const ctx = makeCtx({ orgId: "org_1", virtualMcp });
 
     await expect(
-      VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx),
+      VM_START.handler({ virtualMcpId: "vmcp_1", branch: BRANCH }, ctx),
     ).rejects.toThrow("Virtual MCP not found");
   });
 
@@ -447,7 +441,7 @@ describe("VM_START", () => {
     const ctx = makeCtx({ virtualMcp });
 
     await expect(
-      VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx),
+      VM_START.handler({ virtualMcpId: "vmcp_1", branch: BRANCH }, ctx),
     ).rejects.toThrow("No GitHub token found");
   });
 });

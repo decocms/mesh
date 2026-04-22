@@ -726,14 +726,10 @@ export interface ThreadTable {
   >;
   /** Virtual MCP (agent) this thread was initiated with */
   virtual_mcp_id: string;
+  /** Git branch this thread is pinned to (GitHub-linked virtualmcps only) */
+  branch: string | null;
   /** Per-task UI state (e.g., expanded_tools for right-panel tabs) */
   metadata: ColumnType<ThreadMetadata, string | undefined, string>;
-  /**
-   * Identifier for the sandbox this thread uses (Docker runner path).
-   * Null for legacy rows and for threads that never provisioned a sandbox.
-   * Shared containers: multiple threads can point to the same sandbox_ref.
-   */
-  sandbox_ref: string | null;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
   created_by: string; // User ID;
@@ -770,9 +766,9 @@ export interface Thread {
   run_started_at: string | null;
   /** Virtual MCP (agent) this thread was initiated with */
   virtual_mcp_id: string;
+  /** Git branch this thread is pinned to (GitHub-linked virtualmcps only) */
+  branch: string | null;
   metadata: ThreadMetadata;
-  /** Sandbox container identifier (Docker runner path); null if not provisioned. */
-  sandbox_ref: string | null;
 }
 
 export interface ThreadMessageTable {

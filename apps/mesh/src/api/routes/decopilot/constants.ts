@@ -1,3 +1,4 @@
+import type { GithubRepo } from "@decocms/mesh-sdk";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 /** Message ID generator. Use as closure where a () => string is expected (e.g. toUIMessageStreamResponse). */
@@ -141,6 +142,25 @@ Focus exclusively on:
 - Agent tools (create, update virtual MCPs)
 - Automation tools (create, configure triggers)
 </scope>`;
+}
+
+/**
+ * Repo environment prompt — injected when the active virtual MCP has a
+ * GitHub repository linked (and therefore exposes the VM/filesystem/shell
+ * tool suite).
+ */
+export function buildRepoEnvironmentPrompt(repo: GithubRepo): string {
+  return `<repo-environment>
+You are running inside the repository \`${repo.owner}/${repo.name}\`.
+Treat it as a working codebase on disk, not an abstract topic.
+
+When the user asks about code, files, structure, behavior, or bugs:
+prefer inspecting the repo with the filesystem and shell tools in
+<available-connections> over guessing or asking. Explore before
+answering.
+
+Cite file locations as \`path:line\` so the user can jump to them.
+</repo-environment>`;
 }
 
 export const TITLE_GENERATOR_PROMPT = `Generate a concise, sentence-case title (3-7 words) that captures the main topic or goal of this session. Use sentence case: capitalize only the first word and proper nouns.

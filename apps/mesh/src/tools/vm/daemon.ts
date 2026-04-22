@@ -22,6 +22,11 @@ export interface DaemonConfig {
   bootstrapScript: string;
   gitUserName: string;
   gitUserEmail: string;
+  /**
+   * Branch to check out after clone. Required, non-empty. The daemon clones
+   * with `-b <branch>` so origin/<branch> points at the intended commit.
+   */
+  branch: string;
 }
 
 export function buildDaemonScript(config: DaemonConfig): string {
@@ -36,10 +41,14 @@ export function buildDaemonScript(config: DaemonConfig): string {
     bootstrapScript,
     gitUserName,
     gitUserEmail,
+    branch,
   } = config;
 
   if (!/^\d+$/.test(upstreamPort)) {
     throw new Error(`Invalid upstream port: ${upstreamPort}`);
+  }
+  if (typeof branch !== "string" || branch.length === 0) {
+    throw new Error("DaemonConfig.branch is required and must be non-empty");
   }
 
   return `const http = require("http");
@@ -58,15 +67,7 @@ const PORT = ${JSON.stringify(port)};
 const PATH_PREFIX = ${JSON.stringify(pathPrefix)};
 const GIT_USER_NAME = ${JSON.stringify(gitUserName)};
 const GIT_USER_EMAIL = ${JSON.stringify(gitUserEmail)};
-
-const ADJECTIVES = ["amber","bold","bright","calm","crimson","coral","daring","deep","dusty","eager","faint","fierce","frozen","gentle","golden","grand","green","hollow","iron","ivory","keen","lasting","lunar","mellow","misty","noble","olive","pale","prime","quiet","rapid","rustic","serene","sharp","silver","sleek","solar","stark","still","swift","tawny","tender","thin","true","vast","velvet","warm","wild","young","zen"];
-const NOUNS = ["anchor","birch","brook","cedar","cliff","cove","crane","dune","echo","ember","falcon","fern","flint","forge","frost","glade","grove","harbor","hawk","iris","jade","lark","maple","marsh","mesa","opal","orbit","peak","pine","plume","quartz","rapids","reef","ridge","river","sage","shore","slate","spruce","stone","summit","thorn","tide","trail","vale","wren","aspen","delta","crest","spark"];
-
-function randomBranch() {
-  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
-  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
-  return "decopilot/" + adj + "-" + noun;
-}
+const BRANCH = ${JSON.stringify(branch)};
 
 const APP_ROOT = "/app";
 const DECO_UID = 1000;
@@ -228,8 +229,19 @@ function discoverScripts() {
 }
 
 function runSetup() {
-  const cloneCmd = "git clone --depth 1 --single-branch " + CLONE_URL + " /app";
-  const cloneLabel = "$ git clone --depth 1 --single-branch " + REPO_NAME + " /app";
+  // Clone the repo's default branch, then switch to BRANCH — fetching it
+  // from origin when the remote has it, or creating it locally off default
+  // when it does not. This keeps newly-generated decopilot/* branches
+  // working without requiring the caller to push first.
+  // BRANCH is always non-empty — validated at daemon build time.
+  const branchNameOk = (b) => /^[A-Za-z0-9._/-]+$/.test(b) && !b.startsWith("-");
+  if (!branchNameOk(BRANCH)) {
+    broadcastChunk("setup", "\\r\\nInvalid branch name: " + BRANCH + "\\r\\n");
+    log("invalid branch name: " + BRANCH);
+    return;
+  }
+  const cloneCmd = "git clone --depth 1 " + CLONE_URL + " /app";
+  const cloneLabel = "$ git clone --depth 1 " + REPO_NAME + " /app";
   broadcastChunk("setup", cloneLabel + "\\r\\n");
 
   const child = spawn("script", ["-q", "-c", cloneCmd, "/dev/null"], {
@@ -248,17 +260,42 @@ function runSetup() {
       return;
     }
 
-    // Configure git identity and create branch
+    // Configure git identity.
     try {
       execSync("git config user.name " + JSON.stringify(GIT_USER_NAME), { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
       execSync("git config user.email " + JSON.stringify(GIT_USER_EMAIL), { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
-      const branch = randomBranch();
-      execSync("git checkout -b " + branch, { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
-      broadcastChunk("setup", "\\r\\n$ git checkout -b " + branch + "\\r\\n");
-      log("created branch " + branch);
+    } catch (e) {
+      log("git identity setup failed:", e.message);
+      broadcastChunk("setup", "\\r\\nWarning: could not set up git identity\\r\\n");
+    }
+
+    // Resolve BRANCH: fetch from remote when it exists there, otherwise
+    // create locally off the default branch we just cloned.
+    let branchOnRemote = false;
+    try {
+      execSync(
+        "git fetch origin " + JSON.stringify(BRANCH) + ":" + JSON.stringify(BRANCH),
+        { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV, stdio: "pipe" },
+      );
+      branchOnRemote = true;
+    } catch (e) {
+      // Branch doesn't exist on remote — create it locally below.
+      log("fetch origin " + BRANCH + " failed (branch likely absent remote): " + (e && e.message ? e.message : e));
+    }
+
+    try {
+      if (branchOnRemote) {
+        execSync("git checkout " + JSON.stringify(BRANCH), { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
+        broadcastChunk("setup", "\\r\\n$ git checkout " + BRANCH + " (from origin)\\r\\n");
+        log("checked out " + BRANCH + " from remote");
+      } else {
+        execSync("git checkout -b " + JSON.stringify(BRANCH), { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
+        broadcastChunk("setup", "\\r\\n$ git checkout -b " + BRANCH + " (new local)\\r\\n");
+        log("created local branch " + BRANCH + " off default");
+      }
     } catch (e) {
       log("git branch setup failed:", e.message);
-      broadcastChunk("setup", "\\r\\nWarning: could not create branch\\r\\n");
+      broadcastChunk("setup", "\\r\\nWarning: could not set up branch " + BRANCH + "\\r\\n");
     }
 
     if (!PM) {

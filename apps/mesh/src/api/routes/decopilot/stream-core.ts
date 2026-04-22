@@ -10,7 +10,11 @@ import type { MeshContext } from "@/core/mesh-context";
 import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 import { monitorLlmCall } from "@/monitoring/emit-llm-call";
 import { recordLlmCallMetrics } from "@/monitoring/record-llm-call-metrics";
-import { isDecopilot, sanitizeProviderMetadata } from "@decocms/mesh-sdk";
+import {
+  type GithubRepo,
+  isDecopilot,
+  sanitizeProviderMetadata,
+} from "@decocms/mesh-sdk";
 import { SpanStatusCode } from "@opentelemetry/api";
 import {
   type ToolSet,
@@ -23,6 +27,7 @@ import { createEnableToolsTool } from "./built-in-tools/enable-tools";
 import {
   buildBasePlatformPrompt,
   buildDecopilotAgentPrompt,
+  buildRepoEnvironmentPrompt,
   DEFAULT_MAX_TOKENS,
   DEFAULT_THREAD_TITLE,
   DEFAULT_WINDOW_SIZE,
@@ -101,6 +106,11 @@ export interface StreamCoreInput {
   windowSize?: number;
   abortSignal?: AbortSignal;
   isResume?: boolean;
+  /**
+   * Git branch to pin the thread to (GitHub-linked virtualmcps only).
+   * Persisted onto the thread row on first-message thread creation.
+   */
+  branch?: string | null;
 }
 
 export interface StreamCoreDeps {
@@ -206,6 +216,7 @@ async function streamCoreInner(
         defaultWindowSize: windowSize,
         triggerId: input.triggerId,
         virtualMcpId: input.agent.id,
+        branch: input.branch ?? null,
       }),
     ]);
 
@@ -411,35 +422,37 @@ async function streamCoreInner(
                 { ctx, isPlanMode: modeConfig.isPlanMode },
               );
 
-        // Resolve active VM for the current user — when present, VM file tools
-        // replace the QuickJS sandbox in the built-in tool set.
-        //
-        // Freestyle-only: the VM file tools hit the in-VM daemon at
-        // `<previewUrl>/_decopilot_vm/*`. The docker runner writes no
-        // activeVms entry (its sandbox is keyed off `thread.sandbox_ref`), so
-        // we also hard-skip activation when MESH_SANDBOX_RUNNER=docker — old
-        // Freestyle rows in `activeVms` must never reach the docker tool set,
-        // or bash starts pointing at a dev-server port instead of the
-        // sandbox daemon.
-        const runnerKind =
-          (process.env.MESH_SANDBOX_RUNNER as "docker" | "freestyle") ??
-          "freestyle";
-        const virtualMcpMetadata = virtualMcp.metadata as {
-          activeVms?: Record<string, { previewUrl: string }>;
-          githubRepo?: {
-            owner: string;
-            name: string;
-            connectionId: string;
-          } | null;
+        // Resolve active VM for (current user, pinned branch) — when present,
+        // VM file tools replace the QuickJS sandbox in the built-in tool set.
+        // Both docker and freestyle entries flow through the same vmMap lookup;
+        // the per-entry `runnerKind` drives transport dispatch inside
+        // `getBuiltInTools`.
+        const vmMetadata = virtualMcp.metadata as {
+          vmMap?: Record<
+            string,
+            Record<
+              string,
+              {
+                vmId: string;
+                previewUrl: string;
+                runnerKind?: "docker" | "freestyle";
+              }
+            >
+          >;
+          githubRepo?: GithubRepo | null;
         };
         const activeVmEntry =
-          runnerKind === "docker"
-            ? undefined
-            : virtualMcpMetadata?.activeVms?.[input.userId];
+          input.branch && input.userId
+            ? vmMetadata?.vmMap?.[input.userId]?.[input.branch]
+            : undefined;
         const activeVm = activeVmEntry
-          ? { vmBaseUrl: activeVmEntry.previewUrl }
+          ? activeVmEntry.runnerKind === "docker"
+            ? { runner: "docker" as const, vmId: activeVmEntry.vmId }
+            : {
+                runner: "freestyle" as const,
+                vmBaseUrl: activeVmEntry.previewUrl,
+              }
           : null;
-        const sandboxRepo = virtualMcpMetadata?.githubRepo ?? null;
 
         const builtInTools = isCliAgent
           ? {}
@@ -455,8 +468,6 @@ async function streamCoreInner(
                 toolOutputMap,
                 passthroughClient,
                 activeVm,
-                sandboxRepo,
-                sandboxRef: mem.thread.sandbox_ref,
               },
               ctx,
             );
@@ -521,10 +532,15 @@ async function streamCoreInner(
             ? modeConfig.webSearchInstructionPrompt
             : null;
 
+        const repoEnvironmentPrompt = vmMetadata?.githubRepo
+          ? buildRepoEnvironmentPrompt(vmMetadata.githubRepo)
+          : null;
+
         const systemPrompts = [
           basePrompt,
           planModePrompt,
           webSearchPrompt,
+          repoEnvironmentPrompt,
           toolCatalog,
           promptCatalog,
           agentPrompt,

@@ -12,6 +12,7 @@ import { Suspense, lazy } from "react";
 import { Loading01 } from "@untitledui/icons";
 import { useMainPanelTabs } from "./use-main-panel-tabs";
 import { InstructionsTab } from "./instructions-tab";
+import { GitTab } from "@/web/components/thread/github/git-tab";
 import { ConnectionsTab } from "./connections-tab";
 import { LayoutTab } from "./layout-tab";
 import { PreviewTab } from "./preview-tab";
@@ -40,6 +41,9 @@ export function MainPanelContent({
 
   if (activeTab === "instructions") {
     return <InstructionsTab virtualMcpId={virtualMcpId} />;
+  }
+  if (activeTab === "git") {
+    return <GitTab virtualMcpId={virtualMcpId} />;
   }
   if (activeTab === "connections") {
     return <ConnectionsTab virtualMcpId={virtualMcpId} />;

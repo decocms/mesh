@@ -1,0 +1,77 @@
+/**
+ * Pure text templates for PR panel action buttons. Kept in a separate module
+ * so they're trivially unit-testable and editable without touching the UI.
+ *
+ * All templates render into a natural-language user message that the LLM
+ * executes via its GitHub tools.
+ */
+
+export interface TemplateContext {
+  owner: string;
+  repo: string;
+  branch: string;
+  base: string;
+  prNumber?: number;
+  failingChecks?: string[];
+  checkName?: string;
+}
+
+type RepoCtx = Pick<TemplateContext, "owner" | "repo">;
+const repoRef = (c: RepoCtx) => `${c.owner}/${c.repo}`;
+
+/**
+ * Preamble appended to any command that involves rewriting history or
+ * resolving conflicts. Tells the agent to use the BASH tool + git CLI
+ * directly (not the github-mcp-server API, which e.g. performs a merge
+ * instead of a true rebase).
+ */
+const GIT_CLI_PREAMBLE =
+  "Use the BASH tool with the git CLI inside the vm's working tree (not the GitHub REST/MCP tools) for any step that rewrites history, resolves conflicts, stages/commits, or pushes — the repo is already cloned and checked out there. Reserve the GitHub tools for PR-level operations (opening/closing/merging PRs, posting review comments).";
+
+export function createPr(
+  ctx: Pick<TemplateContext, "owner" | "repo" | "branch" | "base">,
+): string {
+  return `On repo \`${repoRef(ctx)}\`, create a pull request for branch \`${ctx.branch}\` against \`${ctx.base}\`. Write a clear title and a summary of the changes so far. ${GIT_CLI_PREAMBLE}`;
+}
+
+export function mergeSquash(
+  ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber" | "base">,
+): string {
+  return `On repo \`${repoRef(ctx)}\`, squash-merge PR #${ctx.prNumber} into \`${ctx.base}\`. You may call the GitHub merge API for this since it's a PR-level operation; use the BASH tool with git only if you need to prep or reorganize commits first.`;
+}
+
+export function mergeRebase(
+  ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber" | "base">,
+): string {
+  return `On repo \`${repoRef(ctx)}\`, rebase-merge PR #${ctx.prNumber} into \`${ctx.base}\`. Prefer a true rebase via the BASH tool (\`git rebase ${ctx.base}\` in the vm, then force-push), and only use the GitHub merge API after the branch is ready.`;
+}
+
+export function mergeCommit(
+  ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber" | "base">,
+): string {
+  return `On repo \`${repoRef(ctx)}\`, merge PR #${ctx.prNumber} into \`${ctx.base}\` with a merge commit via the GitHub merge API. Use the BASH tool with git only if you need to prep commits first.`;
+}
+
+export function rebaseOnBase(
+  ctx: Pick<TemplateContext, "owner" | "repo" | "branch" | "base">,
+): string {
+  return `On repo \`${repoRef(ctx)}\`, rebase branch \`${ctx.branch}\` on the latest \`${ctx.base}\` using the BASH tool and git CLI in the vm's working tree. Run \`git fetch origin\`, \`git checkout ${ctx.branch}\`, \`git rebase origin/${ctx.base}\`, then \`git push --force-with-lease\`. Do NOT use the GitHub \`update_pull_request_branch\` MCP tool — it performs a merge-of-base, not a true rebase. ${GIT_CLI_PREAMBLE}`;
+}
+
+export function rerunCheck(
+  ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber" | "checkName">,
+): string {
+  return `On repo \`${repoRef(ctx)}\`, re-run the \`${ctx.checkName}\` check on PR #${ctx.prNumber} via the GitHub MCP tools. If an empty commit is needed to retrigger CI, use the BASH tool with git to create and push it.`;
+}
+
+export function closePr(
+  ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber">,
+): string {
+  return `On repo \`${repoRef(ctx)}\`, close PR #${ctx.prNumber} without merging. Use the GitHub MCP tools for this PR-level operation.`;
+}
+
+export function reopenPr(
+  ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber">,
+): string {
+  return `On repo \`${repoRef(ctx)}\`, reopen PR #${ctx.prNumber}. Use the GitHub MCP tools for this PR-level operation.`;
+}

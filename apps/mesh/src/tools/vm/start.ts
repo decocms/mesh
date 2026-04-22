@@ -1,55 +1,58 @@
 /**
  * VM_START Tool
  *
- * Creates a sandbox with the connected GitHub repo, populates the Virtual
- * MCP's `activeVms[userId]` entry, and returns the preview URL the frontend
- * embeds in the iframe. App-only tool — not visible to AI models.
+ * Starts a sandbox with the connected GitHub repo, keyed by (userId, branch)
+ * in the Virtual MCP's `vmMap`. App-only tool — not visible to AI models.
  *
  * Dispatches on `MESH_SANDBOX_RUNNER`:
  *  - "freestyle" → spins up a Freestyle VM with in-VM iframe-proxy/daemon.
  *    Install + dev lifecycle runs in the VM daemon so VM_START returns fast.
  *    Freestyle docs: /v2/vms, /v2/vms/configuration/systemd-services,
  *    /v2/vms/configuration/ports-networking, /v2/vms/configuration/domains.
- *  - "docker" → reuses the shared DockerSandboxRunner. The preview URL is a
- *    relative mesh proxy path; the container's dev-server port is bound to
- *    127.0.0.1 and forwarded via /api/sandbox/:handle/preview/:port/. Repo
- *    clone happens inside the runner; the user is expected to start the dev
- *    server manually via the `bash` tool (preview-lifecycle automation is
- *    deferred).
+ *  - "docker" → reuses the shared DockerSandboxRunner. The preview URL points
+ *    at the sandbox ingress (`<handle>.sandboxes.<root>/`); daemon calls are
+ *    mesh-proxied via `/api/sandbox/:handle/_daemon/*` so the browser doesn't
+ *    need the daemon bearer token.
+ *
+ * Branch semantics: the tool accepts an optional `branch`. When omitted it
+ * generates `decopilot/<adjective>-<noun>`. The resolved branch is returned
+ * so the client can persist it. Docker currently clones the default branch
+ * regardless of `branch` (TODO: per-branch clone). Freestyle's in-VM daemon
+ * respects the branch during clone.
  */
 
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import type { VmMapEntry } from "@decocms/mesh-sdk";
 import { defineTool } from "../../core/define-tool";
 import { VmSpec, freestyle } from "freestyle-sandboxes";
 import { VmDeno } from "@freestyle-sh/with-deno";
 import { VmBun } from "@freestyle-sh/with-bun";
 import { VmNodeJs } from "@freestyle-sh/with-nodejs";
-import { type VmEntry, patchActiveVms } from "./types";
+import { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
+import type { MeshContext } from "../../core/mesh-context";
 import { requireVmEntry, resolveRuntimeConfig } from "./helpers";
 import { buildCloneInfo } from "../../shared/github-clone-info";
 import { buildDaemonScript } from "./daemon";
-import type { MeshContext } from "../../core/mesh-context";
-import { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
+import { generateBranchName } from "../../shared/branch-name";
 import { getSharedRunner } from "../../sandbox/shared-runner";
-import { mintSandboxRef } from "../../sandbox/sandbox-ref";
+import { removeVmMapEntry, setVmMapEntry } from "./vm-map";
 
 const PROXY_PORT = 9000;
+
+const BOOTSTRAP_SCRIPT = `<script>(function(){window.addEventListener("message",function(e){if(e.data&&e.data.type==="visual-editor::activate"&&e.data.script){try{new Function(e.data.script)()}catch(err){console.error("[visual-editor] injection failed",err)}}});})();</script>`;
 
 /**
  * Compose the pod-public sandbox URL for a given handle. Reads
  * `SANDBOX_ROOT_URL` at call time so deploys can rewrite it without a build.
  * Default: `http://<handle>.sandboxes.localhost:<SANDBOX_INGRESS_PORT|7070>/`.
  */
-export function composeSandboxUrl(handle: string): string {
+function composeSandboxUrl(handle: string): string {
   const root = process.env.SANDBOX_ROOT_URL;
   if (root) {
     const base = root.replace(/\/+$/, "");
-    // Template: `{handle}` placeholder lets prod use something like
-    // `https://{handle}.sandboxes.example.com` without shell escaping.
     if (base.includes("{handle}"))
       return `${base.replace("{handle}", handle)}/`;
-    // Absent placeholder, inject as a leading subdomain.
     try {
       const u = new URL(base);
       u.hostname = `${handle}.${u.hostname}`;
@@ -65,17 +68,20 @@ export function composeSandboxUrl(handle: string): string {
 function resolveRunnerKind(): "docker" | "freestyle" {
   const raw = process.env.MESH_SANDBOX_RUNNER;
   if (raw === "docker" || raw === "freestyle") return raw;
-  // Freestyle stays the default for the hosted control plane. Explicit opt-in
-  // via the env var picks docker for local dev.
   return "freestyle";
 }
 
-const BOOTSTRAP_SCRIPT = `<script>(function(){window.addEventListener("message",function(e){if(e.data&&e.data.type==="visual-editor::activate"&&e.data.script){try{new Function(e.data.script)()}catch(err){console.error("[visual-editor] injection failed",err)}}});})();</script>`;
+type GithubRepoMeta = {
+  githubRepo?: {
+    owner: string;
+    name: string;
+    connectionId?: string;
+  } | null;
+};
 
 export const VM_START = defineTool({
   name: "VM_START",
-  description:
-    "Start a Freestyle VM with the connected GitHub repo and dev server.",
+  description: "Start a sandbox with the connected GitHub repo and dev server.",
   annotations: {
     title: "Start VM Preview",
     readOnlyHint: false,
@@ -86,190 +92,71 @@ export const VM_START = defineTool({
   _meta: { ui: { visibility: "app" } },
   inputSchema: z.object({
     virtualMcpId: z.string().describe("Virtual MCP ID"),
-    threadId: z
+    branch: z
       .string()
+      .min(1)
       .optional()
       .describe(
-        "Current thread id. Required for the Docker runner — its sandbox is keyed off the thread's sandbox_ref so bash and the preview iframe share one container.",
+        "Optional git branch to check out. When omitted the handler generates `decopilot/<adjective>-<noun>` and uses it. The resolved branch is returned in the response so callers can persist it.",
       ),
   }),
   outputSchema: z.object({
-    terminalUrl: z.string().nullable(),
     previewUrl: z.string(),
     vmId: z.string(),
+    branch: z.string(),
     isNewVm: z.boolean(),
+    runnerKind: z.enum(["docker", "freestyle"]),
   }),
 
   handler: async (input, ctx) => {
     try {
-      const { metadata, userId } = await requireVmEntry(input, ctx);
+      const resolvedBranch = input.branch ?? generateBranchName();
 
-      if (resolveRunnerKind() === "docker") {
-        // Docker path supports repo-less spin (bun base image, no clone).
-        return await dockerStart(input, ctx, metadata, userId);
-      }
+      const {
+        metadata,
+        userId,
+        entry: existing,
+      } = await requireVmEntry(
+        { virtualMcpId: input.virtualMcpId, branch: resolvedBranch },
+        ctx,
+      );
 
-      // Freestyle path needs a repo: its daemon script hardcodes cloneUrl.
-      if (!metadata.githubRepo) {
+      const githubRepo = (metadata as GithubRepoMeta).githubRepo;
+      if (!githubRepo) {
         throw new Error("No GitHub repo connected");
       }
-
-      const { owner, name } = metadata.githubRepo;
-      const { packageManager, runtime, port, runtimeBinPath } =
-        resolveRuntimeConfig(metadata);
-      const pathPrefix = runtimeBinPath
-        ? `export PATH=${runtimeBinPath}:$PATH && `
-        : "";
-
-      // Build authenticated clone URL and git identity from downstream token
-      const { cloneUrl, gitUserName, gitUserEmail } = await buildCloneInfo(
-        metadata.githubRepo.connectionId,
-        owner,
-        name,
-        ctx.db,
-        ctx.vault,
-      );
-
-      // Generate a unique subdomain per (virtualMcpId, userId) pair.
-      // MD5 of the composite key guarantees a valid, fixed-length hex subdomain
-      // and avoids collisions between different users on the same Virtual MCP.
-      // Freestyle docs: /v2/vms/configuration/domains
-      const domainKey = createHash("md5")
-        .update(`${input.virtualMcpId}:${userId}`)
-        .digest("hex")
-        .slice(0, 16);
-      const previewDomain = `${domainKey}.deco.studio`;
-
-      // Build the full VmSpec declaratively — integrations, repo, files, and services.
-      // VmNodeJs is always included: the iframe-proxy systemd service runs Node.js on every VM.
-      // Freestyle docs: /v2/vms/integrations/deno, /v2/vms/integrations/bun, /v2/vms/integrations/web-terminal
-      const baseSpec = new VmSpec()
-        .with("node", new VmNodeJs())
-        .additionalFiles({
-          "/opt/daemon.js": {
-            content: buildDaemonScript({
-              upstreamPort: port,
-              packageManager,
-              pathPrefix,
-              port,
-              cloneUrl,
-              repoName: `${owner}/${name}`,
-              proxyPort: PROXY_PORT,
-              bootstrapScript: BOOTSTRAP_SCRIPT,
-              gitUserName,
-              gitUserEmail,
-            }),
-          },
-          "/opt/run-daemon.sh": {
-            content:
-              "#!/bin/bash\nsource /etc/profile.d/nvm.sh\nexec node /opt/daemon.js\n",
-          },
-          "/opt/install-ripgrep.sh": {
-            content:
-              "#!/bin/bash\napt-get update -qq && apt-get install -y -qq ripgrep locales && sed -i 's/^#\\s*en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && locale-gen\n",
-          },
-          "/opt/prepare-app-dir.sh": {
-            content:
-              "#!/bin/bash\nid -u deco &>/dev/null || useradd -m -u 1000 deco\nmkdir -p /app && chown deco:deco /app\n",
-          },
-        })
-        .systemdService({
-          name: "install-ripgrep",
-          mode: "oneshot",
-          exec: ["/bin/bash /opt/install-ripgrep.sh"],
-          wantedBy: ["multi-user.target"],
-        })
-        .systemdService({
-          name: "prepare-app-dir",
-          mode: "oneshot",
-          exec: ["/bin/bash /opt/prepare-app-dir.sh"],
-          wantedBy: ["multi-user.target"],
-        })
-        .systemdService({
-          name: "daemon",
-          mode: "service",
-          exec: ["/bin/bash /opt/run-daemon.sh"],
-          after: [
-            "install-nodejs.service",
-            "install-ripgrep.service",
-            "prepare-app-dir.service",
-          ],
-          requires: [
-            "install-nodejs.service",
-            "install-ripgrep.service",
-            "prepare-app-dir.service",
-          ],
-          wantedBy: ["multi-user.target"],
-          restartPolicy: {
-            policy: "always",
-            restartSec: 2,
-          },
-        });
-
-      const spec =
-        runtime === "deno"
-          ? baseSpec.with("deno", new VmDeno())
-          : runtime === "bun"
-            ? baseSpec.with("js", new VmBun())
-            : baseSpec;
-
-      // Resume existing VM if one is tracked.
-      // Try vm.start() which resumes suspended/stopped VMs. If the VM was
-      // deleted externally, the call will throw — clear the stale entry and
-      // fall through to create a new one.
-      const existing = metadata.activeVms?.[userId];
-      if (existing) {
-        try {
-          const vm = freestyle.vms.ref({ vmId: existing.vmId, spec });
-          await vm.start();
-          return { ...existing, isNewVm: false };
-        } catch {
-          // VM no longer exists on Freestyle — clear stale entry
-          await patchActiveVms(
-            ctx.storage.virtualMcps,
-            input.virtualMcpId,
-            userId,
-            (vms) => {
-              const updated = { ...vms };
-              delete updated[userId];
-              return updated;
-            },
-          );
-        }
+      if (!githubRepo.connectionId) {
+        throw new Error("GitHub connection id missing on virtual MCP metadata");
       }
 
-      // Create VM from spec.
-      // Domain routes to the iframe proxy which strips X-Frame-Options/CSP
-      // so the preview can be embedded in an iframe.
-      // Terminal domain is routed post-creation via vm.terminal.logs.route() — a persistent mapping.
-      // Freestyle docs: /v2/vms/configuration/domains
-      const createResult = await freestyle.vms.create({
-        spec,
-        domains: [{ domain: previewDomain, vmPort: PROXY_PORT }],
-        // recreate: true so vm.start() rebuilds from spec if evicted.
-        // Freestyle docs: /v2/vms/lifecycle/persistence
-        recreate: true,
-        // 30-minute idle timeout before the VM is automatically stopped.
-        idleTimeoutSeconds: 1800,
-      });
+      const runnerKind = resolveRunnerKind();
+      const { entry, isNewVm } =
+        runnerKind === "docker"
+          ? await startDocker({
+              ctx,
+              userId,
+              virtualMcpId: input.virtualMcpId,
+              branch: resolvedBranch,
+              metadata,
+              githubRepo,
+              existing,
+            })
+          : await startFreestyle({
+              ctx,
+              userId,
+              virtualMcpId: input.virtualMcpId,
+              branch: resolvedBranch,
+              metadata,
+              githubRepo,
+              existing,
+            });
 
-      const { vmId } = createResult;
-
-      const previewUrl = `https://${previewDomain}`;
-      const terminalUrl: string | null = null;
-
-      const entry: VmEntry = { terminalUrl, previewUrl, vmId };
-
-      // Persist the active VM entry in the Virtual MCP metadata so all pods
-      // can discover it and avoid spinning up duplicate VMs.
-      await patchActiveVms(
-        ctx.storage.virtualMcps,
-        input.virtualMcpId,
-        userId,
-        (vms) => ({ ...vms, [userId]: entry }),
-      );
-
-      return { ...entry, isNewVm: true };
+      return {
+        ...entry,
+        branch: resolvedBranch,
+        isNewVm,
+        runnerKind,
+      };
     } catch (e) {
       console.error("[VM_START] error", e);
       throw e;
@@ -277,105 +164,192 @@ export const VM_START = defineTool({
   },
 });
 
-/**
- * Docker-backed VM_START path.
- *
- * The container is keyed off the thread's `sandbox_ref` so bash and the
- * preview iframe share one lifecycle. The browser reaches the dev server
- * through the `/api/sandbox/:handle/preview/:port/` mesh proxy, so the
- * `previewUrl` we return is a relative mesh path. Starting the dev server
- * is still a manual step — see the MVP note in the module docstring.
- *
- * Note: the Docker path no longer writes to `activeVms`. The preview panel
- * reads its URL from the thread-scoped
- * `GET /api/:org/decopilot/threads/:threadId/sandbox` endpoint, so we only
- * need to return `{ previewUrl, vmId, isNewVm }` to the caller.
- */
-async function dockerStart(
-  input: { virtualMcpId: string; threadId?: string },
-  ctx: MeshContext,
-  metadata: {
-    githubRepo?: { owner: string; name: string; connectionId: string } | null;
-  },
-  userId: string,
-) {
-  if (!input.threadId) {
-    throw new Error(
-      "VM_START (docker runner): threadId is required — pass the current thread id so the sandbox stays keyed off thread.sandbox_ref",
-    );
-  }
+type StartParams = {
+  ctx: MeshContext;
+  userId: string;
+  virtualMcpId: string;
+  branch: string;
+  metadata: Record<string, unknown>;
+  githubRepo: { owner: string; name: string; connectionId?: string };
+  existing: VmMapEntry | null;
+};
 
-  // The env panel can be clicked before any chat message has been sent — at
-  // that point the thread row doesn't exist yet. Create it eagerly with a
-  // fresh sandbox_ref so VM_START works in the zero-message case. If the row
-  // already exists but sandbox_ref is null (legacy thread), populate it now.
-  //
-  // `mintSandboxRef` must match the one in createMemory — both can race to
-  // create the same thread row, and a mismatched ref would spawn an orphan
-  // container before the DB write settled.
-  let thread = await ctx.storage.threads.get(input.threadId);
-  if (!thread) {
-    thread = await ctx.storage.threads.create({
-      id: input.threadId,
-      created_by: userId,
-      virtual_mcp_id: input.virtualMcpId,
-      sandbox_ref: mintSandboxRef(),
+async function startFreestyle(
+  params: StartParams,
+): Promise<{ entry: VmMapEntry; isNewVm: boolean }> {
+  const { ctx, userId, virtualMcpId, branch, metadata, githubRepo, existing } =
+    params;
+  const { owner, name, connectionId } = githubRepo;
+
+  const { packageManager, runtime, port, runtimeBinPath } =
+    resolveRuntimeConfig(metadata);
+  const pathPrefix = runtimeBinPath
+    ? `export PATH=${runtimeBinPath}:$PATH && `
+    : "";
+
+  const { cloneUrl, gitUserName, gitUserEmail } = await buildCloneInfo(
+    connectionId!,
+    owner,
+    name,
+    ctx.db,
+    ctx.vault,
+  );
+
+  const domainKey = createHash("md5")
+    .update(`${virtualMcpId}:${userId}:${branch}`)
+    .digest("hex")
+    .slice(0, 16);
+  const previewDomain = `${domainKey}.deco.studio`;
+  const previewUrl = `https://${previewDomain}`;
+
+  const baseSpec = new VmSpec()
+    .with("node", new VmNodeJs())
+    .additionalFiles({
+      "/opt/daemon.js": {
+        content: buildDaemonScript({
+          upstreamPort: port,
+          packageManager,
+          pathPrefix,
+          port,
+          cloneUrl,
+          repoName: `${owner}/${name}`,
+          proxyPort: PROXY_PORT,
+          bootstrapScript: BOOTSTRAP_SCRIPT,
+          gitUserName,
+          gitUserEmail,
+          branch,
+        }),
+      },
+      "/opt/run-daemon.sh": {
+        content:
+          "#!/bin/bash\nsource /etc/profile.d/nvm.sh\nexec node /opt/daemon.js\n",
+      },
+      "/opt/install-ripgrep.sh": {
+        content:
+          "#!/bin/bash\napt-get update -qq && apt-get install -y -qq ripgrep locales && sed -i 's/^#\\s*en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && locale-gen\n",
+      },
+      "/opt/prepare-app-dir.sh": {
+        content:
+          "#!/bin/bash\nid -u deco &>/dev/null || useradd -m -u 1000 deco\nmkdir -p /app && chown deco:deco /app\n",
+      },
+    })
+    .systemdService({
+      name: "install-ripgrep",
+      mode: "oneshot",
+      exec: ["/bin/bash /opt/install-ripgrep.sh"],
+      wantedBy: ["multi-user.target"],
+    })
+    .systemdService({
+      name: "prepare-app-dir",
+      mode: "oneshot",
+      exec: ["/bin/bash /opt/prepare-app-dir.sh"],
+      wantedBy: ["multi-user.target"],
+    })
+    .systemdService({
+      name: "daemon",
+      mode: "service",
+      exec: ["/bin/bash /opt/run-daemon.sh"],
+      after: [
+        "install-nodejs.service",
+        "install-ripgrep.service",
+        "prepare-app-dir.service",
+      ],
+      requires: [
+        "install-nodejs.service",
+        "install-ripgrep.service",
+        "prepare-app-dir.service",
+      ],
+      wantedBy: ["multi-user.target"],
+      restartPolicy: {
+        policy: "always",
+        restartSec: 2,
+      },
     });
-  } else if (!thread.sandbox_ref) {
-    thread = await ctx.storage.threads.update(thread.id, {
-      sandbox_ref: mintSandboxRef(),
-    });
+
+  const spec =
+    runtime === "deno"
+      ? baseSpec.with("deno", new VmDeno())
+      : runtime === "bun"
+        ? baseSpec.with("js", new VmBun())
+        : baseSpec;
+
+  // Resume existing VM if the (user, branch) pair has one. On stale entry
+  // (Freestyle VM missing), clear the vmMap entry and fall through to create.
+  if (existing) {
+    try {
+      const vm = freestyle.vms.ref({ vmId: existing.vmId, spec });
+      await vm.start();
+      return { entry: existing, isNewVm: false };
+    } catch {
+      await removeVmMapEntry(
+        ctx.storage.virtualMcps,
+        virtualMcpId,
+        userId,
+        userId,
+        branch,
+      );
+    }
   }
-  const sandboxRef = thread.sandbox_ref;
-  if (!sandboxRef) {
-    throw new Error(
-      "VM_START (docker runner): failed to assign sandbox_ref to thread",
-    );
-  }
 
-  const repo = metadata.githubRepo ?? null;
+  const createResult = await freestyle.vms.create({
+    spec,
+    domains: [{ domain: previewDomain, vmPort: PROXY_PORT }],
+    recreate: true,
+    idleTimeoutSeconds: 1800,
+  });
 
-  // Repo-less spin: container boots from the default bun image with an empty
-  // workdir. No clone, no prep image, no dev-server auto-start. Useful so the
-  // sandbox is ready for bash before the user connects a repo.
-  const repoInfo = repo
-    ? await buildCloneInfo(
-        repo.connectionId,
-        repo.owner,
-        repo.name,
-        ctx.db,
-        ctx.vault,
-      )
-    : null;
+  const entry: VmMapEntry = {
+    vmId: createResult.vmId,
+    previewUrl,
+    runnerKind: "freestyle",
+  };
 
-  const runner = getSharedRunner(ctx);
+  await setVmMapEntry(
+    ctx.storage.virtualMcps,
+    virtualMcpId,
+    userId,
+    userId,
+    branch,
+    entry,
+  );
+
+  return { entry, isNewVm: true };
+}
+
+async function startDocker(
+  params: StartParams,
+): Promise<{ entry: VmMapEntry; isNewVm: boolean }> {
+  const { ctx, userId, virtualMcpId, branch, metadata, githubRepo, existing } =
+    params;
   const { runtime } = resolveRuntimeConfig(metadata);
+  const { cloneUrl, gitUserName, gitUserEmail } = await buildCloneInfo(
+    githubRepo.connectionId!,
+    githubRepo.owner,
+    githubRepo.name,
+    ctx.db,
+    ctx.vault,
+  );
+
+  // Key the docker container on (userId, virtualMcpId:branch) so each
+  // (user, branch) pair gets its own container. The runner's internal state
+  // store uses this projectRef for restart recovery.
+  const projectRef = `${virtualMcpId}:${branch}`;
+  const runner = getSharedRunner(ctx);
   const sandbox = await runner.ensure(
+    { userId, projectRef },
     {
-      userId,
-      projectRef: sandboxRef,
-    },
-    {
-      repo: repoInfo
-        ? {
-            cloneUrl: repoInfo.cloneUrl,
-            userName: repoInfo.gitUserName,
-            userEmail: repoInfo.gitUserEmail,
-          }
-        : undefined,
+      repo: {
+        cloneUrl,
+        userName: gitUserName,
+        userEmail: gitUserEmail,
+      },
     },
   );
 
-  // Kick off the dev server now that `ensure()` has guaranteed the clone is
-  // complete. Idempotent — the daemon's `/_daemon/dev/start` no-ops when
-  // phase is already starting/installing/ready, so repeated calls from page
-  // polls (see decopilot/routes.ts) are safe. Skipped for repo-less spins:
-  // no package.json means nothing to run.
-  if (repo && runner instanceof DockerSandboxRunner) {
-    // `runtime` tells the sandbox daemon which toolchain to use. Deno in
-    // particular is lazy-installed into the container on first use, and the
-    // daemon reads tasks from `deno.json` instead of `package.json.scripts`
-    // — so a wrong guess here means the dev server never starts.
+  // Kick off the dev server asynchronously — idempotent. Skipped for
+  // repo-less spins in principle; here we always have a repo since we
+  // short-circuited earlier when `githubRepo` was missing.
+  if (runner instanceof DockerSandboxRunner) {
     const devBody: Record<string, unknown> = {
       runtime: runtime ?? undefined,
     };
@@ -392,23 +366,25 @@ async function dockerStart(
       });
   }
 
-  // Preview URL points at the pod's own public host (no mesh in the middle
-  // for dev traffic). Local dev resolves via dnsmasq + the local ingress
-  // forwarder bound in index.ts; prod resolves via the wildcard ingress.
   const previewUrl = composeSandboxUrl(sandbox.handle);
-  const entry: VmEntry = {
+  const entry: VmMapEntry = {
     vmId: sandbox.handle,
     previewUrl,
-    terminalUrl: null,
+    runnerKind: "docker",
   };
 
-  // Intentionally DON'T write to activeVms on the docker path. activeVms
-  // is what switches the decopilot tool set from `bash` (QuickJS/daemon
-  // backed) to the Freestyle in-VM file tools — those hit
-  // `<previewUrl>/_decopilot_vm/*` and would target the dev-server port we
-  // just published, not the sandbox daemon. The env panel and preview panel
-  // both read running state from the thread-scoped sandbox endpoint for the
-  // docker runner.
+  await setVmMapEntry(
+    ctx.storage.virtualMcps,
+    virtualMcpId,
+    userId,
+    userId,
+    branch,
+    entry,
+  );
 
-  return { ...entry, isNewVm: true };
+  // If `ensure()` returned the same handle we already had in vmMap, treat as
+  // a resume. Otherwise it provisioned a new container (stale entry, orphan
+  // recovery, etc.).
+  const isNewVm = !existing || existing.vmId !== sandbox.handle;
+  return { entry, isNewVm };
 }

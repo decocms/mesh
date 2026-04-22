@@ -66,8 +66,8 @@ import * as migration064brandcontext from "./064-brand-context.ts";
 import * as migration065organizationdomains from "./065-organization-domains.ts";
 import * as migration066brandcontextstructured from "./066-brand-context-structured.ts";
 import * as migration067threadsmetadata from "./067-threads-metadata.ts";
-import * as migration068sandboxrunnerstate from "./068-sandbox-runner-state.ts";
-import * as migration069threadsandboxref from "./069-thread-sandbox-ref.ts";
+import * as migration068threadsbranch from "./068-threads-branch.ts";
+import * as migration069sandboxrunnerstate from "./069-sandbox-runner-state.ts";
 
 /**
  * Core migrations for the Mesh application.
@@ -148,8 +148,8 @@ const migrations: Record<string, Migration> = {
   "065-organization-domains": migration065organizationdomains,
   "066-brand-context-structured": migration066brandcontextstructured,
   "067-threads-metadata": migration067threadsmetadata,
-  "068-sandbox-runner-state": migration068sandboxrunnerstate,
-  "069-thread-sandbox-ref": migration069threadsandboxref,
+  "068-threads-branch": migration068threadsbranch,
+  "069-sandbox-runner-state": migration069sandboxrunnerstate,
 };
 
 export default migrations;
