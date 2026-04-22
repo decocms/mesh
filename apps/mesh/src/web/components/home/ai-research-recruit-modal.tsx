@@ -16,8 +16,6 @@ import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import {
   WELL_KNOWN_AGENT_TEMPLATES,
-  WellKnownOrgMCPId,
-  useProjectContext,
   useVirtualMCPActions,
 } from "@decocms/mesh-sdk";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
@@ -95,7 +93,6 @@ export function AiResearchRecruitModal({
   existingAgent,
 }: AiResearchRecruitModalProps) {
   const isMobile = useIsMobile();
-  const { org } = useProjectContext();
   const navigateToAgent = useNavigateToAgent();
   const virtualMcpActions = useVirtualMCPActions();
   const [isRecruiting, setIsRecruiting] = useState(false);
@@ -117,21 +114,12 @@ export function AiResearchRecruitModal({
 
     setIsRecruiting(true);
     try {
-      const selfConnectionId = WellKnownOrgMCPId.SELF(org.id);
-
       const virtualMcp = await virtualMcpActions.create.mutateAsync({
         title: template.title,
         description: "Systematic research and information synthesis assistant",
         icon: template.icon,
         status: "active",
-        connections: [
-          {
-            connection_id: selfConnectionId,
-            selected_tools: null,
-            selected_resources: null,
-            selected_prompts: null,
-          },
-        ],
+        connections: [],
         metadata: {
           type: "ai-research",
           instructions: AI_RESEARCH_SYSTEM_PROMPT,
