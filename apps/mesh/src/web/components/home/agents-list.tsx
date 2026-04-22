@@ -28,7 +28,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { ChevronRight, Plus, Users03 } from "@untitledui/icons";
 import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
-import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
+import { AiImageRecruitModal } from "@/web/components/home/ai-image-recruit-modal.tsx";
+import { AiResearchRecruitModal } from "@/web/components/home/ai-research-recruit-modal.tsx";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { Suspense, useState } from "react";
@@ -160,7 +161,8 @@ function AgentsListContent() {
   const { locator } = useProjectContext();
   const [importDecoOpen, setImportDecoOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
-  const [leanCanvasModalOpen, setLeanCanvasModalOpen] = useState(false);
+  const [aiImageModalOpen, setAiImageModalOpen] = useState(false);
+  const [aiResearchModalOpen, setAiResearchModalOpen] = useState(false);
   const navigateToAgent = useNavigateToAgent();
 
   const siteEditorAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
@@ -169,8 +171,11 @@ function AgentsListContent() {
   const siteDiagnosticsAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
     (t) => t.id === "site-diagnostics",
   )!;
-  const leanCanvasAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
-    (t) => t.id === "lean-canvas",
+  const aiImageAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "ai-image",
+  )!;
+  const aiResearchAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "ai-research",
   )!;
 
   const recentIds = readRecentAgentIds(locator);
@@ -202,13 +207,22 @@ function AgentsListContent() {
         a.title === siteDiagnosticsAgent.title),
   );
 
-  // Check if Lean Canvas agent already exists
-  const existingLeanCanvas = virtualMcps.find(
+  // Check if AI Image agent already exists
+  const existingAiImage = virtualMcps.find(
     (a): a is typeof a & { id: string } =>
       a.id !== null &&
       ((a as { metadata?: { type?: string } }).metadata?.type ===
-        leanCanvasAgent.id ||
-        a.title === leanCanvasAgent.title),
+        aiImageAgent.id ||
+        a.title === aiImageAgent.title),
+  );
+
+  // Check if AI Research agent already exists
+  const existingAiResearch = virtualMcps.find(
+    (a): a is typeof a & { id: string } =>
+      a.id !== null &&
+      ((a as { metadata?: { type?: string } }).metadata?.type ===
+        aiResearchAgent.id ||
+        a.title === aiResearchAgent.title),
   );
 
   const hasAgents = agents.length > 0;
@@ -232,19 +246,29 @@ function AgentsListContent() {
             }
           />
           <AgentPreview
-            key={leanCanvasAgent.id}
-            agent={existingLeanCanvas ?? leanCanvasAgent}
+            key={aiImageAgent.id}
+            agent={existingAiImage ?? aiImageAgent}
             onSpecialClick={
-              existingLeanCanvas
-                ? () => navigateToAgent(existingLeanCanvas.id)
-                : () => setLeanCanvasModalOpen(true)
+              existingAiImage
+                ? () => navigateToAgent(existingAiImage.id)
+                : () => setAiImageModalOpen(true)
+            }
+          />
+          <AgentPreview
+            key={aiResearchAgent.id}
+            agent={existingAiResearch ?? aiResearchAgent}
+            onSpecialClick={
+              existingAiResearch
+                ? () => navigateToAgent(existingAiResearch.id)
+                : () => setAiResearchModalOpen(true)
             }
           />
           {agents
             .filter(
               (a) =>
                 a.id !== existingDiagnostics?.id &&
-                a.id !== existingLeanCanvas?.id,
+                a.id !== existingAiImage?.id &&
+                a.id !== existingAiResearch?.id,
             )
             .map((agent) => (
               <AgentPreview
@@ -269,10 +293,16 @@ function AgentsListContent() {
         existingAgent={existingDiagnostics}
       />
 
-      <LeanCanvasRecruitModal
-        open={leanCanvasModalOpen}
-        onOpenChange={setLeanCanvasModalOpen}
-        existingAgent={existingLeanCanvas}
+      <AiImageRecruitModal
+        open={aiImageModalOpen}
+        onOpenChange={setAiImageModalOpen}
+        existingAgent={existingAiImage}
+      />
+
+      <AiResearchRecruitModal
+        open={aiResearchModalOpen}
+        onOpenChange={setAiResearchModalOpen}
+        existingAgent={existingAiResearch}
       />
     </>
   );
