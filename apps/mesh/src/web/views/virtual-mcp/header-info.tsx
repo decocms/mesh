@@ -3,6 +3,7 @@ import { useProjectContext } from "@decocms/mesh-sdk";
 import { authClient } from "../../lib/auth-client.ts";
 import { AgentAvatar } from "../../components/agent-icon.tsx";
 import { BranchPicker } from "../../components/thread/github/branch-picker.tsx";
+import { HeaderActions } from "../../components/thread/github/header-actions.tsx";
 import { useChatNavigation } from "../../components/chat/hooks/use-chat-navigation.ts";
 import { Toolbar } from "../../layouts/agent-shell-layout/toolbar.tsx";
 
@@ -39,6 +40,7 @@ export function VirtualMcpHeaderInfo({
             onChange={setBranch}
           />
         )}
+        {showBranchPicker && <HeaderActions virtualMcpId={virtualMcp.id} />}
       </div>
     </Toolbar.Left>
   );
