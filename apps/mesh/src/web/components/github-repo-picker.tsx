@@ -302,7 +302,6 @@ function PickerContent({
                 installationId: selectedInstallation.installationId,
                 connectionId,
               },
-              activeVms: {},
               instructions: null,
               runtime: null,
               ui: {
