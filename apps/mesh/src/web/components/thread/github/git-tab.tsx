@@ -15,8 +15,10 @@
 import { useProjectContext, useVirtualMCP } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import { GitBranch01, LinkExternal01 } from "@untitledui/icons";
+import { MemoizedMarkdown } from "../../chat/markdown.tsx";
 import { useChatBridge } from "../../chat/chat-context.tsx";
 import { useChatNavigation } from "../../chat/hooks/use-chat-navigation.ts";
+import { decodeHtmlEntities } from "./decode-html-entities.ts";
 import { usePrByBranch } from "./use-pr-data.ts";
 import * as tpl from "./message-templates.ts";
 
@@ -123,10 +125,15 @@ function GitTabContent(props: ContentProps) {
           {pr.mergedAt && <> · {new Date(pr.mergedAt).toLocaleDateString()}</>}
           {pr.author && <> · by @{pr.author}</>}
         </div>
-        <h1 className="text-lg font-semibold">{pr.title}</h1>
+        <h1 className="text-lg font-semibold">
+          {decodeHtmlEntities(pr.title)}
+        </h1>
         {pr.body && (
-          <div className="whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-3 text-sm">
-            {pr.body}
+          <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
+            <MemoizedMarkdown
+              id={`pr-body-${pr.number}`}
+              text={decodeHtmlEntities(pr.body)}
+            />
           </div>
         )}
         <div className="flex items-center gap-2">
@@ -166,10 +173,15 @@ function GitTabContent(props: ContentProps) {
             <LinkExternal01 className="h-4 w-4" />
           </Button>
         </div>
-        <h1 className="text-lg font-semibold">{pr.title}</h1>
+        <h1 className="text-lg font-semibold">
+          {decodeHtmlEntities(pr.title)}
+        </h1>
         {pr.body && (
-          <div className="whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-3 text-sm">
-            {pr.body}
+          <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
+            <MemoizedMarkdown
+              id={`pr-body-${pr.number}`}
+              text={decodeHtmlEntities(pr.body)}
+            />
           </div>
         )}
         <div className="flex items-center gap-2">
