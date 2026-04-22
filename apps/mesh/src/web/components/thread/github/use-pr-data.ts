@@ -37,6 +37,21 @@ interface RepoArgs {
   repo: string;
 }
 
+export interface PrFile {
+  filename: string;
+  status:
+    | "added"
+    | "removed"
+    | "modified"
+    | "renamed"
+    | "copied"
+    | "changed"
+    | "unchanged";
+  additions: number;
+  deletions: number;
+  blobUrl: string | null;
+}
+
 
 /**
  * Fetches the first PR matching a branch head (open or closed).
@@ -81,6 +96,49 @@ export function usePrByBranch(args: RepoArgs & { branch: string | null }) {
         htmlUrl: (p.html_url as string) ?? "",
         author: (user?.login as string) ?? "",
       };
+    },
+  });
+}
+
+/**
+ * Fetches the file list for a PR via github-mcp-server.
+ *
+ * The tool name varies between github-mcp-server builds — try the common
+ * names in order: `get_pull_request_files`, `list_pull_request_files`.
+ * If neither matches your server, adjust the `toolName` here.
+ */
+export function usePrFiles(
+  args: RepoArgs & { prNumber: number | null | undefined },
+) {
+  const client = useMCPClient({
+    connectionId: args.connectionId,
+    orgId: args.orgId,
+  });
+
+  return useMCPToolCallQuery<PrFile[]>({
+    client,
+    toolName: "get_pull_request_files",
+    toolArguments: {
+      owner: args.owner,
+      repo: args.repo,
+      pull_number: args.prNumber ?? 0,
+    },
+    enabled: !!args.prNumber,
+    refetchInterval: POLL,
+    refetchIntervalInBackground: false,
+    staleTime: STALE,
+    select: (r) => {
+      const arr = extractToolJson<Record<string, unknown>[]>(r);
+      if (!Array.isArray(arr)) return [];
+      return arr.map(
+        (f): PrFile => ({
+          filename: String(f.filename ?? ""),
+          status: (f.status as PrFile["status"] | undefined) ?? "modified",
+          additions: Number(f.additions ?? 0),
+          deletions: Number(f.deletions ?? 0),
+          blobUrl: typeof f.blob_url === "string" ? f.blob_url : null,
+        }),
+      );
     },
   });
 }
