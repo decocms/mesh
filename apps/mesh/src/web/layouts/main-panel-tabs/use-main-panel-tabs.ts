@@ -136,6 +136,7 @@ export function useMainPanelTabs(ctx: {
           tabs: layoutTabs.map((t) => ({ id: t.id })),
         }
       : null,
+    hasActiveGithubRepo,
   });
 
   const automationTabParsed = parseAutomationTabId(activeTab);

@@ -54,6 +54,7 @@ import { useStatusSounds } from "../../hooks/use-status-sounds";
 import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "@/web/components/empty-state";
 import { useChatMainPanelState } from "@/web/hooks/use-layout-state";
+import { getActiveGithubRepo } from "@/web/lib/github-repo";
 import { TasksPanelStateProvider } from "@/web/hooks/use-tasks-panel-state";
 import { Separator } from "@deco/ui/components/separator.tsx";
 import { Toolbar } from "./toolbar";
@@ -174,11 +175,17 @@ function AgentInsetProvider() {
       }
     : null;
 
-  const layout = useChatMainPanelState(entityMetadata, {
-    virtualMcpId,
-    orgSlug,
-    isAgentRoute,
-  });
+  const hasActiveGithubRepo = !!(entity && getActiveGithubRepo(entity));
+
+  const layout = useChatMainPanelState(
+    entityMetadata,
+    {
+      virtualMcpId,
+      orgSlug,
+      isAgentRoute,
+    },
+    hasActiveGithubRepo,
+  );
 
   const { setOpenMobile, openMobile: mobileSidebarOpen } = useSidebar();
   const setMobileSidebarOpen = setOpenMobile;

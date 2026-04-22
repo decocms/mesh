@@ -126,6 +126,22 @@ describe("resolveDefaultTabId", () => {
       resolveDefaultTabId({ defaultMainView: { type: "automation" } }),
     ).toBe("instructions");
   });
+
+  test("hasActiveGithubRepo coerces null metadata fallback to 'git'", () => {
+    expect(resolveDefaultTabId(null, true)).toBe("git");
+  });
+
+  test("hasActiveGithubRepo coerces instructions defaultMainView to 'git'", () => {
+    expect(
+      resolveDefaultTabId({ defaultMainView: { type: "instructions" } }, true),
+    ).toBe("git");
+  });
+
+  test("hasActiveGithubRepo leaves non-instructions system tabs unchanged", () => {
+    expect(
+      resolveDefaultTabId({ defaultMainView: { type: "connections" } }, true),
+    ).toBe("connections");
+  });
 });
 
 describe("resolveActiveTabAndOpen", () => {
@@ -174,6 +190,26 @@ describe("resolveActiveTabAndOpen", () => {
         metadata: meta,
       }),
     ).toEqual({ mainOpen: true, activeTab: "automation:abc" });
+  });
+
+  test("hasActiveGithubRepo + ?main absent + no metadata → tab = 'git'", () => {
+    expect(
+      resolveActiveTabAndOpen({
+        mainParam: undefined,
+        metadata: null,
+        hasActiveGithubRepo: true,
+      }),
+    ).toEqual({ mainOpen: false, activeTab: "git" });
+  });
+
+  test("hasActiveGithubRepo + ?main=instructions → tab coerced to 'git'", () => {
+    expect(
+      resolveActiveTabAndOpen({
+        mainParam: "instructions",
+        metadata: null,
+        hasActiveGithubRepo: true,
+      }),
+    ).toEqual({ mainOpen: true, activeTab: "git" });
   });
 });
 
