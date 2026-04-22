@@ -12,12 +12,6 @@ export const WORKDIR = process.env.WORKDIR ?? "/app";
 export const DENO_INSTALL_DIR = "/opt/deno";
 export const DENO_BIN = `${DENO_INSTALL_DIR}/bin/deno`;
 
-// Claude Code CLI is lazy-installed by /claude-code/query on first use. Stays
-// in lockstep with the pinned constant in shared.ts — bump both (and the
-// translator fixtures) in the same PR.
-export const CLAUDE_CODE_VERSION = process.env.CLAUDE_CODE_VERSION ?? "2.1.116";
-export const CLAUDE_BIN = "/usr/local/bin/claude";
-
 // Optional HTML snippet injected before `</body>` on proxied HTML responses.
 // Mesh populates this via `-e DAEMON_BOOTSTRAP=...` when it owns the preview
 // URL (HMR wiring, iframe bootstrap). Empty string → no injection.

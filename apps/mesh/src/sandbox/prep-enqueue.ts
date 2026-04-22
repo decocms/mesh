@@ -10,7 +10,6 @@
  */
 
 import type { MeshContext } from "@/core/mesh-context";
-import { readPrepClaudeLabel } from "mesh-plugin-user-sandbox/prep";
 import { fetchRemoteHeadSha } from "./prep-head-check";
 
 export interface GithubRepoRef {
@@ -98,20 +97,6 @@ export async function resolvePrepImage(
     return null;
   }
   if (row.status !== "ready" || !row.imageTag) return null;
-
-  // Claude-code-in-sandbox opt-in: if the flag is set but the cached prep
-  // wasn't baked on top of `mesh-sandbox:claude`, containers spawned from
-  // it will lazy-install the CLI on first turn (~30s hit). Re-enqueue so
-  // the next bake uses the claude base.
-  if (process.env.MESH_CLAUDE_CODE_IN_SANDBOX === "1") {
-    const claudeLabel = await readPrepClaudeLabel(row.imageTag).catch(
-      () => null,
-    );
-    if (claudeLabel !== "1") {
-      enqueuePrepForRepoLink(ctx, userId, repo);
-      return null;
-    }
-  }
 
   // Remote-drift revalidation. Only when we actually captured a SHA at
   // bake time — a `ready` row without `headSha` came from a non-git

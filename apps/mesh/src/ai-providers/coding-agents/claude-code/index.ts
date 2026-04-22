@@ -1,65 +1,12 @@
 import { createClaudeCode } from "ai-sdk-provider-claude-code";
 import type { ToolApprovalLevel } from "@/api/routes/decopilot/helpers";
-import { createClaudeCodeSandboxModel } from "./sandbox-model";
-import type { DaemonTarget } from "./remote-spawn";
-import type { McpServer } from "./mcp-urls";
-
-export type { DaemonTarget } from "./remote-spawn";
-
-/**
- * Model factory that picks between the local-spawn path and the sandbox
- * path. Callers in the decopilot stream-core always go through this — the
- * choice is keyed off the presence of a `sandbox` target, not an env flag,
- * so the decision lives at the call site where the sandbox was just
- * provisioned (or wasn't).
- */
-export function createClaudeCodeModelForRequest(
-  modelId: string,
-  options: {
-    mcpServers?: Record<string, McpServer>;
-    toolApprovalLevel?: ToolApprovalLevel;
-    isPlanMode?: boolean;
-    resume?: string;
-    /**
-     * When set, the model runs inside the mesh sandbox container via the
-     * daemon's /claude-code/query endpoint. When null/undefined, the model
-     * spawns claude locally on the mesh host (legacy behavior).
-     */
-    sandbox?: {
-      daemon: DaemonTarget;
-      /**
-       * True when the runner settled on `--add-host` host access (the
-       * default on Docker Desktop / modern Linux Docker). Used to toggle
-       * the localhost→host.docker.internal MCP URL rewrite.
-       */
-      rewriteLocalhost: boolean;
-    } | null;
-  },
-) {
-  if (options.sandbox) {
-    return createClaudeCodeSandboxModel(modelId, {
-      daemon: options.sandbox.daemon,
-      mcpServers: options.mcpServers,
-      toolApprovalLevel: options.toolApprovalLevel,
-      isPlanMode: options.isPlanMode,
-      resume: options.resume,
-      rewriteLocalhost: options.sandbox.rewriteLocalhost,
-    });
-  }
-  return createClaudeCodeModel(modelId, {
-    mcpServers: options.mcpServers,
-    toolApprovalLevel: options.toolApprovalLevel,
-    isPlanMode: options.isPlanMode,
-    resume: options.resume,
-  });
-}
 
 /**
  * Create a Claude Code language model with MCP servers attached.
  * This is separate from the adapter's create() because it needs
  * runtime config (mcpServers, permissionMode, resume) that varies per request.
  */
-function createClaudeCodeModel(
+export function createClaudeCodeModel(
   modelId: string,
   options?: {
     mcpServers?: Record<

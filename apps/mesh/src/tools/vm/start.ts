@@ -31,7 +31,6 @@ import { buildCloneInfo } from "../../shared/github-clone-info";
 import { buildDaemonScript } from "./daemon";
 import type { MeshContext } from "../../core/mesh-context";
 import { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
-import { CLAUDE_IMAGE } from "mesh-plugin-user-sandbox/shared";
 import { ensureThreadWorkspace } from "mesh-plugin-user-sandbox/worktree";
 import { getSharedRunner } from "../../sandbox/shared-runner";
 import { resolvePrepImage } from "../../sandbox/prep-enqueue";
@@ -356,15 +355,7 @@ async function dockerStart(
           }
         : undefined,
       env: { ...userEnv },
-      // When claude-in-sandbox is on, prefer the claude-baked image as the
-      // fallback. Otherwise the bare base image wins, and any later claude
-      // attach to this same sandbox_ref pays ~18s of lazy install per turn
-      // because `image:` is ignored on subsequent ensure() calls.
-      image:
-        prepImage ??
-        (process.env.MESH_CLAUDE_CODE_IN_SANDBOX === "1"
-          ? CLAUDE_IMAGE
-          : undefined),
+      image: prepImage ?? undefined,
     },
   );
 
@@ -377,8 +368,8 @@ async function dockerStart(
   let threadCwd: string | undefined;
   if (perThreadDev && runner instanceof DockerSandboxRunner) {
     // Ensure the worktree exists up front so `/dev/start` can root against
-    // it. Without this, the preview iframe would target /app while bash/
-    // claude writes go to the per-thread worktree — same HMR-blind bug the
+    // it. Without this, the preview iframe would target /app while bash
+    // writes go to the per-thread worktree — same HMR-blind bug the
     // whole per-thread-dev plan exists to fix.
     try {
       const ws = await ensureThreadWorkspace(

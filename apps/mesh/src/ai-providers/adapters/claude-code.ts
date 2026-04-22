@@ -1,6 +1,8 @@
 import { createClaudeCode } from "ai-sdk-provider-claude-code";
 import type { MeshProvider, ModelInfo, ProviderAdapter } from "../types";
 
+export { createClaudeCodeModel } from "../coding-agents/claude-code";
+
 export const CLAUDE_CODE_MODELS: ModelInfo[] = [
   {
     providerId: "claude-code",

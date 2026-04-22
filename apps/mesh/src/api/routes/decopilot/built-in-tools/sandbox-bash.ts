@@ -4,7 +4,6 @@ import {
   type EnsureOptions,
   ensureSandbox,
 } from "mesh-plugin-user-sandbox/runner";
-import { CLAUDE_IMAGE } from "mesh-plugin-user-sandbox/shared";
 import { ensureThreadWorkspace } from "mesh-plugin-user-sandbox/worktree";
 import { z } from "zod";
 import type { MeshContext } from "@/core/mesh-context";
@@ -145,21 +144,11 @@ export function createSandboxBashTool(
         repo && ctx.auth.user?.id
           ? await resolvePrepImage(ctx, ctx.auth.user.id, repo)
           : null;
-      // Image fallback chain on fresh provision:
-      //   prep image → CLAUDE_IMAGE (when claude-in-sandbox is on) → runner default.
-      // Without the CLAUDE_IMAGE step, this path provisions a `mesh-sandbox:local`
-      // container; if claude-code attaches to it later (same sandbox_ref), the
-      // daemon eats ~18s of lazy install. Mirrors stream-core's claude branch
-      // so the *first* path to provision wins with the right image.
-      const claudeFallback =
-        process.env.MESH_CLAUDE_CODE_IN_SANDBOX === "1"
-          ? CLAUDE_IMAGE
-          : undefined;
       const sandbox = await ensureSandbox(ctx, runner, {
         sandboxRef,
         repo: resolved ?? undefined,
         env: { ...userEnv },
-        image: prepImage ?? claudeFallback,
+        image: prepImage ?? undefined,
       });
       // When the sandbox is shared across threads (agent-scoped sandbox_ref),
       // each thread gets its own git worktree under /app/workspaces/.

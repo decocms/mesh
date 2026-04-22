@@ -11,7 +11,6 @@
 import { spawn } from "node:child_process";
 import http from "node:http";
 import { authorized } from "./daemon/auth.mjs";
-import { handleClaudeCodeQuery } from "./daemon/claude-code.mjs";
 import {
   LOG_RING_CAP,
   MAX_SSE_CLIENTS,
@@ -195,25 +194,6 @@ const server = http.createServer(async (req, res) => {
           : WORKDIR;
     const { scripts, pm } = inspectWorkdir(scriptsCwd);
     send(res, 200, { scripts, pm, cwd: scriptsCwd });
-    return;
-  }
-
-  // Claude Code streaming query — kept above the generic /proxy catch-all
-  // so the path isn't mistaken for a dev-server proxy.
-  if (req.method === "POST" && url === "/claude-code/query") {
-    await handleClaudeCodeQuery(req, res).catch((err) => {
-      appendLog(
-        "claude-code",
-        `[sandbox-daemon] /claude-code/query error: ${String(err)}\n`,
-      );
-      if (!res.headersSent) {
-        send(res, 500, { error: String(err) });
-      } else {
-        try {
-          res.end();
-        } catch {}
-      }
-    });
     return;
   }
 

@@ -80,14 +80,8 @@ function withSecurityHeaders(res: Response): Response {
 // not block startup. This is the primary cleanup mechanism in dev — SIGTERM
 // handling races with the parent killing postgres, so boot sweep is what
 // actually keeps `docker ps` empty between sessions.
-const { sweepSandboxesOnBoot, probeClaudeImageOnBoot } = await import(
-  "./sandbox/shared-runner"
-);
+const { sweepSandboxesOnBoot } = await import("./sandbox/shared-runner");
 await sweepSandboxesOnBoot();
-// Loud warning when MESH_CLAUDE_CODE_IN_SANDBOX=1 but the claude image
-// is mis-tagged (no claude binary). Surfaces the misconfig before any
-// thread pays for it via the daemon's lazy install fallback.
-await probeClaudeImageOnBoot();
 
 // Create the Hono app
 const app = await createApp();

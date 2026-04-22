@@ -1,18 +1,12 @@
 /**
  * Deferred installation of runtimes / CLIs that the base image doesn't ship.
- * The base stays lean; repos that actually need Deno or Claude Code pay the
- * install cost once, on first use, and subsequent calls short-circuit.
+ * The base stays lean; repos that actually need Deno pay the install cost
+ * once, on first use, and subsequent calls short-circuit.
  */
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
-import {
-  CLAUDE_BIN,
-  CLAUDE_CODE_VERSION,
-  DENO_BIN,
-  DENO_INSTALL_DIR,
-  WORKDIR,
-} from "./config.mjs";
+import { DENO_BIN, DENO_INSTALL_DIR, WORKDIR } from "./config.mjs";
 import { appendLog } from "./events.mjs";
 
 /**
@@ -89,31 +83,5 @@ export function ensureDenoInstalled() {
     cmd: "bash",
     args: ["-lc", "curl -fsSL https://deno.land/install.sh | sh -s -- -y"],
     env: { DENO_INSTALL: DENO_INSTALL_DIR },
-  });
-}
-
-/**
- * Install Claude Code CLI when the image doesn't ship it. The
- * `mesh-sandbox:claude` variant bakes this in at build time and the binary
- * check short-circuits; this path only runs when someone points
- * `/claude-code/query` at a container built from the plain base image.
- *
- * Uses bun rather than npm — bun's install is ~5× faster for this package.
- * `bun install -g` drops shims in /root/.bun/bin regardless of BUN_INSTALL
- * (which only controls where bun itself lives), so onSuccess symlinks into
- * CLAUDE_BIN to match the bake-time layout.
- */
-export function ensureClaudeCodeInstalled() {
-  return lazyInstall("claude", {
-    name: "claude-code",
-    startLog: `[setup] installing @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} via bun\n`,
-    checkReady: () => fs.existsSync(CLAUDE_BIN),
-    cmd: "bun",
-    args: ["install", "-g", `@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}`],
-    onSuccess: () => {
-      if (!fs.existsSync(CLAUDE_BIN)) {
-        fs.symlinkSync("/root/.bun/bin/claude", CLAUDE_BIN);
-      }
-    },
   });
 }
