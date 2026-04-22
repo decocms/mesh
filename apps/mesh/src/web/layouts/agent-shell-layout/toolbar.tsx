@@ -22,6 +22,8 @@ type ToolbarCtx = {
   setTabsEl: (el: HTMLDivElement | null) => void;
   leftEl: HTMLDivElement | null;
   setLeftEl: (el: HTMLDivElement | null) => void;
+  rightEl: HTMLDivElement | null;
+  setRightEl: (el: HTMLDivElement | null) => void;
 };
 
 const ToolbarContext = createContext<ToolbarCtx | null>(null);
@@ -36,6 +38,7 @@ export function Toolbar({ children }: { children?: ReactNode }) {
   const [togglesEl, setTogglesEl] = useState<HTMLDivElement | null>(null);
   const [tabsEl, setTabsEl] = useState<HTMLDivElement | null>(null);
   const [leftEl, setLeftEl] = useState<HTMLDivElement | null>(null);
+  const [rightEl, setRightEl] = useState<HTMLDivElement | null>(null);
   return (
     <ToolbarContext
       value={{
@@ -45,6 +48,8 @@ export function Toolbar({ children }: { children?: ReactNode }) {
         setTabsEl,
         leftEl,
         setLeftEl,
+        rightEl,
+        setRightEl,
       }}
     >
       <div className="flex flex-col h-full min-h-0">{children}</div>
@@ -128,6 +133,22 @@ function ToolbarToggles({ children }: { children: ReactNode }) {
   return createPortal(children, togglesEl);
 }
 
+function ToolbarRightSlot() {
+  const { setRightEl } = useToolbarCtx();
+  return (
+    <div
+      ref={setRightEl}
+      className="flex items-center justify-end gap-0.5 shrink-0"
+    />
+  );
+}
+
+function ToolbarRight({ children }: { children: ReactNode }) {
+  const { rightEl } = useToolbarCtx();
+  if (!rightEl) return null;
+  return createPortal(children, rightEl);
+}
+
 Toolbar.Header = ToolbarHeader;
 Toolbar.Nav = ToolbarNav;
 Toolbar.LeftSlot = ToolbarLeftSlot;
@@ -136,3 +157,5 @@ Toolbar.TabsSlot = ToolbarTabsSlot;
 Toolbar.Tabs = ToolbarTabs;
 Toolbar.TogglesSlot = ToolbarTogglesSlot;
 Toolbar.Toggles = ToolbarToggles;
+Toolbar.RightSlot = ToolbarRightSlot;
+Toolbar.Right = ToolbarRight;
