@@ -21,6 +21,8 @@ import { ChatContextPanel } from "./context-panel";
 import { wasCreditsEmptyDismissed } from "./credits-empty-state";
 import { useChatNavigation } from "./hooks/use-chat-navigation.ts";
 import { BranchPicker } from "../thread/github/branch-picker.tsx";
+import { Button } from "@deco/ui/components/button.tsx";
+import { generateBranchName } from "@/shared/branch-name";
 
 import { useAiProviderKeys } from "@/web/hooks/collections/use-ai-providers";
 import { useDecoCredits } from "@/web/hooks/use-deco-credits";
@@ -234,7 +236,7 @@ function SidebarEmptyState() {
             "Ask anything about configuring model providers or using MCP Mesh."}
         </div>
         {showBranchPicker && (
-          <div className="mt-2">
+          <div className="mt-2 flex items-center gap-2">
             <BranchPicker
               orgId={org.id}
               userId={userId}
@@ -245,6 +247,14 @@ function SidebarEmptyState() {
               value={branch}
               onChange={setBranch}
             />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7"
+              onClick={() => setBranch(generateBranchName())}
+            >
+              New
+            </Button>
           </div>
         )}
       </div>
