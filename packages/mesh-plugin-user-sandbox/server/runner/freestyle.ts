@@ -288,15 +288,13 @@ function wrapCommand(
 ): string {
   const envPrefix = env
     ? Object.entries(env)
-        .map(([k, v]) => `${shEnvName(k)}=${shellQuote(v)}`)
+        .map(([k, v]) => {
+          if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) {
+            throw new Error(`invalid env var name: ${k}`);
+          }
+          return `${k}=${shellQuote(v)}`;
+        })
         .join(" ") + " "
     : "";
   return `cd ${shellQuote(cwd)} && ${envPrefix}bash -lc ${shellQuote(command)}`;
-}
-
-function shEnvName(name: string): string {
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
-    throw new Error(`invalid env var name: ${name}`);
-  }
-  return name;
 }

@@ -144,7 +144,7 @@ export class DockerSandboxRunner implements SandboxRunner {
 
   constructor(opts: DockerRunnerOptions = {}) {
     this.image = opts.image ?? process.env.MESH_SANDBOX_IMAGE ?? DEFAULT_IMAGE;
-    this.exec_ = opts.exec ?? defaultDockerExec;
+    this.exec_ = opts.exec ?? dockerExec;
     this.labelPrefix = opts.labelPrefix ?? LABEL_ROOT;
     this.stateStore = opts.stateStore ?? null;
   }
@@ -733,8 +733,10 @@ export class DockerSandboxRunner implements SandboxRunner {
     for (let i = 0; i < PORT_READBACK_ATTEMPTS; i++) {
       const r = await this.exec_(["port", handle, `${containerPort}/tcp`]);
       if (r.code === 0) {
-        const port = parsePortMapping(r.stdout);
-        if (port !== null) return port;
+        for (const line of r.stdout.split("\n")) {
+          const match = line.trim().match(/:(\d+)$/);
+          if (match) return Number(match[1]);
+        }
       } else if (/no such container/i.test(r.stderr)) {
         // Container exited (and `--rm` cleaned it up) before the daemon bound
         // the port. Retrying for 3s is pointless — fail fast with the exit
@@ -824,13 +826,3 @@ function hashId(id: SandboxId): string {
     .digest("hex")
     .slice(0, 16);
 }
-
-function parsePortMapping(stdout: string): number | null {
-  for (const line of stdout.split("\n")) {
-    const match = line.trim().match(/:(\d+)$/);
-    if (match) return Number(match[1]);
-  }
-  return null;
-}
-
-const defaultDockerExec: DockerExec = dockerExec;
