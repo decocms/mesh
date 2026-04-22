@@ -60,27 +60,14 @@ export interface DockerRunnerOptions {
 }
 
 /**
- * How the container reaches services bound to the host.
- *  - `"add-host"`    — preferred. `--add-host=host.docker.internal:host-gateway`,
- *                      container keeps its own net namespace, daemon port is
- *                      mapped via `-p 127.0.0.1:0:<DAEMON_PORT>`.
- *  - `"network-host"` — opt-in ONLY via `MESH_SANDBOX_ALLOW_HOST_NETWORK=1`.
- *                      Container shares the host's network namespace, so
- *                      `localhost` inside == `localhost` on host. That means
- *                      user-controlled code inside the container can reach
- *                      host loopback services (mesh postgres, mesh API
- *                      internals), so this is unsafe in multi-tenant setups
- *                      and only acceptable for single-tenant dev/self-host.
+ * How the container reaches services on the host.
+ *  - `"add-host"`: preferred; adds `host.docker.internal` to the container.
+ *  - `"network-host"`: opt-in fallback (`--network=host`), enabled only when
+ *    MESH_SANDBOX_ALLOW_HOST_NETWORK=1. See getHostAccessMode() for why
+ *    that requires explicit opt-in.
  */
 type HostAccessMode = "add-host" | "network-host";
 
-/**
- * Opt-in escape hatch for operators on podman/old-docker where
- * `--add-host=host.docker.internal:host-gateway` isn't supported. Setting
- * this env var to "1" acknowledges the single-tenant security trade-off
- * documented on HostAccessMode. Default behaviour (no env) refuses to
- * provision when the probe fails.
- */
 const ALLOW_HOST_NETWORK = process.env.MESH_SANDBOX_ALLOW_HOST_NETWORK === "1";
 
 const DEV_PORT = 3000;

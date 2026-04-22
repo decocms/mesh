@@ -116,10 +116,9 @@ export async function bootstrapRepo(
 }
 
 /**
- * Headers that must never flow from the browser through mesh into the user
- * sandbox. The browser attaches the mesh session cookie to same-origin
- * requests; without this strip the daemon would see the caller's session.
- * Also covers hop-by-hop headers per RFC 7230.
+ * Dropped before proxying to the daemon: mesh session cookies (otherwise
+ * user code inside the sandbox sees the caller's session) plus hop-by-hop
+ * headers per RFC 7230.
  */
 const STRIP_REQUEST_HEADERS = [
   "cookie",
