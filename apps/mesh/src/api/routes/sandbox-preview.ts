@@ -174,6 +174,12 @@ async function proxyWithPort(
   }
   const outHeaders = stripResponseHeaders(upstream.headers);
   rewriteLocationHeader(outHeaders, auth.handle, threadId);
+  // HMR sockets across all frameworks (Vite, Fresh, Next, Webpack, Bun) are
+  // fixed up in the iframe by the universal WebSocket monkey-patch injected
+  // via `IFRAME_BOOTSTRAP_SCRIPT` in mesh-plugin-user-sandbox/shared.ts.
+  // The daemon's `proxy.mjs` splices it into every HTML response right after
+  // the opening `<head>` tag, so the patch is in place before any dev client
+  // constructs its WebSocket. No per-framework rewrite needed here.
   return new Response(upstream.body, {
     status: upstream.status,
     statusText: upstream.statusText,

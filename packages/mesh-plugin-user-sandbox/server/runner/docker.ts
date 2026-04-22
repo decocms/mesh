@@ -1,7 +1,11 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
 import * as net from "node:net";
-import { DAEMON_PORT, DEFAULT_IMAGE } from "../../shared";
+import {
+  DAEMON_PORT,
+  DEFAULT_IMAGE,
+  IFRAME_BOOTSTRAP_SCRIPT,
+} from "../../shared";
 import {
   bootstrapRepo,
   daemonBash,
@@ -387,6 +391,11 @@ export class DockerSandboxRunner implements SandboxRunner {
       DAEMON_TOKEN: token,
       DAEMON_PORT: String(daemonPort),
       WORKDIR: workdir,
+      // The daemon's HTTP proxy splices this into every HTML response so the
+      // iframe runs our universal bootstrap (WebSocket URL rewriter for
+      // framework HMR + visual-editor postMessage listener). See
+      // `IFRAME_BOOTSTRAP_SCRIPT` for the rationale and exact behaviour.
+      DAEMON_BOOTSTRAP: IFRAME_BOOTSTRAP_SCRIPT,
       ...(opts.env ?? {}),
     };
 

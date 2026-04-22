@@ -273,15 +273,25 @@ export function createRemoteSpawnedProcess(
         response.body as unknown as Parameters<typeof Readable.fromWeb>[0],
       );
       let bytesReceived = 0;
-      // Line buffer for NDJSON parsing of the stream-json output. Each
-      // assistant message carries the single API call's usage (input_tokens
-      // already excludes cache reads/writes); capturing it per-call lets the
-      // caller reconstruct the real end-of-turn context fill, which the
-      // aggregated `result.usage` loses by summing across all calls.
+
+      // Stream-json terminal frame from the daemon. The Claude Code CLI
+      // always emits exactly one `{"type":"result", ...}` line as the last
+      // event of a turn. Its absence at stream end means the connection
+      // dropped mid-turn — most commonly because the sandbox container died
+      // (OOM, kill, node failure). We promote that to an error so the AI
+      // SDK fires `onError` instead of `onFinish`; otherwise the thread is
+      // misclassified as `requires_action` (the SDK has no result so it
+      // falls back to a default `finishReason` based on the partial parts
+      // it had buffered, which mesh's status resolver maps to "user, your
+      // turn"). See PLAN-AUTOMATION-CONCURRENCY.md for the full diagnosis.
+      let sawResult = false;
+
+      // NDJSON line buffer for the stream-json output. We always run it —
+      // detecting the terminal `result` frame is required for correctness,
+      // and the optional usage/limit callbacks piggyback on the same parse.
       let lineBuffer = "";
       const parseLine = (line: string) => {
         if (line.length === 0) return;
-        if (!daemon.onAssistantUsage && !daemon.onModelLimits) return;
         try {
           const msg = JSON.parse(line) as {
             type?: string;
@@ -298,7 +308,12 @@ export function createRemoteSpawnedProcess(
               { contextWindow?: number; maxOutputTokens?: number }
             >;
           };
+
           if (msg.type === "assistant" && msg.message?.usage) {
+            // Per-API-call usage (input_tokens already excludes cache
+            // reads/writes); captured here so the caller can reconstruct
+            // real end-of-turn context fill, which the aggregated
+            // `result.usage` loses by summing across all calls.
             if (daemon.onAssistantUsage) {
               const u = msg.message.usage;
               daemon.onAssistantUsage({
@@ -310,39 +325,42 @@ export function createRemoteSpawnedProcess(
             }
             return;
           }
-          if (msg.type === "result" && msg.modelUsage && daemon.onModelLimits) {
-            // Multi-model turns: pick the largest contextWindow since the
-            // primary (most capable) model dictates what fits.
-            let contextWindow = 0;
-            let maxOutputTokens = 0;
-            for (const entry of Object.values(msg.modelUsage)) {
-              if ((entry.contextWindow ?? 0) > contextWindow) {
-                contextWindow = entry.contextWindow ?? 0;
-                maxOutputTokens = entry.maxOutputTokens ?? 0;
+
+          if (msg.type === "result") {
+            sawResult = true;
+            if (msg.modelUsage && daemon.onModelLimits) {
+              // Multi-model turns: pick the largest contextWindow since the
+              // primary (most capable) model dictates what fits.
+              let contextWindow = 0;
+              let maxOutputTokens = 0;
+              for (const entry of Object.values(msg.modelUsage)) {
+                if ((entry.contextWindow ?? 0) > contextWindow) {
+                  contextWindow = entry.contextWindow ?? 0;
+                  maxOutputTokens = entry.maxOutputTokens ?? 0;
+                }
               }
-            }
-            if (contextWindow > 0) {
-              daemon.onModelLimits({ contextWindow, maxOutputTokens });
+              if (contextWindow > 0) {
+                daemon.onModelLimits({ contextWindow, maxOutputTokens });
+              }
             }
           }
         } catch {
           // Non-JSON lines (blank/keepalives) are fine to ignore.
         }
       };
+
       responseReadable.on("data", (chunk: Buffer) => {
         bytesReceived += chunk.length;
         const preview = chunk.toString("utf8").slice(0, 150);
         console.log(
           `[remote-spawn] recv ${chunk.length}B (total ${bytesReceived}B): ${preview}`,
         );
-        if (daemon.onAssistantUsage) {
-          lineBuffer += chunk.toString("utf8");
-          let nl = lineBuffer.indexOf("\n");
-          while (nl !== -1) {
-            parseLine(lineBuffer.slice(0, nl));
-            lineBuffer = lineBuffer.slice(nl + 1);
-            nl = lineBuffer.indexOf("\n");
-          }
+        lineBuffer += chunk.toString("utf8");
+        let nl = lineBuffer.indexOf("\n");
+        while (nl !== -1) {
+          parseLine(lineBuffer.slice(0, nl));
+          lineBuffer = lineBuffer.slice(nl + 1);
+          nl = lineBuffer.indexOf("\n");
         }
       });
       responseReadable.pipe(stdout);
@@ -356,8 +374,22 @@ export function createRemoteSpawnedProcess(
       });
       responseReadable.on("end", () => {
         console.log(
-          `[remote-spawn] response ended after ${bytesReceived}B total`,
+          `[remote-spawn] response ended after ${bytesReceived}B total, sawResult=${sawResult}, killed=${killed}`,
         );
+        if (!sawResult && !killed) {
+          // Stream closed cleanly at the TCP/HTTP layer but the daemon
+          // never emitted its terminal `result` event — see the comment
+          // on `sawResult` above.
+          emitter.emit(
+            "error",
+            new Error(
+              "sandbox daemon stream ended without result event " +
+                "(sandbox likely crashed or was evicted)",
+            ),
+          );
+          finish(1);
+          return;
+        }
         finish(0);
       });
     })

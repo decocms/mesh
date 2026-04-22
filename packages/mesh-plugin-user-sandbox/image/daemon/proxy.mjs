@@ -30,9 +30,18 @@ const STARTING_HTML = `<!DOCTYPE html>
 </html>`;
 
 /**
- * Inject `BOOTSTRAP` before `</body>` (or append at end if missing), strip
- * headers that break iframe embedding, and remove `content-encoding` since
- * we buffered + mutated the body (upstream's gzip/br is no longer valid).
+ * Inject `BOOTSTRAP` into the response HTML, strip headers that break iframe
+ * embedding, and remove `content-encoding` since we buffered + mutated the
+ * body (upstream's gzip/br is no longer valid).
+ *
+ * Inject site preference, in order:
+ *   1. Right after the opening `<head>` tag — this is the earliest point
+ *      where a script can run, ensuring the WebSocket URL monkey-patch in
+ *      the bootstrap is in place before any framework dev client (Vite,
+ *      Fresh, Next, …) constructs its HMR socket.
+ *   2. Right after `<html …>` if no `<head>` is present.
+ *   3. Before `</body>` as a last resort.
+ *   4. Append to body. Should never happen on real HTML.
  */
 function injectBootstrap(upstreamHeaders, bodyBuf) {
   const headers = { ...upstreamHeaders };
@@ -43,13 +52,31 @@ function injectBootstrap(upstreamHeaders, bodyBuf) {
   // Prevent the dev server from setting cookies on the mesh origin.
   delete headers["set-cookie"];
   delete headers["Set-Cookie"];
-  let html = bodyBuf.toString("utf8");
-  const idx = html.lastIndexOf("</body>");
-  html =
-    idx === -1
-      ? html + BOOTSTRAP
-      : html.slice(0, idx) + BOOTSTRAP + html.slice(idx);
-  return { headers, body: html };
+  const html = bodyBuf.toString("utf8");
+  const headOpen = /<head\b[^>]*>/i.exec(html);
+  if (headOpen) {
+    const at = headOpen.index + headOpen[0].length;
+    return {
+      headers,
+      body: html.slice(0, at) + BOOTSTRAP + html.slice(at),
+    };
+  }
+  const htmlOpen = /<html\b[^>]*>/i.exec(html);
+  if (htmlOpen) {
+    const at = htmlOpen.index + htmlOpen[0].length;
+    return {
+      headers,
+      body: html.slice(0, at) + BOOTSTRAP + html.slice(at),
+    };
+  }
+  const bodyClose = html.lastIndexOf("</body>");
+  if (bodyClose !== -1) {
+    return {
+      headers,
+      body: html.slice(0, bodyClose) + BOOTSTRAP + html.slice(bodyClose),
+    };
+  }
+  return { headers, body: html + BOOTSTRAP };
 }
 
 export function proxyHttp(req, res, parsed) {
