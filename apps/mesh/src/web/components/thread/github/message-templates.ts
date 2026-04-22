@@ -64,6 +64,31 @@ export function rerunCheck(
   return `On repo \`${repoRef(ctx)}\`, re-run the \`${ctx.checkName}\` check on PR #${ctx.prNumber} via the GitHub MCP tools. If an empty commit is needed to retrigger CI, use the BASH tool with git to create and push it.`;
 }
 
+export function commitAndPush(
+  ctx: Pick<TemplateContext, "owner" | "repo" | "branch">,
+): string {
+  return `On repo \`${repoRef(ctx)}\`, commit every pending change in the vm's working tree with a concise conventional-commit message summarizing the diff, then push to \`origin/${ctx.branch}\`. If there are already-committed changes ahead of the remote, push those in the same invocation. ${GIT_CLI_PREAMBLE}`;
+}
+
+export function fixChecks(
+  ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber" | "failingChecks">,
+): string {
+  const list = (ctx.failingChecks ?? []).map((n) => `\`${n}\``).join(", ");
+  return `On repo \`${repoRef(ctx)}\`, PR #${ctx.prNumber} has the following failing checks: ${list}. For each: read the check's logs via the GitHub MCP tools, diagnose the root cause, apply the smallest fix that makes the check pass in the vm's working tree, commit, and push. ${GIT_CLI_PREAMBLE}`;
+}
+
+export function markReadyForReview(
+  ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber">,
+): string {
+  return `On repo \`${repoRef(ctx)}\`, mark PR #${ctx.prNumber} as ready for review. Use the GitHub MCP tools for this PR-level operation.`;
+}
+
+export function resolveReviewComments(
+  ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber">,
+): string {
+  return `On repo \`${repoRef(ctx)}\`, read the unresolved review threads on PR #${ctx.prNumber} via the GitHub MCP tools. For each thread: understand the reviewer's ask, make the needed changes in the vm's working tree, commit, push, post a reply explaining what changed, and mark the thread resolved. If a comment is a question that doesn't need a code change, reply with the answer and resolve. ${GIT_CLI_PREAMBLE}`;
+}
+
 export function closePr(
   ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber">,
 ): string {
