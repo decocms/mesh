@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
-import { authClient } from "@/web/lib/auth-client";
 import { useToggleEnvPanel } from "@/web/hooks/use-toggle-env-panel";
 import { useChatTask } from "@/web/components/chat/context";
 import {
@@ -36,6 +35,7 @@ import {
 import { VisualEditorPrompt } from "./visual-editor-prompt";
 import { useVmEvents } from "../hooks/use-vm-events";
 import { VmSuspendedState } from "../vm-suspended-state";
+import type { ThreadSandboxResponse } from "@/api/routes/decopilot/sandbox-response";
 
 type PreviewViewMode = "preview" | "visual";
 
@@ -53,7 +53,6 @@ const VIEW_MODE_OPTIONS: [
 
 export function PreviewContent() {
   const inset = useInsetContext();
-  const { data: session } = authClient.useSession();
   const { openEnv } = useToggleEnvPanel();
 
   // Visual editor state
@@ -62,64 +61,38 @@ export function PreviewContent() {
     useState<VisualEditorPayload | null>(null);
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Read VM data from entity metadata (Freestyle path)
-  const userId = session?.user?.id;
-  const metadata = inset?.entity?.metadata as
-    | {
-        activeVms?: Record<
-          string,
-          { previewUrl: string; vmId: string; terminalUrl: string | null }
-        >;
-      }
-    | undefined;
-  const vmEntry = userId ? metadata?.activeVms?.[userId] : undefined;
-
-  // Docker path: resolve the preview URL from the thread-scoped endpoint so
-  // bash and the iframe share the same container keyed by thread.sandbox_ref.
-  // Endpoint always returns an object so the client can tell "thread never
-  // existed" (auto-spin candidate) from "thread exists but sandbox is
-  // dormant" (user must click). Freestyle threads get `handle: null` and we
-  // fall back to activeVms below.
+  // The thread-sandbox endpoint returns a discriminated union that covers
+  // both runtimes — docker resolves via `thread.sandbox_ref`, freestyle via
+  // the Virtual MCP's `activeVms` map. The frontend never reads activeVms
+  // directly: mixing a stale Freestyle URL into the Docker path is the bug
+  // this whole shape exists to prevent.
   const { org } = useProjectContext();
   const { taskId } = useChatTask();
-  const { data: threadSandbox } = useQuery<{
-    threadExists: boolean;
-    sandboxRef: string | null;
-    handle: string | null;
-    previewUrl: string | null;
-    serverUp: boolean;
-    phase: string | null;
-  } | null>({
+  const { data: threadSandbox } = useQuery<ThreadSandboxResponse | null>({
     queryKey: KEYS.threadSandbox(org.slug ?? org.id, taskId),
     enabled: !!taskId,
-    // Keep polling while the dev server is still booting so status/logs in
-    // the proxy's loading page stay fresh. Once `serverUp` flips, the iframe
-    // is already mounted at the same URL and will pick up the real response
-    // on its next request — no extra poll needed.
+    // Keep polling while a Docker dev server is still booting so status/logs
+    // in the proxy's loading page stay fresh. Once `serverUp` flips (or for
+    // Freestyle, which doesn't have that concept), the iframe is already
+    // mounted and picks up the real response on its next request.
     staleTime: 2_000,
-    refetchInterval: (q) => (q.state.data?.serverUp ? false : 2_000),
+    refetchInterval: (q) => {
+      const sb = q.state.data?.sandbox;
+      if (!sb) return 2_000;
+      if (sb.kind === "docker" && !sb.serverUp) return 2_000;
+      return false;
+    },
     queryFn: async () => {
       const res = await fetch(
         `/api/${org.slug ?? org.id}/decopilot/threads/${taskId}/sandbox`,
       );
       if (!res.ok) return null;
-      return (await res.json()) as {
-        threadExists: boolean;
-        sandboxRef: string | null;
-        handle: string | null;
-        previewUrl: string | null;
-        serverUp: boolean;
-        phase: string | null;
-      };
+      return (await res.json()) as ThreadSandboxResponse;
     },
   });
 
-  // Docker path takes precedence: if the thread has a sandbox_ref at all,
-  // mount the iframe unconditionally. When the dev server is still booting
-  // or crashed, the sandbox-preview proxy renders a loading page for the
-  // initial HTML request — so `previewUrl` is always safe to use here.
-  // Freestyle (no docker handle) keeps using activeVms unchanged.
-  const previewUrl = threadSandbox?.previewUrl ?? vmEntry?.previewUrl ?? null;
+  const sandbox = threadSandbox?.sandbox ?? null;
+  const previewUrl = sandbox?.previewUrl ?? null;
 
   // Auto-spin the VM for brand-new threads (no DB row yet). Old threads stay
   // manual — the env panel's Run button is the entry point for reviving a
@@ -135,7 +108,7 @@ export function PreviewContent() {
     !!taskId &&
     !!virtualMcpId &&
     !!threadSandbox &&
-    !threadSandbox.threadExists &&
+    !threadSandbox.thread.exists &&
     autoStartedForTaskRef.current !== taskId;
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — 500ms debounced side-effect; no React 19 alternative
   useEffect(() => {
@@ -185,12 +158,12 @@ export function PreviewContent() {
   const isAutoSpinning =
     !previewUrl &&
     !!threadSandbox &&
-    !threadSandbox.threadExists &&
+    !threadSandbox.thread.exists &&
     !autoStartFailed;
   const showManualStart =
     !previewUrl &&
     !!threadSandbox &&
-    (threadSandbox.threadExists || autoStartFailed);
+    (threadSandbox.thread.exists || autoStartFailed);
 
   const vmEvents = useVmEvents(previewUrl, null);
   const hasHtmlPreview = vmEvents.status.htmlSupport;

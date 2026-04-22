@@ -535,7 +535,12 @@ export class DockerSandboxRunner implements SandboxRunner {
   async proxyDaemonRequest(
     handle: string,
     path: string,
-    init: { method: string; headers: Headers; body: BodyInit | null },
+    init: {
+      method: string;
+      headers: Headers;
+      body: BodyInit | null;
+      signal?: AbortSignal;
+    },
   ): Promise<Response> {
     const rec = await this.lookupRecord(handle);
     if (!rec) {

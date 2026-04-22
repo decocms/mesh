@@ -153,7 +153,12 @@ export async function removeThreadWorkspace(
       proxyDaemonRequest?: (
         h: string,
         p: string,
-        init: { method: string; headers: Headers; body: BodyInit | null },
+        init: {
+          method: string;
+          headers: Headers;
+          body: BodyInit | null;
+          signal?: AbortSignal;
+        },
       ) => Promise<Response>;
     }
   ).proxyDaemonRequest;

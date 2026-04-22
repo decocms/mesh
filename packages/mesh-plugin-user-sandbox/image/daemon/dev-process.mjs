@@ -6,8 +6,14 @@
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
+import net from "node:net";
 import path from "node:path";
-import { DENO_BIN, FAST_CRASH_MS, WORKDIR } from "./config.mjs";
+import {
+  DENO_BIN,
+  FAST_CRASH_MS,
+  PORT as DAEMON_PORT,
+  WORKDIR,
+} from "./config.mjs";
 import {
   DEFAULT_THREAD,
   crashBackoffRemainingMs,
@@ -29,6 +35,61 @@ import {
   readDenoConfig,
   readPackageJson,
 } from "./workdir.mjs";
+
+/**
+ * Ask the OS for a free TCP port by briefly binding :0 on 0.0.0.0, reading
+ * the assigned port, then releasing it. Re-rolls if the port is already
+ * claimed by another thread's dev child.
+ */
+async function pickFreePort() {
+  for (let i = 0; i < 10; i++) {
+    const port = await new Promise((resolve, reject) => {
+      const srv = net.createServer();
+      srv.unref();
+      srv.once("error", reject);
+      srv.listen(0, "0.0.0.0", () => {
+        const addr = srv.address();
+        if (addr && typeof addr === "object" && Number.isFinite(addr.port)) {
+          const p = addr.port;
+          srv.close(() => resolve(p));
+        } else {
+          srv.close(() => reject(new Error("no address from listen(0)")));
+        }
+      });
+    });
+    if (!ownedPorts.has(port) && port !== DAEMON_PORT) return port;
+  }
+  throw new Error("could not pick a free port after 10 attempts");
+}
+
+/**
+ * Resolve the PORT the dev child will bind. Honor caller's `preferredPort`
+ * when it's actually free; otherwise fall back to an OS-assigned port. The
+ * poll loop stays in place as a safety net for frameworks that ignore PORT.
+ */
+async function allocateDevPort(preferred) {
+  if (
+    preferred &&
+    !ownedPorts.has(preferred) &&
+    preferred !== DAEMON_PORT &&
+    !snapshotListenPorts().has(preferred)
+  ) {
+    try {
+      await new Promise((resolve, reject) => {
+        const srv = net.createServer();
+        srv.unref();
+        srv.once("error", reject);
+        srv.listen(preferred, "0.0.0.0", () => {
+          srv.close(() => resolve(undefined));
+        });
+      });
+      return preferred;
+    } catch {
+      // Fall through to OS-assigned.
+    }
+  }
+  return pickFreePort();
+}
 
 function killDev(dev, signal = "SIGTERM") {
   if (!dev.child || dev.child.pid == null) return;
@@ -210,10 +271,25 @@ export async function startDev({
   dev.baselinePorts = baseline;
   setPhase(dev, "starting");
 
+  // Allocate a unique PORT for this dev child and pass it via env. Without
+  // this, per-thread dev in a shared container (and any restart race where a
+  // prior child still holds the default port) crashes the second starter
+  // with EADDRINUSE — most frameworks default to a single well-known port
+  // (`@deco/deco` → 8000, Next.js → 3000, Vite → 5173). We reserve the port
+  // in `ownedPorts` pre-spawn so concurrent `startDev` calls don't re-pick
+  // it. Discovery later confirms the actual bind (or falls back to poll for
+  // frameworks that ignore PORT).
+  const allocatedPort = await allocateDevPort(dev.preferredPort ?? null);
+  ownedPorts.add(allocatedPort);
+  dev.preferredPort = allocatedPort;
+
   // Frameworks that honor HOST (Next.js, some Vite configs) pick up 0.0.0.0
   // so discovery is snappier. Anything binding to 127.0.0.1 is still
   // reachable — the daemon proxies via loopback — so no --host trick needed.
-  const env = childEnv({ HOST: process.env.HOST ?? "0.0.0.0" });
+  const env = childEnv({
+    HOST: process.env.HOST ?? "0.0.0.0",
+    PORT: String(allocatedPort),
+  });
 
   // Wrap the real command in `script -q -c` so the child sees a PTY and its
   // output keeps ANSI colors / progress animations that frameworks emit when
@@ -252,16 +328,27 @@ export async function startDev({
       broadcastTid,
     );
     stopPortPoll(dev);
+    // Release both the discovery-confirmed port (if any) and the pre-spawn
+    // reservation. They're usually the same number, but a framework that
+    // ignored PORT would have made discovery latch onto a different one; in
+    // that case both need releasing or the reservation leaks in ownedPorts.
+    ownedPorts.delete(allocatedPort);
     if (dev.port != null) {
       ownedPorts.delete(dev.port);
       dev.port = null;
     }
     if (dev.child === child) dev.child = null;
-    // Fast-crash bookkeeping: only non-zero exits within FAST_CRASH_MS of
-    // startup count toward the backoff streak. A dev server that ran fine
-    // for an hour and then got SIGKILLed shouldn't be punished.
-    if (code !== 0 && code != null) {
-      const ranFor = dev.startedAt ? Date.now() - dev.startedAt : Infinity;
+    // Fast-exit bookkeeping: any exit inside FAST_CRASH_MS counts toward the
+    // backoff streak — including code=0. Dev tasks that exit 0 quickly are
+    // usually daemonizers (`@deco/deco`'s `daemon/main.ts` forks the server
+    // into a child and returns); treating them as a clean "exited" lets the
+    // self-heal path in mesh re-fire `/dev/start` on every preview poll,
+    // stacking up orphaned port-holders until one finally trips EADDRINUSE.
+    // A server that exits happily in < FAST_CRASH_MS is not actually
+    // running; backoff + crash phase stops the respawn storm.
+    const ranFor = dev.startedAt ? Date.now() - dev.startedAt : Infinity;
+    const fastExit = ranFor < FAST_CRASH_MS && code != null;
+    if (fastExit || (code !== 0 && code != null)) {
       if (ranFor < FAST_CRASH_MS) {
         dev.crashCount = (dev.crashCount || 0) + 1;
       } else {
@@ -269,7 +356,7 @@ export async function startDev({
       }
       dev.lastCrashAt = Date.now();
     }
-    setPhase(dev, code === 0 ? "exited" : "crashed");
+    setPhase(dev, fastExit || code !== 0 ? "crashed" : "exited");
     dev.pid = null;
   });
   child.on("error", (err) => {
@@ -279,6 +366,7 @@ export async function startDev({
       broadcastTid,
     );
     stopPortPoll(dev);
+    ownedPorts.delete(allocatedPort);
     if (dev.port != null) {
       ownedPorts.delete(dev.port);
       dev.port = null;

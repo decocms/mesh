@@ -166,6 +166,7 @@ async function proxyWithPort(
     method: c.req.method,
     headers: c.req.raw.headers,
     body: c.req.raw.body,
+    signal: c.req.raw.signal,
   });
   // If the dev server isn't listening yet (daemon returns 502) and this looks
   // like the initial preview load, render a friendly loading page instead.
@@ -208,6 +209,7 @@ async function proxyDaemonPath(
       method: c.req.method,
       headers: c.req.raw.headers,
       body,
+      signal: c.req.raw.signal,
     },
   );
   return new Response(upstream.body, {

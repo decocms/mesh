@@ -143,12 +143,24 @@ const STRIP_REQUEST_HEADERS = [
  * HTTP passthrough to the daemon — the caller's bearer is overwritten with
  * ours and hop-by-hop + session-cookie headers are dropped. Returns the
  * native `Response` so the body streams through without buffering.
+ *
+ * `signal` must be the client's AbortSignal (e.g. `c.req.raw.signal` in
+ * Hono). For long-lived streams — especially the SSE endpoint — the browser
+ * closing the connection has to cascade all the way to the daemon so it can
+ * drop the subscriber. Without this forwarding, daemon-side SSE
+ * subscriptions leak and eventually trip the `MAX_SSE_CLIENTS` cap with
+ * 429s.
  */
 export async function proxyDaemonRequest(
   daemonUrl: string,
   token: string,
   path: string,
-  init: { method: string; headers: Headers; body: BodyInit | null },
+  init: {
+    method: string;
+    headers: Headers;
+    body: BodyInit | null;
+    signal?: AbortSignal;
+  },
 ): Promise<Response> {
   const headers = new Headers(init.headers);
   for (const h of STRIP_REQUEST_HEADERS) headers.delete(h);
@@ -160,6 +172,7 @@ export async function proxyDaemonRequest(
     headers,
     body: hasBody ? init.body : undefined,
     redirect: "manual",
+    signal: init.signal,
     // @ts-expect-error Bun/Undici-only: allow streaming request body.
     duplex: hasBody ? "half" : undefined,
   });
