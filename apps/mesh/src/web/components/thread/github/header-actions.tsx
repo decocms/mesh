@@ -6,6 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
+import { Separator } from "@deco/ui/components/separator.tsx";
 import { DotsHorizontal, LinkExternal01 } from "@untitledui/icons";
 import { useChatBridge } from "../../chat/chat-context.tsx";
 import { useChatNavigation } from "../../chat/hooks/use-chat-navigation.ts";
@@ -57,13 +58,13 @@ export function HeaderActions({ virtualMcpId }: Props) {
   const owner = githubRepo.owner;
   const repo = githubRepo.name;
   const base = pr?.base ?? "main";
-  const branchHtmlUrl = `https://github.com/${owner}/${repo}/tree/${branch}`;
 
   if (state.kind === "no-branch") return null;
 
   if (state.kind === "no-pr") {
     return (
-      <div className="flex items-center gap-1">
+      <>
+        <Separator orientation="vertical" className="mx-2 h-5" />
         <Button
           size="sm"
           disabled={disabled}
@@ -71,68 +72,68 @@ export function HeaderActions({ virtualMcpId }: Props) {
         >
           Create PR
         </Button>
-        <OverflowMenu>
-          <DropdownMenuItem onClick={() => openExt(branchHtmlUrl)}>
-            <LinkExternal01 className="mr-2 h-4 w-4" />
-            Open branch on GitHub
-          </DropdownMenuItem>
-        </OverflowMenu>
-      </div>
+      </>
     );
   }
 
   if (state.kind === "closed") {
     return (
-      <OverflowMenu>
-        <DropdownMenuItem onClick={() => openExt(state.pr.htmlUrl)}>
-          <LinkExternal01 className="mr-2 h-4 w-4" />
-          Open PR on GitHub
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={disabled}
-          onClick={() =>
-            send(tpl.reopenPr({ owner, repo, prNumber: state.pr.number }))
-          }
-        >
-          Reopen
-        </DropdownMenuItem>
-      </OverflowMenu>
+      <>
+        <Separator orientation="vertical" className="mx-2 h-5" />
+        <OverflowMenu>
+          <DropdownMenuItem onClick={() => openExt(state.pr.htmlUrl)}>
+            <LinkExternal01 className="mr-2 h-4 w-4" />
+            Open PR on GitHub
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={disabled}
+            onClick={() =>
+              send(tpl.reopenPr({ owner, repo, prNumber: state.pr.number }))
+            }
+          >
+            Reopen
+          </DropdownMenuItem>
+        </OverflowMenu>
+      </>
     );
   }
 
   // state.kind === "open"
   const prNumber = state.pr.number;
   return (
-    <div className="flex items-center gap-1">
-      <MergeSplitButton
-        owner={owner}
-        repo={repo}
-        prNumber={prNumber}
-        base={base}
-        disabled={disabled}
-        send={send}
-      />
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={disabled}
-        onClick={() => send(tpl.rebaseOnBase({ owner, repo, branch, base }))}
-      >
-        Rebase on {base}
-      </Button>
-      <OverflowMenu>
-        <DropdownMenuItem onClick={() => openExt(state.pr.htmlUrl)}>
-          <LinkExternal01 className="mr-2 h-4 w-4" />
-          Open PR on GitHub
-        </DropdownMenuItem>
-        <DropdownMenuItem
+    <>
+      <Separator orientation="vertical" className="mx-2 h-5" />
+      <div className="flex items-center gap-1">
+        <MergeSplitButton
+          owner={owner}
+          repo={repo}
+          prNumber={prNumber}
+          base={base}
           disabled={disabled}
-          onClick={() => send(tpl.closePr({ owner, repo, prNumber }))}
+          send={send}
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={disabled}
+          onClick={() => send(tpl.rebaseOnBase({ owner, repo, branch, base }))}
         >
-          Close PR
-        </DropdownMenuItem>
-      </OverflowMenu>
-    </div>
+          Rebase on {base}
+        </Button>
+        <OverflowMenu>
+          <DropdownMenuItem onClick={() => openExt(state.pr.htmlUrl)}>
+            <LinkExternal01 className="mr-2 h-4 w-4" />
+            Open PR on GitHub
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={disabled}
+            onClick={() => send(tpl.closePr({ owner, repo, prNumber }))}
+          >
+            Close PR
+          </DropdownMenuItem>
+        </OverflowMenu>
+      </div>
+    </>
   );
 }
 
