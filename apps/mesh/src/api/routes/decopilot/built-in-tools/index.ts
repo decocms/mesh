@@ -7,6 +7,7 @@
 
 import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
 import type { UIMessageStreamWriter } from "ai";
+import type { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
 import { toolNeedsApproval, type ToolApprovalLevel } from "../helpers";
 import { createAgentSearchTool } from "./agent-search";
 import { createReadToolOutputTool } from "./read-tool-output";
@@ -37,6 +38,17 @@ export interface BuiltinToolParams {
   passthroughClient: VirtualClient;
   /** When set, VM file tools replace the sandbox tool */
   activeVm?: { vmBaseUrl: string } | null;
+  /**
+   * Live Docker sandbox for this thread. When present, the same six VM file
+   * tools that Freestyle registers (read/write/edit/grep/glob/bash) are
+   * wired through `runner.proxyDaemonRequest` instead. Null when no live
+   * container exists yet — falls back to sandbox + sandbox-bash (which can
+   * lazy-provision on first call).
+   */
+  dockerVmSandbox?: {
+    runner: DockerSandboxRunner;
+    handle: string;
+  } | null;
   /**
    * GitHub repo attached to the agent's Virtual MCP. When set, the Docker
    * sandbox clones it on first provisioning. Ignored when `activeVm` is set
@@ -72,6 +84,7 @@ function buildAllTools(
     toolOutputMap,
     passthroughClient,
     activeVm,
+    dockerVmSandbox,
     sandboxRepo,
     sandboxRef,
   } = params;
@@ -111,26 +124,42 @@ function buildAllTools(
       ctx,
     ),
   };
-  // VM tools replace sandbox when a VM is active
+  // VM file tools replace sandbox + sandbox-bash when a live sandbox exists —
+  // same six LLM-visible tools across runners (schemas in vm-tools/schemas.ts).
+  // When neither runner has a handle at registry time, fall back to the
+  // sandbox + sandbox-bash path which can lazy-provision on first call.
+  const vmNeedsApproval =
+    toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false;
   if (activeVm) {
-    const vmTools = createVmTools({
-      vmBaseUrl: activeVm.vmBaseUrl,
-      toolOutputMap,
-      needsApproval:
-        toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false,
-    });
-    Object.assign(tools, vmTools);
+    Object.assign(
+      tools,
+      createVmTools({
+        runner: "freestyle",
+        vmBaseUrl: activeVm.vmBaseUrl,
+        toolOutputMap,
+        needsApproval: vmNeedsApproval,
+      }),
+    );
+  } else if (dockerVmSandbox) {
+    Object.assign(
+      tools,
+      createVmTools({
+        runner: "docker",
+        dockerRunner: dockerVmSandbox.runner,
+        handle: dockerVmSandbox.handle,
+        toolOutputMap,
+        needsApproval: vmNeedsApproval,
+      }),
+    );
   } else {
     tools.sandbox = createSandboxTool({
       passthroughClient,
       toolOutputMap,
-      needsApproval:
-        toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false,
+      needsApproval: vmNeedsApproval,
     });
     tools.bash = createSandboxBashTool(
       {
-        needsApproval:
-          toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false,
+        needsApproval: vmNeedsApproval,
         toolOutputMap,
         repo: sandboxRepo ?? null,
         sandboxRef: sandboxRef ?? null,

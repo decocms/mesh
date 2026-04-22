@@ -533,6 +533,26 @@ export class DockerSandboxRunner implements SandboxRunner {
   }
 
   /**
+   * Verify the persisted container for (userId, projectRef) is actually
+   * reachable. Reads the state-store row, re-hydrates, pings /health. On
+   * success returns true; on failure purges the stale row so the next
+   * ensure() path falls through to docker-level discovery / fresh provision.
+   *
+   * Exposed for callers that observe a daemon probe failure and need to
+   * decide whether to surface a "dead" sandbox or trigger a reprovision —
+   * the probePersisted + delete pair is otherwise private to ensureInner().
+   */
+  async isHandleAlive(id: SandboxId): Promise<boolean> {
+    if (!this.stateStore) return false;
+    const persisted = await this.stateStore.get(id, RUNNER_KIND);
+    if (!persisted) return false;
+    const probed = await this.probePersisted(id, persisted);
+    if (probed) return true;
+    await this.stateStore.delete(id, RUNNER_KIND);
+    return false;
+  }
+
+  /**
    * HTTP passthrough to the sandbox daemon's `/_daemon/*` control plane.
    * Caller passes the full daemon path (e.g. `/_daemon/dev/status`). The
    * bearer token never leaves this class — the caller gets back a native

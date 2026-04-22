@@ -52,11 +52,18 @@ const BASE_RECONNECT_DELAY_MS = 1_000;
 /** Max reconnect delay in ms */
 const MAX_RECONNECT_DELAY_MS = 30_000;
 
-const EVENT_TYPES = ["log", "status", "scripts", "processes"] as const;
+const EVENT_TYPES = [
+  "log",
+  "status",
+  "scripts",
+  "processes",
+  "reload",
+] as const;
 
 export function useVmEvents(
   sseUrl: string | null,
   onChunk: ChunkHandler | null,
+  onReload?: (() => void) | null,
 ) {
   const [status, setStatus] = useState<VmStatus>({
     ready: false,
@@ -71,6 +78,8 @@ export function useVmEvents(
   const [, setLogTick] = useState(0);
   const onChunkRef = useRef(onChunk);
   onChunkRef.current = onChunk;
+  const onReloadRef = useRef(onReload);
+  onReloadRef.current = onReload;
   const buffers = useRef(new Map<string, ChunkBuffer>());
 
   const getOrCreateBuffer = (source: string) => {
@@ -128,6 +137,8 @@ export function useVmEvents(
           setScripts(data.scripts ?? []);
         } else if (e.type === "processes") {
           setActiveProcesses(data.active ?? []);
+        } else if (e.type === "reload") {
+          onReloadRef.current?.();
         }
       } catch {
         // ignore parse errors

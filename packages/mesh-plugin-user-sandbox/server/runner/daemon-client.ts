@@ -57,7 +57,7 @@ export async function daemonBash(
     },
     body: JSON.stringify({
       command: input.command,
-      timeoutMs,
+      timeout: timeoutMs,
       cwd: input.cwd,
       env: input.env,
     }),

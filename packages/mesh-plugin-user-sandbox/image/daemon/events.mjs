@@ -52,6 +52,15 @@ export function currentStatusPayload() {
   };
 }
 
+/**
+ * Ask subscribed preview iframes to reload themselves. Used by the deco
+ * watcher for block/metadata JSON changes — edits Deno HMR won't see, so
+ * nothing else would trigger a reload.
+ */
+export function emitReload(reason) {
+  broadcast("reload", { reason, ts: Date.now() });
+}
+
 export function setPhase(next) {
   if (dev.phase === next) return;
   dev.phase = next;

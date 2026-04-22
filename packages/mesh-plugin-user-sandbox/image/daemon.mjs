@@ -19,6 +19,7 @@ import {
   PORT,
   WORKDIR,
 } from "./daemon/config.mjs";
+import { startDecoWatcher } from "./daemon/deco-watcher.mjs";
 import { startDev, stopDev } from "./daemon/dev-process.mjs";
 import { dev } from "./daemon/dev-state.mjs";
 import {
@@ -237,12 +238,12 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "POST" && subUrl === "/bash") {
     try {
       const body = await parsedBody(req);
-      const { command, timeoutMs = 60_000, cwd } = body;
+      const { command, timeout = 60_000, cwd } = body;
       if (typeof command !== "string" || command.length === 0) {
         send(res, 400, { error: "command is required" });
         return;
       }
-      const result = await runBash(command, Number(timeoutMs), cwd);
+      const result = await runBash(command, Number(timeout), cwd);
       send(res, 200, result);
     } catch (err) {
       send(res, 500, { error: String(err) });
@@ -259,8 +260,11 @@ server.listen(PORT, "0.0.0.0", () => {
   );
 });
 
+const stopDecoWatcher = startDecoWatcher();
+
 for (const sig of ["SIGINT", "SIGTERM"]) {
   process.on(sig, async () => {
+    stopDecoWatcher();
     await stopDev().catch(() => {});
     server.close(() => process.exit(0));
   });

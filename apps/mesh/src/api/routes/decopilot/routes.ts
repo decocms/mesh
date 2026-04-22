@@ -461,6 +461,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
       let serverUp = false;
       let crashBackoffRemainingMs = 0;
       if (runner instanceof DockerSandboxRunner) {
+        let probeFailed = false;
         try {
           const res = await runner.proxyDaemonRequest(
             row.handle,
@@ -479,9 +480,30 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
             phase = status.phase;
             serverUp = status.phase === "ready";
             crashBackoffRemainingMs = status.crashBackoffRemainingMs ?? 0;
+          } else {
+            probeFailed = true;
           }
         } catch {
           serverUp = false;
+          probeFailed = true;
+        }
+
+        // Daemon probe failed — the container may have been evicted (docker rm)
+        // leaving a stale sandbox_runner_state row. Verify liveness; if dead,
+        // isHandleAlive purges the stale row and we report sandbox:null so the
+        // client's VM_START auto-start path fires and reprovisions.
+        if (probeFailed) {
+          const alive = await runner.isHandleAlive({
+            userId,
+            projectRef: sandboxRef,
+          });
+          if (!alive) {
+            const body: ThreadSandboxResponse = {
+              sandbox: null,
+              thread: threadShape,
+            };
+            return c.json(body);
+          }
         }
 
         // Crash-loop backoff: when the daemon reports it's in backoff after

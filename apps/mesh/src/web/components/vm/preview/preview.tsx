@@ -104,11 +104,16 @@ export function PreviewContent() {
   const autoStartedForTaskRef = useRef<string | null>(null);
   const [autoStartFailed, setAutoStartFailed] = useState(false);
   const virtualMcpId = inset?.entity?.id ?? null;
+  // Guard on `!sandbox` (no live runtime) rather than `!thread.exists` so the
+  // auto-start also fires for existing threads whose container was evicted
+  // between sessions — e.g. Docker `rm`, mesh restart after the state-store
+  // row went stale. `autoStartedForTaskRef` + `autoStartFailed` still prevent
+  // a retry loop when VM_START itself fails.
   const shouldAutoStart =
     !!taskId &&
     !!virtualMcpId &&
     !!threadSandbox &&
-    !threadSandbox.thread.exists &&
+    !threadSandbox.sandbox &&
     autoStartedForTaskRef.current !== taskId;
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — 500ms debounced side-effect; no React 19 alternative
   useEffect(() => {
@@ -198,7 +203,17 @@ export function PreviewContent() {
       : previewUrl
         ? `${previewUrl}/_decopilot_vm/events`
         : null;
-  const vmEvents = useVmEvents(sseUrl, null);
+  const vmEvents = useVmEvents(sseUrl, null, () => {
+    const iframe = previewIframeRef.current;
+    if (!iframe) return;
+    // Reload the preview — used for .deco JSON edits that Deno HMR doesn't
+    // watch. For .ts/.tsx edits, Fresh's own WS close → reload path handles
+    // it; the daemon suppresses this event while dev is not "ready" so we
+    // don't double-reload.
+    // biome-ignore lint/correctness/noSelfAssign: reloads the iframe
+    // oxlint-disable-next-line no-self-assign
+    iframe.src = iframe.src;
+  });
   const hasHtmlPreview = vmEvents.status.htmlSupport;
   const suspended = vmEvents.suspended;
 
