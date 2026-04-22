@@ -109,6 +109,17 @@ export function displayToolName(
     .toLowerCase();
 }
 
+/**
+ * Convert a kebab/snake-case prompt name to a human-readable Title Case string.
+ * e.g. "writing-prompts" → "Writing Prompts"
+ */
+function titleFromName(name: string): string {
+  return name
+    .split(/[-_]/)
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
+
 export interface GatewayClientOptions {
   clientInfo?: Implementation;
   capabilities?: ClientCapabilities;
@@ -495,6 +506,7 @@ export class GatewayClient extends Client {
         prompts.push({
           ...prompt,
           name: this.namespace(clientKey, prompt.name),
+          title: prompt.title ?? titleFromName(prompt.name),
           _meta: {
             ...(prompt._meta ?? {}),
             gatewayClientId: clientKey,
