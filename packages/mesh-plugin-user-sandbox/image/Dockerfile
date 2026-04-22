@@ -26,7 +26,10 @@ RUN apt-get update \
   && ln -s /usr/local/bun/bin/bun /usr/local/bin/bun \
   && ln -s /usr/local/bun/bin/bun /usr/local/bin/bunx \
   && curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/opt/deno sh -s -- -y \
-  && ln -s /opt/deno/bin/deno /usr/local/bin/deno
+  && ln -s /opt/deno/bin/deno /usr/local/bin/deno \
+  && corepack enable \
+  && corepack prepare yarn@stable --activate \
+  && corepack prepare pnpm@latest --activate
 
 ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8

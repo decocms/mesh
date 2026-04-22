@@ -32,7 +32,6 @@ import { buildDaemonScript } from "./daemon";
 import type { MeshContext } from "../../core/mesh-context";
 import { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
 import { getSharedRunner } from "../../sandbox/shared-runner";
-import { resolvePrepImage } from "../../sandbox/prep-enqueue";
 import { mintSandboxRef } from "../../sandbox/sandbox-ref";
 
 const PROXY_PORT = 9000;
@@ -350,20 +349,6 @@ async function dockerStart(
     : null;
 
   const runner = getSharedRunner(ctx);
-  // Pull user-defined env vars so `docker run -e KEY=VALUE` injects them at
-  // provision time. Unchanged for existing containers — docker args are only
-  // consulted on fresh provision. To apply new values the caller must
-  // VM_DELETE first, then VM_START.
-  const userEnv = await ctx.storage.sandboxEnv.resolve(sandboxRef);
-  // Spawn from a pre-baked prep image when one is ready for this (user, repo).
-  // Cuts clone + install from the first-start latency budget.
-  const prepImage = repo
-    ? await resolvePrepImage(ctx, userId, {
-        owner: repo.owner,
-        name: repo.name,
-        connectionId: repo.connectionId,
-      })
-    : null;
   const { runtime } = resolveRuntimeConfig(metadata);
   const sandbox = await runner.ensure(
     {
@@ -378,8 +363,6 @@ async function dockerStart(
             userEmail: repoInfo.gitUserEmail,
           }
         : undefined,
-      env: { ...userEnv },
-      image: prepImage ?? undefined,
     },
   );
 

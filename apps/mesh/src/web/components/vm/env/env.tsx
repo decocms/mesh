@@ -46,7 +46,6 @@ import { VmErrorState } from "../vm-error-state";
 import { VmSuspendedState } from "../vm-suspended-state";
 import { useVmEvents } from "../hooks/use-vm-events";
 import { VmTerminal } from "./terminal";
-import { EnvVarsEditor } from "./env-vars-editor";
 import type { Terminal as XTerminal } from "@xterm/xterm";
 import { LiveTimer } from "../../live-timer";
 import { useActiveGithubRepo } from "@/web/hooks/use-active-github-repo";
@@ -513,12 +512,6 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
               </Button>
             </div>
           )}
-
-          {taskId && (
-            <div className="pt-4 border-t border-border">
-              <EnvVarsEditor threadId={taskId} orgId={org.id} />
-            </div>
-          )}
         </div>
       </div>
     );
@@ -542,11 +535,9 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     return <VmSuspendedState onResume={handleStart} />;
   }
 
-  // All tabs: setup + env (always present so users can edit secrets while
-  // the server is running) + open script tabs + optional daemon.
+  // All tabs: setup + open script tabs + optional daemon.
   const allTabs = [
     "setup",
-    "env",
     ...openScriptTabs,
     ...(daemonOpen ? ["daemon"] : []),
   ];
@@ -715,45 +706,23 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
               key={tab}
               className={cn("h-full", activeTab === tab ? "block" : "hidden")}
             >
-              {tab === "env" ? (
-                <div className="h-full overflow-auto p-4">
-                  {taskId ? (
-                    <EnvVarsEditor
-                      threadId={taskId}
-                      orgId={org.id}
-                      onSaved={(hasChanges) => {
-                        if (hasChanges) {
-                          toast(
-                            "Restart the server to apply env changes to the running container.",
-                          );
-                        }
-                      }}
-                    />
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Open a thread to edit env vars.
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <VmTerminal
-                  onReady={(t) => {
-                    terminalRefs.current.set(tab, t);
-                  }}
-                  onSelectionChange={(has, getText) =>
-                    handleSelectionChange(tab, has, getText)
-                  }
-                  initialData={
-                    tab === "setup"
-                      ? vmEvents.getBuffer("setup")
-                      : // Script tabs replay the script-named buffer + daemon
-                        // lifecycle log, since dev-process output can land under
-                        // either source depending on where it was emitted.
-                        vmEvents.getBuffer(tab) + vmEvents.getBuffer("daemon")
-                  }
-                  className="h-full"
-                />
-              )}
+              <VmTerminal
+                onReady={(t) => {
+                  terminalRefs.current.set(tab, t);
+                }}
+                onSelectionChange={(has, getText) =>
+                  handleSelectionChange(tab, has, getText)
+                }
+                initialData={
+                  tab === "setup"
+                    ? vmEvents.getBuffer("setup")
+                    : // Script tabs replay the script-named buffer + daemon
+                      // lifecycle log, since dev-process output can land under
+                      // either source depending on where it was emitted.
+                      vmEvents.getBuffer(tab) + vmEvents.getBuffer("daemon")
+                }
+                className="h-full"
+              />
             </div>
           ))}
         </div>

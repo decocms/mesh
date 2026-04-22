@@ -9,8 +9,7 @@
   },
   "exports": {
     "./shared": "./shared.ts",
-    "./runner": "./server/runner/index.ts",
-    "./prep": "./server/prep/bake.ts"
+    "./runner": "./server/runner/index.ts"
   },
   "dependencies": {
     "freestyle-sandboxes": "^0.1.46"

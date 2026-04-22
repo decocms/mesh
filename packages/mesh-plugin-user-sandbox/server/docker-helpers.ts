@@ -66,38 +66,3 @@ export async function startContainer(
   }
   return { id };
 }
-
-export interface ExecInContainerOptions {
-  timeoutMs: number;
-  /**
-   * When false (default), a non-zero exit throws with the captured stderr.
-   * When true, the result is returned as-is so the caller can inspect exit
-   * code + output — used by probes (exit 1 == "no match", not a failure)
-   * and bake install/warmup steps where partial success beats aborting.
-   */
-  tolerateExit?: boolean;
-  exec?: DockerExecFn;
-}
-
-/**
- * `docker exec <id> bash -lc <script>`. `-lc` so login-shell PATH shims
- * (deno, bun, nvm) resolve as expected.
- *
- * On non-zero exit with `tolerateExit: false` this throws; the caller gets
- * a `DockerResult` in every other case.
- */
-export async function execInContainer(
-  id: string,
-  script: string,
-  opts: ExecInContainerOptions,
-): Promise<DockerResult> {
-  const run = opts.exec ?? dockerExec;
-  const result = await run(["exec", id, "bash", "-lc", script], opts.timeoutMs);
-  if (!opts.tolerateExit && result.code !== 0) {
-    const tail = result.stderr.trim() || result.stdout.trim() || "no output";
-    throw new Error(
-      `docker exec in ${id} failed (exit ${result.code}): ${tail}`,
-    );
-  }
-  return result;
-}

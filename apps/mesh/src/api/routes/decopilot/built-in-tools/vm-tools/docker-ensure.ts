@@ -3,13 +3,12 @@
  * hands back the cached handle for the rest of the conversation turn.
  *
  * Single entry point for every Docker vm-tool (read/write/edit/grep/glob/bash);
- * lifts the repo/env/prep-image resolution that previously lived inline in
- * sandbox-bash so the new tool surface stays identical to Freestyle's while
- * still lazy-provisioning on demand.
+ * lifts the repo resolution that previously lived inline in sandbox-bash so
+ * the new tool surface stays identical to Freestyle's while still
+ * lazy-provisioning on demand.
  */
 
 import type { MeshContext } from "@/core/mesh-context";
-import { resolvePrepImage } from "@/sandbox/prep-enqueue";
 import { getSharedRunner } from "@/sandbox/shared-runner";
 import { buildCloneInfo } from "@/shared/github-clone-info";
 import {
@@ -92,18 +91,9 @@ export function createDockerHandleResolver(
     if (inflight) return inflight;
     inflight = (async () => {
       const resolved = await resolveRepo();
-      const userEnv = await ctx.storage.sandboxEnv.resolve(sandboxRef);
-      // Baked prep image — first thread for a repo still pays clone+install,
-      // later threads spawn straight from the prepped image.
-      const prepImage =
-        repo && ctx.auth.user?.id
-          ? await resolvePrepImage(ctx, ctx.auth.user.id, repo)
-          : null;
       const sandbox = await ensureSandbox(ctx, runner, {
         sandboxRef,
         repo: resolved ?? undefined,
-        env: { ...userEnv },
-        image: prepImage ?? undefined,
       });
       // Warm the dev server once per turn when a repo is attached so the
       // preview is ready when the user opens it. Fire-and-forget — the

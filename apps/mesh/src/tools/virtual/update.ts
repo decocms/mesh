@@ -12,11 +12,6 @@ import {
   requireOrganization,
 } from "../../core/mesh-context";
 import { VirtualMCPEntitySchema, VirtualMCPUpdateDataSchema } from "./schema";
-import {
-  enqueuePrepForRepoLink,
-  isSameRepo,
-  type GithubRepoRef,
-} from "../../sandbox/prep-enqueue";
 
 /**
  * Input schema for updating a virtual MCP
@@ -84,39 +79,9 @@ export const COLLECTION_VIRTUAL_MCP_UPDATE = defineTool({
       data,
     );
 
-    // Enqueue a bake only on a real repo transition — linking a new repo or
-    // swapping for a different one. Updates that don't touch `githubRepo`
-    // keep the existing prep row undisturbed.
-    const prevRepo = toRepoRef(
-      (existing.metadata as { githubRepo?: unknown } | null)?.githubRepo,
-    );
-    const nextRepo = toRepoRef(
-      (data.metadata as { githubRepo?: unknown } | undefined)?.githubRepo,
-    );
-    if (nextRepo && !isSameRepo(prevRepo, nextRepo)) {
-      enqueuePrepForRepoLink(ctx, userId, nextRepo);
-    }
-
     // Return virtual MCP entity directly (already in correct format)
     return {
       item: virtualMcp,
     };
   },
 });
-
-function toRepoRef(value: unknown): GithubRepoRef | null {
-  if (!value || typeof value !== "object") return null;
-  const v = value as {
-    owner?: unknown;
-    name?: unknown;
-    connectionId?: unknown;
-  };
-  if (
-    typeof v.owner !== "string" ||
-    typeof v.name !== "string" ||
-    typeof v.connectionId !== "string"
-  ) {
-    return null;
-  }
-  return { owner: v.owner, name: v.name, connectionId: v.connectionId };
-}

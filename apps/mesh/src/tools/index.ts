@@ -161,9 +161,6 @@ const CORE_TOOLS = [
   // VM tools (app-only)
   VmTools.VM_START,
   VmTools.VM_DELETE,
-  VmTools.SANDBOX_ENV_LIST,
-  VmTools.SANDBOX_ENV_SET,
-  VmTools.SANDBOX_ENV_DELETE,
 
   // GitHub tools (app-only)
   GitHubTools.GITHUB_LIST_USER_ORGS,

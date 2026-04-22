@@ -25,10 +25,6 @@ import {
 import type { MeshContext } from "../core/mesh-context";
 import { closeDatabase, getDb, type MeshDatabase } from "../database";
 import { getSharedRunnerIfInit } from "../sandbox/shared-runner";
-import {
-  startSandboxPrepWorker,
-  type PrepWorker,
-} from "../sandbox/prep-worker";
 import { createEventBus, type EventBus } from "../event-bus";
 import {
   flushMonitoringData,
@@ -156,9 +152,6 @@ let currentDecopilotCleanup: (() => void | Promise<void>) | null = null;
 
 // Track monitoring retention timer for cleanup during HMR
 let currentRetentionTimer: ReturnType<typeof setInterval> | null = null;
-
-// Track sandbox prep worker for cleanup during HMR / shutdown
-let currentPrepWorker: PrepWorker | null = null;
 
 // ============================================================================
 // Deco Store OAuth Helpers
@@ -899,14 +892,6 @@ export async function createApp(options: CreateAppOptions = {}) {
     currentCronWorkerCleanup = null;
   }
 
-  // Sandbox prep worker — bakes per-(user,repo) Docker images so new thread
-  // containers skip clone + install. No-op when MESH_SANDBOX_RUNNER !== "docker".
-  if (currentPrepWorker) {
-    await currentPrepWorker.stop().catch(() => {});
-    currentPrepWorker = null;
-  }
-  currentPrepWorker = startSandboxPrepWorker(database.db as any, vault);
-
   const automationsStorage = createAutomationsStorage(database.db);
   const triggerCallbackTokenStorage = new KyselyTriggerCallbackTokenStorage(
     database.db,
@@ -1597,11 +1582,6 @@ export async function createApp(options: CreateAppOptions = {}) {
       currentDecopilotCleanup
         ? Promise.resolve(currentDecopilotCleanup()).finally(() => {
             currentDecopilotCleanup = null;
-          })
-        : Promise.resolve(),
-      currentPrepWorker
-        ? currentPrepWorker.stop().finally(() => {
-            currentPrepWorker = null;
           })
         : Promise.resolve(),
     ]);

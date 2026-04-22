@@ -974,63 +974,6 @@ export interface SandboxRunnerStateTable {
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }
 
-/**
- * Status values for a sandbox prep row — the lifecycle of a baked image.
- *
- *  - `pending`: enqueued, waiting for a worker to claim.
- *  - `baking`: a worker is running clone + install right now.
- *  - `ready`: a baked image exists and can be used for new thread containers.
- *  - `failed`: last bake attempt errored; row retained for debugging.
- *  - `stale`: superseded (lockfile drift, repo unlinked); eligible for prune.
- */
-export type SandboxPrepStatus =
-  | "pending"
-  | "baking"
-  | "ready"
-  | "failed"
-  | "stale";
-
-/**
- * Baked Docker image per (user, repo, lockfile_hash). A ready row lets the
- * runner spawn new thread containers from `image_tag` instead of re-cloning
- * and re-installing on every thread.
- */
-export interface SandboxPrepTable {
-  prep_key: string;
-  user_id: string;
-  /** Unauthenticated canonical URL (e.g. https://github.com/owner/repo.git). */
-  clone_url: string;
-  repo_owner: string;
-  repo_name: string;
-  connection_id: string;
-  lockfile_hash: string | null;
-  head_sha: string | null;
-  status: SandboxPrepStatus;
-  image_tag: string | null;
-  error: string | null;
-  install_command: string | null;
-  claimed_at: ColumnType<
-    Date | null,
-    Date | string | null,
-    Date | string | null
-  >;
-  last_used_at: ColumnType<Date, Date | string, Date | string>;
-  updated_at: ColumnType<Date, Date | string, Date | string>;
-}
-
-/**
- * Per-sandbox user-defined env vars. `value_encrypted` is vault-encrypted and
- * never leaves the server in plaintext except at `docker run -e` time.
- * Keyed by `sandbox_ref` so container recreation keeps the same values.
- */
-export interface SandboxEnvTable {
-  sandbox_ref: string;
-  user_id: string;
-  key: string;
-  value_encrypted: string;
-  updated_at: ColumnType<Date, Date | string, Date | string>;
-}
-
 // ============================================================================
 // Organization Domain Table Definition
 // ============================================================================
@@ -1179,10 +1122,4 @@ export interface Database {
 
   // Sandbox runner state (docker/freestyle handle + runner-private blob)
   sandbox_runner_state: SandboxRunnerStateTable;
-
-  // Per-sandbox user-defined env vars (vault-encrypted values)
-  sandbox_env: SandboxEnvTable;
-
-  // Baked prep images for faster thread provisioning
-  sandbox_prep: SandboxPrepTable;
 }
