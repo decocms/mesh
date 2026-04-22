@@ -17,6 +17,15 @@ export interface VmStatus {
   htmlSupport: boolean;
 }
 
+export interface BranchStatus {
+  branch: string;
+  base: string;
+  workingTreeDirty: boolean;
+  unpushed: number;
+  aheadOfBase: number;
+  behindBase: number;
+}
+
 export type ChunkHandler = (source: string, data: string) => void;
 
 const BUFFER_BYTES = 16384;
@@ -44,7 +53,13 @@ const BASE_RECONNECT_DELAY_MS = 1_000;
 /** Max reconnect delay in ms */
 const MAX_RECONNECT_DELAY_MS = 30_000;
 
-const EVENT_TYPES = ["log", "status", "scripts", "processes"] as const;
+const EVENT_TYPES = [
+  "log",
+  "status",
+  "scripts",
+  "processes",
+  "branch-status",
+] as const;
 
 export function useVmEvents(
   previewUrl: string | null,
@@ -57,6 +72,7 @@ export function useVmEvents(
   const [suspended, setSuspended] = useState(false);
   const [scripts, setScripts] = useState<string[]>([]);
   const [activeProcesses, setActiveProcesses] = useState<string[]>([]);
+  const [branchStatus, setBranchStatus] = useState<BranchStatus | null>(null);
   const disconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onChunkRef = useRef(onChunk);
   onChunkRef.current = onChunk;
@@ -80,6 +96,7 @@ export function useVmEvents(
     setSuspended(false);
     setScripts([]);
     setActiveProcesses([]);
+    setBranchStatus(null);
     buffers.current.clear();
 
     let disposed = false;
@@ -116,6 +133,15 @@ export function useVmEvents(
           setScripts(data.scripts ?? []);
         } else if (e.type === "processes") {
           setActiveProcesses(data.active ?? []);
+        } else if (e.type === "branch-status") {
+          setBranchStatus({
+            branch: String(data.branch ?? ""),
+            base: String(data.base ?? "main"),
+            workingTreeDirty: Boolean(data.workingTreeDirty),
+            unpushed: Number(data.unpushed ?? 0),
+            aheadOfBase: Number(data.aheadOfBase ?? 0),
+            behindBase: Number(data.behindBase ?? 0),
+          });
         }
       } catch {
         // ignore parse errors
@@ -181,6 +207,7 @@ export function useVmEvents(
     suspended,
     scripts,
     activeProcesses,
+    branchStatus,
     getBuffer: (source: string) => buffers.current.get(source)?.get() ?? "",
     hasData: (source: string) =>
       (buffers.current.get(source)?.get().length ?? 0) > 0,
