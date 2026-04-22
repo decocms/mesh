@@ -1442,39 +1442,6 @@ Define step-by-step how the agent should handle requests.
                       Test Agent
                     </Button>
                     <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        dispatch({
-                          type: "SET_SHARE_DIALOG_OPEN",
-                          payload: true,
-                        })
-                      }
-                    >
-                      <span className="flex items-center -space-x-1.5 mr-0.5">
-                        {/* Cursor — behind */}
-                        <span className="inline-flex items-center justify-center size-4 rounded-full bg-black ring-1 ring-white/20 shrink-0">
-                          <img
-                            src="/logos/cursor.svg"
-                            alt="Cursor"
-                            className="size-2.5 brightness-0 invert"
-                          />
-                        </span>
-                        {/* Claude — on top */}
-                        <span
-                          className="relative z-10 inline-flex items-center justify-center size-4 rounded-full ring-1 ring-background shrink-0"
-                          style={{ backgroundColor: "#D97757" }}
-                        >
-                          <img
-                            src="/logos/Claude Code.svg"
-                            alt="Claude"
-                            className="size-2.5 brightness-0 invert"
-                          />
-                        </span>
-                      </span>
-                      Connect
-                    </Button>
-                    <Button
                       variant="ghost"
                       size="icon"
                       className="text-muted-foreground hover:text-destructive"
@@ -1579,6 +1546,40 @@ Define step-by-step how the agent should handle requests.
                       )}
                     />
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() =>
+                      dispatch({
+                        type: "SET_SHARE_DIALOG_OPEN",
+                        payload: true,
+                      })
+                    }
+                  >
+                    <span className="flex items-center -space-x-1.5 mr-0.5">
+                      {/* Cursor — behind */}
+                      <span className="inline-flex items-center justify-center size-4 rounded-full bg-black ring-1 ring-white/20 shrink-0">
+                        <img
+                          src="/logos/cursor.svg"
+                          alt="Cursor"
+                          className="size-2.5 brightness-0 invert"
+                        />
+                      </span>
+                      {/* Claude — on top */}
+                      <span
+                        className="relative z-10 inline-flex items-center justify-center size-4 rounded-full ring-1 ring-background shrink-0"
+                        style={{ backgroundColor: "#D97757" }}
+                      >
+                        <img
+                          src="/logos/Claude Code.svg"
+                          alt="Claude"
+                          className="size-2.5 brightness-0 invert"
+                        />
+                      </span>
+                    </span>
+                    Connect
+                  </Button>
                 </div>
 
                 {!hasGithubRepo && (
