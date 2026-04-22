@@ -343,14 +343,14 @@ describe("Token Expiration", () => {
     };
 
     // Issue token with very short expiration
-    const token = await issueMeshToken(payload, "1s");
+    const token = await issueMeshToken(payload, "2s");
 
     // Token should be valid immediately
     const validResult = await verifyMeshToken(token);
     expect(validResult).toBeDefined();
 
-    // Wait for token to expire
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    // Wait for token to expire (3s gives ample buffer on loaded CI runners)
+    await new Promise((resolve) => setTimeout(resolve, 3000));
 
     // Token should now be invalid
     const expiredResult = await verifyMeshToken(token);
