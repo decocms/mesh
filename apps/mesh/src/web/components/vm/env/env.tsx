@@ -51,14 +51,15 @@ import { EmptyState } from "../../empty-state";
 import { LiveTimer } from "../../live-timer";
 import { useActiveGithubRepo } from "@/web/hooks/use-active-github-repo";
 import { authClient } from "@/web/lib/auth-client";
+import { useChatNavigation } from "@/web/components/chat/hooks/use-chat-navigation";
 import { PACKAGE_MANAGER_CONFIG } from "@/shared/runtime-defaults";
 import type { PackageManager } from "@/shared/runtime-defaults";
 import { toast } from "sonner";
 
 interface VmData {
-  terminalUrl: string | null;
   previewUrl: string;
   vmId: string;
+  branch: string;
   isNewVm: boolean;
 }
 
@@ -78,17 +79,21 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
 
-  // Check if there's already an active VM for this user
+  // Check if there's already a VM for (this user, this thread's branch).
+  const { branch: urlBranch, setBranch } = useChatNavigation();
   const userId = session?.user?.id;
-  const activeVmMetadata = inset?.entity?.metadata as
+  const vmMapMetadata = inset?.entity?.metadata as
     | {
-        activeVms?: Record<
+        vmMap?: Record<
           string,
-          { previewUrl: string; vmId: string; terminalUrl: string | null }
+          Record<string, { previewUrl: string; vmId: string }>
         >;
       }
     | undefined;
-  const existingVm = userId ? activeVmMetadata?.activeVms?.[userId] : undefined;
+  const existingVm =
+    userId && urlBranch
+      ? vmMapMetadata?.vmMap?.[userId]?.[urlBranch]
+      : undefined;
 
   const [status, setStatus] = useState<ViewStatus>(
     existingVm ? "running" : "idle",
@@ -100,11 +105,11 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     new Set(),
   );
   const vmDataRef = useRef<VmData | null>(
-    existingVm
+    existingVm && urlBranch
       ? {
-          terminalUrl: existingVm.terminalUrl,
           previewUrl: existingVm.previewUrl,
           vmId: existingVm.vmId,
+          branch: urlBranch,
           isNewVm: false,
         }
       : null,
@@ -249,15 +254,22 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
 
     try {
       if (!inset?.entity) throw new Error("No virtual MCP context");
-      const data = (await callTool("VM_START", {
+      const args: { virtualMcpId: string; branch?: string } = {
         virtualMcpId: inset.entity.id,
-      })) as VmData;
+      };
+      if (urlBranch) args.branch = urlBranch;
+      const data = (await callTool("VM_START", args)) as VmData;
 
-      if (!data.previewUrl || !data.vmId) {
-        throw new Error("Invalid VM response — missing URLs");
+      if (!data.previewUrl || !data.vmId || !data.branch) {
+        throw new Error("Invalid VM response — missing fields");
       }
 
       vmDataRef.current = data;
+      // If the server generated a branch (we didn't pass one), persist it
+      // to the URL so subsequent renders find the vm via vmMap[userId][branch].
+      if (!urlBranch) {
+        setBranch(data.branch);
+      }
       setStatus("running");
       setStatusLabel("");
       invalidateVirtualMcpQueries(queryClient);
@@ -272,15 +284,16 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   };
 
   const handleStop = async () => {
+    const branchToStop = vmDataRef.current?.branch ?? urlBranch;
     vmDataRef.current = null;
     setStatus("stopping");
 
     const virtualMcpId = inset?.entity?.id;
-    if (virtualMcpId) {
+    if (virtualMcpId && branchToStop) {
       try {
         await client.callTool({
           name: "VM_DELETE",
-          arguments: { virtualMcpId },
+          arguments: { virtualMcpId, branch: branchToStop },
         });
       } catch {
         // Best effort
