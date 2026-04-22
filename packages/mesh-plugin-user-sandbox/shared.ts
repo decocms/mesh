@@ -10,6 +10,11 @@ export function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
+/** Promise-wrapped setTimeout. */
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * Shell snippet that sets global git identity. Prepend to any shell script
  * that then clones a repo — the per-call-site clone strategy (empty-dir,

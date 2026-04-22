@@ -1,5 +1,5 @@
 import { freestyle } from "freestyle-sandboxes";
-import { gitIdentityScript, shellQuote } from "../../shared";
+import { gitIdentityScript, shellQuote, sleep } from "../../shared";
 import type { RunnerStateStore } from "./state-store";
 import type {
   EnsureOptions,
@@ -299,8 +299,4 @@ function shEnvName(name: string): string {
     throw new Error(`invalid env var name: ${name}`);
   }
   return name;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import * as net from "node:net";
-import { DAEMON_PORT, DEFAULT_IMAGE } from "../../shared";
+import { DAEMON_PORT, DEFAULT_IMAGE, sleep } from "../../shared";
 import {
   bootstrapRepo,
   daemonBash,
@@ -831,10 +831,6 @@ function parsePortMapping(stdout: string): number | null {
     if (match) return Number(match[1]);
   }
   return null;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 const defaultDockerExec: DockerExec = dockerExec;

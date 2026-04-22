@@ -9,7 +9,7 @@
  * no docker CLI. Reusable from any runner that targets the same daemon image.
  */
 
-import { gitIdentityScript, shellQuote } from "../../shared";
+import { gitIdentityScript, shellQuote, sleep } from "../../shared";
 import type { EnsureOptions, ExecInput, ExecOutput } from "./types";
 
 const DEFAULT_EXEC_TIMEOUT_MS = 60_000;
@@ -171,8 +171,4 @@ export async function proxyDaemonRequest(
     // @ts-expect-error Bun/Undici-only: allow streaming request body.
     duplex: hasBody ? "half" : undefined,
   });
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
