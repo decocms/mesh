@@ -241,6 +241,27 @@ export function useTaskManager(virtualMcpId: string) {
     }
   };
 
+  // Persist the thread's pinned branch. The UI treats `thread.branch` as the
+  // source of truth for which `vmMap[userId][branch]` entry the preview
+  // resolves to, so every branch picker change has to land here as well as
+  // in the URL (otherwise bouncing between threads loses the user's choice).
+  // Gracefully no-ops for cache-only threads (new-thread optimistic rows the
+  // server hasn't persisted yet) — the branch ends up on the row when the
+  // first message call creates it via createMemory.
+  const setTaskBranch = async (taskId: string, branch: string | null) => {
+    updateTaskInCache(queryClient, locator, taskId, { branch });
+    try {
+      await callUpdateTaskTool(client, taskId, { branch });
+    } catch (error) {
+      const err = error as Error;
+      // Server-side row may not exist yet for freshly created threads — the
+      // cache update above is enough; next createMemory writes the branch.
+      if (!/not found/i.test(err.message)) {
+        console.error("[chat] Failed to persist task branch:", error);
+      }
+    }
+  };
+
   // Rename task (backend + cache)
   const renameTask = async (taskId: string, title: string) => {
     try {
@@ -316,6 +337,7 @@ export function useTaskManager(virtualMcpId: string) {
     renameTask,
     hideTask,
     setTaskStatus,
+    setTaskBranch,
     updateMessagesCache: updateMessagesInCache,
   };
 }

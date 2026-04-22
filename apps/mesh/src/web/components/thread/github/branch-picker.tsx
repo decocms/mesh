@@ -15,7 +15,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
-import { GitBranch01 } from "@untitledui/icons";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
+import { GitBranch01, Lock01 } from "@untitledui/icons";
 import { NewBranchForm } from "./new-branch-form";
 import { useBranches } from "./use-branches";
 
@@ -28,6 +33,12 @@ interface Props {
   vmMap: VmMap | undefined;
   value: string | null | undefined;
   onChange: (branch: string) => void;
+  /**
+   * When true, the picker renders read-only with a lock icon + tooltip.
+   * Branch is pinned to the thread once committed — switching mid-thread
+   * would reroute its vmMap entry, so the user must start a new thread.
+   */
+  locked?: boolean;
 }
 
 /**
@@ -43,6 +54,7 @@ export function BranchPicker({
   vmMap,
   value,
   onChange,
+  locked = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"picker" | "new">("picker");
@@ -54,7 +66,7 @@ export function BranchPicker({
     vmMap,
     owner,
     repo,
-    enabled: open,
+    enabled: open && !locked,
   });
 
   const pick = (name: string) => {
@@ -64,6 +76,29 @@ export function BranchPicker({
   };
 
   const label = value ?? "Select branch…";
+
+  if (locked) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled
+            className="h-7 gap-1.5 px-2 font-mono text-xs disabled:opacity-70"
+          >
+            <GitBranch01 className="h-3.5 w-3.5" />
+            <span className="max-w-[200px] truncate">{label}</span>
+            <Lock01 className="h-3 w-3 text-muted-foreground" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          This thread is pinned to {value ?? "this branch"}. Start a new thread
+          to work on a different branch.
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
 
   return (
     <Popover

@@ -227,6 +227,10 @@ function AgentInsetProvider() {
     if (!userId) return;
     const userBranches = vmMap?.[userId];
     const existing = userBranches ? Object.keys(userBranches)[0] : undefined;
+    // URL only — this runs outside Chat.Provider so we can't reach the
+    // thread-persistence helpers. The branch lands on thread.branch when
+    // createMemory sees it on the first stream request; until then the
+    // thread is cache-only anyway.
     setBranch(existing ?? generateBranchName());
   }, [urlBranch, hasActiveGithubRepo, setBranch, userId, vmMap]);
 
@@ -369,8 +373,6 @@ function AgentInsetProvider() {
         />
       </Toolbar.Toggles>
 
-      {!isDecopilot && <VirtualMcpHeaderInfo virtualMcp={entity} />}
-
       {!isDecopilot && (
         <Toolbar.Tabs>
           <MainPanelTabsBar
@@ -381,6 +383,7 @@ function AgentInsetProvider() {
       )}
 
       <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
+        {!isDecopilot && <VirtualMcpHeaderInfo virtualMcp={entity} />}
         <NewTaskBridge
           onNewTaskRef={onNewTask}
           createNewTask={layout.createNewTask}

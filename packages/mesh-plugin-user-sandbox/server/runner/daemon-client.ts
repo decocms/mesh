@@ -91,6 +91,13 @@ export async function daemonBash(
  *  - `workdir` non-empty and not a repo → late-attach. Move every existing
  *    file (including dotfiles) into a sibling `<workdir>.prelink.<unix-ts>/`
  *    backup so the clone can proceed without clobbering user work.
+ *
+ * When `repo.branch` is set, an additional step resolves the branch after
+ * clone: fetch it from origin when the remote has it, otherwise create it
+ * locally off whatever the clone landed on (typically the default branch).
+ * This mirrors the Freestyle daemon's branch-resolution behavior so docker
+ * sandboxes start on the branch the caller requested instead of silently
+ * sitting on the default.
  */
 export async function bootstrapRepo(
   daemonUrl: string,
@@ -99,10 +106,31 @@ export async function bootstrapRepo(
   repo: NonNullable<EnsureOptions["repo"]>,
 ): Promise<void> {
   const qWorkdir = shellQuote(workdir);
+  const qCloneUrl = shellQuote(repo.cloneUrl);
+
+  const cloneBlock = `if [ -d ${qWorkdir}/.git ]; then echo "workdir already a git repo, skipping clone"; elif [ -z "$(ls -A ${qWorkdir} 2>/dev/null)" ]; then git clone ${qCloneUrl} ${qWorkdir}; else BACKUP=${qWorkdir}.prelink.$(date +%s) && mkdir -p "$BACKUP" && ( shopt -s dotglob nullglob && mv ${qWorkdir}/* "$BACKUP"/ ) && echo "moved pre-link contents to $BACKUP" && git clone ${qCloneUrl} ${qWorkdir}; fi`;
+
+  // Validate branch name shape before interpolating — defense in depth even
+  // though the shell-quoting is already safe, mirrors daemon.ts runSetup().
+  const branchBlock = (() => {
+    if (!repo.branch) return null;
+    if (
+      !/^[A-Za-z0-9._/-]+$/.test(repo.branch) ||
+      repo.branch.startsWith("-")
+    ) {
+      throw new Error(`invalid branch name: ${repo.branch}`);
+    }
+    const qBranch = shellQuote(repo.branch);
+    return `cd ${qWorkdir} && if [ "$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" = ${qBranch} ]; then echo "already on ${repo.branch}"; elif git fetch origin ${qBranch}:${qBranch} 2>/dev/null; then git checkout ${qBranch}; else git checkout -b ${qBranch}; fi`;
+  })();
+
   const cmd = [
     gitIdentityScript(repo.userName, repo.userEmail),
-    `if [ -d ${qWorkdir}/.git ]; then echo "workdir already a git repo, skipping clone"; elif [ -z "$(ls -A ${qWorkdir} 2>/dev/null)" ]; then git clone ${shellQuote(repo.cloneUrl)} ${qWorkdir}; else BACKUP=${qWorkdir}.prelink.$(date +%s) && mkdir -p "$BACKUP" && ( shopt -s dotglob nullglob && mv ${qWorkdir}/* "$BACKUP"/ ) && echo "moved pre-link contents to $BACKUP" && git clone ${shellQuote(repo.cloneUrl)} ${qWorkdir}; fi`,
-  ].join(" && ");
+    cloneBlock,
+    branchBlock,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(" && ");
   // git clone for medium repos can easily exceed the default 60s exec timeout.
   const result = await daemonBash(daemonUrl, token, {
     command: cmd,

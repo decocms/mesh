@@ -70,6 +70,10 @@ export function useVmEvents(
     htmlSupport: false,
   });
   const [suspended, setSuspended] = useState(false);
+  // True when the daemon endpoint reports 404 — i.e. the handle no longer
+  // exists in sandbox_runner_state. The vmMap entry is stale and callers
+  // should reprovision via VM_START rather than retry forever.
+  const [notFound, setNotFound] = useState(false);
   const [scripts, setScripts] = useState<string[]>([]);
   const [activeProcesses, setActiveProcesses] = useState<string[]>([]);
   // Bumped whenever log chunks land so consumers reading `getBuffer` /
@@ -98,15 +102,52 @@ export function useVmEvents(
     // Reset state for new connection
     setStatus({ ready: false, htmlSupport: false });
     setSuspended(false);
+    setNotFound(false);
     setScripts([]);
     setActiveProcesses([]);
     buffers.current.clear();
 
     let disposed = false;
+    let hasProbed = false;
     let reconnectAttempt = 0;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let suspendTimer: ReturnType<typeof setTimeout> | null = null;
     let es: EventSource | null = null;
+    const probeAbort = new AbortController();
+
+    // One-shot status probe. EventSource's onerror doesn't expose the HTTP
+    // status, so we fetch the same URL once to distinguish "sandbox deleted"
+    // (404 → permanent until sseUrl changes) from a transient disconnect.
+    async function probeMissing(): Promise<boolean> {
+      if (!sseUrl) return false;
+      try {
+        const res = await fetch(sseUrl, {
+          method: "GET",
+          headers: { Accept: "text/event-stream" },
+          cache: "no-store",
+          signal: probeAbort.signal,
+        });
+        // We only care about the status code; cancel the stream immediately.
+        if (res.body) {
+          try {
+            await res.body.cancel();
+          } catch {
+            /* ignore */
+          }
+        }
+        return res.status === 404;
+      } catch {
+        return false;
+      }
+    }
+
+    const enterSuspendTimerIfIdle = () => {
+      if (!suspendTimer) {
+        suspendTimer = setTimeout(() => {
+          setSuspended(true);
+        }, SUSPENDED_AFTER_ERROR_MS);
+      }
+    };
 
     const clearSuspendTimer = () => {
       if (suspendTimer) {
@@ -157,17 +198,27 @@ export function useVmEvents(
       };
 
       es.onerror = () => {
-        if (es?.readyState === EventSource.CLOSED) {
-          // Start (or keep running) the suspend timer only while we're
-          // actively disconnected. If we reconnect before it fires, the next
-          // onopen clears it.
-          if (!suspendTimer) {
-            suspendTimer = setTimeout(() => {
-              setSuspended(true);
-            }, SUSPENDED_AFTER_ERROR_MS);
+        if (es?.readyState !== EventSource.CLOSED) return;
+        // Start (or keep running) the suspend timer only while we're
+        // actively disconnected. If we reconnect before it fires, the next
+        // onopen clears it.
+        enterSuspendTimerIfIdle();
+        if (hasProbed) {
+          scheduleReconnect();
+          return;
+        }
+        hasProbed = true;
+        probeMissing().then((missing) => {
+          if (disposed) return;
+          if (missing) {
+            // Sandbox is gone — stop reconnecting and surface the signal so
+            // the caller can reprovision via VM_START. A fresh entry in
+            // vmMap changes sseUrl, which remounts this effect.
+            setNotFound(true);
+            return;
           }
           scheduleReconnect();
-        }
+        });
       };
 
       for (const type of EVENT_TYPES) {
@@ -196,6 +247,7 @@ export function useVmEvents(
 
     return () => {
       disposed = true;
+      probeAbort.abort();
       es?.close();
       if (reconnectTimer) clearTimeout(reconnectTimer);
       clearSuspendTimer();
@@ -205,6 +257,7 @@ export function useVmEvents(
   return {
     status,
     suspended,
+    notFound,
     scripts,
     activeProcesses,
     getBuffer: (source: string) => buffers.current.get(source)?.get() ?? "",

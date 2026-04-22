@@ -34,11 +34,18 @@ export interface EnsureOptions {
   /**
    * Optional repo to clone on first provisioning. Runners that don't support
    * this (current docker image) MUST ignore it rather than erroring.
+   *
+   * `branch` is the git branch the sandbox should end up on. When provided,
+   * the runner checks it out after clone: fetching from origin when the
+   * remote has it, otherwise creating it locally off the default branch.
+   * When absent, whatever branch the clone produced (typically the repo's
+   * default) is kept.
    */
   repo?: {
     cloneUrl: string;
     userName: string;
     userEmail: string;
+    branch?: string;
   };
   /**
    * Extra bind mounts + named volumes to attach at `docker run`. Only applied

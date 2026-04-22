@@ -342,6 +342,7 @@ async function startDocker(
         cloneUrl,
         userName: gitUserName,
         userEmail: gitUserEmail,
+        branch,
       },
     },
   );

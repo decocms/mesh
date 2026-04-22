@@ -4,7 +4,7 @@ import { authClient } from "../../lib/auth-client.ts";
 import { AgentAvatar } from "../../components/agent-icon.tsx";
 import { BranchPicker } from "../../components/thread/github/branch-picker.tsx";
 import { HeaderActions } from "../../components/thread/github/header-actions.tsx";
-import { useChatNavigation } from "../../components/chat/hooks/use-chat-navigation.ts";
+import { useChatTask } from "../../components/chat/context.tsx";
 import { Toolbar } from "../../layouts/agent-shell-layout/toolbar.tsx";
 
 export function VirtualMcpHeaderInfo({
@@ -16,7 +16,7 @@ export function VirtualMcpHeaderInfo({
   const { org } = useProjectContext();
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id ?? "";
-  const { branch, setBranch } = useChatNavigation();
+  const { currentBranch, isBranchLocked, setCurrentTaskBranch } = useChatTask();
 
   const githubRepo = virtualMcp.metadata?.githubRepo ?? null;
   const showBranchPicker = !!githubRepo?.connectionId && !!userId;
@@ -36,8 +36,9 @@ export function VirtualMcpHeaderInfo({
             owner={githubRepo.owner}
             repo={githubRepo.name}
             vmMap={virtualMcp.metadata?.vmMap}
-            value={branch}
-            onChange={setBranch}
+            value={currentBranch}
+            onChange={setCurrentTaskBranch}
+            locked={isBranchLocked}
           />
         )}
         {showBranchPicker && <HeaderActions virtualMcpId={virtualMcp.id} />}

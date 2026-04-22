@@ -2,9 +2,11 @@ import { useState, useRef, useEffect } from "react";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import { authClient } from "@/web/lib/auth-client";
 import { useToggleEnvPanel } from "@/web/hooks/use-toggle-env-panel";
-import { useChatNavigation } from "@/web/components/chat/hooks/use-chat-navigation";
 import { useChatTask } from "@/web/components/chat/context";
 import { useMCPClient, SELF_MCP_ALIAS_ID } from "@decocms/mesh-sdk";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateVirtualMcpQueries } from "@/web/lib/query-keys";
+
 import type { VmMapEntry } from "@decocms/mesh-sdk";
 import {
   CursorClick01,
@@ -31,6 +33,7 @@ import {
 import { VisualEditorPrompt } from "./visual-editor-prompt";
 import { useVmEvents } from "../hooks/use-vm-events";
 import { VmSuspendedState } from "../vm-suspended-state";
+import { VmBootingState } from "../vm-booting-state";
 
 type PreviewViewMode = "preview" | "visual";
 
@@ -62,7 +65,7 @@ export function PreviewContent() {
   const inset = useInsetContext();
   const { data: session } = authClient.useSession();
   const { openEnv } = useToggleEnvPanel();
-  const { taskId } = useChatTask();
+  const { taskId, currentBranch: branch, setCurrentTaskBranch } = useChatTask();
 
   // Visual editor state
   const [viewMode, setViewMode] = useState<PreviewViewMode>("preview");
@@ -72,7 +75,6 @@ export function PreviewContent() {
 
   // Read VM data from entity metadata, keyed by (userId, branch).
   // vmMap[userId][branch] -> { vmId, previewUrl, runnerKind? }
-  const { branch, setBranch } = useChatNavigation();
   const userId = session?.user?.id;
   const metadata = inset?.entity?.metadata as
     | { vmMap?: Record<string, Record<string, VmMapEntry>> }
@@ -96,6 +98,24 @@ export function PreviewContent() {
   const hasHtmlPreview = vmEvents.status.htmlSupport;
   const suspended = vmEvents.suspended;
 
+  // Gate the iframe on upstream readiness so the user doesn't see the
+  // browser's "didn't send any data" page while the container is still
+  // booting / installing / waiting for the dev server to bind. Once the
+  // upstream has ever reported ready for this previewUrl, keep the iframe
+  // mounted — brief HMR hiccups shouldn't re-show the boot screen.
+  const bootTrackedRef = useRef<{ url: string; at: number; ready: boolean }>({
+    url: "",
+    at: 0,
+    ready: false,
+  });
+  if (previewUrl && bootTrackedRef.current.url !== previewUrl) {
+    bootTrackedRef.current = { url: previewUrl, at: Date.now(), ready: false };
+  }
+  if (previewUrl && vmEvents.status.ready && !bootTrackedRef.current.ready) {
+    bootTrackedRef.current.ready = true;
+  }
+  const booting = !!previewUrl && !bootTrackedRef.current.ready && !suspended;
+
   // Auto-start for github-linked threads when no vmEntry exists. Passes the
   // URL branch if present; otherwise VM_START generates one and we persist
   // it back to the URL.
@@ -104,6 +124,7 @@ export function PreviewContent() {
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: inset?.entity?.organization_id ?? "",
   });
+  const queryClient = useQueryClient();
   const autoStartedForTaskRef = useRef<string | null>(null);
   const [autoStartFailed, setAutoStartFailed] = useState(false);
   const shouldAutoStart =
@@ -127,7 +148,7 @@ export function PreviewContent() {
         .then((result) => {
           const data = (result as { structuredContent?: { branch?: string } })
             .structuredContent;
-          if (data?.branch && !branch) setBranch(data.branch);
+          if (data?.branch && !branch) setCurrentTaskBranch(data.branch);
         })
         .catch((err) => {
           console.error("[preview] auto-start VM_START failed", err);
@@ -135,12 +156,50 @@ export function PreviewContent() {
         });
     }, 500);
     return () => clearTimeout(timer);
-  }, [shouldAutoStart, taskId, virtualMcpId, mcpClient, branch, setBranch]);
+  }, [
+    shouldAutoStart,
+    taskId,
+    virtualMcpId,
+    mcpClient,
+    branch,
+    setCurrentTaskBranch,
+  ]);
   // Reset the failure flag when navigating to a different thread.
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — per-task state reset
   useEffect(() => {
     setAutoStartFailed(false);
   }, [taskId]);
+
+  // Self-heal when vmMap points at a sandbox that no longer exists. The SSE
+  // probe in useVmEvents flips `notFound` on 404; VM_START purges the stale
+  // handle and writes a fresh entry into vmMap (Docker: via runner.ensure;
+  // Freestyle: via the stale-entry fallback). Dedup by the dead vmId so we
+  // don't loop on repeated 404s for the same handle.
+  const reprovisionedForVmIdRef = useRef<string | null>(null);
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — one-shot reprovision trigger gated on notFound signal from SSE probe
+  useEffect(() => {
+    if (!vmEvents.notFound) return;
+    if (!vmEntry || !virtualMcpId) return;
+    const deadVmId = vmEntry.vmId;
+    if (reprovisionedForVmIdRef.current === deadVmId) return;
+    reprovisionedForVmIdRef.current = deadVmId;
+
+    const args: { virtualMcpId: string; branch?: string } = { virtualMcpId };
+    if (branch) args.branch = branch;
+    mcpClient
+      .callTool({ name: "VM_START", arguments: args })
+      .then(() => invalidateVirtualMcpQueries(queryClient))
+      .catch((err) => {
+        console.error("[preview] reprovision VM_START failed", err);
+      });
+  }, [
+    vmEvents.notFound,
+    vmEntry,
+    virtualMcpId,
+    branch,
+    mcpClient,
+    queryClient,
+  ]);
 
   // Auto-open the env panel the first time a thread has a running sandbox.
   const envAutoOpenedForTaskRef = useRef<string | null>(null);
@@ -281,6 +340,18 @@ export function PreviewContent() {
           </div>
         )}
 
+        {booting && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-background">
+            <VmBootingState
+              since={bootTrackedRef.current.at}
+              hasSetupData={vmEvents.hasData("setup")}
+              scripts={vmEvents.scripts}
+              activeProcesses={vmEvents.activeProcesses}
+              onViewLogs={openEnv}
+            />
+          </div>
+        )}
+
         {viewMode === "visual" && !visualElement && (
           <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 rounded-full border border-violet-400/40 bg-violet-500/90 px-3 py-1 text-xs font-medium text-white shadow-md backdrop-blur-sm pointer-events-none select-none">
             <CursorClick01 size={12} />
@@ -293,8 +364,14 @@ export function PreviewContent() {
             onDismiss={() => setVisualElement(null)}
           />
         )}
-        {previewUrl && (
+        {previewUrl && !booting && (
           <iframe
+            // Keyed on previewUrl so cross-branch navigation unmounts the
+            // old frame and mounts a fresh one — `src` mutations on the
+            // same element don't reliably refetch in every browser, and
+            // also leaks in-frame state (postMessage listeners, scroll
+            // position) from the previous branch.
+            key={previewUrl}
             ref={previewIframeRef}
             src={previewUrl}
             className="w-full h-full border-0"

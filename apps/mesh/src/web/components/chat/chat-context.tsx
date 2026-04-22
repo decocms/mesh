@@ -104,6 +104,28 @@ export interface ChatTaskContextValue {
   hideTask: (taskId: string) => Promise<void>;
   renameTask: (taskId: string, title: string) => Promise<void>;
   setTaskStatus: (taskId: string, status: string) => Promise<void>;
+  /**
+   * Effective branch for the active task. Derives from the thread's persisted
+   * `branch` column, falling back to `?branch=` for fresh threads that haven't
+   * been persisted yet. The picker and VM panels consume this directly — a
+   * direct URL load / refresh doesn't need the URL mutated to render the
+   * correct selection.
+   */
+  currentBranch: string | null;
+  /**
+   * True once the thread has a branch committed to its `branch` column.
+   * Consumers (the picker) should treat the selection as immutable from here
+   * on — switching branches on an existing thread would reroute its vmMap
+   * entry mid-conversation, so the user has to create a new thread to work
+   * on a different branch.
+   */
+  isBranchLocked: boolean;
+  /**
+   * Persist the thread's pinned branch and sync the URL. Used by the branch
+   * picker so a branch change on thread A stays with A when the user bounces
+   * through B and comes back.
+   */
+  setCurrentTaskBranch: (branch: string | null) => void;
   ownerFilter: TaskOwnerFilter;
   setOwnerFilter: (filter: TaskOwnerFilter) => void;
   isFilterChangePending: boolean;
@@ -220,8 +242,10 @@ export function ChatContextProvider({
   const {
     taskId: urlTaskId,
     virtualMcpOverride,
+    branch: urlBranch,
     navigateToTask: rawNavigateToTask,
     setVirtualMcpOverride,
+    setBranch,
   } = useChatNavigation();
 
   // Preferences
@@ -432,14 +456,35 @@ export function ChatContextProvider({
 
   const clearPendingMessage = () => setPendingMessage(null);
 
-  // Navigate to task with read tracking
+  // Navigate to task with read tracking. Also atomically syncs the URL's
+  // `?branch=` to the destination thread's persisted branch — a thread's
+  // `branch` column is the source of truth for which VM it resolves to via
+  // `vmMap[userId][branch]`, so the URL has to mirror it for the preview
+  // iframe to pick the right entry on first paint (no flicker through an
+  // unset-branch intermediate render).
   const navigateToTask = (
     taskId: string,
-    opts?: { virtualMcpOverride?: string },
+    opts?: { virtualMcpOverride?: string; branch?: string | null },
   ) => {
     markTaskRead(taskId);
-    rawNavigateToTask(taskId, opts);
+    const task = tasks.find((t) => t.id === taskId);
+    const resolvedBranch =
+      opts?.branch !== undefined ? opts.branch : (task?.branch ?? null);
+    rawNavigateToTask(taskId, {
+      virtualMcpOverride: opts?.virtualMcpOverride,
+      branch: resolvedBranch,
+    });
   };
+
+  // Effective branch for the active thread. Thread state is authoritative —
+  // the URL's `?branch=` is only a seed for fresh (not-yet-persisted) tasks,
+  // where `task.branch` is still undefined. Every branch-picker interaction
+  // persists through `setCurrentTaskBranch`, so once a thread has a branch
+  // column value, that value wins over any stale URL carried over by the
+  // tasks-panel "sticky branch" behavior when switching threads.
+  const activeTask = tasks.find((t) => t.id === effectiveTaskId);
+  const currentBranch = activeTask?.branch ?? urlBranch ?? null;
+  const isBranchLocked = !!activeTask?.branch;
 
   // Create task (optimistic + navigate), returns new task ID
   const createTask = (): string => {
@@ -492,6 +537,17 @@ export function ChatContextProvider({
     hideTask,
     renameTask: taskManager.renameTask,
     setTaskStatus: taskManager.setTaskStatus,
+    currentBranch,
+    isBranchLocked,
+    setCurrentTaskBranch: (branch: string | null) => {
+      // URL first so the preview panel picks the new vmMap entry on the
+      // current render; thread persistence follows so subsequent navigations
+      // back to this thread land on the same branch.
+      setBranch(branch);
+      if (effectiveTaskId) {
+        taskManager.setTaskBranch(effectiveTaskId, branch);
+      }
+    },
     ownerFilter: taskManager.ownerFilter,
     setOwnerFilter: taskManager.setOwnerFilter,
     isFilterChangePending: taskManager.isFilterChangePending ?? false,
@@ -565,8 +621,13 @@ export function ActiveTaskProvider({
   taskId,
   children,
 }: PropsWithChildren<{ taskId: string }>) {
-  const { virtualMcpId, tasks, pendingMessage, clearPendingMessage } =
-    useChatTask();
+  const {
+    virtualMcpId,
+    tasks,
+    pendingMessage,
+    clearPendingMessage,
+    currentBranch,
+  } = useChatTask();
   const {
     selectedModel,
     imageModel,
@@ -596,7 +657,6 @@ export function ActiveTaskProvider({
   } = internals;
 
   const { org } = useProjectContext();
-  const { branch: urlBranch } = useChatNavigation();
 
   // Messages for current task (from React Query / server) — this is what suspends
   const serverMessages = useTaskMessages(taskId || null);
@@ -703,7 +763,7 @@ export function ActiveTaskProvider({
       created_at: new Date().toISOString(),
       thread_id: capturedTaskId,
       agent: { id: capturedVirtualMcpId },
-      ...(urlBranch ? { branch: urlBranch } : {}),
+      ...(currentBranch ? { branch: currentBranch } : {}),
       user: {
         avatar: user?.image ?? undefined,
         name: user?.name ?? "you",

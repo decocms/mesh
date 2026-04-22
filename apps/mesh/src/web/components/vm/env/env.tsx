@@ -41,7 +41,7 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { useChatBridge } from "@/web/components/chat/context";
+import { useChatBridge, useChatTask } from "@/web/components/chat/context";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { VmErrorState } from "../vm-error-state";
 import { VmSuspendedState } from "../vm-suspended-state";
@@ -52,7 +52,6 @@ import { EmptyState } from "../../empty-state";
 import { LiveTimer } from "../../live-timer";
 import { useActiveGithubRepo } from "@/web/hooks/use-active-github-repo";
 import { authClient } from "@/web/lib/auth-client";
-import { useChatNavigation } from "@/web/components/chat/hooks/use-chat-navigation";
 import { PACKAGE_MANAGER_CONFIG } from "@/shared/runtime-defaults";
 import type { PackageManager } from "@/shared/runtime-defaults";
 import { toast } from "sonner";
@@ -94,7 +93,9 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const { data: session } = authClient.useSession();
 
   // Check if there's already a VM for (this user, this thread's branch).
-  const { branch: urlBranch, setBranch } = useChatNavigation();
+  // `currentBranch` = URL override ?? thread.branch, so opening a thread with
+  // a persisted branch resolves to its vmMap entry even on a fresh URL.
+  const { currentBranch: urlBranch, setCurrentTaskBranch } = useChatTask();
   const userId = session?.user?.id;
   const vmMapMetadata = inset?.entity?.metadata as
     | { vmMap?: Record<string, Record<string, VmMapEntry>> }
@@ -206,6 +207,38 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     }
   }, [derivedStatus, override]);
 
+  // Self-heal when vmMap points at a sandbox that no longer exists. The SSE
+  // probe in useVmEvents flips `notFound` on 404; VM_START purges the stale
+  // handle and writes a fresh entry into vmMap. Dedup by the dead vmId so
+  // we don't loop on repeated 404s for the same handle.
+  const reprovisionedForVmIdRef = useRef<string | null>(null);
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — one-shot reprovision trigger gated on notFound signal from SSE probe
+  useEffect(() => {
+    if (!vmEvents.notFound) return;
+    if (!existingVm || !inset?.entity?.id) return;
+    const deadVmId = existingVm.vmId;
+    if (reprovisionedForVmIdRef.current === deadVmId) return;
+    reprovisionedForVmIdRef.current = deadVmId;
+
+    const args: { virtualMcpId: string; branch?: string } = {
+      virtualMcpId: inset.entity.id,
+    };
+    if (urlBranch) args.branch = urlBranch;
+    client
+      .callTool({ name: "VM_START", arguments: args })
+      .then(() => invalidateVirtualMcpQueries(queryClient))
+      .catch((err) => {
+        console.error("[env] reprovision VM_START failed", err);
+      });
+  }, [
+    vmEvents.notFound,
+    existingVm,
+    inset?.entity?.id,
+    urlBranch,
+    client,
+    queryClient,
+  ]);
+
   // When scripts are discovered, auto-open well-known starters.
   const scriptsAppliedRef = useRef(false);
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — responds to vmEvents.scripts discovery; drives one-time tab auto-open
@@ -300,10 +333,11 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
         throw new Error("Invalid VM response — missing fields");
       }
 
-      // If the server generated a branch (we didn't pass one), persist it
-      // to the URL so subsequent renders find the vm via vmMap[userId][branch].
+      // If the server generated a branch (we didn't pass one), persist it to
+      // the thread (and URL) so subsequent renders resolve to the fresh vmMap
+      // entry via vmMap[userId][branch].
       if (!urlBranch) {
-        setBranch(data.branch);
+        setCurrentTaskBranch(data.branch);
       }
       setStatusLabel("");
       invalidateVirtualMcpQueries(queryClient);
