@@ -40,7 +40,7 @@ import {
 } from "./docker";
 import { probeHeadSha, probeLockfileHash } from "./probes";
 import { detectRuntime } from "./runtimes";
-import type { RuntimeContext } from "./runtimes/types";
+import type { RuntimeContext } from "./runtimes";
 
 const CLONE_TIMEOUT_MS = 10 * 60_000;
 const INSTALL_TIMEOUT_MS = 20 * 60_000;

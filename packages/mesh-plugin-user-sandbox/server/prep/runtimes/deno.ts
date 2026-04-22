@@ -36,7 +36,7 @@
  * caches that too; running `dev` alone misses it.
  */
 
-import type { Runtime, RuntimeContext } from "./types";
+import type { Runtime, RuntimeContext } from "./index";
 import { probeDenoTask } from "../probes";
 import { DEFAULT_WORKDIR, shellQuote } from "../docker";
 

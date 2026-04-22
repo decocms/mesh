@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * Sandbox daemon entry: builds the HTTP server, routes incoming requests to
- * feature modules, wires the WebSocket upgrade handler, and tears down dev
- * processes on SIGINT/SIGTERM.
+ * feature modules, wires the WebSocket upgrade handler, and tears down the
+ * dev process on SIGINT/SIGTERM.
  *
  * Each concern lives in `./daemon/<name>.mjs` — this file is intentionally
  * just the dispatch table so the routes read as a straight list.
@@ -18,11 +18,11 @@ import {
   WORKDIR,
 } from "./daemon/config.mjs";
 import { startDev, stopDev } from "./daemon/dev-process.mjs";
-import { devByThread, getDev } from "./daemon/dev-state.mjs";
+import { dev } from "./daemon/dev-state.mjs";
 import {
   appendLog,
   currentStatusPayload,
-  readMergedLogs,
+  readLogs,
   replayTo,
   subscribers,
 } from "./daemon/events.mjs";
@@ -100,23 +100,19 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Dev SSE — browser-visible via the mesh proxy. Auth already checked above
-  // (the mesh forwards the bearer on our behalf).
   if (req.method === "GET" && url.startsWith("/_decopilot_vm/events")) {
     if (subscribers.size >= MAX_SSE_CLIENTS) {
       send(res, 429, { error: "too many SSE subscribers" });
       return;
     }
-    const u = new URL(url, "http://local");
-    const threadId = u.searchParams.get("threadId") || null;
     res.writeHead(200, {
       "content-type": "text/event-stream; charset=utf-8",
       "cache-control": "no-cache, no-transform",
       connection: "keep-alive",
       "x-accel-buffering": "no",
     });
-    subscribers.set(res, { threadId });
-    replayTo(res, threadId);
+    subscribers.add(res);
+    replayTo(res);
     const heartbeat = setInterval(() => {
       try {
         res.write(`: heartbeat\n\n`);
@@ -133,38 +129,24 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Dev lifecycle. All endpoints accept an optional `threadId` (query for
-  // GETs, body for POSTs). Omitted → DEFAULT_THREAD for backward compat.
   if (req.method === "POST" && url === "/dev/start") {
     const body = await readJson(req).catch(() => ({}));
     startDev(body).catch((err) => {
       appendLog(
         "daemon",
         `[sandbox-daemon] /dev/start error: ${String(err)}\n`,
-        body?.threadId || null,
       );
     });
-    send(res, 202, currentStatusPayload(body?.threadId));
+    send(res, 202, currentStatusPayload());
     return;
   }
   if (req.method === "POST" && url === "/dev/stop") {
-    const body = await readJson(req).catch(() => ({}));
-    await stopDev(body?.threadId).catch(() => {});
-    send(res, 200, currentStatusPayload(body?.threadId));
+    await stopDev().catch(() => {});
+    send(res, 200, currentStatusPayload());
     return;
   }
   if (req.method === "GET" && url.startsWith("/dev/status")) {
-    const u = new URL(url, "http://local");
-    if (u.searchParams.get("all") === "1") {
-      const threads = {};
-      for (const k of devByThread.keys()) {
-        threads[k] = currentStatusPayload(k);
-      }
-      send(res, 200, { threads });
-      return;
-    }
-    const threadId = u.searchParams.get("threadId") || null;
-    send(res, 200, currentStatusPayload(threadId));
+    send(res, 200, currentStatusPayload());
     return;
   }
   if (req.method === "GET" && url.startsWith("/dev/logs")) {
@@ -174,8 +156,7 @@ const server = http.createServer(async (req, res) => {
       Math.min(LOG_RING_CAP, Number(u.searchParams.get("tail") ?? 200)),
     );
     const source = u.searchParams.get("source");
-    const threadId = u.searchParams.get("threadId") || null;
-    const entries = readMergedLogs(threadId, source)
+    const entries = readLogs(source)
       .slice(-tail)
       .map((e) => e.line)
       .join("\n");
@@ -184,14 +165,9 @@ const server = http.createServer(async (req, res) => {
   }
   if (req.method === "GET" && url.startsWith("/dev/scripts")) {
     const u = new URL(url, "http://local");
-    const threadId = u.searchParams.get("threadId") || null;
     const cwdParam = u.searchParams.get("cwd");
     const scriptsCwd =
-      cwdParam && cwdParam.length > 0
-        ? cwdParam
-        : threadId
-          ? getDev(threadId).cwd
-          : WORKDIR;
+      cwdParam && cwdParam.length > 0 ? cwdParam : dev.cwd || WORKDIR;
     const { scripts, pm } = inspectWorkdir(scriptsCwd);
     send(res, 200, { scripts, pm, cwd: scriptsCwd });
     return;
@@ -209,7 +185,8 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "POST" && url === "/fs/glob")
     return handleFsGlob(req, res);
 
-  // HTTP proxy to container loopback.
+  // HTTP proxy to container loopback. Legacy — dev-server traffic migrates
+  // to its own host-mapped port in a follow-up commit.
   if (url.startsWith("/proxy/")) {
     const parsed = parseProxyUrl(url);
     if (!parsed) {
@@ -245,17 +222,11 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log(
     `[sandbox-daemon] listening on 0.0.0.0:${PORT}, workdir=${WORKDIR}`,
   );
-  // No boot-time auto-start: the daemon listens before the provisioner has
-  // had a chance to clone the repo (the clone flows through /bash). The
-  // caller fires /dev/start explicitly once `ensure()` returns — so the
-  // workdir is guaranteed populated before script detection runs.
 });
 
 for (const sig of ["SIGINT", "SIGTERM"]) {
   process.on(sig, async () => {
-    await Promise.all(
-      Array.from(devByThread.keys()).map((k) => stopDev(k).catch(() => {})),
-    );
+    await stopDev().catch(() => {});
     server.close(() => process.exit(0));
   });
 }

@@ -1,33 +1,21 @@
 /**
  * Dev-server lifecycle: install if needed, spawn the configured dev script,
- * track phases, and tear it down cleanly. Each thread owns its own child,
- * stored in the DevState.
+ * track phases, and tear it down cleanly. One dev process per pod.
+ *
+ * The dev server MUST bind `0.0.0.0:3000` inside the container. Pods expose
+ * :3000 externally (the daemon does not proxy dev traffic), so a framework
+ * that ignores $PORT will leave this daemon in phase=`crashed` with a clear
+ * readiness-probe timeout message.
  */
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
-import {
-  DENO_BIN,
-  FAST_CRASH_MS,
-  PORT as DAEMON_PORT,
-  WORKDIR,
-} from "./config.mjs";
-import {
-  DEFAULT_THREAD,
-  crashBackoffRemainingMs,
-  devByThread,
-  getDev,
-  ownedPorts,
-} from "./dev-state.mjs";
+import { DENO_BIN, DEV_PORT, FAST_CRASH_MS, WORKDIR } from "./config.mjs";
+import { crashBackoffRemainingMs, dev } from "./dev-state.mjs";
 import { appendLog, setPhase } from "./events.mjs";
 import { childEnv, ensureDenoInstalled } from "./lazy-install.mjs";
-import {
-  snapshotListenPorts,
-  startPortPoll,
-  stopPortPoll,
-} from "./port-discovery.mjs";
 import {
   detectPackageManager,
   detectRuntime,
@@ -36,62 +24,10 @@ import {
   readPackageJson,
 } from "./workdir.mjs";
 
-/**
- * Ask the OS for a free TCP port by briefly binding :0 on 0.0.0.0, reading
- * the assigned port, then releasing it. Re-rolls if the port is already
- * claimed by another thread's dev child.
- */
-async function pickFreePort() {
-  for (let i = 0; i < 10; i++) {
-    const port = await new Promise((resolve, reject) => {
-      const srv = net.createServer();
-      srv.unref();
-      srv.once("error", reject);
-      srv.listen(0, "0.0.0.0", () => {
-        const addr = srv.address();
-        if (addr && typeof addr === "object" && Number.isFinite(addr.port)) {
-          const p = addr.port;
-          srv.close(() => resolve(p));
-        } else {
-          srv.close(() => reject(new Error("no address from listen(0)")));
-        }
-      });
-    });
-    if (!ownedPorts.has(port) && port !== DAEMON_PORT) return port;
-  }
-  throw new Error("could not pick a free port after 10 attempts");
-}
+const READINESS_INTERVAL_MS = 500;
+const READINESS_TIMEOUT_MS = 60_000;
 
-/**
- * Resolve the PORT the dev child will bind. Honor caller's `preferredPort`
- * when it's actually free; otherwise fall back to an OS-assigned port. The
- * poll loop stays in place as a safety net for frameworks that ignore PORT.
- */
-async function allocateDevPort(preferred) {
-  if (
-    preferred &&
-    !ownedPorts.has(preferred) &&
-    preferred !== DAEMON_PORT &&
-    !snapshotListenPorts().has(preferred)
-  ) {
-    try {
-      await new Promise((resolve, reject) => {
-        const srv = net.createServer();
-        srv.unref();
-        srv.once("error", reject);
-        srv.listen(preferred, "0.0.0.0", () => {
-          srv.close(() => resolve(undefined));
-        });
-      });
-      return preferred;
-    } catch {
-      // Fall through to OS-assigned.
-    }
-  }
-  return pickFreePort();
-}
-
-function killDev(dev, signal = "SIGTERM") {
+function killDev(signal = "SIGTERM") {
   if (!dev.child || dev.child.pid == null) return;
   try {
     // Signal the script runner directly (not the process group). Runners
@@ -103,7 +39,7 @@ function killDev(dev, signal = "SIGTERM") {
   } catch {}
 }
 
-async function waitForExit(dev, graceMs) {
+async function waitForExit(graceMs) {
   if (!dev.child) return;
   const child = dev.child;
   await new Promise((resolve) => {
@@ -120,18 +56,18 @@ async function waitForExit(dev, graceMs) {
   });
 }
 
-function runInstall(cmd, args, cwd, threadId) {
+function runInstall(cmd, args, cwd) {
   return new Promise((resolve) => {
     const child = spawn(cmd, args, {
       cwd,
       env: childEnv(),
       stdio: ["ignore", "pipe", "pipe"],
     });
-    child.stdout.on("data", (d) => appendLog("setup", d, threadId));
-    child.stderr.on("data", (d) => appendLog("setup", d, threadId));
+    child.stdout.on("data", (d) => appendLog("setup", d));
+    child.stderr.on("data", (d) => appendLog("setup", d));
     child.on("close", (code) => resolve(code ?? -1));
     child.on("error", (err) => {
-      appendLog("setup", `[install] ${String(err)}\n`, threadId);
+      appendLog("setup", `[install] ${String(err)}\n`);
       resolve(-1);
     });
   });
@@ -146,31 +82,61 @@ function hasNodeModules(workdir) {
   }
 }
 
+/**
+ * Poll the dev server's loopback port until it accepts a connection, or
+ * timeout. First successful connect → phase=`ready`. Timeout → phase=`crashed`
+ * with a message pointing at the bind contract.
+ */
+async function probeDevReady() {
+  const started = Date.now();
+  while (Date.now() - started < READINESS_TIMEOUT_MS) {
+    if (dev.phase !== "starting") return;
+    const connected = await tryConnect(DEV_PORT);
+    if (connected) {
+      setPhase("ready");
+      return;
+    }
+    await sleep(READINESS_INTERVAL_MS);
+  }
+  if (dev.phase === "starting") {
+    appendLog(
+      "daemon",
+      `[sandbox-daemon] dev server did not bind :${DEV_PORT} within ${READINESS_TIMEOUT_MS / 1000}s\n`,
+    );
+    setPhase("crashed");
+  }
+}
+
+function tryConnect(port) {
+  return new Promise((resolve) => {
+    const socket = net.connect(port, "127.0.0.1");
+    let done = false;
+    const finish = (ok) => {
+      if (done) return;
+      done = true;
+      socket.destroy();
+      resolve(ok);
+    };
+    socket.once("connect", () => finish(true));
+    socket.once("error", () => finish(false));
+    socket.setTimeout(500, () => finish(false));
+  });
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 export async function startDev({
-  threadId,
   cwd,
   script: requestedScript,
   restart,
-  preferredPort,
   runtime: runtimeHint,
 } = {}) {
-  const key = threadId || DEFAULT_THREAD;
-  const dev = getDev(key);
   const workdir =
     typeof cwd === "string" && cwd.length > 0 ? cwd : dev.cwd || WORKDIR;
   dev.cwd = workdir;
 
-  // Broadcast threadId is null when this is the legacy/default thread so
-  // callers subscribed without a threadId keep getting its events.
-  const broadcastTid = key === DEFAULT_THREAD ? null : key;
-
-  const parsedPreferred =
-    preferredPort == null
-      ? null
-      : Number.isFinite(Number(preferredPort))
-        ? Number(preferredPort)
-        : null;
-  dev.preferredPort = parsedPreferred;
   if (
     !restart &&
     (dev.phase === "installing" ||
@@ -185,7 +151,7 @@ export async function startDev({
   // or a code fix still works. Without this, UI polls hammer `/dev/start`
   // when the dev script has a persistent startup failure.
   if (!restart && dev.phase === "crashed") {
-    const wait = crashBackoffRemainingMs(dev);
+    const wait = crashBackoffRemainingMs();
     if (wait > 0) {
       const err = new Error(
         `dev crash-loop backoff: ${dev.crashCount} consecutive fast crashes, retry in ${Math.ceil(wait / 1000)}s`,
@@ -199,11 +165,9 @@ export async function startDev({
     dev.crashCount = 0;
     dev.lastCrashAt = null;
   }
-  if (dev.child) await stopDev(key);
+  if (dev.child) await stopDev();
 
   dev.pid = null;
-  if (dev.port != null) ownedPorts.delete(dev.port);
-  dev.port = null;
   dev.exitCode = null;
   dev.startedAt = Date.now();
 
@@ -226,9 +190,8 @@ export async function startDev({
     appendLog(
       "daemon",
       `[sandbox-daemon] no "dev" or "start" script in ${where} (${workdir}) — cannot auto-start\n`,
-      broadcastTid,
     );
-    setPhase(dev, "crashed");
+    setPhase("crashed");
     return;
   }
 
@@ -237,58 +200,33 @@ export async function startDev({
   // on first run, and `deno install` semantics vary too much across versions
   // to be a reliable warm-up call here.
   if (runtime === "deno") {
-    setPhase(dev, "installing");
+    setPhase("installing");
     const ok = await ensureDenoInstalled();
     if (!ok) {
-      setPhase(dev, "crashed");
+      setPhase("crashed");
       return;
     }
   } else if (!hasNodeModules(workdir)) {
-    setPhase(dev, "installing");
-    appendLog(
-      "setup",
-      `[setup] running ${pm} install in ${workdir}\n`,
-      broadcastTid,
-    );
-    const code = await runInstall(pm, ["install"], workdir, broadcastTid);
+    setPhase("installing");
+    appendLog("setup", `[setup] running ${pm} install in ${workdir}\n`);
+    const code = await runInstall(pm, ["install"], workdir);
     if (code !== 0) {
-      appendLog(
-        "setup",
-        `[setup] ${pm} install failed (exit ${code})\n`,
-        broadcastTid,
-      );
-      setPhase(dev, "crashed");
+      appendLog("setup", `[setup] ${pm} install failed (exit ${code})\n`);
+      setPhase("crashed");
       return;
     }
-    appendLog("setup", `[setup] ${pm} install completed\n`, broadcastTid);
+    appendLog("setup", `[setup] ${pm} install completed\n`);
   }
 
-  // Baseline LISTEN ports BEFORE spawn so we can diff after. Merge in ports
-  // owned by other threads too — this thread must only claim ports it bound
-  // itself, never a sibling's.
-  const baseline = snapshotListenPorts();
-  for (const p of ownedPorts) baseline.add(p);
-  dev.baselinePorts = baseline;
-  setPhase(dev, "starting");
+  setPhase("starting");
 
-  // Allocate a unique PORT for this dev child and pass it via env. Without
-  // this, per-thread dev in a shared container (and any restart race where a
-  // prior child still holds the default port) crashes the second starter
-  // with EADDRINUSE — most frameworks default to a single well-known port
-  // (`@deco/deco` → 8000, Next.js → 3000, Vite → 5173). We reserve the port
-  // in `ownedPorts` pre-spawn so concurrent `startDev` calls don't re-pick
-  // it. Discovery later confirms the actual bind (or falls back to poll for
-  // frameworks that ignore PORT).
-  const allocatedPort = await allocateDevPort(dev.preferredPort ?? null);
-  ownedPorts.add(allocatedPort);
-  dev.preferredPort = allocatedPort;
-
-  // Frameworks that honor HOST (Next.js, some Vite configs) pick up 0.0.0.0
-  // so discovery is snappier. Anything binding to 127.0.0.1 is still
-  // reachable — the daemon proxies via loopback — so no --host trick needed.
+  // Hard-coded bind contract: dev server on 0.0.0.0:3000. Frameworks that
+  // ignore PORT will cause the readiness probe to time out and land in
+  // phase=`crashed`; the error is user-actionable (fix the script) so we
+  // don't try to chase arbitrary ports.
   const env = childEnv({
-    HOST: process.env.HOST ?? "0.0.0.0",
-    PORT: String(allocatedPort),
+    HOST: "0.0.0.0",
+    PORT: String(DEV_PORT),
   });
 
   // Wrap the real command in `script -q -c` so the child sees a PTY and its
@@ -308,35 +246,20 @@ export async function startDev({
   dev.child = child;
   dev.pid = child.pid ?? null;
 
-  // Tag dev process output with the script name so the UI's per-script tab
-  // (which keys off the `source` field) picks up the logs. Daemon lifecycle
-  // events stay on source="daemon".
   const scriptSource = script;
   appendLog(
     "daemon",
     `[sandbox-daemon] spawned ${humanCmd} (pid ${child.pid}, cwd ${workdir})\n`,
-    broadcastTid,
   );
 
-  child.stdout.on("data", (d) => appendLog(scriptSource, d, broadcastTid));
-  child.stderr.on("data", (d) => appendLog(scriptSource, d, broadcastTid));
+  child.stdout.on("data", (d) => appendLog(scriptSource, d));
+  child.stderr.on("data", (d) => appendLog(scriptSource, d));
   child.on("exit", (code, signal) => {
     dev.exitCode = code ?? null;
     appendLog(
       "daemon",
       `[sandbox-daemon] dev process exited (code=${code}, signal=${signal})\n`,
-      broadcastTid,
     );
-    stopPortPoll(dev);
-    // Release both the discovery-confirmed port (if any) and the pre-spawn
-    // reservation. They're usually the same number, but a framework that
-    // ignored PORT would have made discovery latch onto a different one; in
-    // that case both need releasing or the reservation leaks in ownedPorts.
-    ownedPorts.delete(allocatedPort);
-    if (dev.port != null) {
-      ownedPorts.delete(dev.port);
-      dev.port = null;
-    }
     if (dev.child === child) dev.child = null;
     // Fast-exit bookkeeping: any exit inside FAST_CRASH_MS counts toward the
     // backoff streak — including code=0. Dev tasks that exit 0 quickly are
@@ -356,50 +279,33 @@ export async function startDev({
       }
       dev.lastCrashAt = Date.now();
     }
-    setPhase(dev, fastExit || code !== 0 ? "crashed" : "exited");
+    setPhase(fastExit || code !== 0 ? "crashed" : "exited");
     dev.pid = null;
   });
   child.on("error", (err) => {
-    appendLog(
-      "daemon",
-      `[sandbox-daemon] spawn error: ${String(err)}\n`,
-      broadcastTid,
-    );
-    stopPortPoll(dev);
-    ownedPorts.delete(allocatedPort);
-    if (dev.port != null) {
-      ownedPorts.delete(dev.port);
-      dev.port = null;
-    }
+    appendLog("daemon", `[sandbox-daemon] spawn error: ${String(err)}\n`);
     if (dev.child === child) dev.child = null;
-    setPhase(dev, "crashed");
+    setPhase("crashed");
     dev.pid = null;
   });
 
-  startPortPoll(dev);
+  probeDevReady();
 }
 
-export async function stopDev(threadId) {
-  const key = threadId || DEFAULT_THREAD;
-  const dev = devByThread.get(key);
-  if (!dev) return;
+export async function stopDev() {
   if (dev.stopInFlight) return dev.stopInFlight;
   dev.stopInFlight = (async () => {
     if (!dev.child) {
       if (dev.phase === "ready" || dev.phase === "starting") {
-        setPhase(dev, "exited");
+        setPhase("exited");
       }
       return;
     }
-    killDev(dev, "SIGTERM");
-    await waitForExit(dev, 5_000);
+    killDev("SIGTERM");
+    await waitForExit(5_000);
     dev.child = null;
     dev.pid = null;
-    if (dev.port != null) {
-      ownedPorts.delete(dev.port);
-      dev.port = null;
-    }
-    setPhase(dev, "exited");
+    setPhase("exited");
   })();
   try {
     await dev.stopInFlight;

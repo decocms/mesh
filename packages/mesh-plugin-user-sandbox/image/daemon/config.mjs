@@ -12,20 +12,18 @@ export const WORKDIR = process.env.WORKDIR ?? "/app";
 export const DENO_INSTALL_DIR = "/opt/deno";
 export const DENO_BIN = `${DENO_INSTALL_DIR}/bin/deno`;
 
-// Optional HTML snippet injected before `</body>` on proxied HTML responses.
-// Mesh populates this via `-e DAEMON_BOOTSTRAP=...` when it owns the preview
-// URL (HMR wiring, iframe bootstrap). Empty string → no injection.
-export const BOOTSTRAP = process.env.DAEMON_BOOTSTRAP ?? "";
-
 // SSE subscriber cap. A runaway reconnecting client shouldn't be able to
 // exhaust the daemon's sockets; mesh never opens more than one per viewer.
 export const MAX_SSE_CLIENTS = 10;
 
 export const LOG_RING_CAP = 2000;
-export const DAEMON_LOG_CAP = 500;
 
 export const FAST_CRASH_MS = 10_000;
 export const MAX_BACKOFF_MS = 60_000;
+
+// The dev server must bind this port inside the container. Pods expose it
+// externally — the daemon does not proxy dev traffic.
+export const DEV_PORT = 3000;
 
 if (!TOKEN) {
   console.error("[sandbox-daemon] DAEMON_TOKEN not set; refusing to start");
