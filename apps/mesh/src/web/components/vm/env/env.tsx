@@ -95,16 +95,10 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
       ? vmMapMetadata?.vmMap?.[userId]?.[urlBranch]
       : undefined;
 
-  const [status, setStatus] = useState<ViewStatus>(
-    existingVm ? "running" : "idle",
-  );
-  const [statusLabel, setStatusLabel] = useState("");
-  const [errorMsg, setErrorMsg] = useState("");
-  const [execInFlight, setExecInFlight] = useState(false);
-  const [killedProcesses, setKilledProcesses] = useState<Set<string>>(
-    new Set(),
-  );
-  const vmDataRef = useRef<VmData | null>(
+  // Derived VM data — reflects the latest vmMap from the query cache. Any
+  // vmMap update (from handleStart, handleStop, or the layout-level auto-
+  // start) triggers a re-render with the fresh value here.
+  const vmData: VmData | null =
     existingVm && urlBranch
       ? {
           previewUrl: existingVm.previewUrl,
@@ -112,7 +106,18 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
           branch: urlBranch,
           isNewVm: false,
         }
-      : null,
+      : null;
+
+  // Transient override used during user-initiated transitions
+  // ("creating" / "stopping" / "error"). Cleared via effect below once the
+  // derived status catches up.
+  const [override, setOverride] = useState<ViewStatus | null>(null);
+
+  const [statusLabel, setStatusLabel] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [execInFlight, setExecInFlight] = useState(false);
+  const [killedProcesses, setKilledProcesses] = useState<Set<string>>(
+    new Set(),
   );
   const startingRef = useRef(false);
   const startedAtRef = useRef<number>(Date.now());
@@ -166,10 +171,32 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     }
   };
 
-  const vmEvents = useVmEvents(
-    status === "running" ? (vmDataRef.current?.previewUrl ?? null) : null,
-    handleChunk,
-  );
+  // Subscribe to the VM's SSE stream whenever vmData is known — covers both
+  // "running" and "suspended" (which is derived from the SSE disconnect). The
+  // stream auto-reconnects on URL change, so switching branches just works.
+  const vmEvents = useVmEvents(vmData?.previewUrl ?? null, handleChunk);
+
+  // Final status = user-initiated override, else derived from (vmData, SSE).
+  const derivedStatus: ViewStatus = vmEvents.suspended
+    ? "suspended"
+    : vmData
+      ? "running"
+      : "idle";
+  const status: ViewStatus = override ?? derivedStatus;
+
+  // Clear the override when the derived state catches up. E.g. after
+  // handleStart → "creating" stays until vmMap invalidation refetches and
+  // vmData becomes non-null ("running"); after handleStop → "stopping" stays
+  // until vmMap refetch removes the entry ("idle").
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — clears transient override once derivedStatus catches up; no render-time equivalent for "wait for external async state to reach a target"
+  useEffect(() => {
+    if (override === "creating" && derivedStatus === "running") {
+      setOverride(null);
+    }
+    if (override === "stopping" && derivedStatus === "idle") {
+      setOverride(null);
+    }
+  }, [derivedStatus, override]);
 
   // When scripts are discovered, auto-open well-known starters
   const scriptsAppliedRef = useRef(false);
@@ -200,11 +227,11 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   };
 
   const handleExec = async (scriptName: string) => {
-    if (execInFlight || !vmDataRef.current) return;
+    if (execInFlight || !vmData) return;
     setExecInFlight(true);
     try {
       const res = await fetch(
-        `${vmDataRef.current.previewUrl}/_decopilot_vm/exec/${scriptName}`,
+        `${vmData.previewUrl}/_decopilot_vm/exec/${scriptName}`,
         { method: "POST" },
       );
       if (!res.ok) throw new Error(`Exec failed: ${res.statusText}`);
@@ -219,11 +246,11 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   };
 
   const handleKill = async (scriptName: string) => {
-    if (execInFlight || !vmDataRef.current) return;
+    if (execInFlight || !vmData) return;
     setExecInFlight(true);
     try {
       const res = await fetch(
-        `${vmDataRef.current.previewUrl}/_decopilot_vm/kill/${scriptName}`,
+        `${vmData.previewUrl}/_decopilot_vm/kill/${scriptName}`,
         { method: "POST" },
       );
       if (!res.ok) throw new Error(`Kill failed: ${res.statusText}`);
@@ -245,7 +272,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     if (startingRef.current) return;
     startingRef.current = true;
     startedAtRef.current = Date.now();
-    setStatus("creating");
+    setOverride("creating");
     setStatusLabel("Connecting...");
     setErrorMsg("");
     scriptsAppliedRef.current = false;
@@ -264,17 +291,18 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
         throw new Error("Invalid VM response — missing fields");
       }
 
-      vmDataRef.current = data;
       // If the server generated a branch (we didn't pass one), persist it
       // to the URL so subsequent renders find the vm via vmMap[userId][branch].
       if (!urlBranch) {
         setBranch(data.branch);
       }
-      setStatus("running");
       setStatusLabel("");
       invalidateVirtualMcpQueries(queryClient);
+      // override stays "creating" until the vmMap refetch populates vmData,
+      // at which point the sync-effect above flips it to null → derivedStatus
+      // takes over as "running".
     } catch (error) {
-      setStatus("error");
+      setOverride("error");
       setErrorMsg(
         error instanceof Error ? error.message : "Failed to start VM",
       );
@@ -284,9 +312,8 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   };
 
   const handleStop = async () => {
-    const branchToStop = vmDataRef.current?.branch ?? urlBranch;
-    vmDataRef.current = null;
-    setStatus("stopping");
+    const branchToStop = vmData?.branch ?? urlBranch;
+    setOverride("stopping");
 
     const virtualMcpId = inset?.entity?.id;
     if (virtualMcpId && branchToStop) {
@@ -300,20 +327,11 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
       }
     }
 
-    setStatus("idle");
     invalidateVirtualMcpQueries(queryClient);
+    // override stays "stopping" until the vmMap refetch removes the entry,
+    // at which point the sync-effect above flips it to null → derivedStatus
+    // takes over as "idle".
   };
-
-  // Detect suspension via SSE disconnect
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — responds to vmEvents.suspended changing; drives status transition
-  useEffect(() => {
-    if (vmEvents.suspended && status === "running") {
-      setStatus("suspended");
-    }
-    if (!vmEvents.suspended && status === "suspended") {
-      setStatus("running");
-    }
-  }, [vmEvents.suspended, status]);
 
   const githubRepo = useActiveGithubRepo();
 
@@ -528,7 +546,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
           )}
 
           <div className="flex-1 flex justify-center">
-            {vmDataRef.current?.vmId && (
+            {vmData?.vmId && (
               <div className="flex items-center">
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -536,12 +554,10 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
                       type="button"
                       className="shrink-0 rounded-l bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground cursor-pointer hover:bg-accent hover:text-foreground transition-colors border-r border-border/50"
                       onClick={() =>
-                        navigator.clipboard.writeText(
-                          vmDataRef.current?.vmId ?? "",
-                        )
+                        navigator.clipboard.writeText(vmData?.vmId ?? "")
                       }
                     >
-                      {vmDataRef.current.vmId}
+                      {vmData.vmId}
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">Copy VM ID</TooltipContent>
