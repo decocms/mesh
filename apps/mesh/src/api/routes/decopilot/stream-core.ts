@@ -421,13 +421,19 @@ async function streamCoreInner(
                 { ctx, isPlanMode: modeConfig.isPlanMode },
               );
 
-        // Resolve active VM for the current user — when present, VM file tools
-        // replace the QuickJS sandbox in the built-in tool set.
+        // Resolve active VM for (current user, pinned branch) — when present,
+        // VM file tools replace the QuickJS sandbox in the built-in tool set.
         const vmMetadata = virtualMcp.metadata as {
-          activeVms?: Record<string, { previewUrl: string }>;
+          vmMap?: Record<
+            string,
+            Record<string, { vmId: string; previewUrl: string }>
+          >;
           githubRepo?: GithubRepo | null;
         };
-        const activeVmEntry = vmMetadata?.activeVms?.[input.userId];
+        const activeVmEntry =
+          input.branch && input.userId
+            ? vmMetadata?.vmMap?.[input.userId]?.[input.branch]
+            : undefined;
         const activeVm = activeVmEntry
           ? { vmBaseUrl: activeVmEntry.previewUrl }
           : null;

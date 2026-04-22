@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import { resolveRuntimeConfig } from "./helpers";
-import type { VmMetadata } from "./types";
+type VmMetadata = Record<string, unknown>;
 
 describe("resolveRuntimeConfig", () => {
   it("returns null packageManager when no runtime config is set", () => {
