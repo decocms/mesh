@@ -36,7 +36,12 @@ import {
   handleFsRead,
   handleFsWrite,
 } from "./daemon/fs-ops.mjs";
-import { readJson, send, sendText } from "./daemon/http-helpers.mjs";
+import {
+  parsedBody,
+  readJson,
+  send,
+  sendText,
+} from "./daemon/http-helpers.mjs";
 import { childEnv } from "./daemon/lazy-install.mjs";
 import { inspectWorkdir } from "./daemon/workdir.mjs";
 
@@ -100,11 +105,6 @@ async function rejectsThreadId(req, res, url) {
     }
   }
   return false;
-}
-
-async function parsedBody(req) {
-  if (req._parsedBody !== undefined) return req._parsedBody;
-  return (await readJson(req).catch(() => ({}))) ?? {};
 }
 
 const server = http.createServer(async (req, res) => {

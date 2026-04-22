@@ -13,7 +13,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { WORKDIR } from "./config.mjs";
-import { readJson, send } from "./http-helpers.mjs";
+import { parsedBody, send } from "./http-helpers.mjs";
 
 /**
  * Resolve `body.cwd` to an absolute directory under WORKDIR. Empty/missing
@@ -46,7 +46,7 @@ function safePath(p, cwd) {
 
 export async function handleFsRead(req, res) {
   try {
-    const body = await readJson(req);
+    const body = await parsedBody(req);
     const filePath = safePath(body.path, body.cwd);
     if (!filePath) return send(res, 400, { error: "path escapes workdir" });
     let stat;
@@ -86,7 +86,7 @@ export async function handleFsRead(req, res) {
 
 export async function handleFsWrite(req, res) {
   try {
-    const body = await readJson(req);
+    const body = await parsedBody(req);
     if (typeof body.content !== "string") {
       return send(res, 400, { error: "content is required" });
     }
@@ -105,7 +105,7 @@ export async function handleFsWrite(req, res) {
 
 export async function handleFsEdit(req, res) {
   try {
-    const body = await readJson(req);
+    const body = await parsedBody(req);
     const filePath = safePath(body.path, body.cwd);
     if (!filePath) return send(res, 400, { error: "path escapes workdir" });
     if (typeof body.old_string !== "string" || body.old_string.length === 0) {
@@ -151,7 +151,7 @@ export async function handleFsEdit(req, res) {
  */
 export async function handleFsGrep(req, res) {
   try {
-    const body = await readJson(req);
+    const body = await parsedBody(req);
     if (typeof body.pattern !== "string" || body.pattern.length === 0) {
       return send(res, 400, { error: "pattern is required" });
     }
@@ -201,7 +201,7 @@ export async function handleFsGrep(req, res) {
 
 export async function handleFsGlob(req, res) {
   try {
-    const body = await readJson(req);
+    const body = await parsedBody(req);
     if (typeof body.pattern !== "string" || body.pattern.length === 0) {
       return send(res, 400, { error: "pattern is required" });
     }
