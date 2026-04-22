@@ -18,6 +18,7 @@ import { GitBranch01, LinkExternal01 } from "@untitledui/icons";
 import { MemoizedMarkdown } from "../../chat/markdown.tsx";
 import { useChatNavigation } from "../../chat/hooks/use-chat-navigation.ts";
 import { decodeHtmlEntities } from "./decode-html-entities.ts";
+import { PrSubTabs } from "./pr-sub-tabs.tsx";
 import { usePrByBranch } from "./use-pr-data.ts";
 
 export function GitTab({ virtualMcpId }: { virtualMcpId: string }) {
@@ -138,9 +139,9 @@ function GitTabContent(props: ContentProps) {
   // State C: PR open
   if (pr && pr.state === "open") {
     return (
-      <div className="flex flex-col gap-4 p-4">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
             <GitBranch01 className="h-3.5 w-3.5" />
             <span className="font-mono">
               {branch} → {pr.base}
@@ -149,26 +150,22 @@ function GitTabContent(props: ContentProps) {
             <span>#{pr.number}</span>
             {pr.author && <span>· @{pr.author}</span>}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => openExt(pr.htmlUrl)}
-            title="Open on GitHub"
+          <a
+            href={pr.htmlUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-7 items-center justify-center gap-1 rounded px-2 hover:bg-muted"
+            title="Open PR on GitHub"
           >
-            <LinkExternal01 className="h-4 w-4" />
-          </Button>
+            <LinkExternal01 className="h-3.5 w-3.5" />
+          </a>
         </div>
-        <h1 className="text-lg font-semibold">
-          {decodeHtmlEntities(pr.title)}
-        </h1>
-        {pr.body && (
-          <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
-            <MemoizedMarkdown
-              id={`pr-body-${pr.number}`}
-              text={decodeHtmlEntities(pr.body)}
-            />
-          </div>
-        )}
+        <PrSubTabs
+          pr={pr}
+          connectionId={connectionId}
+          owner={owner}
+          repo={repo}
+        />
       </div>
     );
   }

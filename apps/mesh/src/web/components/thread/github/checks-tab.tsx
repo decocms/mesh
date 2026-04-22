@@ -136,7 +136,10 @@ function StatusIcon({ check }: { check: CheckRun }) {
     );
   }
   return (
-    <span className="text-muted-foreground" aria-label={check.conclusion ?? "—"}>
+    <span
+      className="text-muted-foreground"
+      aria-label={check.conclusion ?? "—"}
+    >
       —
     </span>
   );
