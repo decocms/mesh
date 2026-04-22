@@ -79,10 +79,17 @@ export function readDenoConfig(workdir) {
 }
 
 export function pickScript(runtime, pkg, denoConfig) {
+  // Prefer `dev` over `start` on both runtimes. In deco/Fresh projects the
+  // `start` task often points at `@deco/deco/daemon/main.ts`, which is a
+  // daemonizer — it forks the real server into a background child and the
+  // parent exits 0. From the sandbox-daemon's point of view that looks like
+  // a clean exit, so the self-heal loop keeps re-spawning it and each
+  // respawn orphans another port-8000 holder. `dev` is the non-forking
+  // foreground server in every convention I've seen.
   if (runtime === "deno") {
     const tasks = (denoConfig && denoConfig.tasks) ?? {};
-    if (typeof tasks.start === "string") return "start";
     if (typeof tasks.dev === "string") return "dev";
+    if (typeof tasks.start === "string") return "start";
     return null;
   }
   const scripts = (pkg && pkg.scripts) ?? {};

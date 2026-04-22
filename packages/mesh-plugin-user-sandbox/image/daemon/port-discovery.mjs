@@ -78,8 +78,11 @@ export function startPortPoll(dev) {
       if (p === PORT) continue;
       if (dev.baselinePorts.has(p)) continue;
       // Exclude ports owned by another thread's dev child so simultaneous
-      // starts don't cross-wire (A's poll locking onto B's Vite port).
-      if (ownedPorts.has(p)) continue;
+      // starts don't cross-wire (A's poll locking onto B's Vite port). The
+      // current thread's own pre-allocated port is in ownedPorts too (we
+      // reserve it before spawn so siblings don't re-pick it) — whitelist
+      // it so the poll can actually latch when the child binds it.
+      if (ownedPorts.has(p) && p !== dev.preferredPort) continue;
       candidates.push(p);
     }
     if (candidates.length === 0) return;

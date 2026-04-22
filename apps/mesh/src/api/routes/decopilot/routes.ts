@@ -30,6 +30,7 @@ import {
   parseModelsToMap,
 } from "./model-permissions";
 import { PersistedRunConfigSchema, toModelsConfig } from "./run-config";
+import type { ThreadSandboxResponse } from "./sandbox-response";
 import { StreamRequestSchema } from "./schemas";
 import type { ChatMessage, ModelsConfig } from "./types";
 import { streamCore } from "./stream-core";
@@ -384,11 +385,16 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
   });
 
   // ============================================================================
-  // Thread Sandbox Endpoint — resolves the Docker preview URL for a thread
+  // Thread Sandbox Endpoint — discriminated-union describing the live sandbox
   //
-  // Frontend calls this from the preview panel to discover the sandbox iframe
-  // URL for the current thread. Freestyle sandboxes read `activeVms` on the
-  // Virtual MCP as before; this endpoint is Docker-only.
+  // Returns `{ sandbox, thread }`. `sandbox` is a tagged union (docker |
+  // freestyle) so the frontend can exhaustively switch on `kind`; a dead
+  // Docker handle can never be served as a Freestyle preview URL, and a
+  // stale `activeVms` entry can never back-fill the Docker path.
+  //
+  // Runner kind is a process-global (MESH_SANDBOX_RUNNER) — we dispatch on
+  // it here so the client doesn't need to know which runner the server was
+  // booted with.
   // ============================================================================
 
   app.get("/:org/decopilot/threads/:threadId/sandbox", async (c) => {
@@ -402,132 +408,186 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
     if (!taskId || /[.*>\s]/.test(taskId)) {
       throw new HTTPException(400, { message: "Invalid thread ID" });
     }
-    // Always return an object so the client can distinguish "thread never
-    // existed" (auto-spin candidate) from "thread exists but sandbox is
-    // dormant" (user must click). `threadExists` is the discriminator.
+
     const thread = await ctx.storage.threads.get(taskId);
-    const emptyResponse = {
-      threadExists: Boolean(thread),
-      sandboxRef: null as string | null,
-      handle: null as string | null,
-      previewUrl: null as string | null,
-      serverUp: false,
-      phase: null as string | null,
-    };
     if (!thread) {
-      return c.json(emptyResponse);
+      const body: ThreadSandboxResponse = {
+        sandbox: null,
+        thread: { exists: false, sandboxRef: null },
+      };
+      return c.json(body);
     }
 
     const sandboxRef = thread.sandbox_ref;
-    if (!sandboxRef) {
-      return c.json(emptyResponse);
-    }
+    const threadShape = { exists: true, sandboxRef };
 
-    const row = await ctx.db
-      .selectFrom("sandbox_runner_state")
-      .select(["handle"])
-      .where("user_id", "=", userId)
-      .where("project_ref", "=", sandboxRef)
-      .where("runner_kind", "=", "docker")
-      .executeTakeFirst();
+    const runnerKind =
+      process.env.MESH_SANDBOX_RUNNER === "docker" ? "docker" : "freestyle";
 
-    if (!row) {
-      return c.json({ ...emptyResponse, sandboxRef });
-    }
-
-    // Ask the sandbox daemon whether the dev server is actually bound. The
-    // daemon discovers the port itself so we don't need to thread it through
-    // runtime metadata — any framework's default port works.
-    //
-    // If the dev process has exited/crashed, fire-and-forget `/dev/start` so
-    // the server self-heals on page view. The `/dev/start` call is idempotent
-    // when phase is already starting/installing/ready, so hitting this
-    // endpoint on every poll is safe. Phase "idle" happens after a daemon
-    // restart (container still alive but never saw a /dev/start yet).
-    const runner = getSharedRunner(ctx);
-    const perThreadDev = process.env.MESH_SANDBOX_PER_THREAD_DEV === "1";
-    let phase: string | undefined;
-    let serverUp = false;
-    let crashBackoffRemainingMs = 0;
-    if (runner instanceof DockerSandboxRunner) {
-      const statusPath = perThreadDev
-        ? `/dev/status?threadId=${encodeURIComponent(taskId)}`
-        : "/dev/status";
-      try {
-        const res = await runner.proxyDaemonRequest(row.handle, statusPath, {
-          method: "GET",
-          headers: new Headers(),
-          body: null,
-        });
-        if (res.ok) {
-          const status = (await res.json()) as {
-            phase?: string;
-            crashBackoffRemainingMs?: number;
-          };
-          phase = status.phase;
-          serverUp = status.phase === "ready";
-          crashBackoffRemainingMs = status.crashBackoffRemainingMs ?? 0;
-        }
-      } catch {
-        serverUp = false;
+    if (runnerKind === "docker") {
+      if (!sandboxRef) {
+        const body: ThreadSandboxResponse = {
+          sandbox: null,
+          thread: threadShape,
+        };
+        return c.json(body);
+      }
+      const row = await ctx.db
+        .selectFrom("sandbox_runner_state")
+        .select(["handle"])
+        .where("user_id", "=", userId)
+        .where("project_ref", "=", sandboxRef)
+        .where("runner_kind", "=", "docker")
+        .executeTakeFirst();
+      if (!row) {
+        const body: ThreadSandboxResponse = {
+          sandbox: null,
+          thread: threadShape,
+        };
+        return c.json(body);
       }
 
-      // Crash-loop backoff: when the daemon reports it's in backoff after
-      // consecutive fast crashes, skip the auto-restart poke. Without this,
-      // every preview-panel poll would fire /dev/start on a dev script
-      // that can't boot (missing dep, bad config), burning CPU forever.
-      // The user's "restart" button sends `restart: true` which bypasses
-      // the backoff on the daemon side.
-      const inCrashBackoff = phase === "crashed" && crashBackoffRemainingMs > 0;
-      if (
-        !inCrashBackoff &&
-        (phase === "idle" || phase === "exited" || phase === "crashed")
-      ) {
-        // Build the restart body. When per-thread dev is on we resolve the
-        // thread's worktree cwd first so the relaunch roots in the right
-        // place; `ensureThreadWorkspace` is cached in-process so repeated
-        // polls hit memory, not the runner.
-        let cwdForRestart: string | undefined;
-        if (perThreadDev) {
-          try {
-            const ws = await ensureThreadWorkspace(runner, row.handle, taskId);
-            cwdForRestart = ws.cwd;
-          } catch {
-            // Non-fatal — daemon will fall back to WORKDIR.
-          }
-        }
-        // Auto-poll never sends `restart: true` — that flag resets the
-        // daemon's crash-loop counter, so polling in a crash scenario would
-        // hold the backoff at the shortest window forever. Human-triggered
-        // restarts go through a separate UI path that sets restart:true.
-        const startBody: Record<string, unknown> = { restart: false };
-        if (perThreadDev) {
-          startBody.threadId = taskId;
-          if (cwdForRestart) startBody.cwd = cwdForRestart;
-        }
-        runner
-          .proxyDaemonRequest(row.handle, "/dev/start", {
-            method: "POST",
-            headers: new Headers({ "content-type": "application/json" }),
-            body: JSON.stringify(startBody),
-          })
-          .catch(() => {
-            // Fire-and-forget — the UI will re-poll /dev/status.
+      // Ask the sandbox daemon whether the dev server is actually bound. The
+      // daemon discovers the port itself so we don't need to thread it through
+      // runtime metadata — any framework's default port works.
+      //
+      // If the dev process has exited/crashed, fire-and-forget `/dev/start` so
+      // the server self-heals on page view. The `/dev/start` call is idempotent
+      // when phase is already starting/installing/ready, so hitting this
+      // endpoint on every poll is safe. Phase "idle" happens after a daemon
+      // restart (container still alive but never saw a /dev/start yet).
+      const runner = getSharedRunner(ctx);
+      const perThreadDev = process.env.MESH_SANDBOX_PER_THREAD_DEV === "1";
+      let phase: string | undefined;
+      let serverUp = false;
+      let crashBackoffRemainingMs = 0;
+      if (runner instanceof DockerSandboxRunner) {
+        const statusPath = perThreadDev
+          ? `/dev/status?threadId=${encodeURIComponent(taskId)}`
+          : "/dev/status";
+        try {
+          const res = await runner.proxyDaemonRequest(row.handle, statusPath, {
+            method: "GET",
+            headers: new Headers(),
+            body: null,
           });
+          if (res.ok) {
+            const status = (await res.json()) as {
+              phase?: string;
+              crashBackoffRemainingMs?: number;
+            };
+            phase = status.phase;
+            serverUp = status.phase === "ready";
+            crashBackoffRemainingMs = status.crashBackoffRemainingMs ?? 0;
+          }
+        } catch {
+          serverUp = false;
+        }
+
+        // Crash-loop backoff: when the daemon reports it's in backoff after
+        // consecutive fast crashes, skip the auto-restart poke. Without this,
+        // every preview-panel poll would fire /dev/start on a dev script
+        // that can't boot (missing dep, bad config), burning CPU forever.
+        // The user's "restart" button sends `restart: true` which bypasses
+        // the backoff on the daemon side.
+        const inCrashBackoff =
+          phase === "crashed" && crashBackoffRemainingMs > 0;
+        if (
+          !inCrashBackoff &&
+          (phase === "idle" || phase === "exited" || phase === "crashed")
+        ) {
+          let cwdForRestart: string | undefined;
+          if (perThreadDev) {
+            try {
+              const ws = await ensureThreadWorkspace(
+                runner,
+                row.handle,
+                taskId,
+              );
+              cwdForRestart = ws.cwd;
+            } catch {
+              // Non-fatal — daemon will fall back to WORKDIR.
+            }
+          }
+          // Auto-poll never sends `restart: true` — that flag resets the
+          // daemon's crash-loop counter, so polling in a crash scenario would
+          // hold the backoff at the shortest window forever. Human-triggered
+          // restarts go through a separate UI path that sets restart:true.
+          const startBody: Record<string, unknown> = { restart: false };
+          if (perThreadDev) {
+            startBody.threadId = taskId;
+            if (cwdForRestart) startBody.cwd = cwdForRestart;
+          }
+          runner
+            .proxyDaemonRequest(row.handle, "/dev/start", {
+              method: "POST",
+              headers: new Headers({ "content-type": "application/json" }),
+              body: JSON.stringify(startBody),
+            })
+            .catch(() => {
+              // Fire-and-forget — the UI will re-poll /dev/status.
+            });
+        }
       }
+
+      const previewUrl = perThreadDev
+        ? `/api/sandbox/${row.handle}/thread/${encodeURIComponent(taskId)}/preview/`
+        : `/api/sandbox/${row.handle}/preview/`;
+
+      const body: ThreadSandboxResponse = {
+        sandbox: {
+          kind: "docker",
+          previewUrl,
+          handle: row.handle,
+          serverUp,
+          phase: phase ?? null,
+        },
+        thread: threadShape,
+      };
+      return c.json(body);
     }
 
-    const previewUrl = perThreadDev
-      ? `/api/sandbox/${row.handle}/thread/${encodeURIComponent(taskId)}/preview/`
-      : `/api/sandbox/${row.handle}/preview/`;
-    return c.json({
-      threadExists: true,
-      sandboxRef,
-      handle: row.handle,
-      previewUrl,
-      serverUp,
-      phase: phase ?? null,
-    });
+    // Freestyle: activeVms is still the source of truth. `patchActiveVms` in
+    // the VM_START/VM_DELETE tools writes the per-user entry; we project it
+    // into the same response shape here so the frontend never reads Virtual
+    // MCP metadata directly.
+    const virtualMcpId = thread.virtual_mcp_id;
+    if (!virtualMcpId) {
+      const body: ThreadSandboxResponse = {
+        sandbox: null,
+        thread: threadShape,
+      };
+      return c.json(body);
+    }
+    const virtualMcp = await ctx.storage.virtualMcps.findById(virtualMcpId);
+    const activeVms = (
+      virtualMcp?.metadata as
+        | {
+            activeVms?: Record<
+              string,
+              { previewUrl: string; vmId: string; terminalUrl: string | null }
+            >;
+          }
+        | undefined
+    )?.activeVms;
+    const entry = activeVms?.[userId];
+    if (!entry) {
+      const body: ThreadSandboxResponse = {
+        sandbox: null,
+        thread: threadShape,
+      };
+      return c.json(body);
+    }
+    const body: ThreadSandboxResponse = {
+      sandbox: {
+        kind: "freestyle",
+        previewUrl: entry.previewUrl,
+        vmId: entry.vmId,
+        terminalUrl: entry.terminalUrl,
+      },
+      thread: threadShape,
+    };
+    return c.json(body);
   });
 
   // ============================================================================

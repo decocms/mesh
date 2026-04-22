@@ -50,8 +50,8 @@ import { EnvVarsEditor } from "./env-vars-editor";
 import type { Terminal as XTerminal } from "@xterm/xterm";
 import { LiveTimer } from "../../live-timer";
 import { useActiveGithubRepo } from "@/web/hooks/use-active-github-repo";
-import { authClient } from "@/web/lib/auth-client";
 import { PACKAGE_MANAGER_CONFIG } from "@/shared/runtime-defaults";
+import type { ThreadSandboxResponse } from "@/api/routes/decopilot/sandbox-response";
 import type { PackageManager } from "@/shared/runtime-defaults";
 import { toast } from "sonner";
 
@@ -76,35 +76,14 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const { org } = useProjectContext();
   const inset = useInsetContext();
   const queryClient = useQueryClient();
-  const { data: session } = authClient.useSession();
   const { taskId } = useChatTask();
 
-  // Check if there's already an active VM for this user.
-  // - Freestyle writes to virtualMcp.metadata.activeVms[userId].
-  // - Docker path writes nothing and the container is keyed by
-  //   thread.sandbox_ref — the thread-scoped sandbox endpoint tells us if
-  //   one exists (shared with the preview panel).
-  const userId = session?.user?.id;
-  const activeVmMetadata = inset?.entity?.metadata as
-    | {
-        activeVms?: Record<
-          string,
-          { previewUrl: string; vmId: string; terminalUrl: string | null }
-        >;
-      }
-    | undefined;
-  const freestyleVm = userId
-    ? activeVmMetadata?.activeVms?.[userId]
-    : undefined;
-
+  // Runner-agnostic: the thread-sandbox endpoint returns a discriminated
+  // union ({ kind: "docker" | "freestyle" }) so this panel doesn't have to
+  // know which runner the server was booted with. `sandbox.kind` drives the
+  // lifecycle routes below (`buildLifecycleRequest`).
   const orgKey = org.slug ?? org.id;
-  const { data: dockerSandbox } = useQuery<{
-    threadExists: boolean;
-    sandboxRef: string | null;
-    handle: string | null;
-    previewUrl: string | null;
-    serverUp: boolean;
-  } | null>({
+  const { data: threadSandbox } = useQuery<ThreadSandboxResponse | null>({
     queryKey: KEYS.threadSandbox(orgKey, taskId),
     enabled: !!taskId,
     staleTime: 5_000,
@@ -113,25 +92,18 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
         `/api/${orgKey}/decopilot/threads/${taskId}/sandbox`,
       );
       if (!res.ok) return null;
-      return (await res.json()) as {
-        threadExists: boolean;
-        sandboxRef: string | null;
-        handle: string | null;
-        previewUrl: string | null;
-        serverUp: boolean;
-      };
+      return (await res.json()) as ThreadSandboxResponse;
     },
   });
 
-  const existingVm =
-    freestyleVm ??
-    (dockerSandbox?.handle && dockerSandbox.previewUrl
-      ? {
-          previewUrl: dockerSandbox.previewUrl,
-          vmId: dockerSandbox.handle,
-          terminalUrl: null as string | null,
-        }
-      : undefined);
+  const sandbox = threadSandbox?.sandbox ?? null;
+  const existingVm = sandbox
+    ? {
+        previewUrl: sandbox.previewUrl,
+        vmId: sandbox.kind === "docker" ? sandbox.handle : sandbox.vmId,
+        terminalUrl: sandbox.kind === "freestyle" ? sandbox.terminalUrl : null,
+      }
+    : undefined;
 
   const [status, setStatus] = useState<ViewStatus>(
     existingVm ? "running" : "idle",
@@ -253,7 +225,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     verb: "start" | "stop",
     scriptName: string,
   ): { url: string; init: RequestInit } => {
-    if (dockerSandbox?.handle) {
+    if (sandbox?.kind === "docker") {
       const path = verb === "start" ? "dev/start" : "dev/stop";
       // Forward the user-configured port so the daemon can pick it over any
       // other listener the dev process binds (API + Vite is the canonical
@@ -264,7 +236,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
           ? preferredPortRaw
           : undefined;
       return {
-        url: `/api/sandbox/${dockerSandbox.handle}/${path}`,
+        url: `/api/sandbox/${sandbox.handle}/${path}`,
         init: {
           method: "POST",
           headers: { "content-type": "application/json" },
