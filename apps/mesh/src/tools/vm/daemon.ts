@@ -229,9 +229,10 @@ function discoverScripts() {
 }
 
 function runSetup() {
-  // Clone directly with -b <branch> so origin/<branch> points at the intended
-  // commit. A plain --single-branch clone only fetches the remote default
-  // branch, which would break subsequent checkouts against a non-default ref.
+  // Clone the repo's default branch, then switch to BRANCH — fetching it
+  // from origin when the remote has it, or creating it locally off default
+  // when it does not. This keeps newly-generated decopilot/* branches
+  // working without requiring the caller to push first.
   // BRANCH is always non-empty — validated at daemon build time.
   const branchNameOk = (b) => /^[A-Za-z0-9._/-]+$/.test(b) && !b.startsWith("-");
   if (!branchNameOk(BRANCH)) {
@@ -239,9 +240,8 @@ function runSetup() {
     log("invalid branch name: " + BRANCH);
     return;
   }
-  const branchFlag = " -b " + JSON.stringify(BRANCH);
-  const cloneCmd = "git clone --depth 1 --single-branch" + branchFlag + " " + CLONE_URL + " /app";
-  const cloneLabel = "$ git clone --depth 1 --single-branch" + branchFlag + " " + REPO_NAME + " /app";
+  const cloneCmd = "git clone --depth 1 " + CLONE_URL + " /app";
+  const cloneLabel = "$ git clone --depth 1 " + REPO_NAME + " /app";
   broadcastChunk("setup", cloneLabel + "\\r\\n");
 
   const child = spawn("script", ["-q", "-c", cloneCmd, "/dev/null"], {
@@ -260,16 +260,42 @@ function runSetup() {
       return;
     }
 
-    // Configure git identity. Branch is already checked out by the -b flag
-    // on the clone — nothing to do here. If the remote ref did not exist the
-    // clone itself would have failed; this code path runs only on success.
+    // Configure git identity.
     try {
       execSync("git config user.name " + JSON.stringify(GIT_USER_NAME), { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
       execSync("git config user.email " + JSON.stringify(GIT_USER_EMAIL), { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
-      log("on branch " + BRANCH);
     } catch (e) {
       log("git identity setup failed:", e.message);
       broadcastChunk("setup", "\\r\\nWarning: could not set up git identity\\r\\n");
+    }
+
+    // Resolve BRANCH: fetch from remote when it exists there, otherwise
+    // create locally off the default branch we just cloned.
+    let branchOnRemote = false;
+    try {
+      execSync(
+        "git fetch origin " + JSON.stringify(BRANCH) + ":" + JSON.stringify(BRANCH),
+        { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV, stdio: "pipe" },
+      );
+      branchOnRemote = true;
+    } catch (e) {
+      // Branch doesn't exist on remote — create it locally below.
+      log("fetch origin " + BRANCH + " failed (branch likely absent remote): " + (e && e.message ? e.message : e));
+    }
+
+    try {
+      if (branchOnRemote) {
+        execSync("git checkout " + JSON.stringify(BRANCH), { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
+        broadcastChunk("setup", "\\r\\n$ git checkout " + BRANCH + " (from origin)\\r\\n");
+        log("checked out " + BRANCH + " from remote");
+      } else {
+        execSync("git checkout -b " + JSON.stringify(BRANCH), { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
+        broadcastChunk("setup", "\\r\\n$ git checkout -b " + BRANCH + " (new local)\\r\\n");
+        log("created local branch " + BRANCH + " off default");
+      }
+    } catch (e) {
+      log("git branch setup failed:", e.message);
+      broadcastChunk("setup", "\\r\\nWarning: could not set up branch " + BRANCH + "\\r\\n");
     }
 
     if (!PM) {
