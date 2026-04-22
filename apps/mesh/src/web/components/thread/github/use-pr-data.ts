@@ -71,6 +71,14 @@ export interface CheckRun {
   durationMs: number | null;
 }
 
+export interface PrComment {
+  id: number;
+  author: string;
+  body: string;
+  createdAt: string;
+  htmlUrl: string;
+}
+
 
 /**
  * Fetches the first PR matching a branch head (open or closed).
@@ -216,6 +224,52 @@ export function useChecks(
               | undefined) ?? null,
           htmlUrl: String((c as { html_url?: unknown }).html_url ?? ""),
           durationMs,
+        };
+      });
+    },
+  });
+}
+
+/**
+ * Issue-level comments on a PR (the generic comment thread). Does NOT
+ * return review comments tied to a file + line — those belong near the
+ * diff on the Changes tab and are out of scope for this hook.
+ *
+ * Common tool names: `get_issue_comments` (with issue_number = pr_number)
+ * or `list_pull_request_comments`. Adjust `toolName` to match your
+ * downstream github-mcp-server build.
+ */
+export function usePrComments(
+  args: RepoArgs & { prNumber: number | null | undefined },
+) {
+  const client = useMCPClient({
+    connectionId: args.connectionId,
+    orgId: args.orgId,
+  });
+
+  return useMCPToolCallQuery<PrComment[]>({
+    client,
+    toolName: "get_issue_comments",
+    toolArguments: {
+      owner: args.owner,
+      repo: args.repo,
+      issue_number: args.prNumber ?? 0,
+    },
+    enabled: !!args.prNumber,
+    refetchInterval: POLL,
+    refetchIntervalInBackground: false,
+    staleTime: STALE,
+    select: (r) => {
+      const arr = extractToolJson<Record<string, unknown>[]>(r);
+      if (!Array.isArray(arr)) return [];
+      return arr.map((c): PrComment => {
+        const user = (c as { user?: { login?: string } }).user;
+        return {
+          id: Number((c as { id?: unknown }).id ?? 0),
+          author: user?.login ?? "",
+          body: String((c as { body?: unknown }).body ?? ""),
+          createdAt: String((c as { created_at?: unknown }).created_at ?? ""),
+          htmlUrl: String((c as { html_url?: unknown }).html_url ?? ""),
         };
       });
     },
