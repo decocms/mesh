@@ -28,6 +28,7 @@ import {
   updateTaskInCache,
 } from "./cache-operations.ts";
 import { buildOptimisticTask, callUpdateTaskTool } from "./helpers.ts";
+import { useChatNavigation } from "../hooks/use-chat-navigation.ts";
 import { useState, useTransition } from "react";
 import type { ChatMessage, Task } from "./types.ts";
 import { TASK_CONSTANTS } from "./types.ts";
@@ -136,6 +137,8 @@ export function useTaskManager(virtualMcpId: string) {
   const queryClient = useQueryClient();
   const { prefillCollectionCache } = useCollectionCachePrefill();
 
+  const { branch } = useChatNavigation();
+
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
 
@@ -197,7 +200,7 @@ export function useTaskManager(virtualMcpId: string) {
   // Create task (optimistic + cache)
   const createTask = (): string => {
     const newTaskId = crypto.randomUUID();
-    const optimisticTask = buildOptimisticTask(newTaskId, virtualMcpId);
+    const optimisticTask = buildOptimisticTask(newTaskId, virtualMcpId, branch);
     addTaskToCache(queryClient, locator, optimisticTask, {
       owner: ownerFilter,
       status: "open",
