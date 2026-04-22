@@ -231,7 +231,7 @@ function discoverScripts() {
 function runSetup() {
   // Clone the repo's default branch, then switch to BRANCH — fetching it
   // from origin when the remote has it, or creating it locally off default
-  // when it does not. This keeps newly-generated decopilot/* branches
+  // when it does not. This keeps newly-generated deco/* branches
   // working without requiring the caller to push first.
   // BRANCH is always non-empty — validated at daemon build time.
   const branchNameOk = (b) => /^[A-Za-z0-9._/-]+$/.test(b) && !b.startsWith("-");
