@@ -1,31 +1,36 @@
 /**
- * Prep Image Baker
+ * Prep Image Baker — orienting a cold reader
  *
- * Produces a Docker image that carries a cloned repo + installed dependencies
- * for a (user, repo) pair, so new thread containers can skip clone + install
- * on startup.
+ * What this does
+ *   Builds a Docker image that carries a cloned repo + installed deps for a
+ *   (user, repo) pair. Thread containers start *from* this image and skip
+ *   the clone + install cold-start that would otherwise hit every boot.
  *
- * Contract:
- *   bakePrepImage(input) → tag'd image name on success; throws on failure.
+ * Relationship to server/runner/
+ *   prep never starts a thread container; runner never builds an image.
+ *   Runner launches live thread containers from the image prep committed,
+ *   and shares the docker-CLI primitives (startContainer, execInContainer,
+ *   DEFAULT_WORKDIR) via `server/docker-helpers.ts`.
  *
- * Flow:
- *   1. `docker run` a builder container from the sandbox base image with
- *      the default daemon replaced by `sleep infinity` so we can exec into
- *      an otherwise idle container.
+ * tolerateExit everywhere
+ *   Install + warmup steps pass `tolerateExit: true`. A partial cache still
+ *   accelerates every future thread, so a flaky postinstall that returns
+ *   non-zero is worth logging and moving on — aborting the commit forces
+ *   every thread to redo the work from scratch.
+ *
+ * Adding a runtime
+ *   = new file in `./runtimes/` exporting a `Runtime` + one row in the
+ *   detection table in `./runtimes/index.ts`. Deno is the only runtime with
+ *   real warmup today; bun/node/none are install-only and live inline.
+ *
+ * Flow (what bakePrepImage does)
+ *   1. `docker run` a builder container with `sleep infinity` so we can
+ *      exec into it without the daemon.
  *   2. Clone the repo into `/app`.
- *   3. Detect the runtime (deno/bun/node/none) from the manifest files in
- *      the clone and delegate install + warmup to the runtime strategy.
- *      Runtime-specific behaviour lives in `./runtimes/<name>.ts` — this
- *      file never branches on runtime name.
- *   4. Probe the lockfile hash + git HEAD so the bake worker can detect
- *      stale caches.
- *   5. `docker commit` the builder to `mesh-sandbox-prep:<prepKey>`, restoring
- *      the daemon entrypoint so containers spawned from this image behave
- *      like a fresh runner container.
- *   6. `docker rm -f` the builder.
- *
- * The function is self-contained: no mesh/db imports, no ambient state. The
- * caller (prep worker) owns persistence and the row lifecycle.
+ *   3. Detect runtime, run its install + optional warmup.
+ *   4. Probe the lockfile hash + git HEAD (for stale-cache detection).
+ *   5. `docker commit` with the daemon entrypoint restored → tagged image.
+ *   6. `docker rm -f` the builder, even on failure.
  */
 
 import { DEFAULT_IMAGE, gitIdentityScript } from "../../shared";
