@@ -7,15 +7,15 @@
 
 import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
 import type { UIMessageStreamWriter } from "ai";
-import type { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
 import { toolNeedsApproval, type ToolApprovalLevel } from "../helpers";
 import { createAgentSearchTool } from "./agent-search";
 import { createReadToolOutputTool } from "./read-tool-output";
 import { createReadPromptTool } from "./prompts";
 import { createReadResourceTool } from "./resources";
 import { createSandboxTool, type VirtualClient } from "./sandbox";
-import { createSandboxBashTool, type SandboxRepoRef } from "./sandbox-bash";
 import { createVmTools } from "./vm-tools";
+import { createDockerHandleResolver } from "./vm-tools/docker-ensure";
+import type { SandboxRepoRef } from "./vm-tools/docker-ensure";
 import { createOpenInAgentTool } from "./open-in-agent";
 import { createSubtaskTool } from "./subtask";
 import { userAskTool } from "./user-ask";
@@ -36,19 +36,8 @@ export interface BuiltinToolParams {
   isPlanMode?: boolean;
   toolOutputMap: Map<string, string>;
   passthroughClient: VirtualClient;
-  /** When set, VM file tools replace the sandbox tool */
+  /** When set, Freestyle VM file tools replace the QuickJS sandbox tool. */
   activeVm?: { vmBaseUrl: string } | null;
-  /**
-   * Live Docker sandbox for this thread. When present, the same six VM file
-   * tools that Freestyle registers (read/write/edit/grep/glob/bash) are
-   * wired through `runner.proxyDaemonRequest` instead. Null when no live
-   * container exists yet — falls back to sandbox + sandbox-bash (which can
-   * lazy-provision on first call).
-   */
-  dockerVmSandbox?: {
-    runner: DockerSandboxRunner;
-    handle: string;
-  } | null;
   /**
    * GitHub repo attached to the agent's Virtual MCP. When set, the Docker
    * sandbox clones it on first provisioning. Ignored when `activeVm` is set
@@ -56,8 +45,10 @@ export interface BuiltinToolParams {
    */
   sandboxRepo?: SandboxRepoRef | null;
   /**
-   * Thread's `sandbox_ref` — identifies the shared Docker container for bash
-   * and the preview iframe. Null for legacy threads that predate the column.
+   * Thread's `sandbox_ref` — runner projectRef for the Docker container that
+   * backs both the LLM file tools and the preview iframe. When set on a
+   * Docker runner, the six VM tools register with a lazy resolver that
+   * provisions on first use. Null for legacy threads that predate the column.
    */
   sandboxRef?: string | null;
 }
@@ -84,7 +75,6 @@ function buildAllTools(
     toolOutputMap,
     passthroughClient,
     activeVm,
-    dockerVmSandbox,
     sandboxRepo,
     sandboxRef,
   } = params;
@@ -124,12 +114,22 @@ function buildAllTools(
       ctx,
     ),
   };
-  // VM file tools replace sandbox + sandbox-bash when a live sandbox exists —
-  // same six LLM-visible tools across runners (schemas in vm-tools/schemas.ts).
-  // When neither runner has a handle at registry time, fall back to the
-  // sandbox + sandbox-bash path which can lazy-provision on first call.
+  // VM file tools — the same six LLM-visible tools across runners (schemas in
+  // vm-tools/schemas.ts). Dispatch order:
+  //   1. Freestyle `activeVm` set → Freestyle transport.
+  //   2. Docker runner + sandboxRef → Docker transport with a lazy resolver
+  //      that provisions on first tool call (no pre-existing handle needed).
+  //   3. Otherwise → QuickJS `sandbox` tool only; neither VM surface applies
+  //      (Freestyle needs an explicit VM_START, Docker needs a sandboxRef).
   const vmNeedsApproval =
     toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false;
+  const dockerResolver =
+    !activeVm && sandboxRef
+      ? createDockerHandleResolver(ctx, {
+          sandboxRef,
+          repo: sandboxRepo ?? null,
+        })
+      : null;
   if (activeVm) {
     Object.assign(
       tools,
@@ -140,13 +140,13 @@ function buildAllTools(
         needsApproval: vmNeedsApproval,
       }),
     );
-  } else if (dockerVmSandbox) {
+  } else if (dockerResolver) {
     Object.assign(
       tools,
       createVmTools({
         runner: "docker",
-        dockerRunner: dockerVmSandbox.runner,
-        handle: dockerVmSandbox.handle,
+        dockerRunner: dockerResolver.runner,
+        ensureHandle: dockerResolver.ensureHandle,
         toolOutputMap,
         needsApproval: vmNeedsApproval,
       }),
@@ -157,15 +157,6 @@ function buildAllTools(
       toolOutputMap,
       needsApproval: vmNeedsApproval,
     });
-    tools.bash = createSandboxBashTool(
-      {
-        needsApproval: vmNeedsApproval,
-        toolOutputMap,
-        repo: sandboxRepo ?? null,
-        sandboxRef: sandboxRef ?? null,
-      },
-      ctx,
-    );
   }
   // subtask requires a provider (LLM calls) — skip when provider is null (Claude Code)
   if (provider) {
@@ -205,7 +196,6 @@ function buildAllTools(
     agent_search: ReturnType<typeof createAgentSearchTool>;
     read_tool_output: ReturnType<typeof createReadToolOutputTool>;
     sandbox: ReturnType<typeof createSandboxTool>;
-    bash: ReturnType<typeof createSandboxBashTool>;
     read_resource: ReturnType<typeof createReadResourceTool>;
     read_prompt: ReturnType<typeof createReadPromptTool>;
     open_in_agent: ReturnType<typeof createOpenInAgentTool>;

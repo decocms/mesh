@@ -80,10 +80,12 @@ async function daemonRequest(
 }
 
 export function createDockerVmTools(params: DockerVmToolsParams) {
-  const { dockerRunner, handle, toolOutputMap, needsApproval } = params;
+  const { dockerRunner, ensureHandle, toolOutputMap, needsApproval } = params;
   const approvalFor = (mutating: boolean) => (mutating ? needsApproval : false);
-  const call = (path: string, input: Record<string, unknown>) =>
-    daemonRequest(dockerRunner, handle, path, input);
+  const call = async (path: string, input: Record<string, unknown>) => {
+    const handle = await ensureHandle();
+    return daemonRequest(dockerRunner, handle, path, input);
+  };
 
   const read = tool({
     needsApproval: approvalFor(TOOL_APPROVAL.read),

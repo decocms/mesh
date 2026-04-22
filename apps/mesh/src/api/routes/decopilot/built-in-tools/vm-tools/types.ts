@@ -27,7 +27,13 @@ export interface FreestyleVmToolsParams extends CommonParams {
 export interface DockerVmToolsParams extends CommonParams {
   readonly runner: "docker";
   readonly dockerRunner: DockerSandboxRunner;
-  readonly handle: string;
+  /**
+   * Lazy handle resolver. Invoked on every tool call; expected to be idempotent
+   * and memoised by the caller so the first invocation provisions the container
+   * (and any repo clone / env / prep-image resolution) and subsequent calls
+   * hand back the cached handle.
+   */
+  readonly ensureHandle: () => Promise<string>;
 }
 
 export type VmToolsParams = FreestyleVmToolsParams | DockerVmToolsParams;

@@ -19,8 +19,6 @@ import {
   streamText,
 } from "ai";
 import { getBuiltInTools } from "./built-in-tools";
-import { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
-import { getSharedRunner } from "@/sandbox/shared-runner";
 import { createEnableToolsTool } from "./built-in-tools/enable-tools";
 import {
   buildBasePlatformPrompt,
@@ -443,33 +441,6 @@ async function streamCoreInner(
           : null;
         const sandboxRepo = virtualMcpMetadata?.githubRepo ?? null;
 
-        // Docker-runner parity with Freestyle: when a live container already
-        // exists for (userId, sandbox_ref), register the same six VM file
-        // tools that Freestyle does. No handle → skip and fall through to
-        // sandbox + sandbox-bash, which can lazy-provision on first call.
-        // The state-store lookup is cheap (pk probe); no daemon ping here —
-        // a dead container surfaces as a tool error rather than blocking
-        // tool registration.
-        let dockerVmSandbox: {
-          runner: DockerSandboxRunner;
-          handle: string;
-        } | null = null;
-        if (runnerKind === "docker" && mem.thread.sandbox_ref) {
-          const sharedRunner = getSharedRunner(ctx);
-          if (sharedRunner instanceof DockerSandboxRunner) {
-            const row = await ctx.db
-              .selectFrom("sandbox_runner_state")
-              .select(["handle"])
-              .where("user_id", "=", input.userId)
-              .where("project_ref", "=", mem.thread.sandbox_ref)
-              .where("runner_kind", "=", "docker")
-              .executeTakeFirst();
-            if (row) {
-              dockerVmSandbox = { runner: sharedRunner, handle: row.handle };
-            }
-          }
-        }
-
         const builtInTools = isCliAgent
           ? {}
           : await getBuiltInTools(
@@ -484,7 +455,6 @@ async function streamCoreInner(
                 toolOutputMap,
                 passthroughClient,
                 activeVm,
-                dockerVmSandbox,
                 sandboxRepo,
                 sandboxRef: mem.thread.sandbox_ref,
               },
