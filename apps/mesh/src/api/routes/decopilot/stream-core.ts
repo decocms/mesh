@@ -10,7 +10,11 @@ import type { MeshContext } from "@/core/mesh-context";
 import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 import { monitorLlmCall } from "@/monitoring/emit-llm-call";
 import { recordLlmCallMetrics } from "@/monitoring/record-llm-call-metrics";
-import { isDecopilot, sanitizeProviderMetadata } from "@decocms/mesh-sdk";
+import {
+  type GithubRepo,
+  isDecopilot,
+  sanitizeProviderMetadata,
+} from "@decocms/mesh-sdk";
 import { SpanStatusCode } from "@opentelemetry/api";
 import {
   type ToolSet,
@@ -23,6 +27,7 @@ import { createEnableToolsTool } from "./built-in-tools/enable-tools";
 import {
   buildBasePlatformPrompt,
   buildDecopilotAgentPrompt,
+  buildRepoEnvironmentPrompt,
   DEFAULT_MAX_TOKENS,
   DEFAULT_THREAD_TITLE,
   DEFAULT_WINDOW_SIZE,
@@ -418,11 +423,11 @@ async function streamCoreInner(
 
         // Resolve active VM for the current user — when present, VM file tools
         // replace the QuickJS sandbox in the built-in tool set.
-        const activeVmEntry = (
-          virtualMcp.metadata as {
-            activeVms?: Record<string, { previewUrl: string }>;
-          }
-        )?.activeVms?.[input.userId];
+        const vmMetadata = virtualMcp.metadata as {
+          activeVms?: Record<string, { previewUrl: string }>;
+          githubRepo?: GithubRepo | null;
+        };
+        const activeVmEntry = vmMetadata?.activeVms?.[input.userId];
         const activeVm = activeVmEntry
           ? { vmBaseUrl: activeVmEntry.previewUrl }
           : null;
@@ -505,10 +510,15 @@ async function streamCoreInner(
             ? modeConfig.webSearchInstructionPrompt
             : null;
 
+        const repoEnvironmentPrompt = vmMetadata?.githubRepo
+          ? buildRepoEnvironmentPrompt(vmMetadata.githubRepo)
+          : null;
+
         const systemPrompts = [
           basePrompt,
           planModePrompt,
           webSearchPrompt,
+          repoEnvironmentPrompt,
           toolCatalog,
           promptCatalog,
           agentPrompt,
