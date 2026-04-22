@@ -64,7 +64,10 @@ export function HeaderActions({ virtualMcpId }: Props) {
   if (state.kind === "no-pr") {
     return (
       <>
-        <Separator orientation="vertical" className="mx-2 h-5" />
+        <Separator
+          orientation="vertical"
+          className="mx-2 data-[orientation=vertical]:h-5"
+        />
         <Button
           size="sm"
           disabled={disabled}
@@ -79,7 +82,10 @@ export function HeaderActions({ virtualMcpId }: Props) {
   if (state.kind === "closed") {
     return (
       <>
-        <Separator orientation="vertical" className="mx-2 h-5" />
+        <Separator
+          orientation="vertical"
+          className="mx-2 data-[orientation=vertical]:h-5"
+        />
         <OverflowMenu>
           <DropdownMenuItem onClick={() => openExt(state.pr.htmlUrl)}>
             <LinkExternal01 className="mr-2 h-4 w-4" />
@@ -102,7 +108,10 @@ export function HeaderActions({ virtualMcpId }: Props) {
   const prNumber = state.pr.number;
   return (
     <>
-      <Separator orientation="vertical" className="mx-2 h-5" />
+      <Separator
+        orientation="vertical"
+        className="mx-2 data-[orientation=vertical]:h-5"
+      />
       <div className="flex items-center gap-1">
         <MergeSplitButton
           owner={owner}
