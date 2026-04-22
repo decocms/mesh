@@ -89,12 +89,6 @@ export function resolveReviewComments(
   return `On repo \`${repoRef(ctx)}\`, read the unresolved review threads on PR #${ctx.prNumber} via the GitHub MCP tools. For each thread: understand the reviewer's ask, make the needed changes in the vm's working tree, commit, push, post a reply explaining what changed, and mark the thread resolved. If a comment is a question that doesn't need a code change, reply with the answer and resolve. ${GIT_CLI_PREAMBLE}`;
 }
 
-export function closePr(
-  ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber">,
-): string {
-  return `On repo \`${repoRef(ctx)}\`, close PR #${ctx.prNumber} without merging. Use the GitHub MCP tools for this PR-level operation.`;
-}
-
 export function reopenPr(
   ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber">,
 ): string {

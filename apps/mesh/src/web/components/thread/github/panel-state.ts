@@ -113,21 +113,3 @@ export function selectHeaderButton(input: {
 
   return null;
 }
-
-/** @deprecated — kept temporarily for header-actions.tsx until Task 7. */
-export type PanelState =
-  | { kind: "no-branch" }
-  | { kind: "no-pr" }
-  | { kind: "open"; pr: PrSummary }
-  | { kind: "closed"; pr: PrSummary };
-
-/** @deprecated — kept temporarily for header-actions.tsx until Task 7. */
-export function derivePanelState(
-  branch: string | null | undefined,
-  pr: PrSummary | null | undefined,
-): PanelState {
-  if (!branch) return { kind: "no-branch" };
-  if (!pr) return { kind: "no-pr" };
-  if (pr.state === "closed") return { kind: "closed", pr };
-  return { kind: "open", pr };
-}
