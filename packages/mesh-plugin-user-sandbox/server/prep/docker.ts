@@ -9,11 +9,7 @@
 
 import { DAEMON_PORT } from "../../shared";
 import { dockerExec, type DockerResult } from "../docker-cli";
-import {
-  DEFAULT_WORKDIR,
-  execInContainer,
-  startContainer,
-} from "../docker-helpers";
+import { execInContainer, startContainer } from "../docker-helpers";
 
 export { shellQuote } from "../../shared";
 export { DEFAULT_WORKDIR } from "../docker-helpers";
