@@ -79,7 +79,6 @@ export interface PrComment {
   htmlUrl: string;
 }
 
-
 /**
  * Fetches the first PR matching a branch head (open or closed).
  * Returns null when no PR exists yet for that branch.
