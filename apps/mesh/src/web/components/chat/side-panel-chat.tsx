@@ -209,7 +209,7 @@ function ChatAgentHeader() {
   const displayAgent = selectedVirtualMcp ?? defaultAgent;
 
   return (
-    <div className="flex items-center gap-2 px-4 h-10 shrink-0 border-b">
+    <div className="flex items-center justify-center gap-2 px-4 h-10 shrink-0 border-b">
       <IntegrationIcon
         icon={displayAgent.icon}
         name={displayAgent.title}
