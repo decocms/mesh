@@ -3,8 +3,18 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import type { VmMapEntry } from "@decocms/mesh-sdk";
 
 import { readVmMap, resolveVm } from "./vm-map";
+
+const ENTRY_A: VmMapEntry = {
+  vmId: "vm-1",
+  previewUrl: "https://vm-1.deco.studio",
+};
+const ENTRY_B: VmMapEntry = {
+  vmId: "vm-2",
+  previewUrl: "https://vm-2.deco.studio",
+};
 
 describe("readVmMap", () => {
   test("returns empty object when metadata is null", () => {
@@ -20,7 +30,7 @@ describe("readVmMap", () => {
   });
 
   test("returns the vmMap when present", () => {
-    const vmMap = { "user-1": { main: "vm-1" } };
+    const vmMap = { "user-1": { main: ENTRY_A } };
     expect(readVmMap({ vmMap })).toEqual(vmMap);
   });
 
@@ -35,21 +45,21 @@ describe("resolveVm", () => {
   });
 
   test("returns null when branch is absent for that user", () => {
-    const vmMap = { "user-1": { main: "vm-1" } };
+    const vmMap = { "user-1": { main: ENTRY_A } };
     expect(resolveVm(vmMap, "user-1", "feat/x")).toBeNull();
   });
 
-  test("returns the vm id when both are present", () => {
-    const vmMap = { "user-1": { main: "vm-1", "feat/x": "vm-2" } };
-    expect(resolveVm(vmMap, "user-1", "feat/x")).toBe("vm-2");
+  test("returns the entry when both are present", () => {
+    const vmMap = { "user-1": { main: ENTRY_A, "feat/x": ENTRY_B } };
+    expect(resolveVm(vmMap, "user-1", "feat/x")).toEqual(ENTRY_B);
   });
 
   test("isolates users from each other", () => {
     const vmMap = {
-      "user-1": { main: "vm-1" },
-      "user-2": { main: "vm-2" },
+      "user-1": { main: ENTRY_A },
+      "user-2": { main: ENTRY_B },
     };
-    expect(resolveVm(vmMap, "user-1", "main")).toBe("vm-1");
-    expect(resolveVm(vmMap, "user-2", "main")).toBe("vm-2");
+    expect(resolveVm(vmMap, "user-1", "main")).toEqual(ENTRY_A);
+    expect(resolveVm(vmMap, "user-2", "main")).toEqual(ENTRY_B);
   });
 });
