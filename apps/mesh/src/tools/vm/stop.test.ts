@@ -1,6 +1,6 @@
 import { describe, it, expect, mock, beforeEach } from "bun:test";
+import type { VmMap, VmMapEntry } from "@decocms/mesh-sdk";
 import type { MeshContext } from "../../core/mesh-context";
-import type { VmEntry, VmMetadata } from "./types";
 
 // ---------------------------------------------------------------------------
 // Mock freestyle-sandboxes BEFORE importing VM_DELETE (Bun requires this order)
@@ -19,20 +19,22 @@ mock.module("freestyle-sandboxes", () => ({
   },
 }));
 
-// Now import after mocking
 const { VM_DELETE } = await import("./stop");
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-const EXISTING_ENTRY: VmEntry = {
+const BRANCH = "feat/example";
+
+const EXISTING_ENTRY: VmMapEntry = {
   vmId: "vm_existing",
   previewUrl: "https://vmcp-1.deco.studio",
-  terminalUrl: null,
 };
 
-function makeVirtualMcp(orgId: string, metadata: VmMetadata, id = "vmcp_1") {
+type Metadata = { vmMap?: VmMap };
+
+function makeVirtualMcp(orgId: string, metadata: Metadata, id = "vmcp_1") {
   return {
     id,
     organization_id: orgId,
@@ -63,7 +65,7 @@ function makeCtx(overrides: {
     auth: {
       user: {
         id: userId,
-        email: "[email protected]",
+        email: "test@example.com",
         name: "Test",
         role: "user",
       },
@@ -76,10 +78,7 @@ function makeCtx(overrides: {
       setToolName: () => {},
     },
     storage: {
-      virtualMcps: {
-        findById,
-        update: updateSpy,
-      },
+      virtualMcps: { findById, update: updateSpy },
     } as never,
     timings: {
       measure: async <T>(_name: string, cb: () => Promise<T>) => await cb(),
@@ -126,40 +125,40 @@ describe("VM_DELETE", () => {
     mockVmDelete.mockImplementation(async () => {});
   });
 
-  it("deletes Freestyle VM and removes DB entry when activeVms entry exists for user", async () => {
-    const metadata: VmMetadata = {
-      activeVms: { "user-1": EXISTING_ENTRY },
+  it("deletes Freestyle VM and removes vmMap entry when entry exists for (user, branch)", async () => {
+    const metadata: Metadata = {
+      vmMap: { "user-1": { [BRANCH]: EXISTING_ENTRY } },
     };
     const virtualMcp = makeVirtualMcp("org_1", metadata);
     const updateSpy = mock(async () => {});
     const ctx = makeCtx({ virtualMcp, updateSpy });
 
-    const result = await VM_DELETE.handler({ virtualMcpId: "vmcp_1" }, ctx);
+    const result = await VM_DELETE.handler(
+      { virtualMcpId: "vmcp_1", branch: BRANCH },
+      ctx,
+    );
 
     expect(result).toEqual({ success: true });
-
-    // Freestyle vm.delete() was called
     expect(mockVmDelete).toHaveBeenCalledTimes(1);
 
-    // patchActiveVms called storage.update once
     expect(updateSpy).toHaveBeenCalledTimes(1);
-
-    // Verify user-1 key was removed from activeVms
     const updateCall = (updateSpy.mock.calls as unknown[][])[0]!;
-    const updatedMetadata = (updateCall[2] as { metadata: VmMetadata })
-      .metadata;
-    expect(updatedMetadata.activeVms?.["user-1"]).toBeUndefined();
+    const updated = (updateCall[2] as { metadata: { vmMap: VmMap } }).metadata;
+    expect(updated.vmMap["user-1"]).toBeUndefined();
   });
 
-  it("skips Freestyle delete and DB update when no activeVms entry for user", async () => {
-    const metadata: VmMetadata = {
-      activeVms: { "other-user": EXISTING_ENTRY },
+  it("skips Freestyle delete and DB update when no vmMap entry for (user, branch)", async () => {
+    const metadata: Metadata = {
+      vmMap: { "other-user": { [BRANCH]: EXISTING_ENTRY } },
     };
     const virtualMcp = makeVirtualMcp("org_1", metadata);
     const updateSpy = mock(async () => {});
     const ctx = makeCtx({ virtualMcp, updateSpy });
 
-    const result = await VM_DELETE.handler({ virtualMcpId: "vmcp_1" }, ctx);
+    const result = await VM_DELETE.handler(
+      { virtualMcpId: "vmcp_1", branch: BRANCH },
+      ctx,
+    );
 
     expect(result).toEqual({ success: true });
     expect(mockVmDelete).not.toHaveBeenCalled();
@@ -170,7 +169,7 @@ describe("VM_DELETE", () => {
     const ctx = makeCtx({ virtualMcp: null });
 
     const result = await VM_DELETE.handler(
-      { virtualMcpId: "vmcp_missing" },
+      { virtualMcpId: "vmcp_missing", branch: BRANCH },
       ctx,
     );
 
@@ -179,17 +178,15 @@ describe("VM_DELETE", () => {
   });
 
   it("throws 'User ID required' when userId is unavailable", async () => {
-    const metadata: VmMetadata = {};
+    const metadata: Metadata = {};
     const virtualMcp = makeVirtualMcp("org_1", metadata);
-    // Pass empty string to simulate missing userId — getUserId returns undefined/falsy
     const ctx = makeCtx({ virtualMcp, userId: "" });
 
-    // Patch auth.user.id to undefined to simulate missing user ID
     (ctx as unknown as { auth: { user: { id: undefined } } }).auth.user.id =
       undefined;
 
     await expect(
-      VM_DELETE.handler({ virtualMcpId: "vmcp_1" }, ctx),
+      VM_DELETE.handler({ virtualMcpId: "vmcp_1", branch: BRANCH }, ctx),
     ).rejects.toThrow("User ID required");
   });
 });
