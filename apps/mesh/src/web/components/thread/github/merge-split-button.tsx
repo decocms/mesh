@@ -30,12 +30,9 @@ export function MergeSplitButton({
   disabled,
   send,
 }: Props) {
-  const squash = () =>
-    send(tpl.mergeSquash({ owner, repo, prNumber, base }));
-  const rebase = () =>
-    send(tpl.mergeRebase({ owner, repo, prNumber, base }));
-  const commit = () =>
-    send(tpl.mergeCommit({ owner, repo, prNumber, base }));
+  const squash = () => send(tpl.mergeSquash({ owner, repo, prNumber, base }));
+  const rebase = () => send(tpl.mergeRebase({ owner, repo, prNumber, base }));
+  const commit = () => send(tpl.mergeCommit({ owner, repo, prNumber, base }));
 
   return (
     <div className="inline-flex items-stretch rounded-md">

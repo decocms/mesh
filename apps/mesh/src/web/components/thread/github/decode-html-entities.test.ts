@@ -29,7 +29,7 @@ describe("decodeHtmlEntities", () => {
   test("real-world PR title from GitHub API", () => {
     expect(
       decodeHtmlEntities(
-        'feat: change Hero title to &#34;Hello VTEX DAY 2026&#34;',
+        "feat: change Hero title to &#34;Hello VTEX DAY 2026&#34;",
       ),
     ).toBe('feat: change Hero title to "Hello VTEX DAY 2026"');
   });
