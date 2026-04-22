@@ -1,36 +1,24 @@
 /**
- * Prep Image Baker — orienting a cold reader
+ * Prep Image Baker.
  *
- * What this does
- *   Builds a Docker image that carries a cloned repo + installed deps for a
- *   (user, repo) pair. Thread containers start *from* this image and skip
- *   the clone + install cold-start that would otherwise hit every boot.
+ * What: builds a Docker image carrying a cloned repo + installed deps for a
+ * (user, repo) pair; thread containers boot from this image to skip the
+ * clone + install cold-start.
  *
- * Relationship to server/runner/
- *   prep never starts a thread container; runner never builds an image.
- *   Runner launches live thread containers from the image prep committed,
- *   and shares the docker-CLI primitives (startContainer, execInContainer,
- *   DEFAULT_WORKDIR) via `server/docker-helpers.ts`.
+ * Relationship to server/runner/: prep builds images, runner launches live
+ * thread containers from them — complementary, not duplicated. Both share
+ * the docker-CLI primitives in `server/docker-helpers.ts`.
  *
- * tolerateExit everywhere
- *   Install + warmup steps pass `tolerateExit: true`. A partial cache still
- *   accelerates every future thread, so a flaky postinstall that returns
- *   non-zero is worth logging and moving on — aborting the commit forces
- *   every thread to redo the work from scratch.
+ * tolerateExit is everywhere on install + warmup because a partial cache
+ * still accelerates every future thread; aborting the commit on a flaky
+ * postinstall punishes every subsequent boot.
  *
- * Adding a runtime
- *   = new file in `./runtimes/` exporting a `Runtime` + one row in the
- *   detection table in `./runtimes/index.ts`. Deno is the only runtime with
- *   real warmup today; bun/node/none are install-only and live inline.
+ * Adding a runtime = new file in `./runtimes/` + one row in the detection
+ * table in `./runtimes/index.ts`. Deno is the only runtime with real
+ * warmup; bun/node/none are install-only and live inline.
  *
- * Flow (what bakePrepImage does)
- *   1. `docker run` a builder container with `sleep infinity` so we can
- *      exec into it without the daemon.
- *   2. Clone the repo into `/app`.
- *   3. Detect runtime, run its install + optional warmup.
- *   4. Probe the lockfile hash + git HEAD (for stale-cache detection).
- *   5. `docker commit` with the daemon entrypoint restored → tagged image.
- *   6. `docker rm -f` the builder, even on failure.
+ * Flow: startBuilder → clone → detect runtime → install + optional warmup →
+ *       probe lockfile/HEAD → commitBuilder → rm -f (even on failure).
  */
 
 import { DEFAULT_IMAGE, gitIdentityScript } from "../../shared";
