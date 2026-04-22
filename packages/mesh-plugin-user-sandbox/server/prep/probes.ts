@@ -65,20 +65,85 @@ export async function probeHeadSha(handle: string): Promise<string | null> {
 
 /**
  * True iff the deno config file in the workdir defines a task named `name`.
- * Uses `grep` instead of parsing JSON so the probe doesn't need `jq` in the
- * base image and survives JSONC comments. False positives are fine — the
- * caller `tolerateExit`-wraps the step.
+ * Reads `deno.json` (preferring that over `deno.jsonc`) and parses it in
+ * Node, so "tasks" matches on the object shape and not a stray colon
+ * inside a comment or unrelated key. Any read/parse error returns false —
+ * the caller is always `tolerateExit`-wrapped.
  */
 export async function probeDenoTask(
   handle: string,
   name: string,
 ): Promise<boolean> {
   const workdir = shellQuote(DEFAULT_WORKDIR);
-  const quoted = shellQuote(`"${name}"[[:space:]]*:`);
-  const result = await execInContainer(
+  const probe = await execInContainer(
     handle,
-    `cd ${workdir} && (cat deno.json 2>/dev/null || cat deno.jsonc 2>/dev/null) | grep -Eq ${quoted}`,
+    `cd ${workdir} && (cat deno.json 2>/dev/null || cat deno.jsonc 2>/dev/null || true)`,
     PROBE_OPTS,
   );
-  return result.code === 0;
+  const text = probe.stdout.trim();
+  if (!text) return false;
+  const parsed = parseJsonOrJsonc(text);
+  if (!parsed || typeof parsed !== "object") return false;
+  const tasks = (parsed as { tasks?: unknown }).tasks;
+  return (
+    tasks !== null &&
+    typeof tasks === "object" &&
+    Object.prototype.hasOwnProperty.call(tasks, name)
+  );
+}
+
+function parseJsonOrJsonc(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    try {
+      return JSON.parse(stripJsoncComments(text));
+    } catch {
+      return null;
+    }
+  }
+}
+
+/**
+ * Strip `//` line and `/* … *\/` block comments while leaving string
+ * contents intact. Small state machine instead of a dep: deno config files
+ * are tiny, and a regex-only approach would mangle a `//` inside a string.
+ */
+function stripJsoncComments(s: string): string {
+  let out = "";
+  let i = 0;
+  let inString = false;
+  while (i < s.length) {
+    const c = s[i];
+    if (inString) {
+      out += c;
+      if (c === "\\" && i + 1 < s.length) {
+        out += s[i + 1];
+        i += 2;
+        continue;
+      }
+      if (c === '"') inString = false;
+      i++;
+      continue;
+    }
+    if (c === '"') {
+      inString = true;
+      out += c;
+      i++;
+      continue;
+    }
+    if (c === "/" && s[i + 1] === "/") {
+      while (i < s.length && s[i] !== "\n") i++;
+      continue;
+    }
+    if (c === "/" && s[i + 1] === "*") {
+      i += 2;
+      while (i < s.length - 1 && !(s[i] === "*" && s[i + 1] === "/")) i++;
+      i += 2;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
 }
