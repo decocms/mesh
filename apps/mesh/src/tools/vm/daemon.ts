@@ -185,6 +185,7 @@ function computeBranchStatus() {
       return "";
     }
   };
+  const refExists = (ref) => exec("git rev-parse --verify --quiet " + JSON.stringify(ref)).length > 0;
   try {
     const branch = exec("git rev-parse --abbrev-ref HEAD");
     if (!branch || branch === "HEAD") return null;
@@ -192,11 +193,21 @@ function computeBranchStatus() {
     if (base.startsWith("origin/")) base = base.slice("origin/".length);
     if (!base) base = "main";
     const dirty = exec("git status --porcelain=v1").length > 0;
-    const unpushed = Number(exec("git rev-list --count origin/" + branch + "..HEAD") || "0");
+
+    // origin/<branch> may not exist (not fetched yet, or local-only). Fall back
+    // to HEAD on the "branch" side when it's missing — we can still measure
+    // ahead-of-base that way; unpushed stays 0 because we can't see a diff.
+    const branchRef = refExists("origin/" + branch) ? "origin/" + branch : "HEAD";
+    const unpushed = branchRef === "origin/" + branch
+      ? Number(exec("git rev-list --count origin/" + branch + "..HEAD") || "0")
+      : 0;
+
     let aheadOfBase = 0, behindBase = 0;
-    const lrcount = exec("git rev-list --left-right --count origin/" + base + "...origin/" + branch);
-    const m = lrcount.match(/^(\\d+)\\s+(\\d+)$/);
-    if (m) { behindBase = Number(m[1]); aheadOfBase = Number(m[2]); }
+    if (refExists("origin/" + base)) {
+      const lrcount = exec("git rev-list --left-right --count origin/" + base + "..." + branchRef);
+      const m = lrcount.match(/^(\\d+)\\s+(\\d+)$/);
+      if (m) { behindBase = Number(m[1]); aheadOfBase = Number(m[2]); }
+    }
     return { branch: branch, base: base, workingTreeDirty: dirty, unpushed: unpushed, aheadOfBase: aheadOfBase, behindBase: behindBase };
   } catch (e) {
     log("branch-status compute failed:", e && e.message ? e.message : e);
@@ -337,8 +348,18 @@ function runSetup() {
 
     // Resolve BRANCH: fetch from remote when it exists there, otherwise
     // create locally off the default branch we just cloned.
+    //
+    // The refspec form +refs/heads/BRANCH:refs/remotes/origin/BRANCH creates
+    // the remote-tracking ref in one step so branch-status can diff against
+    // origin/<branch>. The paired local-branch copy happens with a second
+    // fetch using the BRANCH:BRANCH refspec below.
     let branchOnRemote = false;
     try {
+      execSync(
+        "git fetch origin " +
+          JSON.stringify("+refs/heads/" + BRANCH + ":refs/remotes/origin/" + BRANCH),
+        { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV, stdio: "pipe" },
+      );
       execSync(
         "git fetch origin " + JSON.stringify(BRANCH) + ":" + JSON.stringify(BRANCH),
         { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV, stdio: "pipe" },
