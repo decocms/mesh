@@ -200,30 +200,6 @@ function HomeEmptyState({
   );
 }
 
-// ---------- Chat agent header (shown above messages) ----------
-
-function ChatAgentHeader() {
-  const { org } = useProjectContext();
-  const { selectedVirtualMcp } = useChatPrefs();
-  const defaultAgent = getWellKnownDecopilotVirtualMCP(org.id);
-  const displayAgent = selectedVirtualMcp ?? defaultAgent;
-
-  return (
-    <div className="flex items-center justify-center gap-2 px-4 h-10 shrink-0 border-b">
-      <IntegrationIcon
-        icon={displayAgent.icon}
-        name={displayAgent.title}
-        size="xs"
-        fallbackIcon={<Users03 size={14} />}
-        className="size-5 min-w-5 rounded-md"
-      />
-      <span className="text-sm font-medium text-foreground truncate">
-        {displayAgent.title}
-      </span>
-    </div>
-  );
-}
-
 // ---------- Default sidebar empty state ----------
 
 function SidebarEmptyState() {
@@ -325,7 +301,6 @@ function ChatPanelContent({ variant }: { variant?: "home" | "default" }) {
       >
         {!isChatEmpty ? (
           <>
-            <ChatAgentHeader />
             <Chat.Main>
               <Chat.Messages />
             </Chat.Main>

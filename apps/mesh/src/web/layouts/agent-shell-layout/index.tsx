@@ -63,7 +63,6 @@ import { EmptyState } from "@/web/components/empty-state";
 import { useChatMainPanelState } from "@/web/hooks/use-layout-state";
 import { getActiveGithubRepo } from "@/web/lib/github-repo";
 import { TasksPanelStateProvider } from "@/web/hooks/use-tasks-panel-state";
-import { Separator } from "@deco/ui/components/separator.tsx";
 import { Toolbar } from "./toolbar";
 import { TasksPanelColumn } from "./tasks-panel-column";
 import { ChatMainPanelGroup } from "./chat-main-panel-group";
@@ -369,8 +368,6 @@ function AgentInsetProvider() {
         />
       </Toolbar.Toggles>
 
-      {!isDecopilot && <VirtualMcpHeaderInfo virtualMcp={entity} />}
-
       {!isDecopilot && (
         <Toolbar.Tabs>
           <MainPanelTabsBar
@@ -381,6 +378,7 @@ function AgentInsetProvider() {
       )}
 
       <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
+        {!isDecopilot && <VirtualMcpHeaderInfo virtualMcp={entity} />}
         <NewTaskBridge
           onNewTaskRef={onNewTask}
           createNewTask={layout.createNewTask}
@@ -452,15 +450,15 @@ export default function AgentShellLayout() {
                 <TasksPanelStateProvider>
                   <Toolbar>
                     <Toolbar.Header>
-                      <Toolbar.Nav />
-                      <Toolbar.TogglesSlot />
-                      <Separator
-                        orientation="vertical"
-                        className="mx-2 data-[orientation=vertical]:h-5"
-                      />
-                      <Toolbar.LeftSlot />
-                      <Toolbar.TabsSlot />
-                      <Toolbar.RightSlot />
+                      <Toolbar.LeftColumn>
+                        <Toolbar.Nav />
+                        <Toolbar.TogglesSlot />
+                      </Toolbar.LeftColumn>
+                      <Toolbar.CenterSlot />
+                      <Toolbar.RightColumn>
+                        <Toolbar.TabsSlot />
+                        <Toolbar.RightSlot />
+                      </Toolbar.RightColumn>
                     </Toolbar.Header>
                     <div className="flex-1 min-h-0 flex flex-row">
                       <TasksPanelColumn />

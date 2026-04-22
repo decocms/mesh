@@ -1,14 +1,17 @@
 /**
  * Toolbar — vertical shell containing a fixed header row plus a body slot.
  *
- * The header hosts back/forward buttons plus three portal targets:
- *   - Toolbar.LeftSlot      — contextual label (e.g. virtual MCP icon + title)
+ * The header is a 3-column grid (1fr 1fr 1fr) so the center column is always
+ * centered relative to the screen regardless of left/right content widths.
+ *
+ * Portal targets:
+ *   - Toolbar.CenterSlot    — contextual label (e.g. virtual MCP icon + title)
  *   - Toolbar.TabsSlot      — main-panel tab bar (scrollable)
  *   - Toolbar.TogglesSlot   — tasks/chat toggle buttons
+ *   - Toolbar.RightSlot     — right-side actions (e.g. Create PR)
  *
- * Consumers live inside the inner Suspense and render into the slots via
- * <Toolbar.Left> / <Toolbar.Tabs> / <Toolbar.Toggles> (createPortal).
- * Never suspends itself.
+ * Consumers render into the slots via <Toolbar.Center> / <Toolbar.Tabs> /
+ * <Toolbar.Toggles> / <Toolbar.Right> (createPortal). Never suspends itself.
  */
 
 import { createContext, use, useState, type ReactNode } from "react";
@@ -20,8 +23,8 @@ type ToolbarCtx = {
   setTogglesEl: (el: HTMLDivElement | null) => void;
   tabsEl: HTMLDivElement | null;
   setTabsEl: (el: HTMLDivElement | null) => void;
-  leftEl: HTMLDivElement | null;
-  setLeftEl: (el: HTMLDivElement | null) => void;
+  centerEl: HTMLDivElement | null;
+  setCenterEl: (el: HTMLDivElement | null) => void;
   rightEl: HTMLDivElement | null;
   setRightEl: (el: HTMLDivElement | null) => void;
 };
@@ -37,7 +40,7 @@ function useToolbarCtx(): ToolbarCtx {
 export function Toolbar({ children }: { children?: ReactNode }) {
   const [togglesEl, setTogglesEl] = useState<HTMLDivElement | null>(null);
   const [tabsEl, setTabsEl] = useState<HTMLDivElement | null>(null);
-  const [leftEl, setLeftEl] = useState<HTMLDivElement | null>(null);
+  const [centerEl, setCenterEl] = useState<HTMLDivElement | null>(null);
   const [rightEl, setRightEl] = useState<HTMLDivElement | null>(null);
   return (
     <ToolbarContext
@@ -46,8 +49,8 @@ export function Toolbar({ children }: { children?: ReactNode }) {
         setTogglesEl,
         tabsEl,
         setTabsEl,
-        leftEl,
-        setLeftEl,
+        centerEl,
+        setCenterEl,
         rightEl,
         setRightEl,
       }}
@@ -59,7 +62,23 @@ export function Toolbar({ children }: { children?: ReactNode }) {
 
 function ToolbarHeader({ children }: { children?: ReactNode }) {
   return (
-    <div className="shrink-0 flex items-center justify-between pl-1 pr-2 pt-0.25 h-10">
+    <div className="shrink-0 grid grid-cols-3 items-center pl-1 pr-2 pt-0.25 h-10">
+      {children}
+    </div>
+  );
+}
+
+function ToolbarLeftColumn({ children }: { children?: ReactNode }) {
+  return (
+    <div className="flex items-center gap-0.5 min-w-0 justify-self-start">
+      {children}
+    </div>
+  );
+}
+
+function ToolbarRightColumn({ children }: { children?: ReactNode }) {
+  return (
+    <div className="flex items-center justify-end gap-0.5 min-w-0 justify-self-end">
       {children}
     </div>
   );
@@ -67,7 +86,7 @@ function ToolbarHeader({ children }: { children?: ReactNode }) {
 
 function ToolbarNav() {
   return (
-    <div className="flex items-center gap-0.5 min-w-0">
+    <>
       <button
         type="button"
         onClick={() => window.history.back()}
@@ -84,21 +103,24 @@ function ToolbarNav() {
       >
         <ChevronRight size={16} />
       </button>
-    </div>
+    </>
   );
 }
 
-function ToolbarLeftSlot() {
-  const { setLeftEl } = useToolbarCtx();
+function ToolbarCenterSlot() {
+  const { setCenterEl } = useToolbarCtx();
   return (
-    <div ref={setLeftEl} className="flex items-center gap-2 min-w-0 shrink" />
+    <div
+      ref={setCenterEl}
+      className="min-w-0 flex items-center justify-center gap-2"
+    />
   );
 }
 
-function ToolbarLeft({ children }: { children: ReactNode }) {
-  const { leftEl } = useToolbarCtx();
-  if (!leftEl) return null;
-  return createPortal(children, leftEl);
+function ToolbarCenter({ children }: { children: ReactNode }) {
+  const { centerEl } = useToolbarCtx();
+  if (!centerEl) return null;
+  return createPortal(children, centerEl);
 }
 
 function ToolbarTabsSlot() {
@@ -106,7 +128,7 @@ function ToolbarTabsSlot() {
   return (
     <div
       ref={setTabsEl}
-      className="flex-1 min-w-0 flex items-center overflow-x-auto"
+      className="shrink-0 flex items-center overflow-x-auto"
     />
   );
 }
@@ -122,7 +144,7 @@ function ToolbarTogglesSlot() {
   return (
     <div
       ref={setTogglesEl}
-      className="flex items-center justify-end gap-0.5 shrink-0 ml-0.5"
+      className="flex items-center gap-0.5 shrink-0 ml-0.5"
     />
   );
 }
@@ -150,9 +172,11 @@ function ToolbarRight({ children }: { children: ReactNode }) {
 }
 
 Toolbar.Header = ToolbarHeader;
+Toolbar.LeftColumn = ToolbarLeftColumn;
+Toolbar.RightColumn = ToolbarRightColumn;
 Toolbar.Nav = ToolbarNav;
-Toolbar.LeftSlot = ToolbarLeftSlot;
-Toolbar.Left = ToolbarLeft;
+Toolbar.CenterSlot = ToolbarCenterSlot;
+Toolbar.Center = ToolbarCenter;
 Toolbar.TabsSlot = ToolbarTabsSlot;
 Toolbar.Tabs = ToolbarTabs;
 Toolbar.TogglesSlot = ToolbarTogglesSlot;
