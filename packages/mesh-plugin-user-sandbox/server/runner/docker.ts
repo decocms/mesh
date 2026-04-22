@@ -9,6 +9,7 @@ import {
   waitForDaemonReady,
 } from "./daemon-client";
 import { dockerExec, type DockerResult } from "../docker-cli";
+import { DEFAULT_WORKDIR, startContainer } from "../docker-helpers";
 import type { RunnerStateStore } from "./state-store";
 import type {
   EnsureOptions,
@@ -24,7 +25,6 @@ import { sandboxIdKey } from "./types";
 const RUNNER_KIND = "docker";
 const LABEL_ROOT = "mesh-sandbox";
 const LABEL_ID = "mesh-sandbox.id";
-const DEFAULT_WORKDIR = "/app";
 const PORT_READBACK_ATTEMPTS = 15;
 const PORT_READBACK_INTERVAL_MS = 200;
 
@@ -441,36 +441,26 @@ export class DockerSandboxRunner implements SandboxRunner {
       ? ["--watch", "/opt/sandbox-daemon/daemon.mjs"]
       : [];
 
-    const args = [
-      "run",
-      "-d",
-      "--rm",
-      "--init",
-      "--label",
-      `${this.labelPrefix}=1`,
-      "--label",
-      `${LABEL_ID}=${labelId}`,
-      ...devEntrypointArgs,
-      ...hostArgs,
-      ...networkArgs,
-      ...mountArgs,
-      ...devMountArgs,
-      ...portPublishArgs,
-      ...Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
-      image,
-      ...devCmdArgs,
-    ];
-    const result = await this.exec_(args);
-    if (result.code !== 0) {
-      throw new Error(
-        `docker run failed (exit ${result.code}): ${result.stderr.trim() || "no output"}`,
-      );
-    }
-
-    const handle = result.stdout.trim().split("\n").pop()?.trim();
-    if (!handle) {
-      throw new Error("docker run did not return a container id");
-    }
+    const { id: handle } = await startContainer(image, {
+      label: "sandbox",
+      exec: this.exec_,
+      args: [
+        "--rm",
+        "--init",
+        "--label",
+        `${this.labelPrefix}=1`,
+        "--label",
+        `${LABEL_ID}=${labelId}`,
+        ...devEntrypointArgs,
+        ...hostArgs,
+        ...networkArgs,
+        ...mountArgs,
+        ...devMountArgs,
+        ...portPublishArgs,
+        ...Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
+      ],
+      command: devCmdArgs,
+    });
 
     if (!daemonUrl) {
       const hostPort = await this.readPort(handle, DAEMON_PORT);

@@ -9,11 +9,16 @@
 
 import { DAEMON_PORT } from "../../shared";
 import { dockerExec, type DockerResult } from "../docker-cli";
+import {
+  DEFAULT_WORKDIR,
+  execInContainer,
+  startContainer,
+} from "../docker-helpers";
 
 export { shellQuote } from "../../shared";
+export { DEFAULT_WORKDIR } from "../docker-helpers";
 export type { DockerResult } from "../docker-cli";
 
-export const DEFAULT_WORKDIR = "/app";
 const BUILDER_LABEL = "mesh-sandbox-prep-builder";
 const DEFAULT_PREP_TIMEOUT_MS = 60_000;
 
@@ -31,26 +36,13 @@ export async function startBuilder(baseImage: string): Promise<string> {
   // `sleep infinity` keeps the builder alive without the daemon — we commit
   // it back to daemon CMD later. Not passing -p so we don't reserve a host
   // port we'll never talk to.
-  const result = await runDocker([
-    "run",
-    "-d",
-    "--label",
-    `${BUILDER_LABEL}=1`,
-    "--entrypoint",
-    "/bin/sleep",
-    baseImage,
-    "infinity",
-  ]);
-  if (result.code !== 0) {
-    throw new Error(
-      `docker run builder failed (exit ${result.code}): ${result.stderr.trim() || result.stdout.trim()}`,
-    );
-  }
-  const handle = result.stdout.trim().split("\n").pop()?.trim();
-  if (!handle) {
-    throw new Error("docker run builder returned no container id");
-  }
-  return handle;
+  const { id } = await startContainer(baseImage, {
+    label: "builder",
+    args: ["--label", `${BUILDER_LABEL}=1`, "--entrypoint", "/bin/sleep"],
+    command: ["infinity"],
+    timeoutMs: DEFAULT_PREP_TIMEOUT_MS,
+  });
+  return id;
 }
 
 export async function commitBuilder(
@@ -96,19 +88,19 @@ export interface ExecStepOptions {
 }
 
 /**
- * Run `script` as `bash -lc` inside the builder container. `-lc` so that
- * shims installed by the base image (deno, bun, nvm, etc.) resolve via
- * the login shell's PATH.
+ * Run `script` inside the builder and add prep-specific logging: stream
+ * stdout to the bake logger and, in `tolerateExit` mode, log the trailing
+ * stderr of failures instead of throwing.
  */
 export async function execIn(
   handle: string,
   script: string,
   opts: ExecStepOptions,
 ): Promise<void> {
-  const result = await runDocker(
-    ["exec", handle, "bash", "-lc", script],
-    opts.timeoutMs,
-  );
+  const result = await execInContainer(handle, script, {
+    timeoutMs: opts.timeoutMs,
+    tolerateExit: true,
+  });
   if (result.stdout.trim())
     opts.log(`[prep:${opts.prepKey}] ${opts.label}: ${result.stdout.trim()}`);
   if (result.code !== 0) {
