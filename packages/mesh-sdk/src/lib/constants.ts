@@ -342,7 +342,7 @@ export const WELL_KNOWN_AGENT_TEMPLATES = [
   {
     id: "ai-research",
     title: "Web Researcher",
-    icon: "icon://SearchMd?color=amber",
+    icon: "icon://SearchMd?color=green",
     type: "builtin-agent" as const,
   },
 ] as const;
