@@ -333,6 +333,18 @@ export const WELL_KNOWN_AGENT_TEMPLATES = [
     icon: "icon://Package?color=blue",
     type: "pack" as const,
   },
+  {
+    id: "ai-image",
+    title: "Image Creator",
+    icon: "icon://Image01?color=rose",
+    type: "builtin-agent" as const,
+  },
+  {
+    id: "ai-research",
+    title: "Web Researcher",
+    icon: "icon://SearchMd?color=green",
+    type: "builtin-agent" as const,
+  },
 ] as const;
 
 export type WellKnownAgentTemplate =
