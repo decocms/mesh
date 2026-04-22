@@ -453,10 +453,11 @@ export default function AgentShellLayout() {
                   <Toolbar>
                     <Toolbar.Header>
                       <Toolbar.Nav />
+                      <Toolbar.TogglesSlot />
+                      <Separator orientation="vertical" className="mx-2 h-5" />
                       <Toolbar.LeftSlot />
                       <Toolbar.TabsSlot />
-                      <Separator orientation="vertical" className="mx-2 h-5" />
-                      <Toolbar.TogglesSlot />
+                      <Toolbar.RightSlot />
                     </Toolbar.Header>
                     <div className="flex-1 min-h-0 flex flex-row">
                       <TasksPanelColumn />
