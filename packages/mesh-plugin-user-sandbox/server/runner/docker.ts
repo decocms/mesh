@@ -70,6 +70,13 @@ type HostAccessMode = "add-host" | "network-host";
 
 const ALLOW_HOST_NETWORK = process.env.MESH_SANDBOX_ALLOW_HOST_NETWORK === "1";
 
+// DNS label cap is 63 chars (RFC 1035), so the full 64-hex Docker container id
+// can't be used as a subdomain. Slice to 32 hex (128 bits) at every Docker→runner
+// boundary — still cryptographically secret as a capability, and Docker accepts
+// any prefix ≥12 chars for inspect/stop/port, so no downstream lookups break.
+const HANDLE_LEN = 32;
+const toHandle = (rawId: string): string => rawId.slice(0, HANDLE_LEN);
+
 const DEV_PORT = 3000;
 
 /** Private per-handle record. Never escapes the runner. */
@@ -428,7 +435,7 @@ export class DockerSandboxRunner implements SandboxRunner {
       ? ["--watch", "/opt/sandbox-daemon/daemon.mjs"]
       : [];
 
-    const { id: handle } = await startContainer(image, {
+    const { id: rawId } = await startContainer(image, {
       label: "sandbox",
       exec: this.exec_,
       args: [
@@ -448,6 +455,7 @@ export class DockerSandboxRunner implements SandboxRunner {
       ],
       command: devCmdArgs,
     });
+    const handle = toHandle(rawId);
 
     if (!daemonUrl) {
       const hostPort = await this.readPort(handle, DAEMON_PORT);
@@ -603,18 +611,19 @@ export class DockerSandboxRunner implements SandboxRunner {
     const state = record.state as Partial<PersistedDockerState>;
     if (!state.token || !state.daemonUrl) return null;
     const networkHost = state.networkHost ?? false;
+    const handle = toHandle(record.handle);
     try {
       const daemonPort = networkHost
         ? (state.daemonPort ?? parseDaemonPortFromUrl(state.daemonUrl))
-        : await this.readPort(record.handle, DAEMON_PORT);
+        : await this.readPort(handle, DAEMON_PORT);
       const daemonUrl = networkHost
         ? state.daemonUrl
         : `http://127.0.0.1:${daemonPort}`;
       const devPort = networkHost
         ? DEV_PORT
-        : await this.readPort(record.handle, DEV_PORT);
+        : await this.readPort(handle, DEV_PORT);
       return {
-        handle: record.handle,
+        handle,
         daemonUrl,
         token: state.token,
         workdir: state.workdir ?? DEFAULT_WORKDIR,
@@ -701,12 +710,14 @@ export class DockerSandboxRunner implements SandboxRunner {
   private async findExisting(labelId: string): Promise<string | null> {
     const r = await this.exec_([
       "ps",
+      "--no-trunc",
       "-q",
       "--filter",
       `label=${LABEL_ID}=${labelId}`,
     ]);
     if (r.code !== 0) return null;
-    return r.stdout.trim().split("\n").filter(Boolean)[0] ?? null;
+    const rawId = r.stdout.trim().split("\n").filter(Boolean)[0];
+    return rawId ? toHandle(rawId) : null;
   }
 
   private async stopContainer(handle: string): Promise<void> {

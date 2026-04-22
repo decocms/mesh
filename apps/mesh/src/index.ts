@@ -85,11 +85,18 @@ const { sweepSandboxesOnBoot, getSharedRunnerIfInit } = await import(
 );
 await sweepSandboxesOnBoot();
 
+// Populated below if the local sandbox ingress is enabled; gracefulShutdown
+// closes these so the port is freed the moment this process exits instead of
+// lingering through the Hono server drain.
+let ingressServers: import("node:net").Server[] = [];
+
 // Local sandbox ingress — dev-only. Opt in with MESH_LOCAL_SANDBOX_INGRESS=1
-// or leave enabled by default when NODE_ENV !== "production". Bound to
-// 127.0.0.1:SANDBOX_INGRESS_PORT (default 7000); browsers reach preview
-// iframes via `<handle>.sandboxes.localhost:<port>/` (requires a dnsmasq
-// rewrite — see the plugin README).
+// or leave enabled by default when NODE_ENV !== "production". Browsers reach
+// preview iframes via `<handle>.sandboxes.localhost:<port>/`. macOS/Linux
+// resolve `*.localhost` to loopback natively, so no DNS setup is required.
+// Default port is 7070 — port 7000 conflicts with macOS AirPlay Receiver
+// (ControlCenter binds `*:7000` on IPv4 and IPv6, so a Chrome Happy-Eyeballs
+// race to `[::1]:7000` would hit Apple instead of us).
 if (
   settings.nodeEnv !== "production" ||
   process.env.MESH_LOCAL_SANDBOX_INGRESS === "1"
@@ -98,8 +105,8 @@ if (
   const { DockerSandboxRunner } = await import(
     "mesh-plugin-user-sandbox/runner"
   );
-  const ingressPort = Number(process.env.SANDBOX_INGRESS_PORT ?? 7000);
-  startLocalSandboxIngress(() => {
+  const ingressPort = Number(process.env.SANDBOX_INGRESS_PORT ?? 7070);
+  ingressServers = startLocalSandboxIngress(() => {
     const runner = getSharedRunnerIfInit();
     return runner instanceof DockerSandboxRunner ? runner : null;
   }, ingressPort);
@@ -196,15 +203,23 @@ async function gracefulShutdown(signal: string) {
     // 1. Mark as shutting down — readiness returns 503 immediately
     app.markShuttingDown();
 
-    // 2. Give K8s time to notice the 503 and stop routing traffic before
-    //    we close connections (~2s is enough for most configurations)
-    await new Promise((r) => setTimeout(r, 2_000));
+    // 2. Close sandbox ingress listeners first so port 7070 is freed
+    //    immediately — the next `bun dev` shouldn't need to wait out our drain.
+    for (const s of ingressServers) s.close();
 
-    // 3. Stop accepting new connections, force-close active ones
+    // 3. Give K8s time to notice the 503 and stop routing traffic before
+    //    we close connections (~2s is enough for most configurations).
+    //    Skipped in dev — there's no load balancer draining, and the 2s delay
+    //    is the usual cause of "port still in use" on rapid restart.
+    if (settings.nodeEnv === "production") {
+      await new Promise((r) => setTimeout(r, 2_000));
+    }
+
+    // 4. Stop accepting new connections, force-close active ones
     //    (SSE streams are long-lived and would block graceful drain indefinitely)
     await server.stop(true);
 
-    // 4. Stop workers, flush telemetry, close DB
+    // 5. Stop workers, flush telemetry, close DB
     await app.shutdown();
   } catch (err) {
     console.error("[shutdown] Error during shutdown:", err);
@@ -217,3 +232,20 @@ async function gracefulShutdown(signal: string) {
 
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+// Terminal close / `bun --hot` parent death sends SIGHUP — without this handler
+// Bun keeps the process alive after the shell window closes, accumulating
+// zombies that still hold ports (port 7070 ingress, etc.).
+process.on("SIGHUP", () => gracefulShutdown("SIGHUP"));
+
+// Belt-and-braces: in local dev, if we become orphaned (re-parented to launchd
+// after the shell exits without delivering SIGHUP), exit immediately. Guarded
+// by NODE_ENV since prod containers legitimately run with PID 1 parentage.
+if (settings.nodeEnv !== "production") {
+  const initialPpid = process.ppid;
+  setInterval(() => {
+    if (process.ppid !== initialPpid && process.ppid <= 1) {
+      console.error("[shutdown] Orphaned (ppid=1), force-exiting.");
+      process.exit(130);
+    }
+  }, 2_000).unref();
+}

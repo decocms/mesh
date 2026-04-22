@@ -165,6 +165,33 @@ export function PreviewContent() {
     !!threadSandbox &&
     (threadSandbox.thread.exists || autoStartFailed);
 
+  // Docker-only. The sandbox row is persisted (so `previewUrl` is populated)
+  // but the dev server inside the container isn't listening yet. Without this
+  // guard the iframe mounts against a port that returns ECONNREFUSED and the
+  // browser paints its own broken-file page over the preview pane.
+  const isDockerBooting =
+    sandbox?.kind === "docker" && sandbox.serverUp === false;
+
+  const bootStageLabel = (() => {
+    if (isAutoSpinning) return "Booting sandbox…";
+    if (sandbox?.kind !== "docker" || sandbox.serverUp) return null;
+    switch (sandbox.phase) {
+      case "installing":
+        return "Installing dependencies…";
+      case "starting":
+        return "Starting dev server…";
+      case "crashed":
+        return "Dev server crashed — retrying…";
+      case "exited":
+        return "Dev server stopped — restarting…";
+      // "idle" and null cover the window where the daemon is up but the
+      // dev-process lifecycle hasn't been kicked off yet (or the clone just
+      // finished). routes.ts auto-fires `/_daemon/dev/start` from this state.
+      default:
+        return "Preparing workspace…";
+    }
+  })();
+
   const sseUrl =
     sandbox?.kind === "docker"
       ? `/api/sandbox/${sandbox.handle}/_daemon/_decopilot_vm/events`
@@ -288,13 +315,13 @@ export function PreviewContent() {
 
       {/* Content area */}
       <div className="flex-1 relative overflow-hidden">
-        {isAutoSpinning && (
+        {bootStageLabel && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-background">
             <Loading01
               size={28}
               className="text-muted-foreground animate-spin"
             />
-            <h3 className="text-sm font-medium">Starting dev server…</h3>
+            <h3 className="text-sm font-medium">{bootStageLabel}</h3>
           </div>
         )}
         {showManualStart && (
@@ -349,7 +376,7 @@ export function PreviewContent() {
             onDismiss={() => setVisualElement(null)}
           />
         )}
-        {previewUrl && (
+        {previewUrl && !isDockerBooting && (
           <iframe
             ref={previewIframeRef}
             src={previewUrl}

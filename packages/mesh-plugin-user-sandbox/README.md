@@ -6,53 +6,28 @@ Isolated per-user sandboxes for MCP tool execution.
 
 - **Prod**: `https://<handle>.sandboxes.<root>/*` → pod dev server on `:3000`
   and `/_daemon/*` → pod daemon on `:9000` (server-to-server bearer auth).
-- **Local dev**: `http://<handle>.sandboxes.localhost:7000/*`.
+- **Local dev**: `http://<handle>.sandboxes.localhost:7070/*`.
 
-Handles are a 256-bit random hex string — the URL itself is the capability.
+Handles are a 128-bit hex prefix of the container id — 32 chars, DNS-label
+safe (RFC 1035 caps labels at 63), still cryptographically secret as a
+capability. The URL itself is the capability.
 
-## Local dev setup (one-time)
+## Local dev
 
-The local ingress forwarder binds `127.0.0.1:SANDBOX_INGRESS_PORT` (default
-`7000`) and routes requests by `Host:` header. You need DNS to resolve
-`*.sandboxes.localhost` back to `127.0.0.1`.
+The local ingress forwarder binds both `127.0.0.1` and `::1` on
+`SANDBOX_INGRESS_PORT` (default `7070`) and routes requests by `Host:` header.
+macOS and Linux resolve `*.localhost` to loopback natively, so **no extra DNS
+setup is required** — `http://<handle>.sandboxes.localhost:7070/` just works.
 
-### dnsmasq
+Port `7070` (not `7000`) because macOS's AirPlay Receiver binds port 7000 and
+would intercept Chrome's IPv6 connection attempt.
 
-Add to your dnsmasq config:
-
-```
-address=/sandboxes.localhost/127.0.0.1
-```
-
-Then restart dnsmasq. macOS Homebrew:
-
-```sh
-sudo brew services restart dnsmasq
-```
-
-### resolv.conf
-
-Point `.localhost` lookups at your local dnsmasq:
-
-```
-# /etc/resolver/localhost (macOS)
-nameserver 127.0.0.1
-```
-
-### /etc/hosts (single-handle fallback)
-
-If dnsmasq is overkill, you can hand-add a line per handle:
-
-```
-127.0.0.1 <handle>.sandboxes.localhost
-```
-
-Wildcards aren't supported in `/etc/hosts`, so this only works for a fixed
-set of handles.
+If you previously configured `/etc/resolver/localhost` or `/etc/hosts` entries
+for this, you can remove them — they're no longer needed.
 
 ## Environment
 
-- `SANDBOX_INGRESS_PORT` (default `7000`) — local forwarder bind port.
+- `SANDBOX_INGRESS_PORT` (default `7070`) — local forwarder bind port.
 - `SANDBOX_ROOT_URL` — production template for the pod URL. Either a bare
   base (`https://sandboxes.example.com` → handle becomes leading subdomain)
   or a `{handle}` template (`https://{handle}.sandboxes.example.com`).

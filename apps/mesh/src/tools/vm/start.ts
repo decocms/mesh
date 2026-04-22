@@ -40,7 +40,7 @@ const PROXY_PORT = 9000;
 /**
  * Compose the pod-public sandbox URL for a given handle. Reads
  * `SANDBOX_ROOT_URL` at call time so deploys can rewrite it without a build.
- * Default: `http://<handle>.sandboxes.localhost:<SANDBOX_INGRESS_PORT|7000>/`.
+ * Default: `http://<handle>.sandboxes.localhost:<SANDBOX_INGRESS_PORT|7070>/`.
  */
 export function composeSandboxUrl(handle: string): string {
   const root = process.env.SANDBOX_ROOT_URL;
@@ -59,7 +59,7 @@ export function composeSandboxUrl(handle: string): string {
       // Fall through to local default below.
     }
   }
-  const ingressPort = Number(process.env.SANDBOX_INGRESS_PORT ?? 7000);
+  const ingressPort = Number(process.env.SANDBOX_INGRESS_PORT ?? 7070);
   return `http://${handle}.sandboxes.localhost:${ingressPort}/`;
 }
 

@@ -12,7 +12,14 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
-import { DENO_BIN, DEV_PORT, FAST_CRASH_MS, WORKDIR } from "./config.mjs";
+import {
+  DENO_BIN,
+  DEV_PORT,
+  FAST_CRASH_MS,
+  RESPAWN_MAX_IN_WINDOW,
+  RESPAWN_WINDOW_MS,
+  WORKDIR,
+} from "./config.mjs";
 import { crashBackoffRemainingMs, dev } from "./dev-state.mjs";
 import { appendLog, setPhase } from "./events.mjs";
 import { childEnv, ensureDenoInstalled } from "./lazy-install.mjs";
@@ -127,6 +134,45 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/**
+ * Schedule a respawn after a clean self-exit, throttled by a rolling window.
+ * Handles the pathological case (a script that exits 0 every few hundred ms)
+ * without ever interfering with normal HMR: 20 respawns in 60s is far beyond
+ * what any real edit cadence produces — even an LLM touching 30 files in
+ * rapid succession only triggers one exit per source-change batch.
+ */
+function scheduleAutoRespawn() {
+  const now = Date.now();
+  dev.respawnTimes = (dev.respawnTimes || []).filter(
+    (t) => now - t < RESPAWN_WINDOW_MS,
+  );
+  if (dev.respawnTimes.length >= RESPAWN_MAX_IN_WINDOW) {
+    appendLog(
+      "daemon",
+      `[sandbox-daemon] dev script exited cleanly ${dev.respawnTimes.length} times in ${RESPAWN_WINDOW_MS / 1000}s — pausing auto-respawn. This usually means the script isn't a long-running server (e.g. it forks and returns). Fix the script or POST /dev/start with {"restart":true} to retry.\n`,
+    );
+    dev.respawnTimes = [];
+    dev.crashCount = (dev.crashCount || 0) + 1;
+    dev.lastCrashAt = now;
+    setPhase("crashed");
+    return;
+  }
+  dev.respawnTimes.push(now);
+  setTimeout(() => {
+    if (dev.phase !== "exited") return;
+    appendLog(
+      "daemon",
+      "[sandbox-daemon] auto-respawning dev process after clean exit\n",
+    );
+    startDev({ cwd: dev.cwd, script: dev.script }).catch((err) => {
+      appendLog(
+        "daemon",
+        `[sandbox-daemon] auto-respawn failed: ${String(err)}\n`,
+      );
+    });
+  }, 200);
+}
+
 export async function startDev({
   cwd,
   script: requestedScript,
@@ -164,8 +210,10 @@ export async function startDev({
   if (restart) {
     dev.crashCount = 0;
     dev.lastCrashAt = null;
+    dev.respawnTimes = [];
   }
   if (dev.child) await stopDev();
+  dev.stopRequested = false;
 
   dev.pid = null;
   dev.exitCode = null;
@@ -261,26 +309,34 @@ export async function startDev({
       `[sandbox-daemon] dev process exited (code=${code}, signal=${signal})\n`,
     );
     if (dev.child === child) dev.child = null;
-    // Fast-exit bookkeeping: any exit inside FAST_CRASH_MS counts toward the
-    // backoff streak — including code=0. Dev tasks that exit 0 quickly are
-    // usually daemonizers (`@deco/deco`'s `daemon/main.ts` forks the server
-    // into a child and returns); treating them as a clean "exited" lets the
-    // self-heal path in mesh re-fire `/dev/start` on every preview poll,
-    // stacking up orphaned port-holders until one finally trips EADDRINUSE.
-    // A server that exits happily in < FAST_CRASH_MS is not actually
-    // running; backoff + crash phase stops the respawn storm.
-    const ranFor = dev.startedAt ? Date.now() - dev.startedAt : Infinity;
-    const fastExit = ranFor < FAST_CRASH_MS && code != null;
-    if (fastExit || (code !== 0 && code != null)) {
-      if (ranFor < FAST_CRASH_MS) {
-        dev.crashCount = (dev.crashCount || 0) + 1;
-      } else {
-        dev.crashCount = 1;
-      }
-      dev.lastCrashAt = Date.now();
-    }
-    setPhase(fastExit || code !== 0 ? "crashed" : "exited");
     dev.pid = null;
+
+    // stopDev() flow — we asked for the exit. Let stopDev set the final phase.
+    if (dev.stopRequested) return;
+
+    // Distinguish by intent, not by how long it ran:
+    //  - clean self-exit (code=0, no signal) → runtime voluntarily stopped,
+    //    almost always a watch-mode rebuild (Deno --unstable-hmr, Fresh,
+    //    bun --hot, vite). Respawn immediately. An edit that lands during
+    //    a cold boot is the same intent as one after 10 min of uptime —
+    //    there is nothing special about the FAST_CRASH_MS boundary here.
+    //  - non-zero exit or external signal → real failure, apply backoff.
+    //
+    // Pathological clean-exit loops (a script that exits 0 every few hundred
+    // ms, e.g. an old daemonizer that forks and returns) are caught by the
+    // rolling-window cap in scheduleAutoRespawn — not by a fixed timer on
+    // the first exit.
+    if (signal === null && code === 0) {
+      setPhase("exited");
+      scheduleAutoRespawn();
+      return;
+    }
+
+    const ranFor = dev.startedAt ? Date.now() - dev.startedAt : Infinity;
+    if (ranFor < FAST_CRASH_MS) dev.crashCount = (dev.crashCount || 0) + 1;
+    else dev.crashCount = 1;
+    dev.lastCrashAt = Date.now();
+    setPhase("crashed");
   });
   child.on("error", (err) => {
     appendLog("daemon", `[sandbox-daemon] spawn error: ${String(err)}\n`);
@@ -301,6 +357,9 @@ export async function stopDev() {
       }
       return;
     }
+    // Mark before killing so the exit handler won't mistake our SIGTERM for
+    // a runtime crash and won't fire auto-respawn.
+    dev.stopRequested = true;
     killDev("SIGTERM");
     await waitForExit(5_000);
     dev.child = null;

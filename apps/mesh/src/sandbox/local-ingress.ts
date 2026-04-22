@@ -1,26 +1,31 @@
 /**
  * Local sandbox ingress forwarder.
  *
- * Dev-only. Binds a single host port and routes `<handle>.sandboxes.localhost`
- * requests to the right container port on 127.0.0.1:
- *   - `/_daemon/*` → `daemonPort` (bearer-authed control plane)
- *   - anything else → `devPort`   (user's dev server on container :3000)
+ * Dev-only. Raw TCP proxy: parses the first HTTP request's `Host` header to
+ * pick a handle + routing target (`/_daemon/*` → daemon port, else → dev
+ * port), then pipes raw bytes bidirectionally. Unified path for HTTP and
+ * WebSocket — avoids Bun's broken `node:http` `upgrade` event (the handed-off
+ * socket reports writable but its writes never reach the client).
  *
- * Relies on a dnsmasq `address=/sandboxes.localhost/127.0.0.1` entry (or any
- * equivalent DNS rewrite) so the browser resolves every sandbox subdomain to
- * loopback. One-time setup; see the package README for the snippet.
+ * Binds both `127.0.0.1` and `::1` on the same port so Chrome's Happy-Eyeballs
+ * race can't miss us — macOS resolves `*.sandboxes.localhost` to both
+ * families, and port 7000 is Apple's AirPlay (why default is 7070).
+ *
+ * No DNS setup needed: macOS/Linux resolve `*.localhost` to loopback natively
+ * (RFC 6761). Handles are 32 hex chars (fits DNS's 63-char label cap).
  *
  * Production uses an Ingress / load balancer per pod on a wildcard domain —
  * this forwarder is NOT wired in that environment.
  */
 
-import * as http from "node:http";
 import * as net from "node:net";
 import type { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
 
 const HOST_RE = /^([^.]+)\.sandboxes\.localhost(?::\d+)?$/i;
+const MAX_HEADER_BYTES = 16 * 1024;
+const HEADERS_TERMINATOR = Buffer.from("\r\n\r\n");
 
-function extractHandle(hostHeader: string | undefined): string | null {
+function extractHandle(hostHeader: string | null): string | null {
   if (!hostHeader) return null;
   const m = HOST_RE.exec(hostHeader);
   return m ? (m[1] ?? null) : null;
@@ -28,6 +33,27 @@ function extractHandle(hostHeader: string | undefined): string | null {
 
 function isDaemonPath(pathname: string): boolean {
   return pathname === "/_daemon" || pathname.startsWith("/_daemon/");
+}
+
+function parseRequestHead(
+  headerText: string,
+): { path: string; host: string | null } | null {
+  const firstCrlf = headerText.indexOf("\r\n");
+  if (firstCrlf === -1) return null;
+  const requestLine = headerText.slice(0, firstCrlf);
+  const parts = requestLine.split(" ");
+  if (parts.length < 3) return null;
+  const path = parts[1] ?? "/";
+  let host: string | null = null;
+  for (const line of headerText.slice(firstCrlf + 2).split("\r\n")) {
+    const colon = line.indexOf(":");
+    if (colon === -1) continue;
+    if (line.slice(0, colon).toLowerCase() === "host") {
+      host = line.slice(colon + 1).trim();
+      break;
+    }
+  }
+  return { path, host };
 }
 
 async function resolveTarget(
@@ -44,87 +70,131 @@ async function resolveTarget(
 export function startLocalSandboxIngress(
   getRunner: () => DockerSandboxRunner | null,
   port: number,
-): http.Server {
-  const server = http.createServer(async (req, res) => {
-    const runner = getRunner();
-    const handle = extractHandle(req.headers.host);
-    if (!runner || !handle) {
-      res.writeHead(404, { "content-type": "text/plain" });
-      res.end(runner ? "not a sandbox host" : "sandbox runner not initialized");
-      return;
-    }
-    const url = new URL(req.url ?? "/", "http://local");
-    const target = await resolveTarget(runner, handle, url.pathname);
-    if (!target) {
-      res.writeHead(404, { "content-type": "text/plain" });
-      res.end("sandbox not found");
-      return;
-    }
-    const upstream = http.request(
-      {
-        host: "127.0.0.1",
-        port: target,
-        path: req.url,
-        method: req.method,
-        headers: { ...req.headers, host: `127.0.0.1:${target}` },
-      },
-      (u) => {
-        res.writeHead(u.statusCode ?? 502, u.headers);
-        u.pipe(res);
-      },
-    );
-    upstream.on("error", (err) => {
-      if (!res.headersSent) {
-        res.writeHead(502, { "content-type": "text/plain" });
-      }
-      res.end(`upstream error: ${err.message}`);
-    });
-    req.pipe(upstream);
-  });
+): net.Server[] {
+  const handleConnection = (client: net.Socket): void => {
+    let buffer: Buffer = Buffer.alloc(0);
+    let settled = false;
 
-  server.on("upgrade", async (req, clientSocket, head) => {
-    const runner = getRunner();
-    const handle = extractHandle(req.headers.host);
-    if (!runner || !handle) {
-      clientSocket.destroy();
-      return;
-    }
-    const url = new URL(req.url ?? "/", "http://local");
-    const target = await resolveTarget(runner, handle, url.pathname);
-    if (!target) {
-      clientSocket.destroy();
-      return;
-    }
-    const upstream = net.connect(target, "127.0.0.1", () => {
-      const headers = { ...req.headers, host: `127.0.0.1:${target}` };
-      const lines = [`${req.method} ${req.url} HTTP/1.1`];
-      for (const [k, v] of Object.entries(headers)) {
-        if (Array.isArray(v)) for (const vv of v) lines.push(`${k}: ${vv}`);
-        else if (v != null) lines.push(`${k}: ${v}`);
-      }
-      lines.push("", "");
-      upstream.write(lines.join("\r\n"));
-      if (head && head.length) upstream.write(head);
-      upstream.pipe(clientSocket);
-      clientSocket.pipe(upstream);
-    });
-    upstream.on("error", () => clientSocket.destroy());
-    clientSocket.on("error", () => upstream.destroy());
-  });
-
-  server.on("error", (err: NodeJS.ErrnoException) => {
-    if (err.code === "EADDRINUSE") {
-      console.warn(
-        `[mesh-sandbox-ingress] port ${port} is in use — sandbox preview URLs will not resolve locally. Set SANDBOX_INGRESS_PORT to another port or free ${port}.`,
+    const fail = (status: number, message: string): void => {
+      if (settled) return;
+      settled = true;
+      const body = `${message}\n`;
+      client.end(
+        `HTTP/1.1 ${status} ${message}\r\n` +
+          `Content-Type: text/plain; charset=utf-8\r\n` +
+          `Content-Length: ${Buffer.byteLength(body)}\r\n` +
+          `Connection: close\r\n\r\n${body}`,
       );
-      return;
-    }
-    console.warn(`[mesh-sandbox-ingress] listen error: ${err.message}`);
-  });
-  server.listen(port, "127.0.0.1", () => {
-    console.log(
-      `[mesh-sandbox-ingress] forwarding *.sandboxes.localhost → 127.0.0.1:${port}`,
-    );
-  });
-  return server;
+    };
+
+    const onData = (chunk: Buffer): void => {
+      if (settled) return;
+      buffer = Buffer.concat([buffer, chunk]);
+      const end = buffer.indexOf(HEADERS_TERMINATOR);
+      if (end === -1) {
+        if (buffer.length > MAX_HEADER_BYTES) {
+          client.off("data", onData);
+          fail(431, "Request Header Fields Too Large");
+        }
+        return;
+      }
+      client.off("data", onData);
+      settled = true;
+      const headerText = buffer.slice(0, end).toString("utf8");
+      void route(headerText);
+    };
+
+    const route = async (headerText: string): Promise<void> => {
+      const head = parseRequestHead(headerText);
+      if (!head) {
+        fail(400, "Bad Request");
+        return;
+      }
+      const handle = extractHandle(head.host);
+      const runner = getRunner();
+      if (!runner) {
+        fail(503, "Sandbox Runner Not Initialized");
+        return;
+      }
+      if (!handle) {
+        fail(404, "Not a Sandbox Host");
+        return;
+      }
+      let pathname: string;
+      try {
+        pathname = new URL(head.path, "http://local").pathname;
+      } catch {
+        fail(400, "Bad Request");
+        return;
+      }
+      const target = await resolveTarget(runner, handle, pathname);
+      if (!target) {
+        fail(404, "Sandbox Not Found");
+        return;
+      }
+      const upstream = net.connect(target, "127.0.0.1", () => {
+        upstream.write(buffer);
+        buffer = Buffer.alloc(0);
+        upstream.pipe(client);
+        client.pipe(upstream);
+      });
+      upstream.on("error", () => client.destroy());
+      client.on("error", () => upstream.destroy());
+      client.on("close", () => upstream.destroy());
+      upstream.on("close", () => client.destroy());
+    };
+
+    client.on("data", onData);
+    client.on("error", () => {
+      /* surfaced via close */
+    });
+  };
+
+  const bind = (host: string): net.Server => {
+    const server = net.createServer(handleConnection);
+    const MAX_RETRIES = 20; // ~10s at 500ms; covers the previous process's drain.
+    let attempt = 0;
+    let warnedInUse = false;
+    const tryListen = (): void => {
+      server.listen(port, host, () => {
+        console.log(
+          `[mesh-sandbox-ingress] forwarding *.sandboxes.localhost → ${host}:${port}`,
+        );
+      });
+    };
+    server.on("error", (err: NodeJS.ErrnoException) => {
+      if (err.code === "EADDRINUSE" && attempt < MAX_RETRIES) {
+        if (!warnedInUse) {
+          warnedInUse = true;
+          console.warn(
+            `[mesh-sandbox-ingress] ${host}:${port} in use — waiting for previous process to release (up to ${MAX_RETRIES / 2}s)...`,
+          );
+        }
+        attempt++;
+        setTimeout(tryListen, 500);
+        return;
+      }
+      if (err.code === "EADDRINUSE") {
+        const hint =
+          port === 7000
+            ? " (port 7000 is grabbed by macOS AirPlay Receiver — set SANDBOX_INGRESS_PORT to another port, e.g. 7070)"
+            : " — another process is holding it; find it with `lsof -iTCP:" +
+              port +
+              " -sTCP:LISTEN -n -P`";
+        console.warn(
+          `[mesh-sandbox-ingress] ${host}:${port} still in use after ${MAX_RETRIES / 2}s; giving up${hint}.`,
+        );
+        return;
+      }
+      console.warn(
+        `[mesh-sandbox-ingress] ${host}:${port} listen error: ${err.message}`,
+      );
+    });
+    tryListen();
+    return server;
+  };
+
+  // Bind both loopback families — macOS resolves `*.localhost` to both
+  // 127.0.0.1 and ::1, and Chrome often prefers IPv6.
+  return [bind("127.0.0.1"), bind("::1")];
 }

@@ -29,6 +29,14 @@ export const dev = {
   // Cleared on `ready` and on `restart: true`.
   crashCount: 0,
   lastCrashAt: null,
+  // Rolling timestamps of recent auto-respawns after clean self-exits.
+  // Used to catch pathological clean-exit loops (e.g. a daemonizer script
+  // that exits 0 immediately after forking). Normal HMR-driven respawns
+  // stay well under the cap defined in config.mjs.
+  respawnTimes: [],
+  // Set by stopDev() before sending SIGTERM so the exit handler can
+  // distinguish "we asked for it" from a crash or runtime self-exit.
+  stopRequested: false,
 };
 
 function computeCrashBackoffMs() {
