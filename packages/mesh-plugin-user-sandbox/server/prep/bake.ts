@@ -42,8 +42,12 @@ import { probeHeadSha, probeLockfileHash } from "./probes";
 import { detectRuntime } from "./runtimes";
 import type { RuntimeContext } from "./runtimes";
 
-const CLONE_TIMEOUT_MS = 10 * 60_000;
-const INSTALL_TIMEOUT_MS = 20 * 60_000;
+const TIMEOUTS = {
+  /** Medium-to-large deco-sites routinely push past the 60s baseline. */
+  clone: 10 * 60_000,
+  /** Full `pnpm install` on a cold cache + native-binary builds can take a while. */
+  install: 20 * 60_000,
+} as const;
 
 export interface BakeInput {
   prepKey: string;
@@ -100,7 +104,7 @@ export async function bakePrepImage(
 
     await exec(cloneScript(input), {
       label: "clone",
-      timeoutMs: CLONE_TIMEOUT_MS,
+      timeoutMs: TIMEOUTS.clone,
     });
 
     const runtime = await detectRuntime(builderId);
@@ -111,7 +115,7 @@ export async function bakePrepImage(
     );
     await exec(installScript(installCommand), {
       label: "install",
-      timeoutMs: INSTALL_TIMEOUT_MS,
+      timeoutMs: TIMEOUTS.install,
       // Partial installs (one flaky postinstall, one deprecation warning
       // that the package manager escalates to exit 1) are strictly better
       // than an empty image. Whatever did land in the cache still
