@@ -11,8 +11,7 @@ import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import {
   Loading01,
   Play,
-  StopCircle,
-  ChevronDown,
+  Stop,
   Plus,
   MessageChatCircle,
   LinkExternal01,
@@ -39,7 +38,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
 import { useChatBridge } from "@/web/components/chat/context";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { VmErrorState } from "../vm-error-state";
@@ -47,7 +45,9 @@ import { VmSuspendedState } from "../vm-suspended-state";
 import { useVmEvents } from "../hooks/use-vm-events";
 import { VmTerminal } from "./terminal";
 import type { Terminal as XTerminal } from "@xterm/xterm";
+import { GridLoader } from "../../grid-loader.tsx";
 import { EmptyState } from "../../empty-state";
+import { CollectionTabs } from "../../collections/collection-tabs";
 import { LiveTimer } from "../../live-timer";
 import { useActiveGithubRepo } from "@/web/hooks/use-active-github-repo";
 import { authClient } from "@/web/lib/auth-client";
@@ -170,15 +170,25 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const scriptsAppliedRef = useRef(false);
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — responds to vmEvents.scripts discovery; drives one-time tab auto-open
   useEffect(() => {
-    if (vmEvents.scripts.length > 0 && !scriptsAppliedRef.current) {
-      scriptsAppliedRef.current = true;
-      // Only add the first well-known starter (matches daemon auto-start behavior)
-      for (const name of WELL_KNOWN_STARTERS) {
-        if (vmEvents.scripts.includes(name)) {
-          setOpenScriptTabs([name]);
-          setActiveTab(name);
-          break;
+    if (vmEvents.scripts.length === 0) return;
+
+    setOpenScriptTabs((prev) => {
+      const next = [...prev];
+      for (const script of vmEvents.scripts) {
+        if (!next.includes(script)) {
+          next.push(script);
         }
+      }
+      return next;
+    });
+
+    if (!scriptsAppliedRef.current) {
+      scriptsAppliedRef.current = true;
+      const preferredScript =
+        WELL_KNOWN_STARTERS.find((name) => vmEvents.scripts.includes(name)) ??
+        vmEvents.scripts[0];
+      if (preferredScript) {
+        setActiveTab(preferredScript);
       }
     }
   }, [vmEvents.scripts]);
@@ -442,7 +452,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   if (status === "creating") {
     return (
       <div className="flex flex-col items-center justify-center w-full h-full gap-4">
-        <Loading01 size={24} className="animate-spin text-muted-foreground" />
+        <GridLoader />
         <p className="text-sm text-muted-foreground">{statusLabel}</p>
         <LiveTimer since={startedAtRef.current} />
       </div>
@@ -468,38 +478,36 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const addableScripts = vmEvents.scripts.filter(
     (s) => !openScriptTabs.includes(s),
   );
+  const terminalTabs = allTabs.map((tab) => ({ id: tab, label: tab }));
+  const activeScriptTab =
+    activeTab !== "setup" &&
+    activeTab !== "daemon" &&
+    openScriptTabs.includes(activeTab)
+      ? activeTab
+      : null;
+  const activeScriptRunning = activeScriptTab
+    ? vmEvents.activeProcesses.includes(activeScriptTab) &&
+      !killedProcesses.has(activeScriptTab)
+    : false;
 
   return (
-    <div className="flex flex-col w-full h-full">
-      <div className="flex flex-col h-full">
-        {/* Terminal tabs + action bar */}
-        <div className="flex items-center border-b border-border px-2 shrink-0">
-          {allTabs.map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              className={cn(
-                "px-3 py-1.5 text-xs font-medium capitalize transition-colors",
-                activeTab === tab
-                  ? "text-foreground border-b-2 border-primary"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {tab}
-            </button>
-          ))}
+    <div className="flex h-full w-full flex-col bg-background">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-3 py-2 md:px-4">
+        <div className="min-w-0 flex-1">
+          <CollectionTabs
+            tabs={terminalTabs}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
+        </div>
 
-          {/* Add script button */}
+        <div className="flex items-center gap-1">
           {addableScripts.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                >
+                <Button variant="ghost" size="icon" aria-label="Add script">
                   <Plus size={14} />
-                </button>
+                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
                 {addableScripts.map((script) => (
@@ -514,158 +522,113 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
             </DropdownMenu>
           )}
 
-          <div className="flex-1 flex justify-center">
-            {vmDataRef.current?.vmId && (
-              <div className="flex items-center">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      className="shrink-0 rounded-l bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground cursor-pointer hover:bg-accent hover:text-foreground transition-colors border-r border-border/50"
-                      onClick={() =>
-                        navigator.clipboard.writeText(
-                          vmDataRef.current?.vmId ?? "",
-                        )
-                      }
-                    >
-                      {vmDataRef.current.vmId}
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">Copy VM ID</TooltipContent>
-                </Tooltip>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="shrink-0 self-stretch rounded-r bg-muted px-0.5 text-[10px] text-muted-foreground cursor-pointer hover:bg-accent hover:text-foreground transition-colors"
-                    >
-                      <ChevronDown size={10} />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="center">
-                    <DropdownMenuItem onClick={handleStop}>
-                      <StopCircle size={12} />
-                      Stop Server
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            )}
-          </div>
+          {hasSelection && (
+            <Button variant="outline" size="sm" onClick={handleAddToChat}>
+              <MessageChatCircle size={12} />
+              Add to chat
+            </Button>
+          )}
 
-          {/* Script tab controls (not for setup/daemon) */}
-          <div className="flex items-center gap-1">
-            {hasSelection && (
-              <button
-                type="button"
-                onClick={handleAddToChat}
-                className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          {activeScriptTab && (
+            <>
+              <Button
+                variant={activeScriptRunning ? "outline" : "default"}
+                size="sm"
+                disabled={execInFlight}
+                onClick={() => handleExec(activeScriptTab)}
               >
-                <MessageChatCircle size={12} />
-                Add to chat
-              </button>
-            )}
-            {activeTab !== "setup" &&
-              activeTab !== "daemon" &&
-              openScriptTabs.includes(activeTab) &&
-              (() => {
-                const isRunning =
-                  vmEvents.activeProcesses.includes(activeTab) &&
-                  !killedProcesses.has(activeTab);
-                return (
-                  <div className="flex items-center">
-                    <button
-                      type="button"
-                      disabled={execInFlight}
-                      onClick={() => handleExec(activeTab)}
-                      className={cn(
-                        "flex items-center gap-1 border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50",
-                        isRunning ? "rounded-l-md border-r-0" : "rounded-md",
-                      )}
-                    >
-                      {execInFlight ? (
-                        <Loading01 size={12} className="animate-spin" />
-                      ) : (
-                        <Play size={12} />
-                      )}
-                      {execInFlight
-                        ? "Running..."
-                        : isRunning
-                          ? "Restart"
-                          : "Run"}
-                    </button>
-                    {isRunning && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            type="button"
-                            disabled={execInFlight}
-                            className="flex items-center self-stretch rounded-r-md border border-border px-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
-                          >
-                            <ChevronDown size={12} />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => handleKill(activeTab)}
-                          >
-                            <StopCircle size={12} />
-                            Stop Process
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </div>
-                );
-              })()}
-          </div>
-        </div>
-
-        {/* Terminal content */}
-        <div className="flex-1 overflow-hidden">
-          {allTabs.map((tab) => (
-            <div
-              key={tab}
-              className={cn("h-full", activeTab === tab ? "block" : "hidden")}
-            >
-              {vmEvents.hasData(tab) || tab === "setup" || tab === "daemon" ? (
-                <VmTerminal
-                  onReady={(t) => {
-                    terminalRefs.current.set(tab, t);
-                  }}
-                  onSelectionChange={(has, getText) =>
-                    handleSelectionChange(tab, has, getText)
-                  }
-                  initialData={vmEvents.getBuffer(tab)}
-                  className="h-full"
-                />
-              ) : (
-                <EmptyState
-                  className="h-full"
-                  image={null}
-                  title={`Script "${tab}" not running`}
-                  description={`Click Run to start "${tab}".`}
-                  actions={
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={execInFlight}
-                      onClick={() => handleExec(tab)}
-                    >
-                      {execInFlight ? (
-                        <Loading01 size={14} className="animate-spin" />
-                      ) : (
-                        <Play size={14} />
-                      )}
-                      Run
-                    </Button>
-                  }
-                />
+                {execInFlight ? (
+                  <Loading01 size={12} className="animate-spin" />
+                ) : (
+                  <Play size={12} />
+                )}
+                {execInFlight
+                  ? "Running..."
+                  : activeScriptRunning
+                    ? "Restart script"
+                    : "Run script"}
+              </Button>
+              {activeScriptRunning && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={execInFlight}
+                  onClick={() => handleKill(activeScriptTab)}
+                >
+                  <Stop size={12} />
+                  Stop script
+                </Button>
               )}
-            </div>
-          ))}
+            </>
+          )}
         </div>
       </div>
+
+      <div className="min-h-0 flex-1 overflow-hidden bg-sidebar">
+        {allTabs.map((tab) => (
+          <div key={tab} className={tab === activeTab ? "h-full" : "hidden"}>
+            {vmEvents.hasData(tab) || tab === "setup" || tab === "daemon" ? (
+              <VmTerminal
+                onReady={(t) => {
+                  terminalRefs.current.set(tab, t);
+                }}
+                onSelectionChange={(has, getText) =>
+                  handleSelectionChange(tab, has, getText)
+                }
+                initialData={vmEvents.getBuffer(tab)}
+                className="h-full"
+              />
+            ) : (
+              <EmptyState
+                className="h-full bg-transparent"
+                image={null}
+                title={`Script "${tab}" not running`}
+                description={`Click Run to start "${tab}".`}
+                actions={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={execInFlight}
+                    onClick={() => handleExec(tab)}
+                  >
+                    {execInFlight ? (
+                      <Loading01 size={14} className="animate-spin" />
+                    ) : (
+                      <Play size={14} />
+                    )}
+                    Run
+                  </Button>
+                }
+              />
+            )}
+          </div>
+        ))}
+      </div>
+
+      {vmDataRef.current?.vmId && (
+        <div className="flex shrink-0 items-center justify-between gap-2 bg-sidebar px-3 py-2 md:px-4">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="max-w-[220px] font-mono tabular-nums text-muted-foreground"
+                onClick={() =>
+                  navigator.clipboard.writeText(vmDataRef.current?.vmId ?? "")
+                }
+              >
+                <span className="truncate">{vmDataRef.current.vmId}</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Copy VM ID</TooltipContent>
+          </Tooltip>
+
+          <Button variant="ghost" size="sm" onClick={handleStop}>
+            <Stop size={12} />
+            Stop server
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

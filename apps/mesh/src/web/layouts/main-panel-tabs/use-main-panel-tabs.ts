@@ -141,10 +141,8 @@ export function useMainPanelTabs(ctx: {
   const automationTabParsed = parseAutomationTabId(activeTab);
 
   const systemTabs: Array<{ id: string; title: string }> = [
-    { id: "instructions", title: "Instructions" },
-    { id: "connections", title: "Connections" },
+    { id: "settings", title: "Settings" },
     { id: "automations", title: "Automations" },
-    { id: "layout", title: "Layout" },
   ];
   if (hasActiveGithubRepo) {
     systemTabs.push({ id: "env", title: "Terminal" });

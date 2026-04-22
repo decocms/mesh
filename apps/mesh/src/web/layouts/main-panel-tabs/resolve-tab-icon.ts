@@ -1,12 +1,5 @@
 import type { ComponentType, SVGProps } from "react";
-import {
-  BookOpen01,
-  Globe01,
-  LayoutAlt04,
-  Lightning01,
-  Terminal,
-  ZapSquare,
-} from "@untitledui/icons";
+import { Globe01, Lightning01, Settings02, Terminal } from "@untitledui/icons";
 import { getIconComponent, parseIconString } from "../../components/agent-icon";
 
 export type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
@@ -18,19 +11,11 @@ export type TabIcon =
   | { kind: "url"; src: string }
   | { kind: "fallback" };
 
-export type SystemTabId =
-  | "instructions"
-  | "connections"
-  | "automations"
-  | "layout"
-  | "env"
-  | "preview";
+export type SystemTabId = "settings" | "automations" | "env" | "preview";
 
 export const SYSTEM_TAB_ICONS: Record<SystemTabId, IconComponent> = {
-  instructions: BookOpen01,
-  connections: ZapSquare,
+  settings: Settings02,
   automations: Lightning01,
-  layout: LayoutAlt04,
   env: Terminal,
   preview: Globe01,
 };

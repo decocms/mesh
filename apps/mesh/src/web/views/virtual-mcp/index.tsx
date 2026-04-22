@@ -2,7 +2,6 @@ import { generatePrefixedId } from "@/shared/utils/generate-id";
 import type { VirtualMCPEntity } from "@/tools/virtual/schema";
 import { getUIResourceUri } from "@/mcp-apps/types.ts";
 import { useChatPrefs, useChatTask } from "@/web/components/chat/context";
-import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
@@ -27,7 +26,13 @@ import {
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Card, CardContent, CardHeader } from "@deco/ui/components/card.tsx";
+import { Card, CardContent } from "@deco/ui/components/card.tsx";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@deco/ui/components/dialog.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
 import {
@@ -61,8 +66,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
-  Settings02,
   Settings04,
+  Maximize01,
   Play,
   Plus,
   Stars01,
@@ -334,92 +339,76 @@ function ConnectionItemWithAuth({
   return (
     <div
       className={cn(
-        "rounded-xl border overflow-hidden transition-colors",
-        needsAuth ? "border-destructive/50 bg-destructive/5" : "border-border",
+        "group/conn rounded-xl card-shadow transition-colors bg-card",
+        needsAuth && "ring-1 ring-destructive/50 bg-destructive/5",
       )}
     >
-      {/* Body — clickable, navigates to connection detail */}
-      <Link
-        to="/$org/settings/connections/$appSlug"
-        params={{
-          org: orgSlug,
-          appSlug: slug,
-        }}
-        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
-      >
-        <IntegrationIcon
-          icon={connectionIcon}
-          name={connectionTitle}
-          size="sm"
-          className="shrink-0"
-        />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">{connectionTitle}</p>
-          {needsAuth ? (
-            <span className="text-xs text-destructive font-medium">
-              Needs authorization
-            </span>
-          ) : (
-            connectionDescription && (
-              <p className="text-xs text-muted-foreground truncate">
-                {connectionDescription}
-              </p>
-            )
-          )}
-        </div>
-        {needsAuth ? (
-          <Button
-            variant="outline"
+      <div className="flex items-center gap-3 px-4 py-3">
+        <Link
+          to="/$org/settings/connections/$appSlug"
+          params={{ org: orgSlug, appSlug: slug }}
+          className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer group/link"
+        >
+          <IntegrationIcon
+            icon={connectionIcon}
+            name={connectionTitle}
             size="sm"
-            className="h-7 text-xs shrink-0"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onAuthenticate(connection_id);
-            }}
-          >
-            Authorize
-          </Button>
-        ) : (
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <span className="inline-flex items-center justify-center rounded-md h-7 w-7 hover:bg-accent text-muted-foreground shrink-0 transition-colors">
-                <Settings02 size={16} />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Connection settings</TooltipContent>
-          </Tooltip>
-        )}
-      </Link>
-
-      {/* Footer — instance selector + resources summary + edit + remove */}
-      <div className="flex items-center gap-3 px-4 py-2 border-t border-border bg-muted/25">
-        {/* Instance selector */}
-        {appName && (
-          <SiblingInstanceSelector
-            appName={appName}
-            connectionId={connection_id}
-            usedConnectionIds={usedConnectionIds}
-            onSwitchInstance={onSwitchInstance}
-            onNewInstance={onNewInstance}
+            className="shrink-0"
           />
-        )}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate group-hover/link:underline decoration-muted-foreground/40 underline-offset-4">
+              {connectionTitle}
+            </p>
+            {needsAuth ? (
+              <span className="text-xs text-destructive font-medium">
+                Needs authorization
+              </span>
+            ) : (
+              connectionDescription && (
+                <p className="text-xs text-muted-foreground truncate">
+                  {connectionDescription}
+                </p>
+              )
+            )}
+          </div>
+        </Link>
 
-        <div className="flex items-center gap-0.5 ml-auto">
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={onOpenSettings}
-                aria-label="Configure resources"
-              >
-                <Settings04 size={13} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Configure resources</TooltipContent>
-          </Tooltip>
+        {/* Right-side controls live on the body row — one surface, no footer */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {appName && (
+            <SiblingInstanceSelector
+              appName={appName}
+              connectionId={connection_id}
+              usedConnectionIds={usedConnectionIds}
+              onSwitchInstance={onSwitchInstance}
+              onNewInstance={onNewInstance}
+            />
+          )}
+          {needsAuth ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={onAuthenticate.bind(null, connection_id)}
+            >
+              Authorize
+            </Button>
+          ) : (
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground"
+                  onClick={onOpenSettings}
+                  aria-label="Configure resources"
+                >
+                  <Settings04 size={14} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Configure resources</TooltipContent>
+            </Tooltip>
+          )}
           <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>
               <Button
@@ -429,7 +418,7 @@ function ConnectionItemWithAuth({
                 onClick={onRemove}
                 aria-label="Remove connection"
               >
-                <XClose size={13} />
+                <XClose size={14} />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">Remove</TooltipContent>
@@ -449,7 +438,7 @@ function ConnectionItemAuthFallback({
   if (!connection) return <ConnectionItemSkeleton />;
 
   return (
-    <div className="rounded-xl border border-border overflow-hidden">
+    <div className="rounded-xl card-shadow overflow-hidden bg-card">
       <div className="flex items-center gap-3 px-4 py-3">
         <IntegrationIcon
           icon={connection.icon}
@@ -466,25 +455,19 @@ function ConnectionItemAuthFallback({
           )}
         </div>
       </div>
-      <div className="flex items-center px-4 py-2 border-t border-border bg-muted/25">
-        <div className="h-5 w-20 rounded bg-muted animate-pulse" />
-      </div>
     </div>
   );
 }
 
 function ConnectionItemSkeleton() {
   return (
-    <div className="rounded-xl border border-border overflow-hidden">
+    <div className="rounded-xl card-shadow overflow-hidden bg-card">
       <div className="flex items-center gap-3 px-4 py-3">
         <div className="size-8 rounded-md bg-muted animate-pulse shrink-0" />
         <div className="flex-1 space-y-1.5">
           <div className="h-4 w-32 rounded bg-muted animate-pulse" />
           <div className="h-3 w-48 rounded bg-muted animate-pulse" />
         </div>
-      </div>
-      <div className="flex items-center px-4 py-2 border-t border-border bg-muted/25">
-        <div className="h-5 w-20 rounded bg-muted animate-pulse" />
       </div>
     </div>
   );
@@ -605,8 +588,14 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
 
   const serverDefaultMainKey = (() => {
     if (!serverDefaultMain || serverDefaultMain.type === "chat") return "chat";
-    // Legacy: "settings" used to be its own tab; map onto Layout.
-    if (serverDefaultMain.type === "settings") return "layout";
+    // Legacy: instructions/connections/layout all merged into "settings".
+    if (
+      serverDefaultMain.type === "instructions" ||
+      serverDefaultMain.type === "connections" ||
+      serverDefaultMain.type === "layout"
+    ) {
+      return "settings";
+    }
     if (fixedTabTypeSet.has(serverDefaultMain.type)) {
       return serverDefaultMain.type;
     }
@@ -630,6 +619,13 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
     if (type === "chat") return { type };
     if (fixedTabTypeSet.has(type)) {
       return { type };
+    }
+    if (
+      type === "instructions" ||
+      type === "connections" ||
+      type === "layout"
+    ) {
+      return { type: "settings" };
     }
     if (type === "ext-apps" && id)
       return { type: "ext-apps" as const, id, toolName: toolName || undefined };
@@ -840,9 +836,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   // matching the gating in main-panel-tabs/index.tsx.
   const defaultMainOptions: { value: string; label: string }[] = [
     { value: "chat", label: "Chat" },
-    { value: "instructions", label: "Instructions" },
-    { value: "connections", label: "Connections" },
-    { value: "layout", label: "Layout" },
+    { value: "settings", label: "Settings" },
   ];
   if (hasGithubRepo) {
     defaultMainOptions.push({ value: "env", label: "Terminal" });
@@ -856,15 +850,16 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <Page.Title>Layout</Page.Title>
+    <div className="flex flex-col gap-3">
+      <h2 className="text-sm font-medium text-foreground">Layout</h2>
       <div className="space-y-3">
-        {/* Default view card */}
         <Card className="hover:bg-card p-6 gap-6">
           <CardContent className="p-0 space-y-4">
             <div className="flex items-center justify-between gap-4">
               <div className="space-y-0.5">
-                <Label className="font-normal text-foreground">Main view</Label>
+                <Label className="text-sm font-medium text-foreground">
+                  Main view
+                </Label>
                 <p className="text-xs text-muted-foreground">
                   Configure what users see when they first open this agent.
                 </p>
@@ -892,7 +887,9 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
 
             <div className="flex items-center justify-between gap-4">
               <div className="space-y-0.5">
-                <Label className="font-normal text-foreground">Show chat</Label>
+                <Label className="text-sm font-medium text-foreground">
+                  Show chat
+                </Label>
                 <p className="text-xs text-muted-foreground">
                   Display the chat panel alongside the main view
                 </p>
@@ -919,15 +916,14 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
                 )}
               </Tooltip>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Pinned views card */}
-        <Card className="hover:bg-card p-6 gap-4">
-          <CardHeader className="p-0">
-            <span className="text-sm font-normal">Pinned views</span>
-          </CardHeader>
-          <CardContent className="p-0">
+            <div className="border-t border-border -mx-6" />
+
+            <div className="space-y-0.5">
+              <Label className="font-normal text-foreground">
+                Pinned views
+              </Label>
+            </div>
             {noConnections && (
               <p className="text-sm text-muted-foreground">
                 No connections yet. Add connections in the Connections tab to
@@ -940,24 +936,21 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
               </p>
             )}
             {connectionsData.length > 0 && (
-              <div className="space-y-4">
-                {connectionsData.map((conn, connIdx) => (
-                  <div key={conn.id}>
-                    {connIdx > 0 && (
-                      <div className="border-t border-border -mx-6 mb-4" />
-                    )}
-                    <div className="flex items-center gap-2 mb-3">
+              <div className="space-y-5">
+                {connectionsData.map((conn) => (
+                  <div key={conn.id} className="space-y-2">
+                    <div className="flex items-center gap-2">
                       <IntegrationIcon
                         icon={conn.icon}
                         name={conn.title}
                         size="xs"
                         className="shrink-0"
                       />
-                      <span className="text-sm font-medium text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         {conn.title}
                       </span>
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                       {conn.uiTools.map((tool) => {
                         const pinned = pinnedViews.some(
                           (v) =>
@@ -973,8 +966,8 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
                           <div
                             key={tool.name}
                             className={cn(
-                              "flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-border transition-colors",
-                              pinned ? "bg-accent/30" : "bg-muted/20",
+                              "flex items-center justify-between gap-3 px-3 py-2 rounded-md transition-colors",
+                              pinned ? "bg-accent/40" : "hover:bg-muted/40",
                             )}
                           >
                             <div className="min-w-0 flex-1 flex items-center gap-2">
@@ -1019,30 +1012,34 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
                 ))}
               </div>
             )}
+            <div className="border-t border-border -mx-6 mt-2" />
+            <div className="flex justify-end">
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      navigate({
+                        to: "/$org/$taskId",
+                        params: {
+                          org: org.slug,
+                          taskId: crypto.randomUUID(),
+                        },
+                        search: { virtualmcpid: virtualMcpId },
+                      });
+                    }}
+                  >
+                    Test layout
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  Test agent page layout
+                </TooltipContent>
+              </Tooltip>
+            </div>
           </CardContent>
         </Card>
-
-        <div className="flex justify-end">
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={() => {
-                  navigate({
-                    to: "/$org/$taskId",
-                    params: {
-                      org: org.slug,
-                      taskId: crypto.randomUUID(),
-                    },
-                    search: { virtualmcpid: virtualMcpId },
-                  });
-                }}
-              >
-                Test layout
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">Test agent page layout</TooltipContent>
-          </Tooltip>
-        </div>
       </div>
     </div>
   );
@@ -1055,13 +1052,9 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
 
 function VirtualMcpDetailViewWithData({
   virtualMcp,
-  forceTab,
-  hideOwnTabBar,
   hideOwnTitle,
 }: {
   virtualMcp: VirtualMCPEntity;
-  forceTab?: "instructions" | "connections" | "layout";
-  hideOwnTabBar?: boolean;
   hideOwnTitle?: boolean;
 }) {
   const { org } = useProjectContext();
@@ -1093,19 +1086,6 @@ function VirtualMcpDetailViewWithData({
     settingsConnectionId: null,
   });
 
-  // Tab state — internal unless forced externally (e.g. by MainPanelContent)
-  const validTabIds = ["instructions", "connections", "layout"];
-  const [internalTab, setInternalTab] = useState(() => {
-    const stored = localStorage.getItem("agent-detail-tab") || "instructions";
-    // Migrate old "sidebar" tab to "layout"
-    const effective = stored === "sidebar" ? "layout" : stored;
-    return validTabIds.includes(effective) ? effective : "instructions";
-  });
-  const activeTab = forceTab ?? internalTab;
-  const setActiveTab = (id: string) => {
-    if (forceTab) return;
-    setInternalTab(id);
-  };
   const { createTaskWithMessage } = useChatTask();
   const { setChatMode } = useChatPrefs();
   const { createNewTask } = usePanelActions();
@@ -1399,6 +1379,7 @@ Define step-by-step how the agent should handle requests.
   const addedConnectionIds = new Set(connections.map((c) => c.connection_id));
   const navigate = useNavigate();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [instructionsFullscreen, setInstructionsFullscreen] = useState(false);
 
   const handleDelete = async () => {
     try {
@@ -1410,25 +1391,11 @@ Define step-by-step how the agent should handle requests.
     }
   };
 
-  // Variant-specific tabs
-  const tabs = [
-    {
-      id: "instructions",
-      label: "Instructions",
-    },
-    {
-      id: "connections",
-      label: "Connections",
-      count: connections.length || undefined,
-    },
-    { id: "layout", label: "Layout" },
-  ];
-
   return (
     <Page>
       <Page.Content>
         <Page.Body>
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-10">
             {!hideOwnTitle && (
               <Page.Title
                 actions={
@@ -1489,100 +1456,136 @@ Define step-by-step how the agent should handle requests.
               </Page.Title>
             )}
 
-            {/* Tabs */}
-            {!hideOwnTabBar && (
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <CollectionTabs
-                  tabs={tabs}
-                  activeTab={activeTab}
-                  onTabChange={(id) => {
-                    setActiveTab(id);
-                    localStorage.setItem("agent-detail-tab", id);
-                  }}
+            {/* Agent identity header */}
+            <div className="flex items-center gap-3">
+              <Controller
+                name="icon"
+                control={form.control}
+                render={({ field }) => (
+                  <IconPicker
+                    value={field.value ?? null}
+                    onChange={(icon) => {
+                      field.onChange(icon);
+                      saveForm();
+                    }}
+                    onColorChange={(color) => {
+                      form.setValue("metadata.ui.themeColor", color, {
+                        shouldDirty: true,
+                      });
+                      saveForm();
+                    }}
+                    name={form.watch("title") || "Agent"}
+                    size="md"
+                    className="shrink-0"
+                    avatarClassName="[&_svg]:w-1/2 [&_svg]:h-1/2"
+                    disabled={hasGithubRepo}
+                  />
+                )}
+              />
+              <div className="flex flex-col flex-1 min-w-0">
+                <Controller
+                  name="title"
+                  control={form.control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      type="text"
+                      value={field.value ?? ""}
+                      onBlur={() => {
+                        field.onBlur();
+                        saveForm();
+                      }}
+                      disabled={hasGithubRepo}
+                      placeholder="Agent name"
+                      className="text-lg font-medium leading-tight text-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate disabled:hover:bg-transparent disabled:focus:bg-transparent disabled:opacity-50"
+                    />
+                  )}
                 />
-                {activeTab === "connections" && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleOpenAddDialog}
-                  >
-                    <Plus size={13} />
-                    Add
+                <Controller
+                  name="description"
+                  control={form.control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      type="text"
+                      value={field.value ?? ""}
+                      onBlur={() => {
+                        field.onBlur();
+                        saveForm();
+                      }}
+                      disabled={hasGithubRepo}
+                      placeholder="Add a description..."
+                      className="text-sm text-muted-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate disabled:hover:bg-transparent disabled:focus:bg-transparent disabled:opacity-50"
+                    />
+                  )}
+                />
+              </div>
+            </div>
+
+            {/* Connections section */}
+            <section className="flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-sm font-medium text-foreground">
+                  Connections
+                </h2>
+                {connections.length > 0 && (
+                  <Button size="sm" onClick={handleOpenAddDialog}>
+                    <Plus size={14} />
+                    Add connection
                   </Button>
                 )}
               </div>
-            )}
-
-            {/* Tab content */}
-            {activeTab === "instructions" && (
-              <>
-                <div className="flex items-center gap-3">
-                  <Controller
-                    name="icon"
-                    control={form.control}
-                    render={({ field }) => (
-                      <IconPicker
-                        value={field.value ?? null}
-                        onChange={(icon) => {
-                          field.onChange(icon);
-                          saveForm();
-                        }}
-                        onColorChange={(color) => {
-                          form.setValue("metadata.ui.themeColor", color, {
-                            shouldDirty: true,
-                          });
-                          saveForm();
-                        }}
-                        name={form.watch("title") || "Agent"}
-                        size="md"
-                        className="shrink-0"
-                        avatarClassName="[&_svg]:w-1/2 [&_svg]:h-1/2"
-                        disabled={hasGithubRepo}
-                      />
-                    )}
-                  />
-                  <div className="flex flex-col flex-1 min-w-0">
-                    <Controller
-                      name="title"
-                      control={form.control}
-                      render={({ field }) => (
-                        <input
-                          {...field}
-                          type="text"
-                          value={field.value ?? ""}
-                          onBlur={() => {
-                            field.onBlur();
-                            saveForm();
-                          }}
-                          disabled={hasGithubRepo}
-                          placeholder="Agent name"
-                          className="text-lg font-medium leading-tight text-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate disabled:hover:bg-transparent disabled:focus:bg-transparent disabled:opacity-50"
+              <div className="flex flex-col gap-2">
+                {connections.length === 0 ? (
+                  <button
+                    type="button"
+                    onClick={handleOpenAddDialog}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-dashed border-border hover:bg-accent/50 transition-colors w-full text-left cursor-pointer"
+                  >
+                    <div className="flex items-center justify-center size-8 rounded-md text-muted-foreground/75 border border-dashed border-border shrink-0">
+                      <Plus size={16} />
+                    </div>
+                    <span className="text-sm text-muted-foreground">
+                      No connections yet. Add one to get started.
+                    </span>
+                  </button>
+                ) : (
+                  connections.map((conn) => (
+                    <ErrorBoundary
+                      key={conn.connection_id}
+                      fallback={() => null}
+                    >
+                      <Suspense fallback={<ConnectionItemSkeleton />}>
+                        <ConnectionItem
+                          connection_id={conn.connection_id}
+                          usedConnectionIds={addedConnectionIds}
+                          onOpenSettings={() =>
+                            handleOpenSettings(conn.connection_id)
+                          }
+                          onRemove={() =>
+                            handleRemoveConnection(conn.connection_id)
+                          }
+                          onAuthenticate={handleAuthenticate}
+                          onSwitchInstance={handleSwitchInstance}
+                          onNewInstance={() =>
+                            handleNewInstance(conn.connection_id)
+                          }
                         />
-                      )}
-                    />
-                    <Controller
-                      name="description"
-                      control={form.control}
-                      render={({ field }) => (
-                        <input
-                          {...field}
-                          type="text"
-                          value={field.value ?? ""}
-                          onBlur={() => {
-                            field.onBlur();
-                            saveForm();
-                          }}
-                          disabled={hasGithubRepo}
-                          placeholder="Add a description..."
-                          className="text-sm text-muted-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate disabled:hover:bg-transparent disabled:focus:bg-transparent disabled:opacity-50"
-                        />
-                      )}
-                    />
-                  </div>
-                </div>
+                      </Suspense>
+                    </ErrorBoundary>
+                  ))
+                )}
+              </div>
+            </section>
 
+            {/* Instructions section */}
+            <section className="flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-sm font-medium text-foreground">
+                  Instructions
+                </h2>
                 {!hasGithubRepo && (
-                  <div className="flex items-center justify-end gap-2">
+                  <div className="flex items-center gap-2">
                     {!form.watch("metadata.instructions")?.trim() && (
                       <Button
                         variant="outline"
@@ -1603,11 +1606,12 @@ Define step-by-step how the agent should handle requests.
                     </Button>
                   </div>
                 )}
-
-                <Controller
-                  name="metadata.instructions"
-                  control={form.control}
-                  render={({ field }) => (
+              </div>
+              <Controller
+                name="metadata.instructions"
+                control={form.control}
+                render={({ field }) => (
+                  <div className="relative rounded-xl card-shadow bg-card focus-within:ring-1 focus-within:ring-ring">
                     <Textarea
                       {...field}
                       value={field.value ?? ""}
@@ -1617,75 +1621,33 @@ Define step-by-step how the agent should handle requests.
                       }}
                       disabled={hasGithubRepo}
                       placeholder="Define how this agent should behave, what tone to use, any constraints or guidelines..."
-                      className="min-h-[300px] flex-1 resize-none text-base text-muted-foreground placeholder:text-muted-foreground/40 leading-relaxed border-0 rounded-none shadow-none px-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-0 bg-transparent"
+                      className="min-h-[200px] max-h-[360px] overflow-auto resize-none text-base text-muted-foreground placeholder:text-muted-foreground/40 leading-relaxed border-0 shadow-none px-4 py-3 pr-11 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
                       style={{ boxShadow: "none" }}
                     />
-                  )}
-                />
-              </>
-            )}
+                    <Tooltip delayDuration={0}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute top-2 right-2 h-7 w-7 text-muted-foreground"
+                          onClick={() => setInstructionsFullscreen(true)}
+                          aria-label="Open fullscreen editor"
+                        >
+                          <Maximize01 size={14} />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left">Fullscreen</TooltipContent>
+                    </Tooltip>
+                  </div>
+                )}
+              />
+            </section>
 
-            {activeTab === "connections" && (
-              <div className="flex flex-col gap-6">
-                <Page.Title
-                  actions={
-                    connections.length > 0 ? (
-                      <Button size="sm" onClick={handleOpenAddDialog}>
-                        <Plus size={14} />
-                        Add connection
-                      </Button>
-                    ) : undefined
-                  }
-                >
-                  Connections
-                </Page.Title>
-                <div className="flex flex-col gap-2">
-                  {connections.length === 0 ? (
-                    <button
-                      type="button"
-                      onClick={handleOpenAddDialog}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-dashed border-border hover:bg-accent/50 transition-colors w-full text-left cursor-pointer"
-                    >
-                      <div className="flex items-center justify-center size-8 rounded-md text-muted-foreground/75 border border-dashed border-border shrink-0">
-                        <Plus size={16} />
-                      </div>
-                      <span className="text-sm text-muted-foreground">
-                        No connections yet. Add one to get started.
-                      </span>
-                    </button>
-                  ) : (
-                    connections.map((conn) => (
-                      <ErrorBoundary
-                        key={conn.connection_id}
-                        fallback={() => null}
-                      >
-                        <Suspense fallback={<ConnectionItemSkeleton />}>
-                          <ConnectionItem
-                            connection_id={conn.connection_id}
-                            usedConnectionIds={addedConnectionIds}
-                            onOpenSettings={() =>
-                              handleOpenSettings(conn.connection_id)
-                            }
-                            onRemove={() =>
-                              handleRemoveConnection(conn.connection_id)
-                            }
-                            onAuthenticate={handleAuthenticate}
-                            onSwitchInstance={handleSwitchInstance}
-                            onNewInstance={() =>
-                              handleNewInstance(conn.connection_id)
-                            }
-                          />
-                        </Suspense>
-                      </ErrorBoundary>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-
-            {activeTab === "layout" && (
+            {/* Layout section */}
+            <section className="flex flex-col gap-3">
               <LayoutTabContent virtualMcpId={virtualMcp.id} />
-            )}
+            </section>
           </div>
         </Page.Body>
       </Page.Content>
@@ -1744,6 +1706,37 @@ Define step-by-step how the agent should handle requests.
         }
         virtualMcp={virtualMcp}
       />
+
+      <Dialog
+        open={instructionsFullscreen}
+        onOpenChange={setInstructionsFullscreen}
+      >
+        <DialogContent className="max-w-4xl w-[90vw] h-[85vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-6 pt-6 pb-3 border-b border-border shrink-0">
+            <DialogTitle>Instructions</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 p-6">
+            <Controller
+              name="metadata.instructions"
+              control={form.control}
+              render={({ field }) => (
+                <Textarea
+                  {...field}
+                  value={field.value ?? ""}
+                  onBlur={() => {
+                    field.onBlur();
+                    saveForm();
+                  }}
+                  disabled={hasGithubRepo}
+                  placeholder="Define how this agent should behave, what tone to use, any constraints or guidelines..."
+                  className="w-full h-full resize-none text-base text-muted-foreground placeholder:text-muted-foreground/40 leading-relaxed rounded-xl card-shadow px-4 py-3 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 bg-card border-0"
+                  style={{ boxShadow: "none" }}
+                />
+              )}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </Page>
   );
 }
@@ -1754,13 +1747,9 @@ Define step-by-step how the agent should handle requests.
 
 export function VirtualMcpDetailView({
   virtualMcpId,
-  forceTab,
-  hideOwnTabBar,
   hideOwnTitle,
 }: {
   virtualMcpId: string;
-  forceTab?: "instructions" | "connections" | "layout";
-  hideOwnTabBar?: boolean;
   hideOwnTitle?: boolean;
 }) {
   const navigate = useNavigate();
@@ -1795,8 +1784,6 @@ export function VirtualMcpDetailView({
     <VirtualMcpDetailViewWithData
       key={getActiveGithubRepo(virtualMcp)?.connectionId ?? ""}
       virtualMcp={virtualMcp}
-      forceTab={forceTab}
-      hideOwnTabBar={hideOwnTabBar}
       hideOwnTitle={hideOwnTitle}
     />
   );

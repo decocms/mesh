@@ -3,7 +3,10 @@ import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import { authClient } from "@/web/lib/auth-client";
 import { useToggleEnvPanel } from "@/web/hooks/use-toggle-env-panel";
 import {
+  ArrowLeft,
+  ArrowRight,
   CursorClick01,
+  DotsHorizontal,
   LinkExternal01,
   Monitor04,
   RefreshCw01,
@@ -20,6 +23,13 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@deco/ui/components/dropdown-menu.tsx";
+import {
   VISUAL_EDITOR_SCRIPT,
   VisualEditorPayloadSchema,
   type VisualEditorPayload,
@@ -34,7 +44,11 @@ const VIEW_MODE_OPTIONS: [
   ViewModeOption<PreviewViewMode>,
   ViewModeOption<PreviewViewMode>,
 ] = [
-  { value: "preview", icon: <Monitor04 size={14} />, tooltip: "Interactive" },
+  {
+    value: "preview",
+    icon: <Monitor04 size={14} />,
+    tooltip: "Interactive",
+  },
   {
     value: "visual",
     icon: <CursorClick01 size={14} />,
@@ -67,8 +81,16 @@ export function PreviewContent() {
   const previewUrl = vmEntry?.previewUrl ?? null;
 
   const vmEvents = useVmEvents(previewUrl, null);
-  const hasHtmlPreview = vmEvents.status.htmlSupport;
   const suspended = vmEvents.suspended;
+  const previewLabel = (() => {
+    if (!previewUrl) return "No server running";
+    try {
+      const url = new URL(previewUrl);
+      return `${url.host}${url.pathname === "/" ? "" : url.pathname}`;
+    } catch {
+      return previewUrl;
+    }
+  })();
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — postMessage listener requires DOM event subscription; no React 19 alternative
   useEffect(() => {
@@ -119,70 +141,153 @@ export function PreviewContent() {
     }
   };
 
+  const handleRefresh = () => {
+    if (!previewIframeRef.current) return;
+    const iframe = previewIframeRef.current;
+    // biome-ignore lint/correctness/noSelfAssign: reloads the iframe
+    // oxlint-disable-next-line no-self-assign
+    iframe.src = iframe.src;
+  };
+
+  const handleHardReload = () => {
+    if (!previewIframeRef.current || !previewUrl) return;
+    const sep = previewUrl.includes("?") ? "&" : "?";
+    previewIframeRef.current.src = `${previewUrl}${sep}_r=${Date.now()}`;
+  };
+
+  const handleCopyUrl = () => {
+    const url =
+      previewIframeRef.current?.contentWindow?.location?.href ?? previewUrl;
+    if (url) navigator.clipboard.writeText(url);
+  };
+
   return (
-    <div className="flex flex-col w-full h-full">
-      {/* Unified toolbar */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
-        {previewUrl && hasHtmlPreview && (
+    <div className="group flex h-full w-full flex-col overflow-hidden bg-background">
+      {previewUrl && (
+        <div className="flex h-12 shrink-0 items-center gap-4 border-b border-border/60 px-3 md:px-4">
+          {/* Group 1: view mode toggle */}
           <ViewModeToggle
             value={viewMode}
             onValueChange={handleViewModeChange}
             options={VIEW_MODE_OPTIONS}
             size="sm"
+            className="shrink-0 bg-foreground/[0.045]"
           />
-        )}
-        <div className="flex items-center gap-1 flex-1 min-w-0 rounded-md border border-border bg-muted/40 px-2 py-1">
-          {previewUrl ? (
-            <>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="shrink-0 h-5 w-5 p-0"
-                    onClick={() => {
-                      if (previewIframeRef.current) {
-                        const iframe = previewIframeRef.current;
-                        // biome-ignore lint/correctness/noSelfAssign: reloads the iframe
-                        // oxlint-disable-next-line no-self-assign
-                        iframe.src = iframe.src;
-                      }
-                    }}
-                  >
-                    <RefreshCw01 size={12} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Refresh</TooltipContent>
-              </Tooltip>
-              <span className="text-xs text-muted-foreground font-mono truncate flex-1">
-                {previewUrl}
-              </span>
-            </>
-          ) : (
-            <span className="text-xs text-muted-foreground font-mono truncate flex-1">
-              No server running
-            </span>
-          )}
-        </div>
-        {previewUrl && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="shrink-0"
-                onClick={() => window.open(previewUrl, "_blank", "noopener")}
-              >
-                <LinkExternal01 size={14} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Open in new tab</TooltipContent>
-          </Tooltip>
-        )}
-      </div>
 
-      {/* Content area */}
-      <div className="flex-1 relative overflow-hidden">
+          {/* Group 2: nav + url */}
+          <div className="flex min-w-0 flex-1 items-center gap-0.5">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() =>
+                    previewIframeRef.current?.contentWindow?.history.back()
+                  }
+                >
+                  <ArrowLeft size={14} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Back</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() =>
+                    previewIframeRef.current?.contentWindow?.history.forward()
+                  }
+                >
+                  <ArrowRight size={14} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Forward</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={handleRefresh}>
+                  <RefreshCw01 size={14} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Refresh</TooltipContent>
+            </Tooltip>
+
+            <div className="flex h-8 min-w-0 flex-1 items-center rounded-md bg-background px-2 transition-colors duration-200 hover:bg-accent">
+              <span className="min-w-0 flex-1 truncate text-[12px] text-foreground/88">
+                {previewLabel}
+              </span>
+            </div>
+          </div>
+
+          {/* Group 3: more actions + open in new tab */}
+          <div className="flex shrink-0 items-center gap-0.5">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => window.open(previewUrl, "_blank", "noopener")}
+                >
+                  <LinkExternal01 size={14} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Open in new tab</TooltipContent>
+            </Tooltip>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <DotsHorizontal size={14} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleHardReload}>
+                  Hard Reload
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleCopyUrl}>
+                  Copy Current URL
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() =>
+                    previewIframeRef.current?.contentWindow?.history.go(
+                      -(
+                        previewIframeRef.current?.contentWindow?.history
+                          .length ?? 0
+                      ),
+                    )
+                  }
+                >
+                  Clear Browsing History
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    fetch(`${previewUrl}/_decopilot_vm/clear-cookies`, {
+                      method: "POST",
+                    })
+                  }
+                >
+                  Clear Cookies
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    fetch(`${previewUrl}/_decopilot_vm/clear-cache`, {
+                      method: "POST",
+                    })
+                  }
+                >
+                  Clear Cache
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      )}
+
+      <div className="relative flex-1 overflow-hidden bg-[radial-gradient(circle_at_top,rgba(127,127,127,0.08),transparent_42%)]">
         {!previewUrl && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-background">
             <Monitor04 size={48} className="text-muted-foreground/40" />
@@ -219,7 +324,7 @@ export function PreviewContent() {
           <iframe
             ref={previewIframeRef}
             src={previewUrl}
-            className="w-full h-full border-0"
+            className="h-full w-full border-0 bg-white"
             title="Dev Server Preview"
             onLoad={() => {
               if (viewMode === "visual") {

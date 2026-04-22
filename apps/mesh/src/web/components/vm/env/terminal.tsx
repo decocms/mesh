@@ -36,13 +36,17 @@ export function VmTerminal({
       fontFamily:
         cssVar("--font-mono") ||
         "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-      fontSize: 13,
-      lineHeight: 1.4,
+      fontSize: 12.5,
+      lineHeight: 1.5,
       scrollback: 5000,
       cursorBlink: false,
       disableStdin: true,
       theme: {
-        background: cssVar("--background") || "#1e1e1e",
+        background:
+          cssVar("--sidebar") ||
+          cssVar("--card") ||
+          cssVar("--background") ||
+          "#1e1e1e",
         cursor: "transparent",
         foreground: cssVar("--foreground") || "#d4d4d4",
         selectionBackground: cssVar("--accent"),
@@ -101,7 +105,10 @@ export function VmTerminal({
   return (
     <div
       ref={containerRef}
-      className={cn("overflow-hidden bg-background p-3", className)}
+      className={cn(
+        "overflow-hidden bg-transparent px-4 py-3 [&_.xterm]:h-full [&_.xterm-screen]:min-h-full [&_.xterm-viewport]:overscroll-contain",
+        className,
+      )}
     />
   );
 }
