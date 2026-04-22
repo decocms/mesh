@@ -53,6 +53,7 @@ import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useStatusSounds } from "../../hooks/use-status-sounds";
 import { useChatNavigation } from "@/web/components/chat/hooks/use-chat-navigation";
 import { generateBranchName } from "@/shared/branch-name";
+import { authClient } from "@/web/lib/auth-client";
 import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "@/web/components/empty-state";
 import { useChatMainPanelState } from "@/web/hooks/use-layout-state";
@@ -207,16 +208,23 @@ function AgentInsetProvider() {
   }, []);
 
   // Auto-assign a branch to the thread when the virtualMCP has a GitHub repo
-  // and the URL has no `?branch=` yet. Guarantees every github-linked thread
-  // has a branch before any VM is started, so the header branch picker never
-  // renders the "Select branch…" empty state for connected repos.
+  // and the URL has no `?branch=` yet. Prefer reusing the user's first
+  // existing branch from vmMap (so revisits stick to a known branch instead
+  // of minting a fresh name); fall back to generating one only when the user
+  // has no branches registered yet.
   const { branch: urlBranch, setBranch } = useChatNavigation();
+  const { data: session } = authClient.useSession();
+  const userId = session?.user?.id;
+  const vmMap = entity?.metadata?.vmMap;
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — one-shot side effect that sets a URL search param; TanStack Router navigation has no render-time equivalent
   useEffect(() => {
     if (urlBranch) return;
     if (!hasActiveGithubRepo) return;
-    setBranch(generateBranchName());
-  }, [urlBranch, hasActiveGithubRepo, setBranch]);
+    if (!userId) return;
+    const userBranches = vmMap?.[userId];
+    const existing = userBranches ? Object.keys(userBranches)[0] : undefined;
+    setBranch(existing ?? generateBranchName());
+  }, [urlBranch, hasActiveGithubRepo, setBranch, userId, vmMap]);
 
   const chatVirtualMcpId = virtualMcpId;
 
