@@ -3,6 +3,7 @@ import type { GuidePrompt, GuideResource } from "./index";
 export const prompts: GuidePrompt[] = [
   {
     name: "agents-create",
+    title: "Create Agents",
     description: "Build a new agent for a specific role or workflow.",
     text: `# Create agent
 
@@ -27,6 +28,7 @@ Checks:
   },
   {
     name: "agents-update",
+    title: "Update Agents",
     description:
       "Modify an existing agent's behavior, connections, or instructions.",
     text: `# Update agent
@@ -52,6 +54,7 @@ Checks:
   },
   {
     name: "writing-prompts",
+    title: "Improve Instructions",
     description: "Improve instructions for an agent or automation.",
     text: `# Writing instructions
 

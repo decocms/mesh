@@ -274,14 +274,18 @@ export const managementMCP = async (ctx: MeshContext) => {
   // Register action prompts
   const prompts = getPrompts();
   for (const prompt of prompts) {
-    server.prompt(prompt.name, prompt.description, () => ({
-      messages: [
-        {
-          role: "user" as const,
-          content: { type: "text" as const, text: prompt.text },
-        },
-      ],
-    }));
+    server.registerPrompt(
+      prompt.name,
+      { title: prompt.title, description: prompt.description },
+      () => ({
+        messages: [
+          {
+            role: "user" as const,
+            content: { type: "text" as const, text: prompt.text },
+          },
+        ],
+      }),
+    );
   }
 
   // Register one prompt per brand context (e.g. /brand-acme-corp)
