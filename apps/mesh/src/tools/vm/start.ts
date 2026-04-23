@@ -19,6 +19,12 @@ import { VmBun } from "@freestyle-sh/with-bun";
 import { VmNodeJs } from "@freestyle-sh/with-nodejs";
 import { requireVmEntry, resolveRuntimeConfig } from "./helpers";
 import { DownstreamTokenStorage } from "../../storage/downstream-token";
+import {
+  canRefresh,
+  PROACTIVE_REFRESH_BUFFER_MS,
+  RECONNECT_ERROR,
+  refreshAndStore,
+} from "@/oauth/token-refresh";
 import { buildDaemonScript } from "./daemon";
 import { generateBranchName } from "../../shared/branch-name";
 import { removeVmMapEntry, setVmMapEntry } from "./vm-map";
@@ -45,14 +51,31 @@ async function buildCloneInfo(
       "No GitHub token found. Ensure the mcp-github connection is authenticated.",
     );
   }
-  const cloneUrl = `https://x-access-token:${token.accessToken}@github.com/${owner}/${name}.git`;
+
+  let accessToken = token.accessToken;
+
+  // Proactive refresh: if the stored token is expiring soon and we have the
+  // OAuth fields needed to refresh, swap it for a fresh one before baking it
+  // into the daemon's clone URL. Mirrors GITHUB_LIST_USER_ORGS.
+  if (
+    canRefresh(token) &&
+    tokenStorage.isExpired(token, PROACTIVE_REFRESH_BUFFER_MS)
+  ) {
+    const refreshed = await refreshAndStore(token, tokenStorage);
+    if (!refreshed) {
+      throw new Error(RECONNECT_ERROR);
+    }
+    accessToken = refreshed;
+  }
+
+  const cloneUrl = `https://x-access-token:${accessToken}@github.com/${owner}/${name}.git`;
 
   let gitUserName = "Deco Studio";
   let gitUserEmail = "studio@deco.cx";
   try {
     const res = await fetch("https://api.github.com/user", {
       headers: {
-        Authorization: `token ${token.accessToken}`,
+        Authorization: `token ${accessToken}`,
         Accept: "application/vnd.github+json",
       },
     });
