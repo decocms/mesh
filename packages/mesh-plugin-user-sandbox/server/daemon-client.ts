@@ -10,6 +10,7 @@ const DEFAULT_EXEC_TIMEOUT_MS = 60_000;
 const HEALTH_PROBE_TIMEOUT_MS = 500;
 const READY_ATTEMPTS = 25;
 const READY_INTERVAL_MS = 200;
+const READY_JITTER_MS = 50; // ±50ms around READY_INTERVAL_MS
 
 export async function probeDaemonHealth(daemonUrl: string): Promise<boolean> {
   try {
@@ -26,7 +27,8 @@ export async function probeDaemonHealth(daemonUrl: string): Promise<boolean> {
 export async function waitForDaemonReady(daemonUrl: string): Promise<void> {
   for (let i = 0; i < READY_ATTEMPTS; i++) {
     if (await probeDaemonHealth(daemonUrl)) return;
-    await sleep(READY_INTERVAL_MS);
+    const jitter = (Math.random() * 2 - 1) * READY_JITTER_MS;
+    await sleep(READY_INTERVAL_MS + jitter);
   }
   throw new Error(
     `sandbox daemon at ${daemonUrl} did not respond on /health within ${

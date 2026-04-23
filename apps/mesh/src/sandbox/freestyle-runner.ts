@@ -138,29 +138,34 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     const rec = await this.lookupRecord(handle);
     this.byHandle.delete(handle);
     if (rec) {
-      try {
-        const vm = freestyle.vms.ref({ vmId: rec.vmId });
-        await Promise.race([
-          vm.stop().then(() => vm.delete()),
-          new Promise((_, reject) =>
-            setTimeout(
-              () => reject(new Error("freestyle vm.delete() timed out")),
-              10_000,
-            ),
-          ),
-        ]);
-      } catch (err) {
-        console.error(
-          `[FreestyleSandboxRunner] delete vm ${rec.vmId} failed: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        );
-      }
+      await this.disposeVm(rec.vmId, "delete");
       if (this.stateStore) {
         await this.stateStore.delete(rec.id, RUNNER_KIND);
       }
     } else if (this.stateStore) {
       await this.stateStore.deleteByHandle(RUNNER_KIND, handle);
+    }
+  }
+
+  /** stop() + delete() a VM; timebound + errors are logged, not thrown. */
+  private async disposeVm(vmId: string, reason: string): Promise<void> {
+    try {
+      const vm = freestyle.vms.ref({ vmId });
+      await Promise.race([
+        vm.stop().then(() => vm.delete()),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("freestyle vm.delete() timed out")),
+            10_000,
+          ),
+        ),
+      ]);
+    } catch (err) {
+      console.error(
+        `[FreestyleSandboxRunner] dispose vm ${vmId} (${reason}) failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
     }
   }
 
@@ -310,9 +315,12 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     if (!state.vmId || !state.previewDomain || !state.repo) return null;
     // Rows persisted before bearer auth landed have no daemonToken. The
     // running VM's daemon script also predates auth, so issuing a new token
-    // wouldn't match. Force reprovision — ensureInner deletes the row and
-    // calls provision() with a fresh spec. Old VM idle-times out.
-    if (!state.daemonToken) return null;
+    // wouldn't match. Dispose the old VM explicitly — relying on idle-timeout
+    // orphans one VM per stale row, which stacks up and is billed.
+    if (!state.daemonToken) {
+      await this.disposeVm(state.vmId, "resume:no-daemon-token");
+      return null;
+    }
     // Workload (runtime / packageManager / devPort) is baked into the
     // daemon script at VM create time — see buildSpec's additionalFiles.
     // `freestyle.vms.ref({ vmId, spec }).start()` boots the existing VM

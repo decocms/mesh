@@ -13,13 +13,13 @@ export const dev = {
   stopInFlight: null,
   /** { source, line, ts } — shared log ring across all sources. */
   logRing: [],
+  /** Running byte count of logRing (sum of entry.line.length). */
+  logRingBytes: 0,
   // Consecutive fast crashes; /dev/start refuses until backoff elapses.
   // Cleared on `ready` and on `restart: true`.
   crashCount: 0,
   lastCrashAt: null,
-  // Rolling timestamps to detect pathological clean-exit loops.
-  respawnTimes: [],
-  // Set by stopDev() before SIGTERM so the exit handler skips auto-respawn.
+  // Set by stopDev() before SIGTERM so the exit handler skips the crashed path.
   stopRequested: false,
 };
 

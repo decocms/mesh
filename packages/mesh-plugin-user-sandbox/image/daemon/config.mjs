@@ -17,14 +17,10 @@ export function childEnv(extra) {
 export const MAX_SSE_CLIENTS = 10;
 
 export const LOG_RING_CAP = 2000;
+export const LOG_RING_BYTES_CAP = 2 * 1024 * 1024; // 2 MiB
 
 export const FAST_CRASH_MS = 10_000;
 export const MAX_BACKOFF_MS = 60_000;
-
-// Rolling-window cap catches pathological clean-exit loops without
-// interfering with HMR-driven respawns.
-export const RESPAWN_WINDOW_MS = 60_000;
-export const RESPAWN_MAX_IN_WINDOW = 20;
 
 // Dev server must bind this port; pods expose it externally (no proxying).
 export const DEV_PORT = 3000;

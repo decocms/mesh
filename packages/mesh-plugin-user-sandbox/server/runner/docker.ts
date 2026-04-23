@@ -181,19 +181,26 @@ export class DockerSandboxRunner implements SandboxRunner {
     ]);
     if (r.code !== 0) return 0;
     const ids = r.stdout.trim().split("\n").filter(Boolean);
-    for (const id of ids) {
-      await this.stopContainer(id);
-      if (this.stateStore) {
-        await this.stateStore
-          .deleteByHandle(RUNNER_KIND, id)
-          .catch((err) =>
-            console.warn(
-              `[DockerSandboxRunner] sweep: state-store deleteByHandle(${id}) failed:`,
-              err instanceof Error ? err.message : String(err),
-            ),
-          );
-      }
-    }
+    await Promise.all(
+      ids.map(async (id) => {
+        await this.stopContainer(id).catch((err) =>
+          console.warn(
+            `[DockerSandboxRunner] sweep: stopContainer(${id}) failed:`,
+            err instanceof Error ? err.message : String(err),
+          ),
+        );
+        if (this.stateStore) {
+          await this.stateStore
+            .deleteByHandle(RUNNER_KIND, id)
+            .catch((err) =>
+              console.warn(
+                `[DockerSandboxRunner] sweep: state-store deleteByHandle(${id}) failed:`,
+                err instanceof Error ? err.message : String(err),
+              ),
+            );
+        }
+      }),
+    );
     return ids.length;
   }
 
@@ -280,12 +287,14 @@ export class DockerSandboxRunner implements SandboxRunner {
       await this.attachRepoIfNeeded(id, rec, opts, store);
     } catch (err) {
       this.byHandle.delete(rec.handle);
-      await this.stopContainer(rec.handle).catch((stopErr) =>
+      await this.stopContainer(rec.handle).catch((stopErr) => {
+        const attachMsg = err instanceof Error ? err.message : String(err);
+        const stopMsg =
+          stopErr instanceof Error ? stopErr.message : String(stopErr);
         console.warn(
-          `[DockerSandboxRunner] cleanup stop after attach failure (${rec.handle}) itself failed:`,
-          stopErr instanceof Error ? stopErr.message : String(stopErr),
-        ),
-      );
+          `[DockerSandboxRunner] orphaned container after attach failure handle=${rec.handle} attachErr="${attachMsg}" stopErr="${stopMsg}"`,
+        );
+      });
       throw err;
     }
     await this.persist(id, rec, store);
@@ -326,11 +335,16 @@ export class DockerSandboxRunner implements SandboxRunner {
       method: "POST",
       headers: new Headers({ "content-type": "application/json" }),
       body,
+      signal: AbortSignal.timeout(30_000),
     }).catch((err) => {
+      const isAbort = err instanceof Error && err.name === "AbortError";
+      const detail = isAbort
+        ? "timed out after 30s"
+        : err instanceof Error
+          ? err.message
+          : String(err);
       console.error(
-        `[DockerSandboxRunner] /dev/start failed for ${rec.handle}: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
+        `[DockerSandboxRunner] /dev/start failed for ${rec.handle}: ${detail}`,
       );
     });
   }
@@ -361,14 +375,23 @@ export class DockerSandboxRunner implements SandboxRunner {
 
     // Hardening: drop all caps (daemon + dev server don't need any), block
     // privilege escalation, cap processes/memory/cpu so a runaway user
-    // script can't DoS the host. A kernel CVE in node/git/ripgrep still
-    // gives container-root, but caps=ALL dropped removes most pivots.
+    // script can't DoS the host. Read-only root FS removes most write-based
+    // pivots; /tmp is a bounded tmpfs; /app and /home/sandbox are anonymous
+    // volumes (disk-backed, not RAM) so package-manager caches and install
+    // artefacts don't blow the 2g memory cap. --rm cleans up the anonymous
+    // volumes when the container exits.
     const { id: rawId } = await startContainer(image, {
       label: "sandbox",
       exec: this.exec_,
       args: [
         "--rm",
         "--init",
+        "--read-only",
+        "--tmpfs=/tmp:rw,nosuid,nodev,size=256m",
+        "-v",
+        "/app",
+        "-v",
+        "/home/sandbox",
         "--cap-drop=ALL",
         "--security-opt=no-new-privileges",
         "--pids-limit=512",

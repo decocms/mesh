@@ -3,6 +3,10 @@
  * Runner-agnostic — dispatches through the active `SandboxRunner`; this
  * handler only does `vmMap` bookkeeping. Branch defaults to
  * `deco/<adjective>-<noun>` when omitted.
+ *
+ * Runner flips: if the existing entry's `runnerKind` differs from the env's
+ * current runner, the stale VM is torn down under its original runner before
+ * the new one is provisioned. Old VMs are ephemeral — not preserved.
  */
 
 import { z } from "zod";
@@ -10,6 +14,7 @@ import type { VmMapEntry } from "@decocms/mesh-sdk";
 import {
   composeSandboxRef,
   resolveRunnerKindFromEnv,
+  type RunnerKind,
   type Workload,
 } from "mesh-plugin-user-sandbox/runner";
 import { defineTool } from "../../core/define-tool";
@@ -17,7 +22,7 @@ import type { MeshContext } from "../../core/mesh-context";
 import { requireVmEntry, resolveRuntimeConfig } from "./helpers";
 import { buildCloneInfo } from "../../shared/github-clone-info";
 import { generateBranchName } from "../../shared/branch-name";
-import { getSharedRunner } from "../../sandbox/lifecycle";
+import { getRunnerByKind, getSharedRunner } from "../../sandbox/lifecycle";
 import { setVmMapEntry } from "./vm-map";
 
 type GithubRepoMeta = {
@@ -58,7 +63,11 @@ export const VM_START = defineTool({
   }),
 
   handler: async (input, ctx) => {
+    const t0 = Date.now();
     const resolvedBranch = input.branch ?? generateBranchName();
+    console.log(
+      `[VM_START] begin virtualMcpId=${input.virtualMcpId} branch=${resolvedBranch} generated=${!input.branch}`,
+    );
 
     const {
       metadata,
@@ -68,6 +77,13 @@ export const VM_START = defineTool({
     } = await requireVmEntry(
       { virtualMcpId: input.virtualMcpId, branch: resolvedBranch },
       ctx,
+    );
+    console.log(
+      `[VM_START] requireVmEntry userId=${userId} orgId=${organization.id} existing=${
+        existing
+          ? `{vmId=${existing.vmId}, runnerKind=${existing.runnerKind ?? "legacy"}}`
+          : "null"
+      }`,
     );
 
     const githubRepo = (metadata as GithubRepoMeta).githubRepo;
@@ -79,6 +95,14 @@ export const VM_START = defineTool({
     }
 
     const runnerKind = resolveRunnerKindFromEnv();
+    console.log(`[VM_START] runnerKind=${runnerKind}`);
+
+    // Runner env flipped since the existing entry was written. We don't
+    // preserve the old VM — tear it down under its original runner and let
+    // the provisioning below spin a fresh one. The boot overlay covers the
+    // transition; `isNewVm` fires naturally because the handle changes.
+    await reapStaleRunner(ctx, existing, runnerKind);
+
     const { entry, isNewVm } = await provisionSandbox({
       ctx,
       userId,
@@ -89,6 +113,9 @@ export const VM_START = defineTool({
       githubRepo,
       existing,
     });
+    console.log(
+      `[VM_START] provisioned vmId=${entry.vmId} isNewVm=${isNewVm} previewUrl=${entry.previewUrl ?? "null"} elapsedMs=${Date.now() - t0}`,
+    );
 
     return {
       ...entry,
@@ -98,6 +125,33 @@ export const VM_START = defineTool({
     };
   },
 });
+
+async function reapStaleRunner(
+  ctx: MeshContext,
+  existing: VmMapEntry | null,
+  currentKind: RunnerKind,
+): Promise<void> {
+  if (!existing) return;
+  // Legacy entries (pre-runnerKind) default to freestyle, matching VM_DELETE.
+  const priorKind: RunnerKind = existing.runnerKind ?? "freestyle";
+  if (priorKind === currentKind) return;
+
+  // Freestyle idle-times out its VMs on its own, so active teardown is
+  // unnecessary — and the freestyle SDK throws on ref() when the current
+  // env has no FREESTYLE_API_KEY (typical docker-only deploy).
+  if (priorKind === "freestyle") return;
+
+  try {
+    const priorRunner = await getRunnerByKind(ctx, priorKind);
+    await priorRunner.delete(existing.vmId);
+  } catch (err) {
+    console.error(
+      `[VM_START] stale ${priorKind} ${existing.vmId}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+}
 
 type StartParams = {
   ctx: MeshContext;

@@ -18,6 +18,7 @@ import {
 import { startDecoWatcher } from "./daemon/deco-watcher.mjs";
 import { startDev, stopDev } from "./daemon/dev-process.mjs";
 import { dev } from "./daemon/dev-state.mjs";
+import { killExec, startExec, stopAllExec } from "./daemon/exec-process.mjs";
 import {
   appendLog,
   currentStatusPayload,
@@ -67,6 +68,20 @@ function runBash(command, timeoutMs, cwd = WORKDIR) {
       resolve({ stdout, stderr: stderr + String(err), exitCode: -1, timedOut });
     });
   });
+}
+
+function statusForExecError(err) {
+  switch (err?.code) {
+    case "INVALID":
+      return 400;
+    case "NOT_FOUND":
+      return 404;
+    case "ALREADY_RUNNING":
+    case "DEV_OWNS":
+      return 409;
+    default:
+      return 500;
+  }
 }
 
 /** Pod-per-thread: reject stale `threadId` callers with 400. */
@@ -165,6 +180,42 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === "POST" && subUrl.startsWith("/_decopilot_vm/exec/")) {
+    const name = decodeURIComponent(
+      subUrl.slice("/_decopilot_vm/exec/".length).split("?")[0],
+    );
+    const body = await parsedBody(req);
+    try {
+      const result = startExec(name, body?.cwd);
+      send(res, 200, { ok: true, ...result });
+    } catch (err) {
+      send(res, statusForExecError(err), { error: err.message });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && subUrl.startsWith("/_decopilot_vm/kill/")) {
+    const name = decodeURIComponent(
+      subUrl.slice("/_decopilot_vm/kill/".length).split("?")[0],
+    );
+    if (!name) {
+      send(res, 400, { error: "script name required" });
+      return;
+    }
+    send(res, 200, { ok: killExec(name) });
+    return;
+  }
+
+  if (req.method === "GET" && subUrl.startsWith("/_decopilot_vm/scripts")) {
+    const u = new URL(subUrl, "http://local");
+    const cwdParam = u.searchParams.get("cwd");
+    const scriptsCwd =
+      cwdParam && cwdParam.length > 0 ? cwdParam : dev.cwd || WORKDIR;
+    const { scripts, pm } = inspectWorkdir(scriptsCwd);
+    send(res, 200, { scripts, pm, cwd: scriptsCwd });
+    return;
+  }
+
   if (req.method === "POST" && subUrl === "/dev/start") {
     const body = await parsedBody(req);
     startDev(body).catch((err) => {
@@ -250,6 +301,7 @@ const stopDecoWatcher = startDecoWatcher();
 for (const sig of ["SIGINT", "SIGTERM"]) {
   process.on(sig, async () => {
     stopDecoWatcher();
+    stopAllExec();
     await stopDev().catch(() => {});
     server.close(() => process.exit(0));
   });

@@ -11,8 +11,6 @@ import {
   DENO_BIN,
   DEV_PORT,
   FAST_CRASH_MS,
-  RESPAWN_MAX_IN_WINDOW,
-  RESPAWN_WINDOW_MS,
   WORKDIR,
   childEnv,
 } from "./config.mjs";
@@ -121,39 +119,6 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-/** Respawn after clean self-exit; rolling-window cap catches pathological loops. */
-function scheduleAutoRespawn() {
-  const now = Date.now();
-  dev.respawnTimes = (dev.respawnTimes || []).filter(
-    (t) => now - t < RESPAWN_WINDOW_MS,
-  );
-  if (dev.respawnTimes.length >= RESPAWN_MAX_IN_WINDOW) {
-    appendLog(
-      "daemon",
-      `[sandbox-daemon] dev script exited cleanly ${dev.respawnTimes.length} times in ${RESPAWN_WINDOW_MS / 1000}s — pausing auto-respawn. This usually means the script isn't a long-running server (e.g. it forks and returns). Fix the script or POST /dev/start with {"restart":true} to retry.\n`,
-    );
-    dev.respawnTimes = [];
-    dev.crashCount = (dev.crashCount || 0) + 1;
-    dev.lastCrashAt = now;
-    setPhase("crashed");
-    return;
-  }
-  dev.respawnTimes.push(now);
-  setTimeout(() => {
-    if (dev.phase !== "exited") return;
-    appendLog(
-      "daemon",
-      "[sandbox-daemon] auto-respawning dev process after clean exit\n",
-    );
-    startDev({ cwd: dev.cwd, script: dev.script }).catch((err) => {
-      appendLog(
-        "daemon",
-        `[sandbox-daemon] auto-respawn failed: ${String(err)}\n`,
-      );
-    });
-  }, 200);
-}
-
 export async function startDev({
   cwd,
   script: requestedScript,
@@ -188,7 +153,6 @@ export async function startDev({
   if (restart) {
     dev.crashCount = 0;
     dev.lastCrashAt = null;
-    dev.respawnTimes = [];
   }
   if (dev.child) await stopDev();
   dev.stopRequested = false;
@@ -273,12 +237,11 @@ export async function startDev({
     // stopDev() flow — let stopDev set the final phase.
     if (dev.stopRequested) return;
 
-    // Clean self-exit (code=0, no signal) = HMR rebuild → respawn; anything
-    // else = real failure → backoff. Pathological clean-exit loops are
-    // caught by the rolling-window cap in scheduleAutoRespawn.
+    // No auto-respawn: try once, leave the sandbox up. Clean exit → `exited`,
+    // anything else → `crashed`. Caller drives retries via POST /dev/start
+    // with {"restart":true} after fixing the script (e.g. running build).
     if (signal === null && code === 0) {
       setPhase("exited");
-      scheduleAutoRespawn();
       return;
     }
 
@@ -307,7 +270,7 @@ export async function stopDev() {
       }
       return;
     }
-    // Must precede kill: exit handler uses this to skip auto-respawn.
+    // Must precede kill so the exit handler doesn't flip phase to crashed.
     dev.stopRequested = true;
     killDev("SIGTERM");
     await waitForExit(5_000);

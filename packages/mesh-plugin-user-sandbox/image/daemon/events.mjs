@@ -1,8 +1,11 @@
-import { LOG_RING_CAP } from "./config.mjs";
+import { LOG_RING_BYTES_CAP, LOG_RING_CAP } from "./config.mjs";
 import { crashBackoffRemainingMs, dev } from "./dev-state.mjs";
+import { execChildren } from "./exec-state.mjs";
 import { inspectWorkdir } from "./workdir.mjs";
 
 export const subscribers = new Set();
+
+const backpressureCounts = new WeakMap();
 
 export function appendLog(source, chunk) {
   const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
@@ -12,7 +15,15 @@ export function appendLog(source, chunk) {
     if (line.length === 0 && i === lines.length - 1) continue;
     const entry = { source, line, ts: Date.now() };
     dev.logRing.push(entry);
-    if (dev.logRing.length > LOG_RING_CAP) dev.logRing.shift();
+    dev.logRingBytes += entry.line.length;
+    while (
+      dev.logRing.length > 0 &&
+      (dev.logRing.length > LOG_RING_CAP ||
+        dev.logRingBytes > LOG_RING_BYTES_CAP)
+    ) {
+      const evicted = dev.logRing.shift();
+      dev.logRingBytes -= evicted.line.length;
+    }
     broadcast("log", { source, data: line + "\n" });
     console.log(`[${source}] ${line}`);
   }
@@ -22,9 +33,25 @@ function broadcast(event, payload) {
   const line = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
   for (const res of subscribers) {
     try {
-      res.write(line);
+      const ok = res.write(line);
+      if (!ok) {
+        const newCount = (backpressureCounts.get(res) ?? 0) + 1;
+        if (newCount >= 2) {
+          subscribers.delete(res);
+          backpressureCounts.delete(res);
+          try {
+            res.destroy?.();
+          } catch {}
+        } else {
+          backpressureCounts.set(res, newCount);
+          if (newCount === 1) {
+            res.once("drain", () => backpressureCounts.delete(res));
+          }
+        }
+      }
     } catch {
       subscribers.delete(res);
+      backpressureCounts.delete(res);
     }
   }
 }
@@ -49,6 +76,18 @@ export function emitReload(reason) {
   broadcast("reload", { reason, ts: Date.now() });
 }
 
+/** Union of the dev server (if running) and every /exec child, by script name. */
+function computeActiveProcesses() {
+  const active = [];
+  if (dev.pid && dev.script) active.push(dev.script);
+  for (const name of execChildren.keys()) active.push(name);
+  return active;
+}
+
+export function broadcastProcesses() {
+  broadcast("processes", { active: computeActiveProcesses() });
+}
+
 export function setPhase(next) {
   if (dev.phase === next) return;
   dev.phase = next;
@@ -58,7 +97,7 @@ export function setPhase(next) {
     dev.lastCrashAt = null;
   }
   broadcast("status", currentStatusPayload());
-  broadcast("processes", { active: dev.pid ? [String(dev.pid)] : [] });
+  broadcastProcesses();
 }
 
 export function readLogs(source) {
@@ -77,7 +116,7 @@ export function replayTo(res) {
   );
   res.write(
     `event: processes\ndata: ${JSON.stringify({
-      active: dev.pid ? [String(dev.pid)] : [],
+      active: computeActiveProcesses(),
     })}\n\n`,
   );
   const tail = dev.logRing.slice(-200);

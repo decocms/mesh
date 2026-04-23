@@ -65,11 +65,14 @@ export function startLocalSandboxIngress(
 ): net.Server[] {
   const handleConnection = (client: net.Socket): void => {
     let buffer: Buffer = Buffer.alloc(0);
-    let settled = false;
+    // Guards fail() against writing a response twice. Must NOT be set when
+    // headers finish arriving — route() hasn't responded yet, and tripping
+    // this flag early makes every fail() inside route a no-op (silent hang).
+    let responded = false;
 
     const fail = (status: number, message: string): void => {
-      if (settled) return;
-      settled = true;
+      if (responded) return;
+      responded = true;
       const body = `${message}\n`;
       client.end(
         `HTTP/1.1 ${status} ${message}\r\n` +
@@ -80,7 +83,6 @@ export function startLocalSandboxIngress(
     };
 
     const onData = (chunk: Buffer): void => {
-      if (settled) return;
       buffer = Buffer.concat([buffer, chunk]);
       const end = buffer.indexOf(HEADERS_TERMINATOR);
       if (end === -1) {
@@ -91,7 +93,6 @@ export function startLocalSandboxIngress(
         return;
       }
       client.off("data", onData);
-      settled = true;
       const headerText = buffer.slice(0, end).toString("utf8");
       void route(headerText);
     };

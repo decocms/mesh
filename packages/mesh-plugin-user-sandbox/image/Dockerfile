@@ -36,7 +36,8 @@ ENV LANG=en_US.UTF-8 \
 # Non-root sandbox user. Container root was the historical isolation
 # boundary, but dropping privileges cuts the blast radius of any future
 # CVE in node/git/ripgrep. Runtime further drops caps via docker-run flags.
-RUN useradd --create-home --uid 1000 --user-group --shell /bin/bash sandbox \
+RUN userdel --remove node \
+  && useradd --create-home --uid 1000 --user-group --shell /bin/bash sandbox \
   && mkdir -p /app /opt/sandbox-daemon \
   && chown -R sandbox:sandbox /app /opt/sandbox-daemon
 

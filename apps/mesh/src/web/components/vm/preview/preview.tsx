@@ -102,6 +102,12 @@ export function PreviewContent() {
   }
   const booting = !!previewUrl && !bootTrackedRef.current.ready && !suspended;
 
+  // Cover the gap between VM_START being submitted and vmMap populating a
+  // previewUrl; otherwise the empty "No server running" state flashes while
+  // the mutation is in flight. Capture the timestamp once per pending window
+  // so the LiveTimer's elapsed reading is stable across renders.
+  const startingSinceRef = useRef<number>(0);
+
   // One mutation, two triggers. Dedup differs by meaning:
   //   auto-start: once per taskId
   //   self-heal:  once per dead vmId (don't loop on repeat 404s; new vmId OK)
@@ -113,6 +119,12 @@ export function PreviewContent() {
   });
   const startVm = useVmStart(mcpClient);
   const lastStartError = startVm.error?.message ?? null;
+  if (startVm.isPending) {
+    if (!startingSinceRef.current) startingSinceRef.current = Date.now();
+  } else if (previewUrl) {
+    startingSinceRef.current = 0;
+  }
+  const starting = startVm.isPending && !previewUrl && !suspended;
   const autoStartedForTaskRef = useRef<string | null>(null);
   const reprovisionedForVmIdRef = useRef<string | null>(null);
 
@@ -284,7 +296,7 @@ export function PreviewContent() {
       </div>
 
       <div className="flex-1 relative overflow-hidden">
-        {!previewUrl && (
+        {!previewUrl && !starting && !lastStartError && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-background">
             <Monitor04 size={48} className="text-muted-foreground/40" />
             <h3 className="text-lg font-medium">Preview</h3>
@@ -310,10 +322,12 @@ export function PreviewContent() {
           </div>
         )}
 
-        {!lastStartError && booting && (
+        {!lastStartError && (booting || starting) && (
           <div className="absolute inset-0 z-30 flex items-center justify-center bg-background">
             <VmBootingState
-              since={bootTrackedRef.current.at}
+              since={
+                booting ? bootTrackedRef.current.at : startingSinceRef.current
+              }
               hasSetupData={vmEvents.hasData("setup")}
               scripts={vmEvents.scripts}
               activeProcesses={vmEvents.activeProcesses}
