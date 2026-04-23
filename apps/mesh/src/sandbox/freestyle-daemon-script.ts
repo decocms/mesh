@@ -28,6 +28,12 @@ interface DaemonConfig {
   gitUserEmail: string;
   /** Required, non-empty. Daemon clones with `-b <branch>`. */
   branch: string;
+  /**
+   * Bearer token required on every `/_decopilot_vm/*` request. Generated
+   * per-VM by the runner and persisted alongside state so `resume` can
+   * thread the same token on restart. Must be ≥ 32 bytes of entropy.
+   */
+  daemonToken: string;
 }
 
 export function buildDaemonScript(config: DaemonConfig): string {
@@ -43,6 +49,7 @@ export function buildDaemonScript(config: DaemonConfig): string {
     gitUserName,
     gitUserEmail,
     branch,
+    daemonToken,
   } = config;
 
   if (!/^\d+$/.test(upstreamPort)) {
@@ -51,11 +58,17 @@ export function buildDaemonScript(config: DaemonConfig): string {
   if (typeof branch !== "string" || branch.length === 0) {
     throw new Error("DaemonConfig.branch is required and must be non-empty");
   }
+  if (typeof daemonToken !== "string" || daemonToken.length < 32) {
+    throw new Error(
+      "DaemonConfig.daemonToken is required and must be ≥ 32 chars",
+    );
+  }
 
   return `const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { spawn, execSync } = require("child_process");
+const { timingSafeEqual } = require("crypto");
 const UPSTREAM = "${upstreamPort}";
 const UPSTREAM_HOST = "localhost";
 const PROXY_PORT = ${proxyPort};
@@ -69,6 +82,17 @@ const PATH_PREFIX = ${JSON.stringify(pathPrefix)};
 const GIT_USER_NAME = ${JSON.stringify(gitUserName)};
 const GIT_USER_EMAIL = ${JSON.stringify(gitUserEmail)};
 const BRANCH = ${JSON.stringify(branch)};
+const EXPECTED_AUTH = Buffer.from("Bearer " + ${JSON.stringify(daemonToken)}, "utf8");
+
+// Bearer auth for /_decopilot_vm/* — reverse-proxy path stays public (serves
+// user's dev server content). timingSafeEqual requires equal-length buffers;
+// the length itself leaks nothing useful (scheme + token length are fixed).
+function authorized(req) {
+  const header = req.headers["authorization"] || "";
+  const received = Buffer.from(header, "utf8");
+  if (received.length !== EXPECTED_AUTH.length) return false;
+  return timingSafeEqual(received, EXPECTED_AUTH);
+}
 
 const APP_ROOT = "/app";
 const DECO_UID = 1000;
@@ -654,6 +678,21 @@ async function handleBash(req, res) {
 http.createServer(async (req, res) => {
   if (!req.url.startsWith("/_decopilot_vm/")) {
     log("proxy", req.method, req.url);
+  }
+
+  // Bearer required on every /_decopilot_vm/* route except CORS preflight.
+  // Reverse-proxy path below stays public (iframe needs unauth dev-server).
+  if (
+    req.url.startsWith("/_decopilot_vm/") &&
+    req.method !== "OPTIONS" &&
+    !authorized(req)
+  ) {
+    res.writeHead(401, {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+    });
+    res.end(JSON.stringify({ error: "unauthorized" }));
+    return;
   }
 
   // SSE endpoint

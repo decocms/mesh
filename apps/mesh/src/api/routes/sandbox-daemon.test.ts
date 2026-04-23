@@ -4,7 +4,7 @@
  * another's container.
  */
 
-import { describe, it, expect, mock } from "bun:test";
+import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
 
@@ -13,22 +13,34 @@ const proxyDaemonRequest = mock(
     new Response("proxied", { status: 200 }),
 );
 
-const mockRunner = {
-  kind: "docker" as const,
-  ensure: async () => ({
-    handle: "h",
-    workdir: "/app",
-    previewUrl: null,
-  }),
-  exec: async () => ({ stdout: "", stderr: "", exitCode: 0, timedOut: false }),
-  delete: async () => {},
-  alive: async () => true,
-  getPreviewUrl: async () => null,
-  proxyDaemonRequest,
-};
+const lastRequestedKind: { value: string | null } = { value: null };
+
+function makeMockRunner(kind: "docker" | "freestyle") {
+  return {
+    kind,
+    ensure: async () => ({
+      handle: "h",
+      workdir: "/app",
+      previewUrl: null,
+    }),
+    exec: async () => ({
+      stdout: "",
+      stderr: "",
+      exitCode: 0,
+      timedOut: false,
+    }),
+    delete: async () => {},
+    alive: async () => true,
+    getPreviewUrl: async () => null,
+    proxyDaemonRequest,
+  };
+}
 
 mock.module("@/sandbox/lifecycle", () => ({
-  getRunnerByKind: () => mockRunner,
+  getRunnerByKind: (_ctx: unknown, kind: "docker" | "freestyle") => {
+    lastRequestedKind.value = kind;
+    return makeMockRunner(kind);
+  },
 }));
 
 const { createSandboxDaemonRoutes } = await import("./sandbox-daemon");
@@ -73,6 +85,11 @@ function mountWithCtx(ctx: MeshContext) {
 }
 
 describe("sandbox daemon passthrough authorization", () => {
+  beforeEach(() => {
+    proxyDaemonRequest.mockClear();
+    lastRequestedKind.value = null;
+  });
+
   it("returns 401 when the session has no user", async () => {
     const app = mountWithCtx(makeCtxWithRow(null, null));
     const res = await app.request("/api/sandbox/handle_abc/_daemon/fs/read", {
@@ -83,7 +100,6 @@ describe("sandbox daemon passthrough authorization", () => {
   });
 
   it("returns 404 when the handle belongs to a different user", async () => {
-    proxyDaemonRequest.mockClear();
     const app = mountWithCtx(
       makeCtxWithRow("user_attacker", {
         user_id: "user_victim",
@@ -101,7 +117,6 @@ describe("sandbox daemon passthrough authorization", () => {
   });
 
   it("returns 404 when no row exists for the handle", async () => {
-    proxyDaemonRequest.mockClear();
     const app = mountWithCtx(makeCtxWithRow("user_1", null));
     const res = await app.request(
       "/api/sandbox/handle_missing/_daemon/events",
@@ -114,7 +129,6 @@ describe("sandbox daemon passthrough authorization", () => {
   });
 
   it("forwards to the runner when the caller owns the handle", async () => {
-    proxyDaemonRequest.mockClear();
     const app = mountWithCtx(
       makeCtxWithRow("user_1", { user_id: "user_1", runner_kind: "docker" }),
     );
@@ -133,7 +147,6 @@ describe("sandbox daemon passthrough authorization", () => {
   });
 
   it("rejects unsupported runner kinds with 400", async () => {
-    proxyDaemonRequest.mockClear();
     const app = mountWithCtx(
       makeCtxWithRow("user_1", { user_id: "user_1", runner_kind: "k8s" }),
     );
@@ -142,5 +155,31 @@ describe("sandbox daemon passthrough authorization", () => {
     });
     expect(res.status).toBe(400);
     expect(proxyDaemonRequest).not.toHaveBeenCalled();
+  });
+
+  // Regression guard for the invariant called out in sandbox-daemon.ts:1–5:
+  // a pod that flipped MESH_SANDBOX_RUNNER after the sandbox row was written
+  // must still proxy to the kind of runner that owns the container.
+  it("dispatches on the row's runner_kind even when MESH_SANDBOX_RUNNER env disagrees", async () => {
+    const original = process.env.MESH_SANDBOX_RUNNER;
+    process.env.MESH_SANDBOX_RUNNER = "freestyle";
+    try {
+      const app = mountWithCtx(
+        makeCtxWithRow("user_1", {
+          user_id: "user_1",
+          runner_kind: "docker",
+        }),
+      );
+      const res = await app.request(
+        "/api/sandbox/handle_owned/_daemon/fs/read",
+        { method: "POST" },
+      );
+      expect(res.status).toBe(200);
+      expect(lastRequestedKind.value).toBe("docker");
+      expect(proxyDaemonRequest).toHaveBeenCalledTimes(1);
+    } finally {
+      if (original === undefined) delete process.env.MESH_SANDBOX_RUNNER;
+      else process.env.MESH_SANDBOX_RUNNER = original;
+    }
   });
 });

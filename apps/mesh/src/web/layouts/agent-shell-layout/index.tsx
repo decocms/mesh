@@ -226,9 +226,7 @@ function AgentInsetProvider() {
   const vmEntry =
     userId && urlBranch ? (vmMap?.[userId]?.[urlBranch] ?? null) : null;
   const vmDaemonBaseUrl = vmEntry
-    ? vmEntry.runnerKind === "docker"
-      ? `/api/sandbox/${vmEntry.vmId}/_daemon`
-      : vmEntry.previewUrl
+    ? `/api/sandbox/${vmEntry.vmId}/_daemon`
     : null;
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — one-shot side effect that sets a URL search param; TanStack Router navigation has no render-time equivalent
   useEffect(() => {

@@ -359,12 +359,22 @@ export class DockerSandboxRunner implements SandboxRunner {
       ...(opts.env ?? {}),
     };
 
+    // Hardening: drop all caps (daemon + dev server don't need any), block
+    // privilege escalation, cap processes/memory/cpu so a runaway user
+    // script can't DoS the host. A kernel CVE in node/git/ripgrep still
+    // gives container-root, but caps=ALL dropped removes most pivots.
     const { id: rawId } = await startContainer(image, {
       label: "sandbox",
       exec: this.exec_,
       args: [
         "--rm",
         "--init",
+        "--cap-drop=ALL",
+        "--security-opt=no-new-privileges",
+        "--pids-limit=512",
+        "--memory=2g",
+        "--memory-swap=2g",
+        "--cpus=1",
         "--label",
         `${this.labelPrefix}=1`,
         "--label",

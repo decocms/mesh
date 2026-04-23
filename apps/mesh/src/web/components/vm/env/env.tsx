@@ -76,12 +76,15 @@ type ViewStatus =
 
 const WELL_KNOWN_STARTERS = ["dev", "start"];
 
-/** See VmEventsProvider for the docker-proxy vs freestyle-direct routing rationale. */
+/**
+ * Both runners route `/_decopilot_vm/*` through the mesh proxy. The server
+ * holds each VM's bearer token; the browser talks only to same-origin
+ * `/api/sandbox/...` so no daemon token or preview domain leaks into the
+ * iframe or logs.
+ */
 function resolveDaemonBaseUrl(entry: VmMapEntry | undefined): string | null {
   if (!entry) return null;
-  if (entry.runnerKind === "docker")
-    return `/api/sandbox/${entry.vmId}/_daemon`;
-  return entry.previewUrl;
+  return `/api/sandbox/${entry.vmId}/_daemon`;
 }
 
 export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {

@@ -7,7 +7,7 @@
  * Cloudflare WAF in front of freestyle domains.
  */
 
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { freestyle, VmSpec } from "freestyle-sandboxes";
 import { VmDeno } from "@freestyle-sh/with-deno";
 import { VmBun } from "@freestyle-sh/with-bun";
@@ -51,6 +51,8 @@ interface FreestyleRecord {
   workload: Workload | null;
   /** Persisted so VmSpec can be rebuilt deterministically on resume. */
   repo: NonNullable<EnsureOptions["repo"]>;
+  /** Bearer token the in-VM daemon checks on every `/_decopilot_vm/*` request. */
+  daemonToken: string;
 }
 
 interface PersistedFreestyleState {
@@ -59,6 +61,8 @@ interface PersistedFreestyleState {
   workdir: string;
   workload: Workload | null;
   repo: NonNullable<EnsureOptions["repo"]>;
+  /** Added alongside bearer auth. Absent in pre-auth rows → resume bails. */
+  daemonToken?: string;
   [k: string]: unknown;
 }
 
@@ -167,7 +171,10 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     try {
       const res = await fetch(
         `https://${rec.previewDomain}/_decopilot_vm/scripts`,
-        { signal: AbortSignal.timeout(2_000) },
+        {
+          headers: { authorization: `Bearer ${rec.daemonToken}` },
+          signal: AbortSignal.timeout(2_000),
+        },
       );
       return res.ok;
     } catch {
@@ -208,7 +215,9 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     }
     const target = `https://${rec.previewDomain}${translated}`;
     const headers = new Headers(init.headers);
-    // Strip cookies + hop-by-hop. Freestyle ignores Authorization.
+    // Strip cookies + hop-by-hop, then set our own bearer. Any Authorization
+    // that arrived from the browser (there shouldn't be one — mesh session
+    // auth ran upstream) is overwritten with the VM's per-sandbox token.
     for (const h of [
       "cookie",
       "host",
@@ -221,9 +230,11 @@ export class FreestyleSandboxRunner implements SandboxRunner {
       "transfer-encoding",
       "accept-encoding",
       "content-length",
+      "authorization",
     ]) {
       headers.delete(h);
     }
+    headers.set("authorization", `Bearer ${rec.daemonToken}`);
     const hasBody = init.method !== "GET" && init.method !== "HEAD";
     let body: BodyInit | null = init.body;
     if (hasBody && body !== null) {
@@ -297,6 +308,11 @@ export class FreestyleSandboxRunner implements SandboxRunner {
   ): Promise<FreestyleRecord | null> {
     const state = persisted.state as Partial<PersistedFreestyleState>;
     if (!state.vmId || !state.previewDomain || !state.repo) return null;
+    // Rows persisted before bearer auth landed have no daemonToken. The
+    // running VM's daemon script also predates auth, so issuing a new token
+    // wouldn't match. Force reprovision — ensureInner deletes the row and
+    // calls provision() with a fresh spec. Old VM idle-times out.
+    if (!state.daemonToken) return null;
     // Workload (runtime / packageManager / devPort) is baked into the
     // daemon script at VM create time — see buildSpec's additionalFiles.
     // `freestyle.vms.ref({ vmId, spec }).start()` boots the existing VM
@@ -315,6 +331,7 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     const spec = this.buildSpec({
       repo: state.repo,
       workload,
+      daemonToken: state.daemonToken,
     });
     try {
       const vm = freestyle.vms.ref({ vmId: state.vmId, spec });
@@ -335,6 +352,7 @@ export class FreestyleSandboxRunner implements SandboxRunner {
       id,
       workload,
       repo: state.repo,
+      daemonToken: state.daemonToken,
     };
   }
 
@@ -345,7 +363,9 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     const repo = opts.repo!;
     const workload = opts.workload ?? null;
     const previewDomain = `${this.computeDomainKey(id)}.${this.previewRootDomain}`;
-    const spec = this.buildSpec({ repo, workload });
+    // 32 bytes (256 bits) of entropy; daemon requires ≥ 32 chars.
+    const daemonToken = randomBytes(32).toString("hex");
+    const spec = this.buildSpec({ repo, workload, daemonToken });
     let result: { vmId: string };
     try {
       result = await freestyle.vms.create({
@@ -371,6 +391,7 @@ export class FreestyleSandboxRunner implements SandboxRunner {
       id,
       workload,
       repo,
+      daemonToken,
     };
   }
 
@@ -394,9 +415,11 @@ export class FreestyleSandboxRunner implements SandboxRunner {
   private buildSpec({
     repo,
     workload,
+    daemonToken,
   }: {
     repo: NonNullable<EnsureOptions["repo"]>;
     workload: Workload | null;
+    daemonToken: string;
   }): VmSpec {
     const runtime = workload?.runtime ?? "node";
     const packageManager = workload?.packageManager ?? null;
@@ -420,6 +443,7 @@ export class FreestyleSandboxRunner implements SandboxRunner {
       gitUserName: repo.userName,
       gitUserEmail: repo.userEmail,
       branch: repo.branch!,
+      daemonToken,
     });
     const baseSpec = new VmSpec()
       .with("node", new VmNodeJs())
@@ -482,6 +506,10 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     if (!persisted) return null;
     const state = persisted.state as Partial<PersistedFreestyleState>;
     if (!state.vmId || !state.previewDomain || !state.repo) return null;
+    // Pre-auth row (no token) — caller can't talk to the daemon. Resume will
+    // return null on a fresh ensure; here we surface null too so proxy paths
+    // 404 instead of calling with a missing token.
+    if (!state.daemonToken) return null;
     const rec: FreestyleRecord = {
       handle: persisted.handle,
       vmId: state.vmId,
@@ -490,6 +518,7 @@ export class FreestyleSandboxRunner implements SandboxRunner {
       id: persisted.id,
       workload: state.workload ?? null,
       repo: state.repo,
+      daemonToken: state.daemonToken,
     };
     this.byHandle.set(handle, rec);
     return rec;
@@ -513,6 +542,7 @@ export class FreestyleSandboxRunner implements SandboxRunner {
       workdir: rec.workdir,
       workload: rec.workload,
       repo: rec.repo,
+      daemonToken: rec.daemonToken,
     };
     await store.put(id, RUNNER_KIND, { handle: rec.handle, state });
   }
@@ -527,7 +557,10 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     const encoded = encodeBase64Utf8(JSON.stringify(body));
     return fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "text/plain" },
+      headers: {
+        "Content-Type": "text/plain",
+        authorization: `Bearer ${rec.daemonToken}`,
+      },
       body: encoded,
     });
   }

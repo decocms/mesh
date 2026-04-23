@@ -200,6 +200,29 @@ describe("VM_DELETE", () => {
     expect(lastRequestedKind.value).toBe("freestyle");
   });
 
+  // Regression guard for the invariant called out in stop.ts:1–5: a pod that
+  // flipped MESH_SANDBOX_RUNNER between start and stop must still tear down
+  // the runner that the entry was created against.
+  it("dispatches on the entry's runnerKind even when MESH_SANDBOX_RUNNER env disagrees", async () => {
+    const original = process.env.MESH_SANDBOX_RUNNER;
+    process.env.MESH_SANDBOX_RUNNER = "freestyle";
+    try {
+      const metadata: Metadata = {
+        vmMap: { "user-1": { [BRANCH]: DOCKER_ENTRY } },
+      };
+      const virtualMcp = makeVirtualMcp("org_1", metadata);
+      const ctx = makeCtx({ virtualMcp });
+
+      await VM_DELETE.handler({ virtualMcpId: "vmcp_1", branch: BRANCH }, ctx);
+
+      expect(mockDelete).toHaveBeenCalledWith(DOCKER_ENTRY.vmId);
+      expect(lastRequestedKind.value).toBe("docker");
+    } finally {
+      if (original === undefined) delete process.env.MESH_SANDBOX_RUNNER;
+      else process.env.MESH_SANDBOX_RUNNER = original;
+    }
+  });
+
   it("skips runner.delete and DB update when no vmMap entry for (user, branch)", async () => {
     const metadata: Metadata = {
       vmMap: { "other-user": { [BRANCH]: FREESTYLE_ENTRY } },

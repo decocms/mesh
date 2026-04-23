@@ -481,11 +481,8 @@ export async function createApp(options: CreateAppOptions = {}) {
     }),
   );
 
-  // Security headers — skipped for /api/sandbox/* since that serves the
-  // user's dev server inside the mesh UI's iframe (frame-ancestors would block it).
   app.use("*", async (c, next) => {
     await next();
-    if (c.req.path.startsWith("/api/sandbox/")) return;
     c.header("X-Frame-Options", "DENY");
     c.header("Content-Security-Policy", "frame-ancestors 'none'");
   });

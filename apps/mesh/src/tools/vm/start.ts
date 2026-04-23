@@ -58,49 +58,44 @@ export const VM_START = defineTool({
   }),
 
   handler: async (input, ctx) => {
-    try {
-      const resolvedBranch = input.branch ?? generateBranchName();
+    const resolvedBranch = input.branch ?? generateBranchName();
 
-      const {
-        metadata,
-        userId,
-        organization,
-        entry: existing,
-      } = await requireVmEntry(
-        { virtualMcpId: input.virtualMcpId, branch: resolvedBranch },
-        ctx,
-      );
+    const {
+      metadata,
+      userId,
+      organization,
+      entry: existing,
+    } = await requireVmEntry(
+      { virtualMcpId: input.virtualMcpId, branch: resolvedBranch },
+      ctx,
+    );
 
-      const githubRepo = (metadata as GithubRepoMeta).githubRepo;
-      if (!githubRepo) {
-        throw new Error("No GitHub repo connected");
-      }
-      if (!githubRepo.connectionId) {
-        throw new Error("GitHub connection id missing on virtual MCP metadata");
-      }
-
-      const runnerKind = resolveRunnerKindFromEnv();
-      const { entry, isNewVm } = await provisionSandbox({
-        ctx,
-        userId,
-        orgId: organization.id,
-        virtualMcpId: input.virtualMcpId,
-        branch: resolvedBranch,
-        metadata,
-        githubRepo,
-        existing,
-      });
-
-      return {
-        ...entry,
-        branch: resolvedBranch,
-        isNewVm,
-        runnerKind,
-      };
-    } catch (e) {
-      console.error("[VM_START] error", e);
-      throw e;
+    const githubRepo = (metadata as GithubRepoMeta).githubRepo;
+    if (!githubRepo) {
+      throw new Error("No GitHub repo connected");
     }
+    if (!githubRepo.connectionId) {
+      throw new Error("GitHub connection id missing on virtual MCP metadata");
+    }
+
+    const runnerKind = resolveRunnerKindFromEnv();
+    const { entry, isNewVm } = await provisionSandbox({
+      ctx,
+      userId,
+      orgId: organization.id,
+      virtualMcpId: input.virtualMcpId,
+      branch: resolvedBranch,
+      metadata,
+      githubRepo,
+      existing,
+    });
+
+    return {
+      ...entry,
+      branch: resolvedBranch,
+      isNewVm,
+      runnerKind,
+    };
   },
 });
 
