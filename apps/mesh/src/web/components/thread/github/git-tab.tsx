@@ -139,50 +139,22 @@ function GitTabContent(props: ContentProps) {
   // State C: PR open
   if (pr && pr.state === "open") {
     return (
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2 text-xs text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <GitBranch01 className="h-3.5 w-3.5" />
-            <span className="font-mono">
-              {branch} → {pr.base}
-            </span>
-            <span>·</span>
-            <span>#{pr.number}</span>
-            {pr.author && <span>· @{pr.author}</span>}
-          </div>
-          <a
-            href={pr.htmlUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex h-7 items-center justify-center gap-1 rounded px-2 hover:bg-muted"
-            title="Open PR on GitHub"
-          >
-            <LinkExternal01 className="h-3.5 w-3.5" />
-          </a>
-        </div>
-        <PrSubTabs
-          pr={pr}
-          connectionId={connectionId}
-          owner={owner}
-          repo={repo}
-        />
-      </div>
+      <PrSubTabs
+        pr={pr}
+        connectionId={connectionId}
+        owner={owner}
+        repo={repo}
+      />
     );
   }
 
   // State B: No PR yet
   return (
     <div className="flex flex-col gap-4 p-4">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <GitBranch01 className="h-3.5 w-3.5" />
-        <span className="font-mono">{branch}</span>
-        <span>·</span>
-        <span>No pull request yet</span>
-      </div>
       <div className="rounded-md border border-border bg-muted/30 p-4 text-sm">
-        This branch doesn't have an open pull request. Click "Create PR" to open
-        one; the agent will draft the title and summary from the current state
-        of the branch.
+        This branch doesn't have an open pull request. Click "Submit for review"
+        in the header to open one; the agent will draft the title and summary
+        from the current state of the branch.
       </div>
       <div className="flex items-center gap-2">
         <Button size="sm" variant="outline" onClick={() => openExt(branchUrl)}>
