@@ -186,15 +186,11 @@ function AgentInsetProvider() {
 
   const hasActiveGithubRepo = !!(entity && getActiveGithubRepo(entity));
 
-  const layout = useChatMainPanelState(
-    entityMetadata,
-    {
-      virtualMcpId,
-      orgSlug,
-      isAgentRoute,
-    },
-    hasActiveGithubRepo,
-  );
+  const layout = useChatMainPanelState(entityMetadata, {
+    virtualMcpId,
+    orgSlug,
+    isAgentRoute,
+  });
 
   const { setOpenMobile, openMobile: mobileSidebarOpen } = useSidebar();
   const setMobileSidebarOpen = setOpenMobile;

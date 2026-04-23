@@ -139,19 +139,17 @@ export function useMainPanelTabs(ctx: {
           tabs: layoutTabs.map((t) => ({ id: t.id })),
         }
       : null,
-    hasActiveGithubRepo,
   });
 
   const automationTabParsed = parseAutomationTabId(activeTab);
 
-  // Tabs for GitHub-linked vMCPs vs plain ones. The "git" tab (branch/PR
-  // panel) replaces Instructions and lives at the end, after Preview.
-  const systemTabs: Array<{ id: string; title: string }> = hasActiveGithubRepo
-    ? []
-    : [{ id: "instructions", title: "Instructions" }];
-  systemTabs.push({ id: "connections", title: "Connections" });
-  systemTabs.push({ id: "automations", title: "Automations" });
-  systemTabs.push({ id: "layout", title: "Layout" });
+  // Unified "settings" tab bundles instructions, connections, and layout
+  // into a single detail view. GitHub-linked vMCPs get env/preview/git
+  // appended at the end; plain vMCPs just show settings + automations.
+  const systemTabs: Array<{ id: string; title: string }> = [
+    { id: "settings", title: "Settings" },
+    { id: "automations", title: "Automations" },
+  ];
   if (hasActiveGithubRepo) {
     systemTabs.push({ id: "env", title: "Terminal" });
     systemTabs.push({ id: "preview", title: "Preview" });

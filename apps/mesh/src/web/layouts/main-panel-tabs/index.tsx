@@ -11,15 +11,13 @@
 import { Suspense, lazy } from "react";
 import { Loading01 } from "@untitledui/icons";
 import { useMainPanelTabs } from "./use-main-panel-tabs";
-import { InstructionsTab } from "./instructions-tab";
+import { SettingsTab } from "./settings-tab";
 import { GitTab } from "@/web/components/thread/github/git-tab";
-import { ConnectionsTab } from "./connections-tab";
-import { LayoutTab } from "./layout-tab";
 import { PreviewTab } from "./preview-tab";
 import { EnvTab } from "./env-tab";
 import { AutomationTab } from "./automation-tab";
 import { AutomationsListTab } from "./automations-list-tab";
-import { parsePinnedViewTabId } from "./tab-id";
+import { isLegacySettingsTab, parsePinnedViewTabId } from "./tab-id";
 
 const AppViewContent = lazy(() =>
   import("@/web/routes/project-app-view").then((m) => ({
@@ -39,20 +37,14 @@ export function MainPanelContent({
     taskId,
   });
 
-  if (activeTab === "instructions") {
-    return <InstructionsTab virtualMcpId={virtualMcpId} />;
+  if (isLegacySettingsTab(activeTab)) {
+    return <SettingsTab virtualMcpId={virtualMcpId} />;
   }
   if (activeTab === "git") {
     return <GitTab virtualMcpId={virtualMcpId} />;
   }
-  if (activeTab === "connections") {
-    return <ConnectionsTab virtualMcpId={virtualMcpId} />;
-  }
   if (activeTab === "automations") {
     return <AutomationsListTab virtualMcpId={virtualMcpId} />;
-  }
-  if (activeTab === "layout") {
-    return <LayoutTab virtualMcpId={virtualMcpId} />;
   }
   if (activeTab === "env") {
     return <EnvTab virtualMcpId={virtualMcpId} />;
@@ -108,5 +100,5 @@ export function MainPanelContent({
     );
   }
 
-  return <InstructionsTab virtualMcpId={virtualMcpId} />;
+  return <SettingsTab virtualMcpId={virtualMcpId} />;
 }

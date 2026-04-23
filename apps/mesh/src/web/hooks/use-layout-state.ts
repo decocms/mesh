@@ -132,7 +132,6 @@ export interface ChatMainPanelStateRouteCtx {
 export function useChatMainPanelState(
   entityMetadata: EntityLayoutMetadata | null,
   routeCtx: ChatMainPanelStateRouteCtx,
-  hasActiveGithubRepo = false,
 ): ChatMainLayoutState & ChatMainLayoutActions {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as PanelSearchParams;
@@ -190,7 +189,7 @@ export function useChatMainPanelState(
       navigateSearch({ main: "0" }, { replace: true });
     } else {
       navigateSearch(
-        { main: resolveDefaultTabId(entityMetadata, hasActiveGithubRepo) },
+        { main: resolveDefaultTabId(entityMetadata) },
         { replace: true },
       );
     }
