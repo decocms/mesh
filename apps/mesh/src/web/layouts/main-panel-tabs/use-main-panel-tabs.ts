@@ -191,16 +191,6 @@ export function useMainPanelTabs(ctx: {
   }
 
   const tabs: Tab[] = [
-    ...systemTabs.map((t) => ({
-      id: t.id,
-      title: t.title,
-      kind: "system" as const,
-      icon: resolveTabIcon({
-        tabId: t.id,
-        kind: "system",
-        connections,
-      }),
-    })),
     ...layoutTabs.map((t) => ({
       id: t.id,
       title: t.title,
@@ -221,6 +211,16 @@ export function useMainPanelTabs(ctx: {
         kind: "expanded",
         appId: t.appId,
         iconUrl: t.iconUrl,
+        connections,
+      }),
+    })),
+    ...systemTabs.map((t) => ({
+      id: t.id,
+      title: t.title,
+      kind: "system" as const,
+      icon: resolveTabIcon({
+        tabId: t.id,
+        kind: "system",
         connections,
       }),
     })),
