@@ -19,7 +19,28 @@ import { MemoizedMarkdown } from "../../chat/markdown.tsx";
 import { useChatNavigation } from "../../chat/hooks/use-chat-navigation.ts";
 import { decodeHtmlEntities } from "./decode-html-entities.ts";
 import { PrSubTabs } from "./pr-sub-tabs.tsx";
-import { usePrByBranch } from "./use-pr-data.ts";
+import { usePrByBranch, type PrSummary } from "./use-pr-data.ts";
+
+/**
+ * Minimal PR-number header shown at the top of the git panel whenever a
+ * PR exists (open, closed, or merged). Click opens the PR on GitHub.
+ */
+function PrHeader({ pr }: { pr: PrSummary }) {
+  return (
+    <div className="flex h-12 items-center border-b border-border px-4 shrink-0">
+      <a
+        href={pr.htmlUrl}
+        target="_blank"
+        rel="noreferrer"
+        aria-label={`Open PR #${pr.number} on GitHub`}
+        className="inline-flex items-center gap-1.5 text-base font-medium text-foreground hover:underline"
+      >
+        PR #{pr.number}
+        <LinkExternal01 className="h-4 w-4 text-muted-foreground" />
+      </a>
+    </div>
+  );
+}
 
 export function GitTab({ virtualMcpId }: { virtualMcpId: string }) {
   const { org } = useProjectContext();
@@ -105,32 +126,27 @@ function GitTabContent(props: ContentProps) {
   // State D: merged / closed
   if (pr && pr.state === "closed") {
     return (
-      <div className="flex flex-col gap-4 p-4">
-        <div className="text-sm text-success">
-          {pr.merged ? "✓ Merged" : "✗ Closed"} into {pr.base}
-          {pr.mergedAt && <> · {new Date(pr.mergedAt).toLocaleDateString()}</>}
-          {pr.author && <> · by @{pr.author}</>}
-        </div>
-        <h1 className="text-lg font-semibold">
-          {decodeHtmlEntities(pr.title)}
-        </h1>
-        {pr.body && (
-          <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
-            <MemoizedMarkdown
-              id={`pr-body-${pr.number}`}
-              text={decodeHtmlEntities(pr.body)}
-            />
+      <div className="flex min-h-0 flex-1 flex-col">
+        <PrHeader pr={pr} />
+        <div className="flex flex-col gap-4 p-4 overflow-auto">
+          <div className="text-sm text-success">
+            {pr.merged ? "✓ Merged" : "✗ Closed"} into {pr.base}
+            {pr.mergedAt && (
+              <> · {new Date(pr.mergedAt).toLocaleDateString()}</>
+            )}
+            {pr.author && <> · by @{pr.author}</>}
           </div>
-        )}
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => openExt(pr.htmlUrl)}
-          >
-            <LinkExternal01 className="mr-1.5 h-4 w-4" />
-            Open PR #{pr.number} on GitHub
-          </Button>
+          <h1 className="text-lg font-semibold">
+            {decodeHtmlEntities(pr.title)}
+          </h1>
+          {pr.body && (
+            <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
+              <MemoizedMarkdown
+                id={`pr-body-${pr.number}`}
+                text={decodeHtmlEntities(pr.body)}
+              />
+            </div>
+          )}
         </div>
       </div>
     );
@@ -139,12 +155,15 @@ function GitTabContent(props: ContentProps) {
   // State C: PR open
   if (pr && pr.state === "open") {
     return (
-      <PrSubTabs
-        pr={pr}
-        connectionId={connectionId}
-        owner={owner}
-        repo={repo}
-      />
+      <div className="flex min-h-0 flex-1 flex-col">
+        <PrHeader pr={pr} />
+        <PrSubTabs
+          pr={pr}
+          connectionId={connectionId}
+          owner={owner}
+          repo={repo}
+        />
+      </div>
     );
   }
 

@@ -95,7 +95,10 @@ export function useMainPanelTabs(ctx: {
   taskId: string;
 }): MainPanelTabs {
   const navigate = useNavigate();
-  const search = useSearch({ strict: false }) as { main?: string };
+  const search = useSearch({ strict: false }) as {
+    main?: string;
+    branch?: string;
+  };
   const entity = useVirtualMCP(ctx.virtualMcpId);
   const metadata = useTaskMetadata(ctx.taskId);
 
@@ -152,7 +155,7 @@ export function useMainPanelTabs(ctx: {
   if (hasActiveGithubRepo) {
     systemTabs.push({ id: "env", title: "Terminal" });
     systemTabs.push({ id: "preview", title: "Preview" });
-    systemTabs.push({ id: "git", title: "git" });
+    systemTabs.push({ id: "git", title: search.branch ?? "git" });
   }
 
   // Merge pinned views + per-task expanded tools into a single list keyed
