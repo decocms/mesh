@@ -539,9 +539,9 @@ export function AccountPopover() {
     },
     {
       key: "github",
-      label: "decocms/mesh",
+      label: "decocms/studio",
       icon: <GitHubIcon className="w-4 h-4" />,
-      href: "https://github.com/decocms/mesh",
+      href: "https://github.com/decocms/studio",
       external: true,
     },
     {

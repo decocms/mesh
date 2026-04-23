@@ -31,6 +31,7 @@ import {
   CpuChip01,
   Loading01,
   Lock01,
+  LogOut01,
   Menu01,
   PackageCheck,
   User01,
@@ -42,6 +43,7 @@ import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { Suspense } from "react";
 import { pluginSettingsSidebarItems } from "@/web/index";
 import { useStatusSounds } from "../hooks/use-status-sounds";
+import { authClient } from "@/web/lib/auth-client";
 
 interface SettingsNavItem {
   key: string;
@@ -224,6 +226,26 @@ export function SettingsSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
+
+        {/* Sign Out */}
+        <SidebarGroup className="pt-0 pr-0 pb-0 pl-0">
+          <div className="mx-2 my-2 border-t border-border/50" />
+          <SidebarGroupContent>
+            <SidebarMenu className="gap-0.5">
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => authClient.signOut()}
+                  className="flex items-center gap-2.5 text-sm"
+                >
+                  <span className="shrink-0">
+                    <LogOut01 size={14} />
+                  </span>
+                  <span className="truncate">Sign Out</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
 
       {/* Version */}
@@ -287,6 +309,21 @@ export function SettingsSidebarMobile({ onClose }: { onClose: () => void }) {
             ))}
           </div>
         ))}
+
+        {/* Sign Out */}
+        <div className="flex flex-col gap-0.5">
+          <div className="h-px bg-border/50 my-2" />
+          <button
+            type="button"
+            onClick={() => authClient.signOut()}
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-colors text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          >
+            <span className="shrink-0">
+              <LogOut01 size={14} />
+            </span>
+            <span className="truncate">Sign Out</span>
+          </button>
+        </div>
       </div>
 
       {/* Version */}
