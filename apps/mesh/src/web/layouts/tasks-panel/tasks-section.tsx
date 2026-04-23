@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Edit05, FilterLines, User01 } from "@untitledui/icons";
+import { Edit05, FilterLines, User02, Users03 } from "@untitledui/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,7 +49,7 @@ export function TasksSection({
   currentUserId?: string;
 }) {
   const [filter, setFilter] = useState<FilterOption>("all");
-  const [memberFilter, setMemberFilter] = useState<MemberFilter>("all");
+  const [memberFilter, setMemberFilter] = useState<MemberFilter>("mine");
 
   const memberFiltered =
     memberFilter === "mine" && currentUserId
@@ -73,12 +73,13 @@ export function TasksSection({
               <button
                 type="button"
                 aria-label="Filter by member"
-                className={cn(
-                  "flex size-8 items-center justify-center rounded-md hover:bg-muted hover:text-foreground",
-                  memberFilter !== "all" && "text-foreground",
-                )}
+                className="flex size-8 items-center justify-center rounded-md hover:bg-muted hover:text-foreground"
               >
-                <User01 size={16} />
+                {memberFilter === "mine" ? (
+                  <User02 size={16} />
+                ) : (
+                  <Users03 size={16} />
+                )}
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -103,7 +104,7 @@ export function TasksSection({
                 aria-label="Filter tasks"
                 className={cn(
                   "flex size-8 items-center justify-center rounded-md hover:bg-muted hover:text-foreground",
-                  filter !== "all" && "text-foreground",
+                  filter !== "all" && "text-purple-500",
                 )}
               >
                 <FilterLines size={16} />
