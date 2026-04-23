@@ -66,6 +66,7 @@ import type {
 import { useLocalStorage } from "../../hooks/use-local-storage";
 import { chatModeForTransportRef } from "../../lib/chat-mode-sync";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
+import { usePendingMessage } from "./pending-message-context";
 
 // ============================================================================
 // Context Types
@@ -156,7 +157,6 @@ export interface ChatBridgeValue {
 
 const MAX_APP_CONTEXT_LENGTH = 10_000;
 const MAX_APP_CONTEXT_SOURCES = 10;
-const PENDING_MESSAGE_TTL_MS = 10_000;
 
 const BRIDGE_NOOP: ChatBridgeValue = {
   sendMessage: async () => {
@@ -423,14 +423,8 @@ export function ChatContextProvider({
   // Bridge ref — ActiveTaskProvider registers sendMessage here
   const bridgeRef = useRef<ChatBridgeValue>(BRIDGE_NOOP);
 
-  // Pending message state (replaces module-level Map from useSendToChat)
-  const [pendingMessage, setPendingMessage] = useState<{
-    taskId: string;
-    message: SendMessageParams;
-    createdAt: number;
-  } | null>(null);
-
-  const clearPendingMessage = () => setPendingMessage(null);
+  // Pending message state (hoisted to PendingMessageProvider above Suspense)
+  const pendingMessageCtx = usePendingMessage();
 
   // Navigate to task with read tracking
   const navigateToTask = (
@@ -460,7 +454,7 @@ export function ChatContextProvider({
           ? params.virtualMcpId
           : undefined,
     });
-    setPendingMessage({
+    pendingMessageCtx.setPending({
       taskId: newId,
       message: params.message,
       createdAt: Date.now(),
@@ -495,8 +489,8 @@ export function ChatContextProvider({
     ownerFilter: taskManager.ownerFilter,
     setOwnerFilter: taskManager.setOwnerFilter,
     isFilterChangePending: taskManager.isFilterChangePending ?? false,
-    pendingMessage,
-    clearPendingMessage,
+    pendingMessage: pendingMessageCtx.pending,
+    clearPendingMessage: pendingMessageCtx.clearPending,
   };
 
   const prefsValue: ChatPrefsContextValue = {
@@ -565,8 +559,8 @@ export function ActiveTaskProvider({
   taskId,
   children,
 }: PropsWithChildren<{ taskId: string }>) {
-  const { virtualMcpId, tasks, pendingMessage, clearPendingMessage } =
-    useChatTask();
+  const { virtualMcpId, tasks } = useChatTask();
+  const pendingMessageCtx = usePendingMessage();
   const {
     selectedModel,
     imageModel,
@@ -805,26 +799,14 @@ export function ActiveTaskProvider({
     isStreaming: chat.status === "submitted" || chat.status === "streaming",
   };
 
-  // Consume pending message when this task is the target
-  const pendingConsumedRef = useRef<string | null>(null);
-  if (
-    pendingMessage &&
-    pendingMessage.taskId === taskId &&
-    pendingConsumedRef.current !== taskId
-  ) {
-    // TTL check: discard stale messages
-    const age = Date.now() - pendingMessage.createdAt;
-    if (age < PENDING_MESSAGE_TTL_MS) {
-      pendingConsumedRef.current = taskId;
-      const msg = pendingMessage.message;
-      queueMicrotask(() => {
-        void sendMessageInternal(msg);
-        clearPendingMessage();
-      });
-    } else {
-      // Stale — silently discard
-      queueMicrotask(() => clearPendingMessage());
-    }
+  // Consume pending message when this task is the target. consumeFor is
+  // idempotent per taskId and handles TTL + clearing internally.
+  const pendingForThisTask = pendingMessageCtx.consumeFor(taskId);
+  if (pendingForThisTask) {
+    const msg = pendingForThisTask;
+    queueMicrotask(() => {
+      void sendMessageInternal(msg);
+    });
   }
 
   const streamValue: ChatStreamContextValue = {
