@@ -215,10 +215,15 @@ async function getOrCreateTeamServiceAccount(
         "members",
         { user_id: authUserId, team_id: teamId, admin: true },
       );
-      await supabasePost<{ id: number }>(supabaseUrl, serviceKey, "member_roles", {
-        member_id: member.id,
-        role_id: 1,
-      });
+      await supabasePost<{ id: number }>(
+        supabaseUrl,
+        serviceKey,
+        "member_roles",
+        {
+          member_id: member.id,
+          role_id: 1,
+        },
+      );
     }
 
     return getOrCreateDecoApiKey(supabaseUrl, serviceKey, authUserId);

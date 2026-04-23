@@ -184,7 +184,7 @@ export function ImportFromDecoDialog({
                     toolName: "list_releases",
                     label: "Releases",
                     icon: null,
-                  }
+                  },
                 ],
                 layout: {
                   defaultMainView: {
