@@ -35,7 +35,7 @@ import { requireVmEntry, resolveRuntimeConfig } from "./helpers";
 import { buildCloneInfo } from "../../shared/github-clone-info";
 import { buildDaemonScript } from "./daemon";
 import { generateBranchName } from "../../shared/branch-name";
-import { getSharedRunner } from "../../sandbox/shared-runner";
+import { getSharedRunner } from "../../sandbox/lifecycle";
 import { removeVmMapEntry, setVmMapEntry } from "./vm-map";
 
 const PROXY_PORT = 9000;

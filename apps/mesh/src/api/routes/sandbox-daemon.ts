@@ -12,7 +12,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
 import type { MeshContext } from "@/core/mesh-context";
-import { getSharedRunner } from "@/sandbox/shared-runner";
+import { getSharedRunner } from "@/sandbox/lifecycle";
 
 const SANDBOX_RUNNER_KIND = "docker";
 

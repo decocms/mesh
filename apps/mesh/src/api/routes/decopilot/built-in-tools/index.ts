@@ -14,7 +14,7 @@ import { createReadPromptTool } from "./prompts";
 import { createReadResourceTool } from "./resources";
 import { createSandboxTool, type VirtualClient } from "./sandbox";
 import { createVmTools } from "./vm-tools";
-import { getSharedRunner } from "@/sandbox/shared-runner";
+import { getSharedRunner } from "@/sandbox/lifecycle";
 import { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
 import { createOpenInAgentTool } from "./open-in-agent";
 import { createSubtaskTool } from "./subtask";

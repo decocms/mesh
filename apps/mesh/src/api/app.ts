@@ -24,7 +24,7 @@ import {
 } from "../core/context-factory";
 import type { MeshContext } from "../core/mesh-context";
 import { closeDatabase, getDb, type MeshDatabase } from "../database";
-import { getSharedRunnerIfInit } from "../sandbox/shared-runner";
+import { sweepSandboxesOnShutdown } from "../sandbox/lifecycle";
 import { createEventBus, type EventBus } from "../event-bus";
 import {
   flushMonitoringData,
@@ -1592,29 +1592,10 @@ export async function createApp(options: CreateAppOptions = {}) {
       currentRetentionTimer = null;
     }
 
-    // Phase 2.5: Sweep sandbox containers for the docker runner.
-    //
-    // Containers are `docker run --rm`, so `runner.sweepOrphans()` (which
-    // stops every container labelled `mesh-sandbox=1`) is enough to
-    // auto-remove them. Runs before NATS drain and DB close because the
-    // runner's state store writes during sweep. Skipped entirely when the
-    // shared runner was never initialised (no request ever touched a
-    // sandbox — nothing to sweep).
-    //
-    // Caveat: this filters ONLY by the shared label, so if multiple mesh
-    // pods ever share one docker host, each pod's SIGTERM will nuke the
-    // others' containers. Fine for single-pod-per-host deployments; revisit
-    // with a per-pod label when we go multi-tenant on one host.
-    const sandboxRunner = getSharedRunnerIfInit();
-    if (sandboxRunner) {
-      console.log("[shutdown] Sweeping sandbox containers...");
-      await sandboxRunner
-        .sweepOrphans()
-        .then((n) => console.log(`[shutdown] Swept ${n} sandbox container(s).`))
-        .catch((err: unknown) =>
-          console.error("[shutdown] Sandbox sweep error:", err),
-        );
-    }
+    // Phase 2.5: Sweep sandbox containers (docker runner only). Runs before
+    // NATS drain and DB close because the runner's state store writes during
+    // sweep. See `sandbox/lifecycle.ts` for the single-pod-per-host caveat.
+    await sweepSandboxesOnShutdown();
 
     // Phase 3: Drain NATS (after all consumers stopped)
     if (natsProvider) {

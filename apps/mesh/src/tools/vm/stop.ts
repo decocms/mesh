@@ -14,7 +14,7 @@ import { defineTool } from "../../core/define-tool";
 import { freestyle } from "freestyle-sandboxes";
 import { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
 import { requireVmEntry } from "./helpers";
-import { getSharedRunner } from "../../sandbox/shared-runner";
+import { getSharedRunner } from "../../sandbox/lifecycle";
 import { removeVmMapEntry } from "./vm-map";
 
 export const VM_DELETE = defineTool({

@@ -81,7 +81,7 @@ function withSecurityHeaders(res: Response): Response {
 // handling races with the parent killing postgres, so boot sweep is what
 // actually keeps `docker ps` empty between sessions.
 const { sweepSandboxesOnBoot, getSharedRunnerIfInit } = await import(
-  "./sandbox/shared-runner"
+  "./sandbox/lifecycle"
 );
 await sweepSandboxesOnBoot();
 
