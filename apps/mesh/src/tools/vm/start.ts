@@ -1,11 +1,9 @@
 /**
  * VM_START Tool
  *
- * Creates a Freestyle VM with the connected GitHub repo
- * and infrastructure-only systemd services (ttyd, terminal, iframe-proxy).
- * App-only tool — not visible to AI models.
- *
- * Install/dev lifecycle is handled by the in-VM daemon so VM_START returns fast.
+ * Creates a Freestyle VM with the connected GitHub repo and an in-VM daemon
+ * that runs the reverse proxy + dev lifecycle. App-only tool — not visible
+ * to AI models.
  *
  * Freestyle docs: /v2/vms, /v2/vms/configuration/systemd-services,
  * /v2/vms/configuration/ports-networking, /v2/vms/configuration/domains
@@ -13,15 +11,23 @@
 
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import type { VmMapEntry } from "@decocms/mesh-sdk";
 import { defineTool } from "../../core/define-tool";
 import { VmSpec, freestyle } from "freestyle-sandboxes";
 import { VmDeno } from "@freestyle-sh/with-deno";
 import { VmBun } from "@freestyle-sh/with-bun";
 import { VmNodeJs } from "@freestyle-sh/with-nodejs";
-import { type VmEntry, patchActiveVms } from "./types";
 import { requireVmEntry, resolveRuntimeConfig } from "./helpers";
 import { DownstreamTokenStorage } from "../../storage/downstream-token";
+import {
+  canRefresh,
+  PROACTIVE_REFRESH_BUFFER_MS,
+  RECONNECT_ERROR,
+  refreshAndStore,
+} from "@/oauth/token-refresh";
 import { buildDaemonScript } from "./daemon";
+import { generateBranchName } from "../../shared/branch-name";
+import { removeVmMapEntry, setVmMapEntry } from "./vm-map";
 
 const PROXY_PORT = 9000;
 
@@ -45,14 +51,31 @@ async function buildCloneInfo(
       "No GitHub token found. Ensure the mcp-github connection is authenticated.",
     );
   }
-  const cloneUrl = `https://x-access-token:${token.accessToken}@github.com/${owner}/${name}.git`;
+
+  let accessToken = token.accessToken;
+
+  // Proactive refresh: if the stored token is expiring soon and we have the
+  // OAuth fields needed to refresh, swap it for a fresh one before baking it
+  // into the daemon's clone URL. Mirrors GITHUB_LIST_USER_ORGS.
+  if (
+    canRefresh(token) &&
+    tokenStorage.isExpired(token, PROACTIVE_REFRESH_BUFFER_MS)
+  ) {
+    const refreshed = await refreshAndStore(token, tokenStorage);
+    if (!refreshed) {
+      throw new Error(RECONNECT_ERROR);
+    }
+    accessToken = refreshed;
+  }
+
+  const cloneUrl = `https://x-access-token:${accessToken}@github.com/${owner}/${name}.git`;
 
   let gitUserName = "Deco Studio";
   let gitUserEmail = "studio@deco.cx";
   try {
     const res = await fetch("https://api.github.com/user", {
       headers: {
-        Authorization: `token ${token.accessToken}`,
+        Authorization: `token ${accessToken}`,
         Accept: "application/vnd.github+json",
       },
     });
@@ -72,6 +95,14 @@ async function buildCloneInfo(
   return { cloneUrl, gitUserName, gitUserEmail };
 }
 
+type GithubRepoMeta = {
+  githubRepo?: {
+    owner: string;
+    name: string;
+    connectionId?: string;
+  } | null;
+};
+
 export const VM_START = defineTool({
   name: "VM_START",
   description:
@@ -86,51 +117,68 @@ export const VM_START = defineTool({
   _meta: { ui: { visibility: "app" } },
   inputSchema: z.object({
     virtualMcpId: z.string().describe("Virtual MCP ID"),
+    branch: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "Optional git branch to check out. When omitted the handler generates `deco/<adjective>-<noun>` and uses it. The resolved branch is returned in the response so callers can persist it.",
+      ),
   }),
   outputSchema: z.object({
-    terminalUrl: z.string().nullable(),
     previewUrl: z.string(),
     vmId: z.string(),
+    branch: z.string(),
     isNewVm: z.boolean(),
   }),
 
   handler: async (input, ctx) => {
     try {
-      const { metadata, userId } = await requireVmEntry(input, ctx);
+      const resolvedBranch = input.branch ?? generateBranchName();
 
-      if (!metadata.githubRepo) {
+      const {
+        metadata,
+        userId,
+        entry: existing,
+      } = await requireVmEntry(
+        { virtualMcpId: input.virtualMcpId, branch: resolvedBranch },
+        ctx,
+      );
+
+      const githubRepo = (metadata as GithubRepoMeta).githubRepo;
+      if (!githubRepo) {
         throw new Error("No GitHub repo connected");
       }
 
-      const { owner, name } = metadata.githubRepo;
+      const { owner, name } = githubRepo;
       const { packageManager, runtime, port, runtimeBinPath } =
         resolveRuntimeConfig(metadata);
       const pathPrefix = runtimeBinPath
         ? `export PATH=${runtimeBinPath}:$PATH && `
         : "";
 
-      // Build authenticated clone URL and git identity from downstream token
+      // Build authenticated clone URL and git identity from downstream token.
+      // githubRepo.connectionId is optional in the schema but required for VM start.
+      if (!githubRepo.connectionId) {
+        throw new Error("GitHub connection id missing on virtual MCP metadata");
+      }
       const { cloneUrl, gitUserName, gitUserEmail } = await buildCloneInfo(
-        metadata.githubRepo.connectionId,
+        githubRepo.connectionId,
         owner,
         name,
         ctx.db,
         ctx.vault,
       );
 
-      // Generate a unique subdomain per (virtualMcpId, userId) pair.
-      // MD5 of the composite key guarantees a valid, fixed-length hex subdomain
-      // and avoids collisions between different users on the same Virtual MCP.
-      // Freestyle docs: /v2/vms/configuration/domains
+      // Domain key includes branch so two vms for the same user on different
+      // branches get distinct preview domains.
       const domainKey = createHash("md5")
-        .update(`${input.virtualMcpId}:${userId}`)
+        .update(`${input.virtualMcpId}:${userId}:${resolvedBranch}`)
         .digest("hex")
         .slice(0, 16);
       const previewDomain = `${domainKey}.deco.studio`;
+      const previewUrl = `https://${previewDomain}`;
 
-      // Build the full VmSpec declaratively — integrations, repo, files, and services.
-      // VmNodeJs is always included: the iframe-proxy systemd service runs Node.js on every VM.
-      // Freestyle docs: /v2/vms/integrations/deno, /v2/vms/integrations/bun, /v2/vms/integrations/web-terminal
       const baseSpec = new VmSpec()
         .with("node", new VmNodeJs())
         .additionalFiles({
@@ -146,6 +194,7 @@ export const VM_START = defineTool({
               bootstrapScript: BOOTSTRAP_SCRIPT,
               gitUserName,
               gitUserEmail,
+              branch: resolvedBranch,
             }),
           },
           "/opt/run-daemon.sh": {
@@ -201,63 +250,45 @@ export const VM_START = defineTool({
             ? baseSpec.with("js", new VmBun())
             : baseSpec;
 
-      // Resume existing VM if one is tracked.
-      // Try vm.start() which resumes suspended/stopped VMs. If the VM was
-      // deleted externally, the call will throw — clear the stale entry and
-      // fall through to create a new one.
-      const existing = metadata.activeVms?.[userId];
+      // Resume existing VM if the (user, branch) pair has one. On stale entry
+      // (Freestyle VM missing), clear the vmMap entry and fall through to
+      // create a new one. `existing` was read during requireVmEntry above.
       if (existing) {
         try {
           const vm = freestyle.vms.ref({ vmId: existing.vmId, spec });
           await vm.start();
-          return { ...existing, isNewVm: false };
+          return { ...existing, branch: resolvedBranch, isNewVm: false };
         } catch {
-          // VM no longer exists on Freestyle — clear stale entry
-          await patchActiveVms(
+          await removeVmMapEntry(
             ctx.storage.virtualMcps,
             input.virtualMcpId,
             userId,
-            (vms) => {
-              const updated = { ...vms };
-              delete updated[userId];
-              return updated;
-            },
+            userId,
+            resolvedBranch,
           );
         }
       }
 
-      // Create VM from spec.
-      // Domain routes to the iframe proxy which strips X-Frame-Options/CSP
-      // so the preview can be embedded in an iframe.
-      // Terminal domain is routed post-creation via vm.terminal.logs.route() — a persistent mapping.
-      // Freestyle docs: /v2/vms/configuration/domains
       const createResult = await freestyle.vms.create({
         spec,
         domains: [{ domain: previewDomain, vmPort: PROXY_PORT }],
-        // recreate: true so vm.start() rebuilds from spec if evicted.
-        // Freestyle docs: /v2/vms/lifecycle/persistence
         recreate: true,
-        // 30-minute idle timeout before the VM is automatically stopped.
         idleTimeoutSeconds: 1800,
       });
 
       const { vmId } = createResult;
+      const entry: VmMapEntry = { vmId, previewUrl };
 
-      const previewUrl = `https://${previewDomain}`;
-      const terminalUrl: string | null = null;
-
-      const entry: VmEntry = { terminalUrl, previewUrl, vmId };
-
-      // Persist the active VM entry in the Virtual MCP metadata so all pods
-      // can discover it and avoid spinning up duplicate VMs.
-      await patchActiveVms(
+      await setVmMapEntry(
         ctx.storage.virtualMcps,
         input.virtualMcpId,
         userId,
-        (vms) => ({ ...vms, [userId]: entry }),
+        userId,
+        resolvedBranch,
+        entry,
       );
 
-      return { ...entry, isNewVm: true };
+      return { ...entry, branch: resolvedBranch, isNewVm: true };
     } catch (e) {
       console.error("[VM_START] error", e);
       throw e;

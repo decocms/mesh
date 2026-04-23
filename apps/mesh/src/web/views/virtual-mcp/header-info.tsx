@@ -1,5 +1,7 @@
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
-import { AgentAvatar } from "../../components/agent-icon.tsx";
+import { Users03 } from "@untitledui/icons";
+import { IntegrationIcon } from "../../components/integration-icon";
+import { HeaderActions } from "../../components/thread/github/header-actions.tsx";
 import { Toolbar } from "../../layouts/agent-shell-layout/toolbar.tsx";
 
 export function VirtualMcpHeaderInfo({
@@ -7,15 +9,30 @@ export function VirtualMcpHeaderInfo({
 }: {
   virtualMcp: VirtualMCPEntity;
 }) {
-  const title = virtualMcp.title ?? "";
+  const githubRepo = virtualMcp.metadata?.githubRepo ?? null;
+  const showActions = !!githubRepo?.connectionId;
+
   return (
-    <Toolbar.Left>
-      <div className="flex items-center gap-2 min-w-0">
-        <AgentAvatar icon={virtualMcp.icon} name={title} size="xs" />
-        <span className="text-sm font-medium text-foreground truncate">
-          {title}
-        </span>
-      </div>
-    </Toolbar.Left>
+    <>
+      <Toolbar.Center>
+        <div className="flex items-center gap-2 min-w-0">
+          <IntegrationIcon
+            icon={virtualMcp.icon}
+            name={virtualMcp.title}
+            size="xs"
+            fallbackIcon={<Users03 size={14} />}
+            className="size-5 min-w-5 rounded-md"
+          />
+          <span className="text-sm font-medium text-foreground truncate">
+            {virtualMcp.title}
+          </span>
+        </div>
+      </Toolbar.Center>
+      {showActions && (
+        <Toolbar.Right>
+          <HeaderActions virtualMcpId={virtualMcp.id} />
+        </Toolbar.Right>
+      )}
+    </>
   );
 }

@@ -40,25 +40,26 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { useChatBridge } from "@/web/components/chat/context";
+import { useChatStream } from "@/web/components/chat/context";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { VmErrorState } from "../vm-error-state";
 import { VmSuspendedState } from "../vm-suspended-state";
-import { useVmEvents } from "../hooks/use-vm-events";
+import { useVmChunkHandler, useVmEvents } from "../hooks/use-vm-events";
 import { VmTerminal } from "./terminal";
 import type { Terminal as XTerminal } from "@xterm/xterm";
 import { EmptyState } from "../../empty-state";
 import { LiveTimer } from "../../live-timer";
 import { useActiveGithubRepo } from "@/web/hooks/use-active-github-repo";
 import { authClient } from "@/web/lib/auth-client";
+import { useChatNavigation } from "@/web/components/chat/hooks/use-chat-navigation";
 import { PACKAGE_MANAGER_CONFIG } from "@/shared/runtime-defaults";
 import type { PackageManager } from "@/shared/runtime-defaults";
 import { toast } from "sonner";
 
 interface VmData {
-  terminalUrl: string | null;
   previewUrl: string;
   vmId: string;
+  branch: string;
   isNewVm: boolean;
 }
 
@@ -78,36 +79,45 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
 
-  // Check if there's already an active VM for this user
+  // Check if there's already a VM for (this user, this thread's branch).
+  const { branch: urlBranch, setBranch } = useChatNavigation();
   const userId = session?.user?.id;
-  const activeVmMetadata = inset?.entity?.metadata as
+  const vmMapMetadata = inset?.entity?.metadata as
     | {
-        activeVms?: Record<
+        vmMap?: Record<
           string,
-          { previewUrl: string; vmId: string; terminalUrl: string | null }
+          Record<string, { previewUrl: string; vmId: string }>
         >;
       }
     | undefined;
-  const existingVm = userId ? activeVmMetadata?.activeVms?.[userId] : undefined;
+  const existingVm =
+    userId && urlBranch
+      ? vmMapMetadata?.vmMap?.[userId]?.[urlBranch]
+      : undefined;
 
-  const [status, setStatus] = useState<ViewStatus>(
-    existingVm ? "running" : "idle",
-  );
+  // Derived VM data — reflects the latest vmMap from the query cache. Any
+  // vmMap update (from handleStart, handleStop, or the layout-level auto-
+  // start) triggers a re-render with the fresh value here.
+  const vmData: VmData | null =
+    existingVm && urlBranch
+      ? {
+          previewUrl: existingVm.previewUrl,
+          vmId: existingVm.vmId,
+          branch: urlBranch,
+          isNewVm: false,
+        }
+      : null;
+
+  // Transient override used during user-initiated transitions
+  // ("creating" / "stopping" / "error"). Cleared via effect below once the
+  // derived status catches up.
+  const [override, setOverride] = useState<ViewStatus | null>(null);
+
   const [statusLabel, setStatusLabel] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [execInFlight, setExecInFlight] = useState(false);
   const [killedProcesses, setKilledProcesses] = useState<Set<string>>(
     new Set(),
-  );
-  const vmDataRef = useRef<VmData | null>(
-    existingVm
-      ? {
-          terminalUrl: existingVm.terminalUrl,
-          previewUrl: existingVm.previewUrl,
-          vmId: existingVm.vmId,
-          isNewVm: false,
-        }
-      : null,
   );
   const startingRef = useRef(false);
   const startedAtRef = useRef<number>(Date.now());
@@ -116,7 +126,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const [openScriptTabs, setOpenScriptTabs] = useState<string[]>([]);
   const terminalRefs = useRef(new Map<string, XTerminal>());
 
-  const { sendMessage } = useChatBridge();
+  const { sendMessage } = useChatStream();
   const { setChatOpen } = usePanelActions();
 
   const [hasSelection, setHasSelection] = useState(false);
@@ -161,10 +171,33 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     }
   };
 
-  const vmEvents = useVmEvents(
-    status === "running" ? (vmDataRef.current?.previewUrl ?? null) : null,
-    handleChunk,
-  );
+  // Subscribe to the VM's SSE stream whenever vmData is known — covers both
+  // "running" and "suspended" (which is derived from the SSE disconnect). The
+  // stream auto-reconnects on URL change, so switching branches just works.
+  const vmEvents = useVmEvents();
+  useVmChunkHandler(handleChunk);
+
+  // Final status = user-initiated override, else derived from (vmData, SSE).
+  const derivedStatus: ViewStatus = vmEvents.suspended
+    ? "suspended"
+    : vmData
+      ? "running"
+      : "idle";
+  const status: ViewStatus = override ?? derivedStatus;
+
+  // Clear the override when the derived state catches up. E.g. after
+  // handleStart → "creating" stays until vmMap invalidation refetches and
+  // vmData becomes non-null ("running"); after handleStop → "stopping" stays
+  // until vmMap refetch removes the entry ("idle").
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — clears transient override once derivedStatus catches up; no render-time equivalent for "wait for external async state to reach a target"
+  useEffect(() => {
+    if (override === "creating" && derivedStatus === "running") {
+      setOverride(null);
+    }
+    if (override === "stopping" && derivedStatus === "idle") {
+      setOverride(null);
+    }
+  }, [derivedStatus, override]);
 
   // When scripts are discovered, auto-open well-known starters
   const scriptsAppliedRef = useRef(false);
@@ -195,11 +228,11 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   };
 
   const handleExec = async (scriptName: string) => {
-    if (execInFlight || !vmDataRef.current) return;
+    if (execInFlight || !vmData) return;
     setExecInFlight(true);
     try {
       const res = await fetch(
-        `${vmDataRef.current.previewUrl}/_decopilot_vm/exec/${scriptName}`,
+        `${vmData.previewUrl}/_decopilot_vm/exec/${scriptName}`,
         { method: "POST" },
       );
       if (!res.ok) throw new Error(`Exec failed: ${res.statusText}`);
@@ -214,11 +247,11 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   };
 
   const handleKill = async (scriptName: string) => {
-    if (execInFlight || !vmDataRef.current) return;
+    if (execInFlight || !vmData) return;
     setExecInFlight(true);
     try {
       const res = await fetch(
-        `${vmDataRef.current.previewUrl}/_decopilot_vm/kill/${scriptName}`,
+        `${vmData.previewUrl}/_decopilot_vm/kill/${scriptName}`,
         { method: "POST" },
       );
       if (!res.ok) throw new Error(`Kill failed: ${res.statusText}`);
@@ -240,7 +273,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     if (startingRef.current) return;
     startingRef.current = true;
     startedAtRef.current = Date.now();
-    setStatus("creating");
+    setOverride("creating");
     setStatusLabel("Connecting...");
     setErrorMsg("");
     scriptsAppliedRef.current = false;
@@ -249,20 +282,28 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
 
     try {
       if (!inset?.entity) throw new Error("No virtual MCP context");
-      const data = (await callTool("VM_START", {
+      const args: { virtualMcpId: string; branch?: string } = {
         virtualMcpId: inset.entity.id,
-      })) as VmData;
+      };
+      if (urlBranch) args.branch = urlBranch;
+      const data = (await callTool("VM_START", args)) as VmData;
 
-      if (!data.previewUrl || !data.vmId) {
-        throw new Error("Invalid VM response — missing URLs");
+      if (!data.previewUrl || !data.vmId || !data.branch) {
+        throw new Error("Invalid VM response — missing fields");
       }
 
-      vmDataRef.current = data;
-      setStatus("running");
+      // If the server generated a branch (we didn't pass one), persist it
+      // to the URL so subsequent renders find the vm via vmMap[userId][branch].
+      if (!urlBranch) {
+        setBranch(data.branch);
+      }
       setStatusLabel("");
       invalidateVirtualMcpQueries(queryClient);
+      // override stays "creating" until the vmMap refetch populates vmData,
+      // at which point the sync-effect above flips it to null → derivedStatus
+      // takes over as "running".
     } catch (error) {
-      setStatus("error");
+      setOverride("error");
       setErrorMsg(
         error instanceof Error ? error.message : "Failed to start VM",
       );
@@ -272,35 +313,26 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   };
 
   const handleStop = async () => {
-    vmDataRef.current = null;
-    setStatus("stopping");
+    const branchToStop = vmData?.branch ?? urlBranch;
+    setOverride("stopping");
 
     const virtualMcpId = inset?.entity?.id;
-    if (virtualMcpId) {
+    if (virtualMcpId && branchToStop) {
       try {
         await client.callTool({
           name: "VM_DELETE",
-          arguments: { virtualMcpId },
+          arguments: { virtualMcpId, branch: branchToStop },
         });
       } catch {
         // Best effort
       }
     }
 
-    setStatus("idle");
     invalidateVirtualMcpQueries(queryClient);
+    // override stays "stopping" until the vmMap refetch removes the entry,
+    // at which point the sync-effect above flips it to null → derivedStatus
+    // takes over as "idle".
   };
-
-  // Detect suspension via SSE disconnect
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — responds to vmEvents.suspended changing; drives status transition
-  useEffect(() => {
-    if (vmEvents.suspended && status === "running") {
-      setStatus("suspended");
-    }
-    if (!vmEvents.suspended && status === "suspended") {
-      setStatus("running");
-    }
-  }, [vmEvents.suspended, status]);
 
   const githubRepo = useActiveGithubRepo();
 
@@ -473,17 +505,17 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     <div className="flex flex-col w-full h-full">
       <div className="flex flex-col h-full">
         {/* Terminal tabs + action bar */}
-        <div className="flex items-center border-b border-border px-2 shrink-0">
+        <div className="flex h-12 items-center border-b border-border px-2 shrink-0">
           {allTabs.map((tab) => (
             <button
               key={tab}
               type="button"
               onClick={() => setActiveTab(tab)}
               className={cn(
-                "px-3 py-1.5 text-xs font-medium capitalize transition-colors",
+                "flex items-center h-full px-3 text-sm whitespace-nowrap border-b-2 mb-[-1px] capitalize transition-all hover:text-foreground",
                 activeTab === tab
-                  ? "text-foreground border-b-2 border-primary"
-                  : "text-muted-foreground hover:text-foreground",
+                  ? "text-foreground border-primary"
+                  : "text-muted-foreground border-transparent",
               )}
             >
               {tab}
@@ -496,7 +528,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex items-center h-full px-2 text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <Plus size={14} />
                 </button>
@@ -515,7 +547,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
           )}
 
           <div className="flex-1 flex justify-center">
-            {vmDataRef.current?.vmId && (
+            {vmData?.vmId && (
               <div className="flex items-center">
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -523,12 +555,10 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
                       type="button"
                       className="shrink-0 rounded-l bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground cursor-pointer hover:bg-accent hover:text-foreground transition-colors border-r border-border/50"
                       onClick={() =>
-                        navigator.clipboard.writeText(
-                          vmDataRef.current?.vmId ?? "",
-                        )
+                        navigator.clipboard.writeText(vmData?.vmId ?? "")
                       }
                     >
-                      {vmDataRef.current.vmId}
+                      {vmData.vmId}
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">Copy VM ID</TooltipContent>

@@ -726,6 +726,8 @@ export interface ThreadTable {
   >;
   /** Virtual MCP (agent) this thread was initiated with */
   virtual_mcp_id: string;
+  /** Git branch this thread is pinned to (GitHub-linked virtualmcps only) */
+  branch: string | null;
   /** Per-task UI state (e.g., expanded_tools for right-panel tabs) */
   metadata: ColumnType<ThreadMetadata, string | undefined, string>;
   created_at: ColumnType<Date, Date | string, never>;
@@ -764,6 +766,8 @@ export interface Thread {
   run_started_at: string | null;
   /** Virtual MCP (agent) this thread was initiated with */
   virtual_mcp_id: string;
+  /** Git branch this thread is pinned to (GitHub-linked virtualmcps only) */
+  branch: string | null;
   metadata: ThreadMetadata;
 }
 

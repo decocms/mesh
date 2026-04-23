@@ -27,7 +27,7 @@ import {
   use,
   Suspense,
 } from "react";
-import { Chat, useChatTask } from "@/web/components/chat/index";
+import { Chat } from "@/web/components/chat/index";
 import { ChatCenterPanel } from "@/web/layouts/chat-center-panel";
 import { TasksPanel } from "@/web/layouts/tasks-panel";
 import { ErrorBoundary } from "@/web/components/error-boundary";
@@ -45,23 +45,32 @@ import { AlertCircle, Loading01, Menu01 } from "@untitledui/icons";
 import {
   getDecopilotId,
   getWellKnownDecopilotVirtualMCP,
+  SELF_MCP_ALIAS_ID,
+  useMCPClient,
   useProjectContext,
   useVirtualMCP,
 } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateVirtualMcpQueries } from "@/web/lib/query-keys";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useStatusSounds } from "../../hooks/use-status-sounds";
+import { useChatNavigation } from "@/web/components/chat/hooks/use-chat-navigation";
+import { generateBranchName } from "@/shared/branch-name";
+import { authClient } from "@/web/lib/auth-client";
 import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "@/web/components/empty-state";
 import { useChatMainPanelState } from "@/web/hooks/use-layout-state";
+import { getActiveGithubRepo } from "@/web/lib/github-repo";
 import { TasksPanelStateProvider } from "@/web/hooks/use-tasks-panel-state";
-import { Separator } from "@deco/ui/components/separator.tsx";
 import { Toolbar } from "./toolbar";
 import { TasksPanelColumn } from "./tasks-panel-column";
 import { ChatMainPanelGroup } from "./chat-main-panel-group";
 import { ToggleButtons } from "./toggle-buttons";
 import { MainPanelTabsBar } from "@/web/layouts/main-panel-tabs/main-panel-tabs-bar";
 import { VirtualMcpHeaderInfo } from "../../views/virtual-mcp/header-info.tsx";
+import { VmEventsProvider } from "@/web/components/vm/hooks/vm-events-context.tsx";
+import { PendingMessageProvider } from "@/web/components/chat/pending-message-context";
 
 // ---------------------------------------------------------------------------
 // Types & Context
@@ -81,31 +90,6 @@ export function useInsetContext(): InsetContextValue | null {
 // ---------------------------------------------------------------------------
 // Agent inset sub-components
 // ---------------------------------------------------------------------------
-
-function ActiveTaskBoundary({
-  children,
-  variant,
-}: {
-  children?: React.ReactNode;
-  variant?: "home" | "default";
-}) {
-  const { taskId } = useChatTask();
-  return (
-    <ErrorBoundary
-      fallback={
-        <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-          Something went wrong loading the chat. Try refreshing.
-        </div>
-      }
-    >
-      <Suspense fallback={<Chat.Skeleton />}>
-        <Chat.ActiveTaskProvider taskId={taskId}>
-          {children ?? <ChatCenterPanel variant={variant} />}
-        </Chat.ActiveTaskProvider>
-      </Suspense>
-    </ErrorBoundary>
-  );
-}
 
 function NewTaskBridge({
   onNewTaskRef,
@@ -157,7 +141,10 @@ function AgentInsetProvider() {
   };
   const orgSlug = params.org ?? "";
 
-  const search = useSearch({ strict: false }) as { virtualmcpid?: string };
+  const search = useSearch({ strict: false }) as {
+    virtualmcpid?: string;
+    branch?: string;
+  };
   const virtualMcpId =
     search.virtualmcpid ?? getWellKnownDecopilotVirtualMCP(org.id).id;
   const isDecopilot = virtualMcpId === getDecopilotId(org.id);
@@ -174,11 +161,17 @@ function AgentInsetProvider() {
       }
     : null;
 
-  const layout = useChatMainPanelState(entityMetadata, {
-    virtualMcpId,
-    orgSlug,
-    isAgentRoute,
-  });
+  const hasActiveGithubRepo = !!(entity && getActiveGithubRepo(entity));
+
+  const layout = useChatMainPanelState(
+    entityMetadata,
+    {
+      virtualMcpId,
+      orgSlug,
+      isAgentRoute,
+    },
+    hasActiveGithubRepo,
+  );
 
   const { setOpenMobile, openMobile: mobileSidebarOpen } = useSidebar();
   const setMobileSidebarOpen = setOpenMobile;
@@ -196,6 +189,71 @@ function AgentInsetProvider() {
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, []);
+
+  // Auto-assign a branch to the thread when the virtualMCP has a GitHub repo
+  // and the URL has no `?branch=` yet. Prefer reusing the user's first
+  // existing branch from vmMap (so revisits stick to a known branch instead
+  // of minting a fresh name); fall back to generating one only when the user
+  // has no branches registered yet.
+  const { branch: urlBranch, setBranch } = useChatNavigation();
+  const { data: session } = authClient.useSession();
+  const userId = session?.user?.id;
+  const vmMap = entity?.metadata?.vmMap;
+  const vmPreviewUrl =
+    userId && urlBranch
+      ? (vmMap?.[userId]?.[urlBranch]?.previewUrl ?? null)
+      : null;
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — one-shot side effect that sets a URL search param; TanStack Router navigation has no render-time equivalent
+  useEffect(() => {
+    if (urlBranch) return;
+    if (!hasActiveGithubRepo) return;
+    if (!userId) return;
+    const userBranches = vmMap?.[userId];
+    const existing = userBranches ? Object.keys(userBranches)[0] : undefined;
+    setBranch(existing ?? generateBranchName());
+  }, [urlBranch, hasActiveGithubRepo, setBranch, userId, vmMap]);
+
+  // Auto-start the VM when the thread lands on a branch without a registered
+  // entry. Ensures every github-linked thread has a live vm and a stable
+  // preview URL, so the user never sees "No server running" and vmMap is
+  // always populated for the sticky-branch logic above.
+  const queryClient = useQueryClient();
+  const autoStartClient = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+  const autoStartingBranchRef = useRef<string | null>(null);
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — fires VM_START when vmMap is missing an entry for (user, branch); ref guard dedupes concurrent mounts and the effect tears itself down on success via query invalidation
+  useEffect(() => {
+    if (!hasActiveGithubRepo) return;
+    if (!userId) return;
+    if (!urlBranch) return;
+    if (vmMap?.[userId]?.[urlBranch]) return;
+    if (autoStartingBranchRef.current === urlBranch) return;
+    autoStartingBranchRef.current = urlBranch;
+    autoStartClient
+      .callTool({
+        name: "VM_START",
+        arguments: { virtualMcpId, branch: urlBranch },
+      })
+      .then(() => invalidateVirtualMcpQueries(queryClient))
+      .catch((err) => {
+        console.error("[auto-start-vm] failed:", err);
+      })
+      .finally(() => {
+        if (autoStartingBranchRef.current === urlBranch) {
+          autoStartingBranchRef.current = null;
+        }
+      });
+  }, [
+    hasActiveGithubRepo,
+    userId,
+    urlBranch,
+    vmMap,
+    virtualMcpId,
+    autoStartClient,
+    queryClient,
+  ]);
 
   const chatVirtualMcpId = virtualMcpId;
 
@@ -265,17 +323,39 @@ function AgentInsetProvider() {
     return (
       <InsetContext value={insetContextValue}>
         <div className="flex flex-col flex-1 bg-background min-h-0">
-          <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
-            <NewTaskBridge
-              onNewTaskRef={onNewTask}
-              createNewTask={layout.createNewTask}
-            />
-            <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <ActiveTaskBoundary variant={isDecopilot ? "home" : undefined} />
-            </div>
-            {mobileSidebarSheet}
-          </Chat.Provider>
+          <PendingMessageProvider>
+            <ErrorBoundary
+              fallback={
+                <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+                  Something went wrong loading this agent. Try refreshing.
+                </div>
+              }
+            >
+              <Suspense fallback={<Chat.Skeleton />}>
+                <Chat.Provider
+                  key={layout.taskId}
+                  virtualMcpId={chatVirtualMcpId}
+                  taskId={layout.taskId}
+                >
+                  <VmEventsProvider previewUrl={vmPreviewUrl}>
+                    <NewTaskBridge
+                      onNewTaskRef={onNewTask}
+                      createNewTask={layout.createNewTask}
+                    />
+                    <MobileToolbar
+                      onOpenSidebar={() => setMobileSidebarOpen(true)}
+                    />
+                    <div className="flex-1 min-h-0 overflow-hidden">
+                      <ChatCenterPanel
+                        variant={isDecopilot ? "home" : undefined}
+                      />
+                    </div>
+                    {mobileSidebarSheet}
+                  </VmEventsProvider>
+                </Chat.Provider>
+              </Suspense>
+            </ErrorBoundary>
+          </PendingMessageProvider>
         </div>
       </InsetContext>
     );
@@ -294,8 +374,6 @@ function AgentInsetProvider() {
         />
       </Toolbar.Toggles>
 
-      {!isDecopilot && <VirtualMcpHeaderInfo virtualMcp={entity} />}
-
       {!isDecopilot && (
         <Toolbar.Tabs>
           <MainPanelTabsBar
@@ -305,21 +383,38 @@ function AgentInsetProvider() {
         </Toolbar.Tabs>
       )}
 
-      <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
-        <NewTaskBridge
-          onNewTaskRef={onNewTask}
-          createNewTask={layout.createNewTask}
-        />
-        <ChatMainPanelGroup
-          virtualMcpId={virtualMcpId}
-          taskId={layout.taskId}
-          chatOpen={layout.chatOpen}
-          mainOpen={layout.mainOpen}
-          chatContent={
-            <ActiveTaskBoundary variant={isDecopilot ? "home" : undefined} />
+      <PendingMessageProvider>
+        <ErrorBoundary
+          fallback={
+            <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+              Something went wrong loading this agent. Try refreshing.
+            </div>
           }
-        />
-      </Chat.Provider>
+        >
+          <Suspense fallback={<Chat.Skeleton />}>
+            <Chat.Provider
+              key={layout.taskId}
+              virtualMcpId={chatVirtualMcpId}
+              taskId={layout.taskId}
+            >
+              <VmEventsProvider previewUrl={vmPreviewUrl}>
+                {!isDecopilot && <VirtualMcpHeaderInfo virtualMcp={entity} />}
+                <NewTaskBridge
+                  onNewTaskRef={onNewTask}
+                  createNewTask={layout.createNewTask}
+                />
+                <ChatMainPanelGroup
+                  virtualMcpId={virtualMcpId}
+                  taskId={layout.taskId}
+                  chatOpen={layout.chatOpen}
+                  mainOpen={layout.mainOpen}
+                  variant={isDecopilot ? "home" : undefined}
+                />
+              </VmEventsProvider>
+            </Chat.Provider>
+          </Suspense>
+        </ErrorBoundary>
+      </PendingMessageProvider>
     </InsetContext>
   );
 }
@@ -377,11 +472,15 @@ export default function AgentShellLayout() {
                 <TasksPanelStateProvider>
                   <Toolbar>
                     <Toolbar.Header>
-                      <Toolbar.Nav />
-                      <Toolbar.LeftSlot />
-                      <Toolbar.TabsSlot />
-                      <Separator orientation="vertical" className="mx-2 h-5" />
-                      <Toolbar.TogglesSlot />
+                      <Toolbar.LeftColumn>
+                        <Toolbar.Nav />
+                        <Toolbar.TogglesSlot />
+                      </Toolbar.LeftColumn>
+                      <Toolbar.CenterSlot />
+                      <Toolbar.RightColumn>
+                        <Toolbar.TabsSlot />
+                        <Toolbar.RightSlot />
+                      </Toolbar.RightColumn>
                     </Toolbar.Header>
                     <div className="flex-1 min-h-0 flex flex-row">
                       <TasksPanelColumn />

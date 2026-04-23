@@ -23,17 +23,17 @@ import { DownstreamTokenStorage } from "../../storage/downstream-token";
 import { ConnectionStorage } from "../../storage/connection";
 import type { BoundAuthClient, MeshContext } from "../../core/mesh-context";
 import type { EventBus } from "../../event-bus/interface";
-import type { TokenRefreshResult } from "@/oauth/token-refresh";
+import type { TokenRefreshResult } from "@/oauth/refresh-access-token";
 
 const mockRefreshAccessToken =
   vi.fn<
     (
       ...args: Parameters<
-        typeof import("@/oauth/token-refresh").refreshAccessToken
+        typeof import("@/oauth/refresh-access-token").refreshAccessToken
       >
     ) => Promise<TokenRefreshResult>
   >();
-mock.module("@/oauth/token-refresh", () => ({
+mock.module("@/oauth/refresh-access-token", () => ({
   refreshAccessToken: mockRefreshAccessToken,
 }));
 

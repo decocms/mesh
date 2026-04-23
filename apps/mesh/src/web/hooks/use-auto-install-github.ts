@@ -100,6 +100,7 @@ export function useAutoInstallGitHub(opts: {
           error: oauthError,
         } = await authenticateMcp({
           connectionId: id,
+          scope: "offline_access",
         });
 
         if (oauthError || !token) {
