@@ -141,11 +141,10 @@ export function useMainPanelTabs(ctx: {
 
   const automationTabParsed = parseAutomationTabId(activeTab);
 
-  // When linked to a GitHub repo, "Instructions" is replaced by a "git" tab
-  // that renders the branch/PR panel. The agent's system prompt is still
-  // editable elsewhere (vm settings) but not visible here.
+  // Tabs for GitHub-linked vMCPs vs plain ones. The "git" tab (branch/PR
+  // panel) replaces Instructions and lives at the end, after Preview.
   const systemTabs: Array<{ id: string; title: string }> = hasActiveGithubRepo
-    ? [{ id: "git", title: "git" }]
+    ? []
     : [{ id: "instructions", title: "Instructions" }];
   systemTabs.push({ id: "connections", title: "Connections" });
   systemTabs.push({ id: "automations", title: "Automations" });
@@ -153,6 +152,7 @@ export function useMainPanelTabs(ctx: {
   if (hasActiveGithubRepo) {
     systemTabs.push({ id: "env", title: "Terminal" });
     systemTabs.push({ id: "preview", title: "Preview" });
+    systemTabs.push({ id: "git", title: "git" });
   }
 
   // Merge pinned views + per-task expanded tools into a single list keyed
