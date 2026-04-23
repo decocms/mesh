@@ -40,7 +40,7 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { useChatBridge } from "@/web/components/chat/context";
+import { useChatStream } from "@/web/components/chat/context";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { VmErrorState } from "../vm-error-state";
 import { VmSuspendedState } from "../vm-suspended-state";
@@ -126,7 +126,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const [openScriptTabs, setOpenScriptTabs] = useState<string[]>([]);
   const terminalRefs = useRef(new Map<string, XTerminal>());
 
-  const { sendMessage } = useChatBridge();
+  const { sendMessage } = useChatStream();
   const { setChatOpen } = usePanelActions();
 
   const [hasSelection, setHasSelection] = useState(false);

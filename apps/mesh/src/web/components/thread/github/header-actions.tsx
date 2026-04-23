@@ -7,7 +7,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
-import { useChatBridge } from "../../chat/chat-context.tsx";
+import { useChatStream } from "../../chat/chat-context.tsx";
 import { useChatNavigation } from "../../chat/hooks/use-chat-navigation.ts";
 import { MergeSplitButton } from "./merge-split-button.tsx";
 import { selectHeaderButton, type HeaderButton } from "./panel-state.ts";
@@ -34,7 +34,7 @@ export function HeaderActions({ virtualMcpId }: Props) {
   const { org } = useProjectContext();
   const vm = useVirtualMCP(virtualMcpId);
   const { branch } = useChatNavigation();
-  const chat = useChatBridge();
+  const chat = useChatStream();
 
   const githubRepo = vm?.metadata?.githubRepo ?? null;
 
