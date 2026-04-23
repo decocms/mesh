@@ -26,7 +26,6 @@ const mockParams: BuiltinToolParams = {
     connectionId: "conn_test",
     thinking: { id: "model_test" },
   } as never,
-  userId: "user_test",
   toolOutputMap: new Map(),
   passthroughClient: {
     listTools: () => Promise.resolve({ tools: [] }),
