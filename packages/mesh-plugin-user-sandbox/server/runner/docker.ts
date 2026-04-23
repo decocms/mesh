@@ -6,9 +6,13 @@ import {
   probeDaemonHealth,
   proxyDaemonRequest as proxyDaemonRequestClient,
   waitForDaemonReady,
-} from "./daemon-client";
-import { dockerExec, type DockerResult } from "../docker-cli";
-import { DEFAULT_WORKDIR, startContainer } from "../docker-helpers";
+} from "../daemon-client";
+import {
+  DEFAULT_WORKDIR,
+  dockerExec,
+  startContainer,
+  type DockerResult,
+} from "../docker-cli";
 import type { RunnerStateStore } from "./state-store";
 import type {
   EnsureOptions,

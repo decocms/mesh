@@ -9,8 +9,8 @@
  * no docker CLI. Reusable from any runner that targets the same daemon image.
  */
 
-import { gitIdentityScript, shellQuote, sleep } from "../../shared";
-import type { EnsureOptions, ExecInput, ExecOutput } from "./types";
+import { gitIdentityScript, shellQuote, sleep } from "../shared";
+import type { EnsureOptions, ExecInput, ExecOutput } from "./runner/types";
 
 const DEFAULT_EXEC_TIMEOUT_MS = 60_000;
 const HEALTH_PROBE_TIMEOUT_MS = 500;

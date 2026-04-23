@@ -1,8 +1,7 @@
 /**
- * Canonical `docker` CLI subprocess wrapper. Shared by prep (bake pipeline)
- * and runner (sandbox provisioning) — both shell out to the docker CLI, so
- * a single spawn helper keeps stdout/stderr handling and the "docker not
- * installed" error message in one place.
+ * Docker CLI primitives used by the sandbox runner. One module for the
+ * spawn-and-parse plumbing (`dockerExec`) and the higher-level `docker run -d`
+ * helper (`startContainer`) so the runner can focus on flag assembly.
  */
 
 import { spawn } from "node:child_process";
@@ -12,6 +11,17 @@ export interface DockerResult {
   stderr: string;
   code: number;
 }
+
+/**
+ * Canonical workdir inside every sandbox image. Overridable per-ensure via
+ * `EnsureOptions.workdir`, but by default thread containers start here.
+ */
+export const DEFAULT_WORKDIR = "/app";
+
+export type DockerExecFn = (
+  args: string[],
+  timeoutMs?: number,
+) => Promise<DockerResult>;
 
 /**
  * Run `docker <args>`. When `timeoutMs` is set, a SIGKILL is delivered on
@@ -59,4 +69,50 @@ export function dockerExec(
       resolve({ stdout, stderr, code: code ?? -1 });
     });
   });
+}
+
+export interface StartContainerOptions {
+  /**
+   * Flags appended to `docker run -d` (before the image). Caller owns labels,
+   * mounts, port mappings, env, entrypoint overrides.
+   */
+  args: readonly string[];
+  /** Command + args to run as the container's main process (after the image). */
+  command?: readonly string[];
+  timeoutMs?: number;
+  /** Short human label (e.g. "sandbox") used in error messages. */
+  label: string;
+  /**
+   * Optional override of the docker-cli spawn. Defaults to the shared
+   * `dockerExec`. Exposed so `DockerSandboxRunner`'s test-mode `exec`
+   * injection continues to work through this helper.
+   */
+  exec?: DockerExecFn;
+}
+
+/**
+ * `docker run -d <args> <image> [command...]` — detached launch, parse the
+ * container id off stdout, throw with a readable message on spawn failure or
+ * missing id.
+ */
+export async function startContainer(
+  image: string,
+  opts: StartContainerOptions,
+): Promise<{ id: string }> {
+  const run = opts.exec ?? dockerExec;
+  const result = await run(
+    ["run", "-d", ...opts.args, image, ...(opts.command ?? [])],
+    opts.timeoutMs,
+  );
+  if (result.code !== 0) {
+    const tail = result.stderr.trim() || result.stdout.trim() || "no output";
+    throw new Error(
+      `docker run ${opts.label} failed (exit ${result.code}): ${tail}`,
+    );
+  }
+  const id = result.stdout.trim().split("\n").pop()?.trim();
+  if (!id) {
+    throw new Error(`docker run ${opts.label} returned no container id`);
+  }
+  return { id };
 }
