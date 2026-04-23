@@ -72,10 +72,12 @@ export function ChangesTab({ pr, connectionId, owner, repo }: Props) {
                 <StatusBadge status={f.status} />
                 <span className="truncate">{f.filename}</span>
               </span>
-              <span className="shrink-0 tabular-nums">
-                <span className="text-success">+{f.additions}</span>{" "}
-                <span className="text-destructive">−{f.deletions}</span>
-                <LinkExternal01 className="ml-2 inline h-3 w-3 text-muted-foreground" />
+              <span className="flex shrink-0 items-center gap-2 tabular-nums">
+                <span>
+                  <span className="text-success">+{f.additions}</span>{" "}
+                  <span className="text-destructive">−{f.deletions}</span>
+                </span>
+                <LinkExternal01 className="h-3 w-3 text-muted-foreground" />
               </span>
             </a>
           </li>
