@@ -43,7 +43,7 @@ export function PrSubTabs({ pr, connectionId, owner, repo }: Props) {
       variant="underline"
       className="flex min-h-0 flex-1 flex-col"
     >
-      <TabsList variant="underline" className="px-2">
+      <TabsList variant="underline" className="h-12 px-2">
         <TabsTrigger variant="underline" value="description">
           Description
         </TabsTrigger>

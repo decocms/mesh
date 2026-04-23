@@ -544,17 +544,18 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   return (
     <div className="flex flex-col w-full h-full">
       <div className="flex flex-col h-full">
-        <div className="flex items-center border-b border-border px-2 shrink-0">
+        {/* Terminal tabs + action bar */}
+        <div className="flex h-12 items-center border-b border-border px-2 shrink-0">
           {allTabs.map((tab) => (
             <button
               key={tab}
               type="button"
               onClick={() => setActiveTab(tab)}
               className={cn(
-                "px-3 py-1.5 text-xs font-medium capitalize transition-colors",
+                "flex items-center h-full px-3 text-sm whitespace-nowrap border-b-2 mb-[-1px] capitalize transition-all hover:text-foreground",
                 activeTab === tab
-                  ? "text-foreground border-b-2 border-primary"
-                  : "text-muted-foreground hover:text-foreground",
+                  ? "text-foreground border-primary"
+                  : "text-muted-foreground border-transparent",
               )}
             >
               {tab}
@@ -566,7 +567,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex items-center h-full px-2 text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <Plus size={14} />
                 </button>
