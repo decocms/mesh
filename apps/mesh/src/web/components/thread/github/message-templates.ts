@@ -40,18 +40,6 @@ export function mergeSquash(
   return `On repo \`${repoRef(ctx)}\`, squash-merge PR #${ctx.prNumber} into \`${ctx.base}\`. You may call the GitHub merge API for this since it's a PR-level operation; use the BASH tool with git only if you need to prep or reorganize commits first.`;
 }
 
-export function mergeRebase(
-  ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber" | "base">,
-): string {
-  return `On repo \`${repoRef(ctx)}\`, rebase-merge PR #${ctx.prNumber} into \`${ctx.base}\`. Prefer a true rebase via the BASH tool (\`git rebase ${ctx.base}\` in the vm, then force-push), and only use the GitHub merge API after the branch is ready.`;
-}
-
-export function mergeCommit(
-  ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber" | "base">,
-): string {
-  return `On repo \`${repoRef(ctx)}\`, merge PR #${ctx.prNumber} into \`${ctx.base}\` with a merge commit via the GitHub merge API. Use the BASH tool with git only if you need to prep commits first.`;
-}
-
 export function rebaseOnBase(
   ctx: Pick<TemplateContext, "owner" | "repo" | "branch" | "base">,
 ): string {
