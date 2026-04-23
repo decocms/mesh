@@ -86,48 +86,36 @@ export function HeaderActions({ virtualMcpId }: Props) {
   const send = (text: string) =>
     chat.sendMessage({ parts: [{ type: "text", text }] });
 
-  const owner = githubRepo.owner;
-  const repo = githubRepo.name;
-  const base = pr?.base ?? branchStatus?.base ?? "main";
   const isStreaming = chat.isStreaming;
 
   const onActivate = (action: HeaderButton["action"]) => {
     if (isStreaming) return;
     switch (action) {
       case "commit-and-push":
-        void send(tpl.commitAndPush({ owner, repo, branch }));
+        void send(tpl.commitAndPush());
         return;
       case "create-pr":
-        void send(tpl.createPr({ owner, repo, branch, base }));
+        void send(tpl.createPr());
         return;
       case "reopen":
-        if (pr) void send(tpl.reopenPr({ owner, repo, prNumber: pr.number }));
+        if (pr) void send(tpl.reopenPr());
         return;
       case "rebase":
-        void send(tpl.rebaseOnBase({ owner, repo, branch, base }));
+        void send(tpl.rebaseOnBase());
         return;
       case "fix-checks":
         if (pr)
           void send(
             tpl.fixChecks({
-              owner,
-              repo,
-              prNumber: pr.number,
               failingChecks: button.meta?.failingChecks ?? [],
             }),
           );
         return;
       case "mark-ready":
-        if (pr)
-          void send(
-            tpl.markReadyForReview({ owner, repo, prNumber: pr.number }),
-          );
+        if (pr) void send(tpl.markReadyForReview());
         return;
       case "resolve-comments":
-        if (pr)
-          void send(
-            tpl.resolveReviewComments({ owner, repo, prNumber: pr.number }),
-          );
+        if (pr) void send(tpl.resolveReviewComments());
         return;
       case "merge-split":
         // MergeSplitButton handles its own click wiring.
@@ -145,10 +133,7 @@ export function HeaderActions({ virtualMcpId }: Props) {
         button={button}
         isStreaming={isStreaming}
         onActivate={onActivate}
-        owner={owner}
-        repo={repo}
         prNumber={pr?.number}
-        base={base}
         send={send}
       />
     </>
@@ -159,10 +144,7 @@ function HeaderButtonRenderer(props: {
   button: HeaderButton;
   isStreaming: boolean;
   onActivate: (action: HeaderButton["action"]) => void;
-  owner: string;
-  repo: string;
   prNumber?: number;
-  base: string;
   send: (text: string) => Promise<void> | void;
 }) {
   const { button, isStreaming } = props;
@@ -172,14 +154,7 @@ function HeaderButtonRenderer(props: {
   if (button.action === "merge-split" && props.prNumber != null) {
     return (
       <WithTooltip label={tooltipLabel}>
-        <MergeSplitButton
-          owner={props.owner}
-          repo={props.repo}
-          prNumber={props.prNumber}
-          base={props.base}
-          disabled={disabled}
-          send={props.send}
-        />
+        <MergeSplitButton disabled={disabled} send={props.send} />
       </WithTooltip>
     );
   }

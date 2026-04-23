@@ -9,29 +9,18 @@ import { ChevronDown } from "@untitledui/icons";
 import * as tpl from "./message-templates.ts";
 
 interface Props {
-  owner: string;
-  repo: string;
-  prNumber: number;
-  base: string;
   disabled: boolean;
   send: (text: string) => Promise<void> | void;
 }
 
 /**
- * Split-style merge action: clicking the label fires the default
- * (Squash & merge); clicking the chevron opens a dropdown with the
- * alternative strategies. Each choice sends a templated chat message.
+ * Split-style merge action: clicking the label fires Publish (squash-
+ * merge); clicking the chevron opens a dropdown with Review. Each choice
+ * sends a templated chat message.
  */
-export function MergeSplitButton({
-  owner,
-  repo,
-  prNumber,
-  base,
-  disabled,
-  send,
-}: Props) {
-  const squash = () => send(tpl.mergeSquash({ owner, repo, prNumber, base }));
-  const review = () => send(tpl.reviewPr({ owner, repo, prNumber }));
+export function MergeSplitButton({ disabled, send }: Props) {
+  const squash = () => send(tpl.mergeSquash());
+  const review = () => send(tpl.reviewPr());
 
   return (
     <div className="inline-flex items-stretch rounded-md">

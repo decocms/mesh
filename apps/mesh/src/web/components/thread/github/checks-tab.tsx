@@ -34,12 +34,7 @@ export function ChecksTab({ pr, connectionId, owner, repo }: Props) {
       parts: [
         {
           type: "text",
-          text: tpl.rerunCheck({
-            owner,
-            repo,
-            prNumber: pr.number,
-            checkName: name,
-          }),
+          text: tpl.rerunCheck({ checkName: name }),
         },
       ],
     });
