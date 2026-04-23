@@ -267,7 +267,7 @@ function SiblingInstanceSelector({
     >
       <SelectTrigger
         size="sm"
-        className="w-auto text-xs gap-1 px-2 border border-border bg-background rounded"
+        className="w-auto text-xs gap-1 px-2 shadow-none"
       >
         <SelectValue />
       </SelectTrigger>
