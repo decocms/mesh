@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { posthog } from "@/posthog";
 import type { ServerPluginContext } from "@decocms/bindings/server-plugin";
 import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 import type { Kysely } from "kysely";
@@ -389,6 +390,19 @@ export function publicPublishRequestRoutes(
         error,
       );
     }
+
+    posthog.capture({
+      distinctId: parsed.data.requester?.email ?? `org:${organizationId}`,
+      event: "registry_publish_request_submitted",
+      groups: { organization: organizationId },
+      properties: {
+        organization_id: organizationId,
+        request_id: created.id,
+        requested_id: created.requested_id,
+        title: parsed.data.data.title,
+        requester_email: parsed.data.requester?.email ?? null,
+      },
+    });
 
     return c.json(
       {
