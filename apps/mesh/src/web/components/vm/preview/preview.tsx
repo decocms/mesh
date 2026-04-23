@@ -126,7 +126,7 @@ export function PreviewContent() {
   return (
     <div className="flex flex-col w-full h-full">
       {/* Unified toolbar */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+      <div className="flex h-12 items-center gap-2 px-3 border-b border-border shrink-0">
         {previewUrl && hasHtmlPreview && (
           <ViewModeToggle
             value={viewMode}
