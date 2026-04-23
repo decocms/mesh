@@ -511,10 +511,10 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
               type="button"
               onClick={() => setActiveTab(tab)}
               className={cn(
-                "px-3 py-1.5 text-xs font-medium capitalize transition-colors",
+                "flex items-center h-full px-3 text-sm whitespace-nowrap border-b-2 mb-[-1px] capitalize transition-all hover:text-foreground",
                 activeTab === tab
-                  ? "text-foreground border-b-2 border-primary"
-                  : "text-muted-foreground hover:text-foreground",
+                  ? "text-foreground border-primary"
+                  : "text-muted-foreground border-transparent",
               )}
             >
               {tab}
@@ -527,7 +527,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex items-center h-full px-2 text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <Plus size={14} />
                 </button>
