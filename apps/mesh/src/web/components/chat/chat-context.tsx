@@ -6,8 +6,7 @@
  * task list). Keyed on taskId by the caller → full teardown + rebuild on
  * switch, including DefaultChatTransport.
  *
- * Provides four contexts to consumers: ChatTask, ChatPrefs, ChatBridge
- * (deprecated — use ChatStream), ChatStream.
+ * Provides three contexts to consumers: ChatTask, ChatPrefs, ChatStream.
  */
 
 import {
@@ -142,26 +141,12 @@ export interface ChatPrefsContextValue {
   resetInteraction: () => void;
 }
 
-export interface ChatBridgeValue {
-  sendMessage: (params: SendMessageParams) => Promise<void>;
-  isStreaming: boolean;
-}
-
 // ============================================================================
 // Constants
 // ============================================================================
 
 const MAX_APP_CONTEXT_LENGTH = 10_000;
 const MAX_APP_CONTEXT_SOURCES = 10;
-
-const BRIDGE_NOOP: ChatBridgeValue = {
-  sendMessage: async () => {
-    console.warn(
-      "[ChatBridge] sendMessage called but Chat.Provider not mounted",
-    );
-  },
-  isStreaming: false,
-};
 
 // ============================================================================
 // Contexts
@@ -170,13 +155,6 @@ const BRIDGE_NOOP: ChatBridgeValue = {
 const ChatStreamCtx = createContext<ChatStreamContextValue | null>(null);
 const ChatTaskCtx = createContext<ChatTaskContextValue | null>(null);
 const ChatPrefsCtx = createContext<ChatPrefsContextValue | null>(null);
-/**
- * ChatBridgeCtx holds a RefObject (not a value). Deprecated — kept for
- * compatibility during migration; delete once all consumers use useChatStream.
- */
-const ChatBridgeCtx = createContext<React.RefObject<ChatBridgeValue>>({
-  current: BRIDGE_NOOP,
-});
 
 // ============================================================================
 // ChatProvider
@@ -385,9 +363,6 @@ export function ChatProvider({
       },
     });
   }
-
-  // Bridge ref — deprecated, will be deleted once consumers migrate
-  const bridgeRef = useRef<ChatBridgeValue>(BRIDGE_NOOP);
 
   // Pending message state (hoisted to PendingMessageProvider above Suspense)
   const pendingMessageCtx = usePendingMessage();
@@ -646,12 +621,6 @@ export function ChatProvider({
     return sendMessageInternal(params as SendMessageParams);
   };
 
-  // Bridge — deprecated, deleted in next task
-  bridgeRef.current = {
-    sendMessage: sendMessageInternal,
-    isStreaming,
-  };
-
   // Consume pending message when this task is the target. consumeFor is
   // idempotent per taskId and handles TTL + clearing internally.
   const pendingForThisTask = pendingMessageCtx.consumeFor(taskId);
@@ -733,11 +702,9 @@ export function ChatProvider({
   return (
     <ChatTaskCtx.Provider value={taskValue}>
       <ChatPrefsCtx.Provider value={prefsValue}>
-        <ChatBridgeCtx.Provider value={bridgeRef}>
-          <ChatStreamCtx.Provider value={streamValue}>
-            {children}
-          </ChatStreamCtx.Provider>
-        </ChatBridgeCtx.Provider>
+        <ChatStreamCtx.Provider value={streamValue}>
+          {children}
+        </ChatStreamCtx.Provider>
       </ChatPrefsCtx.Provider>
     </ChatTaskCtx.Provider>
   );
@@ -771,16 +738,4 @@ export function useChatPrefs(): ChatPrefsContextValue {
 
 export function useOptionalChatPrefs(): ChatPrefsContextValue | null {
   return useContext(ChatPrefsCtx);
-}
-
-export function useChatBridge(): ChatBridgeValue {
-  const ref = useContext(ChatBridgeCtx);
-  // Deprecated — kept for compatibility during migration. Returns wrappers
-  // that read .current at call time.
-  return {
-    sendMessage: (params) => ref.current.sendMessage(params),
-    get isStreaming() {
-      return ref.current.isStreaming;
-    },
-  };
 }
