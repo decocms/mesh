@@ -1296,6 +1296,7 @@ function VirtualMcpDetailViewWithData({
   ): Promise<string | null> => {
     const { token, tokenInfo, error } = await authenticateMcp({
       connectionId,
+      scope: "offline_access",
     });
     if (error || !token) {
       toast.error(`Authentication failed: ${error}`);
