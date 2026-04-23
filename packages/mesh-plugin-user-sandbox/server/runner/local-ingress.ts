@@ -1,5 +1,5 @@
 /**
- * Local sandbox ingress forwarder.
+ * Local sandbox ingress forwarder for the Docker runner.
  *
  * Dev-only. Raw TCP proxy: parses the first HTTP request's `Host` header to
  * pick a handle + routing target (`/_daemon/*` → daemon port, else → dev
@@ -14,12 +14,15 @@
  * No DNS setup needed: macOS/Linux resolve `*.localhost` to loopback natively
  * (RFC 6761). Handles are 32 hex chars (fits DNS's 63-char label cap).
  *
- * Production uses an Ingress / load balancer per pod on a wildcard domain —
- * this forwarder is NOT wired in that environment.
+ * Lives next to `docker.ts` because it's intimate with Docker-specific port
+ * mappings (`resolveDevPort` / `resolveDaemonPort`) — no other runner has
+ * host-side ports to forward to. Production runs on Freestyle / Kubernetes
+ * with a real Ingress / load balancer per pod on a wildcard domain — this
+ * forwarder is NOT wired in those environments.
  */
 
 import * as net from "node:net";
-import type { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
+import type { DockerSandboxRunner } from "./docker";
 
 const HOST_RE = /^([^.]+)\.sandboxes\.localhost(?::\d+)?$/i;
 const MAX_HEADER_BYTES = 16 * 1024;
@@ -67,6 +70,17 @@ async function resolveTarget(
   return port ?? null;
 }
 
+/**
+ * Start the local ingress forwarder. Binds both loopback families on the
+ * given port and returns the underlying `net.Server` instances so the host
+ * app can close them during graceful shutdown.
+ *
+ * `getRunner` is invoked per-request — the Docker runner singleton is
+ * lazy-init'd on first sandbox use, so the ingress can't capture an
+ * instance at boot time. Returning `null` here yields a `503` to the
+ * client, which is the right behaviour before any sandbox has been
+ * provisioned in this process.
+ */
 export function startLocalSandboxIngress(
   getRunner: () => DockerSandboxRunner | null,
   port: number,
@@ -155,12 +169,18 @@ export function startLocalSandboxIngress(
     const MAX_RETRIES = 20; // ~10s at 500ms; covers the previous process's drain.
     let attempt = 0;
     let warnedInUse = false;
+    // Single 'listening' handler for the lifetime of this server. Passing
+    // the success callback to `listen()` instead would attach a new
+    // one-shot listener per retry; failed retries (EADDRINUSE) never fire
+    // their callback, so those listeners accumulate and trip Node's
+    // MaxListenersExceededWarning once retries hit ~10.
+    server.on("listening", () => {
+      console.log(
+        `[mesh-sandbox-ingress] forwarding *.sandboxes.localhost → ${host}:${port}`,
+      );
+    });
     const tryListen = (): void => {
-      server.listen(port, host, () => {
-        console.log(
-          `[mesh-sandbox-ingress] forwarding *.sandboxes.localhost → ${host}:${port}`,
-        );
-      });
+      server.listen(port, host);
     };
     server.on("error", (err: NodeJS.ErrnoException) => {
       if (err.code === "EADDRINUSE" && attempt < MAX_RETRIES) {

@@ -18,14 +18,15 @@ import type {
   EnsureOptions,
   ExecInput,
   ExecOutput,
-  Mount,
+  ProxyRequestInit,
   Sandbox,
   SandboxId,
   SandboxRunner,
+  Workload,
 } from "./types";
 import { sandboxIdKey } from "./types";
 
-const RUNNER_KIND = "docker";
+const RUNNER_KIND = "docker" as const;
 const LABEL_ROOT = "mesh-sandbox";
 const LABEL_ID = "mesh-sandbox.id";
 const PORT_READBACK_ATTEMPTS = 15;
@@ -51,6 +52,14 @@ export interface DockerRunnerOptions {
    * win the (user_id, project_ref, runner_kind) PK.
    */
   stateStore?: RunnerStateStore;
+  /**
+   * Template for the public preview URL. `{handle}` is replaced with the
+   * sandbox handle. When omitted, falls back to
+   * `SANDBOX_ROOT_URL` (interpreted with `{handle}` substitution OR as a
+   * URL whose hostname gets prefixed) then to the local-ingress default
+   * `http://{handle}.sandboxes.localhost:<SANDBOX_INGRESS_PORT|7070>/`.
+   */
+  previewUrlPattern?: string;
 }
 
 // DNS label cap is 63 chars (RFC 1035), so the full 64-hex Docker container id
@@ -60,7 +69,8 @@ export interface DockerRunnerOptions {
 const HANDLE_LEN = 32;
 const toHandle = (rawId: string): string => rawId.slice(0, HANDLE_LEN);
 
-const DEV_PORT = 3000;
+/** Container-internal port the dev server is expected to bind. */
+const DEFAULT_DEV_PORT = 3000;
 
 /** Private per-handle record. Never escapes the runner. */
 interface DockerRecord {
@@ -69,8 +79,10 @@ interface DockerRecord {
   token: string;
   workdir: string;
   id: SandboxId;
-  /** Host-side port mapped to container :3000 (user's dev server). */
+  /** Host-side port mapped to container :<workload.devPort> (user's dev server). */
   devPort: number;
+  /** Container-internal dev port — 3000 unless overridden by workload. */
+  devContainerPort: number;
   /** Host-side port mapped to container :9000 (daemon). */
   daemonPort: number;
   /**
@@ -80,11 +92,11 @@ interface DockerRecord {
    */
   repoAttached: boolean;
   /**
-   * Named volumes created for this sandbox (from `opts.mounts` where
-   * `kind === "volume"`). Removed by `delete` and `sweepOrphans` so volume
-   * lifetime tracks the sandbox.
+   * Workload last started in this container (runtime/packageManager/devPort).
+   * Persisted so a mesh restart can resume the dev server with the same
+   * config. `null` for blank sandboxes.
    */
-  ownedVolumes: string[];
+  workload: Workload | null;
 }
 
 interface PersistedDockerState {
@@ -92,25 +104,30 @@ interface PersistedDockerState {
   workdir: string;
   daemonUrl: string;
   devPort?: number;
+  devContainerPort?: number;
   daemonPort?: number;
   repoAttached?: boolean;
-  ownedVolumes?: string[];
+  workload?: Workload | null;
   [k: string]: unknown;
 }
 
 export class DockerSandboxRunner implements SandboxRunner {
-  private readonly image: string;
+  readonly kind = RUNNER_KIND;
+  private readonly defaultImage: string;
   private readonly exec_: DockerExec;
   private readonly labelPrefix: string;
   private readonly stateStore: RunnerStateStore | null;
+  private readonly previewUrlPattern: string | null;
   private readonly byHandle = new Map<string, DockerRecord>();
   private readonly inflight = new Map<string, Promise<Sandbox>>();
 
   constructor(opts: DockerRunnerOptions = {}) {
-    this.image = opts.image ?? process.env.MESH_SANDBOX_IMAGE ?? DEFAULT_IMAGE;
+    this.defaultImage =
+      opts.image ?? process.env.MESH_SANDBOX_IMAGE ?? DEFAULT_IMAGE;
     this.exec_ = opts.exec ?? dockerExec;
     this.labelPrefix = opts.labelPrefix ?? LABEL_ROOT;
     this.stateStore = opts.stateStore ?? null;
+    this.previewUrlPattern = opts.previewUrlPattern ?? null;
   }
 
   async ensure(id: SandboxId, opts: EnsureOptions = {}): Promise<Sandbox> {
@@ -127,20 +144,25 @@ export class DockerSandboxRunner implements SandboxRunner {
   }
 
   async exec(handle: string, input: ExecInput): Promise<ExecOutput> {
-    const rec = this.byHandle.get(handle);
-    if (!rec) {
-      throw new Error(`unknown sandbox handle ${handle}`);
-    }
+    const rec = await this.requireRecord(handle);
     return daemonBash(rec.daemonUrl, rec.token, input);
   }
 
   async delete(handle: string): Promise<void> {
     const rec = await this.lookupRecord(handle);
     this.byHandle.delete(handle);
-    await this.stopContainer(handle);
-    if (rec?.ownedVolumes?.length) {
-      await this.removeVolumes(rec.ownedVolumes);
+    // Best-effort graceful dev-server shutdown before the container teardown
+    // forcibly kills everything. Failures swallowed — the container stop
+    // below is the source of truth.
+    if (rec) {
+      await proxyDaemonRequestClient(
+        rec.daemonUrl,
+        rec.token,
+        "/_daemon/dev/stop",
+        { method: "POST", headers: new Headers(), body: null },
+      ).catch(() => {});
     }
+    await this.stopContainer(handle);
     if (this.stateStore) {
       if (rec) await this.stateStore.delete(rec.id, RUNNER_KIND);
       else await this.stateStore.deleteByHandle(RUNNER_KIND, handle);
@@ -167,21 +189,63 @@ export class DockerSandboxRunner implements SandboxRunner {
     if (r.code !== 0) return 0;
     const ids = r.stdout.trim().split("\n").filter(Boolean);
     for (const id of ids) {
-      // Look up any named volumes this sandbox owned BEFORE stopping, so
-      // that even orphans missing from the in-memory map get their volumes
-      // reaped from persisted state. stopContainer removes the container
-      // (via --rm); volume removal has to be an explicit follow-up.
-      const rec = await this.lookupRecord(id);
       await this.stopContainer(id);
-      if (rec?.ownedVolumes?.length) {
-        await this.removeVolumes(rec.ownedVolumes);
-      }
       if (this.stateStore) {
         await this.stateStore.deleteByHandle(RUNNER_KIND, id).catch(() => {});
       }
     }
     return ids.length;
   }
+
+  async getPreviewUrl(handle: string): Promise<string | null> {
+    const rec = await this.lookupRecord(handle);
+    if (!rec || !rec.workload) return null;
+    return this.composePreviewUrl(handle);
+  }
+
+  /**
+   * HTTP passthrough to the sandbox daemon's `/_daemon/*` control plane.
+   * The bearer token never leaves this class — the caller gets back a native
+   * `Response` with the body streamed from the daemon.
+   */
+  async proxyDaemonRequest(
+    handle: string,
+    path: string,
+    init: ProxyRequestInit,
+  ): Promise<Response> {
+    const rec = await this.lookupRecord(handle);
+    if (!rec) {
+      return new Response(JSON.stringify({ error: "sandbox not found" }), {
+        status: 404,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return proxyDaemonRequestClient(rec.daemonUrl, rec.token, path, init);
+  }
+
+  /**
+   * Host-side port mapped to the sandbox's dev server. Used by the local
+   * ingress proxy in dev. NOT on `SandboxRunner` — only Docker has
+   * host-side port mappings.
+   */
+  async resolveDevPort(handle: string): Promise<number | null> {
+    const rec = await this.lookupRecord(handle);
+    return rec?.devPort ?? null;
+  }
+
+  /**
+   * Host-side port mapped to the sandbox daemon. Used by the local
+   * ingress proxy in dev. NOT on `SandboxRunner` — only Docker has
+   * host-side port mappings.
+   */
+  async resolveDaemonPort(handle: string): Promise<number | null> {
+    const rec = await this.lookupRecord(handle);
+    return rec?.daemonPort ?? null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // internals
+  // ---------------------------------------------------------------------------
 
   private async ensureInner(
     id: SandboxId,
@@ -196,7 +260,8 @@ export class DockerSandboxRunner implements SandboxRunner {
         if (probed) {
           this.byHandle.set(probed.handle, probed);
           await this.attachRepoIfNeeded(id, probed, opts);
-          return { handle: probed.handle, workdir: probed.workdir };
+          await this.startDevServerIfNeeded(probed, opts);
+          return this.toSandbox(probed);
         }
         // Stale row — purge and fall through to docker discovery / create.
         await this.stateStore.delete(id, RUNNER_KIND);
@@ -210,25 +275,23 @@ export class DockerSandboxRunner implements SandboxRunner {
       const tracked = this.byHandle.get(existingHandle);
       if (tracked) {
         await this.attachRepoIfNeeded(id, tracked, opts);
-        return { handle: tracked.handle, workdir: tracked.workdir };
+        await this.startDevServerIfNeeded(tracked, opts);
+        return this.toSandbox(tracked);
       }
-      const recovered = await this.recoverSandbox(id, existingHandle);
+      const recovered = await this.recoverSandbox(id, existingHandle, opts);
       if (recovered) {
         this.byHandle.set(existingHandle, recovered);
         await this.persist(id, recovered);
         await this.attachRepoIfNeeded(id, recovered, opts);
-        return { handle: recovered.handle, workdir: recovered.workdir };
+        await this.startDevServerIfNeeded(recovered, opts);
+        return this.toSandbox(recovered);
       }
       await this.stopContainer(existingHandle);
     }
 
-    // 3. Fresh provision. attachRepoIfNeeded handles clone inline; if it fails
-    //    we roll back the fresh container since it's not yet useful to anyone.
-    //    Persist happens AFTER the clone so the mesh-side state store (queried
-    //    by the decopilot/preview pollers) only surfaces this sandbox once the
-    //    workdir is populated. Otherwise pollers hammer `/dev/start` on an
-    //    empty workdir and the daemon loop-logs "cannot auto-start" until the
-    //    clone finally finishes.
+    // 3. Fresh provision. Persist happens AFTER the clone so the mesh-side
+    //    state store (queried by the decopilot/preview pollers) only surfaces
+    //    this sandbox once the workdir is populated.
     const rec = await this.provision(id, labelId, opts);
     this.byHandle.set(rec.handle, rec);
     try {
@@ -239,7 +302,17 @@ export class DockerSandboxRunner implements SandboxRunner {
       throw err;
     }
     await this.persist(id, rec);
-    return { handle: rec.handle, workdir: rec.workdir };
+    await this.startDevServerIfNeeded(rec, opts);
+    return this.toSandbox(rec);
+  }
+
+  /** Convert internal record → public Sandbox shape. */
+  private toSandbox(rec: DockerRecord): Sandbox {
+    return {
+      handle: rec.handle,
+      workdir: rec.workdir,
+      previewUrl: rec.workload ? this.composePreviewUrl(rec.handle) : null,
+    };
   }
 
   /**
@@ -258,23 +331,47 @@ export class DockerSandboxRunner implements SandboxRunner {
     await this.persist(id, rec);
   }
 
+  /**
+   * Kick off the dev server for the container's workload. Fire-and-forget —
+   * VM_START returns fast and the dev server boots in the background. The
+   * daemon's `/dev/start` is idempotent; if a previous call already started
+   * the server, this is a no-op on its side.
+   */
+  private async startDevServerIfNeeded(
+    rec: DockerRecord,
+    opts: EnsureOptions,
+  ): Promise<void> {
+    const workload = opts.workload ?? rec.workload;
+    if (!workload) return;
+    const body = JSON.stringify({ runtime: workload.runtime });
+    proxyDaemonRequestClient(rec.daemonUrl, rec.token, "/_daemon/dev/start", {
+      method: "POST",
+      headers: new Headers({ "content-type": "application/json" }),
+      body,
+    }).catch((err) => {
+      console.error(
+        `[DockerSandboxRunner] /dev/start failed for ${rec.handle}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    });
+  }
+
   private async provision(
     id: SandboxId,
     labelId: string,
     opts: EnsureOptions,
   ): Promise<DockerRecord> {
     const token = randomBytes(24).toString("hex");
-    const workdir = opts.workdir ?? DEFAULT_WORKDIR;
-    const image = opts.image ?? this.image;
+    const workdir = DEFAULT_WORKDIR;
+    const image = opts.image ?? this.defaultImage;
+    const devContainerPort = opts.workload?.devPort ?? DEFAULT_DEV_PORT;
 
-    const hostArgs = opts.addHostGateway
-      ? ["--add-host=host.docker.internal:host-gateway"]
-      : [];
     const portPublishArgs = [
       "-p",
       `127.0.0.1:0:${DAEMON_PORT}`,
       "-p",
-      `127.0.0.1:0:${DEV_PORT}`,
+      `127.0.0.1:0:${devContainerPort}`,
     ];
 
     const env: Record<string, string> = {
@@ -283,11 +380,6 @@ export class DockerSandboxRunner implements SandboxRunner {
       WORKDIR: workdir,
       ...(opts.env ?? {}),
     };
-
-    const mountArgs = (opts.mounts ?? []).flatMap(mountToArgs);
-    const ownedVolumes = (opts.mounts ?? [])
-      .filter((m) => m.kind === "volume")
-      .map((m) => m.source);
 
     const { id: rawId } = await startContainer(image, {
       label: "sandbox",
@@ -299,8 +391,6 @@ export class DockerSandboxRunner implements SandboxRunner {
         `${this.labelPrefix}=1`,
         "--label",
         `${LABEL_ID}=${labelId}`,
-        ...hostArgs,
-        ...mountArgs,
         ...portPublishArgs,
         ...Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
       ],
@@ -309,7 +399,7 @@ export class DockerSandboxRunner implements SandboxRunner {
 
     const daemonPort = await this.readPort(handle, DAEMON_PORT);
     const daemonUrl = `http://127.0.0.1:${daemonPort}`;
-    const devPort = await this.readPort(handle, DEV_PORT);
+    const devPort = await this.readPort(handle, devContainerPort);
     await this.waitForReady(daemonUrl, handle);
     return {
       handle,
@@ -318,62 +408,43 @@ export class DockerSandboxRunner implements SandboxRunner {
       workdir,
       id,
       devPort,
+      devContainerPort,
       daemonPort,
       repoAttached: false,
-      ownedVolumes,
+      workload: opts.workload ?? null,
     };
   }
 
   /**
-   * Remove named volumes. Best-effort: a volume still in use by another
-   * container (shouldn't happen — they're per-sandbox by name — but docker
-   * cares about the invariant) will error here. We swallow the error rather
-   * than failing the enclosing delete/sweep, since leaving a volume behind is
-   * recoverable but a throw here would abort the loop.
+   * Compose the public preview URL for a handle. Pattern resolution order:
+   *   1. Explicit `previewUrlPattern` constructor option (`{handle}` → handle).
+   *   2. `SANDBOX_ROOT_URL` env. If it contains `{handle}`, substitute;
+   *      otherwise prefix the URL hostname with `<handle>.`.
+   *   3. Local-ingress default: `http://<handle>.sandboxes.localhost:<port>/`.
+   * Reads env at call time so deploys can rewrite without a rebuild.
    */
-  private async removeVolumes(names: string[]): Promise<void> {
-    if (names.length === 0) return;
-    await this.exec_(["volume", "rm", "-f", ...names]).catch(() => {
-      /* best effort */
-    });
+  private composePreviewUrl(handle: string): string {
+    const explicit = this.previewUrlPattern;
+    if (explicit) return this.applyPattern(explicit, handle);
+    const envRoot = process.env.SANDBOX_ROOT_URL;
+    if (envRoot) return this.applyPattern(envRoot, handle);
+    const ingressPort = Number(process.env.SANDBOX_INGRESS_PORT ?? 7070);
+    return `http://${handle}.sandboxes.localhost:${ingressPort}/`;
   }
 
-  /**
-   * HTTP passthrough to the sandbox daemon's `/_daemon/*` control plane.
-   * Caller passes the full daemon path (e.g. `/_daemon/dev/status`). The
-   * bearer token never leaves this class — the caller gets back a native
-   * `Response` with the body streamed from the daemon.
-   */
-  async proxyDaemonRequest(
-    handle: string,
-    path: string,
-    init: {
-      method: string;
-      headers: Headers;
-      body: BodyInit | null;
-      signal?: AbortSignal;
-    },
-  ): Promise<Response> {
-    const rec = await this.lookupRecord(handle);
-    if (!rec) {
-      return new Response(JSON.stringify({ error: "sandbox not found" }), {
-        status: 404,
-        headers: { "content-type": "application/json" },
-      });
+  private applyPattern(pattern: string, handle: string): string {
+    const base = pattern.replace(/\/+$/, "");
+    if (base.includes("{handle}"))
+      return `${base.replace("{handle}", handle)}/`;
+    try {
+      const u = new URL(base);
+      u.hostname = `${handle}.${u.hostname}`;
+      return `${u.toString()}/`;
+    } catch {
+      // Pattern wasn't a valid URL; fall back to local-ingress default shape.
+      const ingressPort = Number(process.env.SANDBOX_INGRESS_PORT ?? 7070);
+      return `http://${handle}.sandboxes.localhost:${ingressPort}/`;
     }
-    return proxyDaemonRequestClient(rec.daemonUrl, rec.token, path, init);
-  }
-
-  /** Host-side port mapped to the sandbox's dev server (container :3000). */
-  async resolveDevPort(handle: string): Promise<number | null> {
-    const rec = await this.lookupRecord(handle);
-    return rec?.devPort ?? null;
-  }
-
-  /** Host-side port mapped to the sandbox daemon (container :9000). */
-  async resolveDaemonPort(handle: string): Promise<number | null> {
-    const rec = await this.lookupRecord(handle);
-    return rec?.daemonPort ?? null;
   }
 
   /**
@@ -389,6 +460,12 @@ export class DockerSandboxRunner implements SandboxRunner {
     if (!persisted) return null;
     const rec = await this.hydratePersisted(persisted.id, persisted);
     if (rec) this.byHandle.set(handle, rec);
+    return rec;
+  }
+
+  private async requireRecord(handle: string): Promise<DockerRecord> {
+    const rec = await this.lookupRecord(handle);
+    if (!rec) throw new Error(`unknown sandbox handle ${handle}`);
     return rec;
   }
 
@@ -414,10 +491,11 @@ export class DockerSandboxRunner implements SandboxRunner {
     const state = record.state as Partial<PersistedDockerState>;
     if (!state.token || !state.daemonUrl) return null;
     const handle = toHandle(record.handle);
+    const devContainerPort = state.devContainerPort ?? DEFAULT_DEV_PORT;
     try {
       const daemonPort = await this.readPort(handle, DAEMON_PORT);
       const daemonUrl = `http://127.0.0.1:${daemonPort}`;
-      const devPort = await this.readPort(handle, DEV_PORT);
+      const devPort = await this.readPort(handle, devContainerPort);
       return {
         handle,
         daemonUrl,
@@ -425,9 +503,10 @@ export class DockerSandboxRunner implements SandboxRunner {
         workdir: state.workdir ?? DEFAULT_WORKDIR,
         id,
         devPort,
+        devContainerPort,
         daemonPort,
         repoAttached: state.repoAttached ?? false,
-        ownedVolumes: state.ownedVolumes ?? [],
+        workload: state.workload ?? null,
       };
     } catch {
       return null;
@@ -446,6 +525,7 @@ export class DockerSandboxRunner implements SandboxRunner {
   private async recoverSandbox(
     id: SandboxId,
     handle: string,
+    opts: EnsureOptions,
   ): Promise<DockerRecord | null> {
     const r = await this.exec_([
       "inspect",
@@ -467,11 +547,11 @@ export class DockerSandboxRunner implements SandboxRunner {
     const daemonPort = await this.readPort(handle, DAEMON_PORT);
     const daemonUrl = `http://127.0.0.1:${daemonPort}`;
     if (!(await probeDaemonHealth(daemonUrl))) return null;
-    const devPort = await this.readPort(handle, DEV_PORT);
+    const devContainerPort = opts.workload?.devPort ?? DEFAULT_DEV_PORT;
+    const devPort = await this.readPort(handle, devContainerPort);
     // Recovered via docker inspect — state store is empty so we don't know
-    // whether a repo was previously attached, nor which volumes the runner
-    // owned. Leave both empty; the next ensure() will re-stamp them, and
-    // volumes without a tracking record just outlive one sweep cycle.
+    // whether a repo was previously attached. Leave it false; the next
+    // ensure() will re-stamp it idempotently.
     return {
       handle,
       daemonUrl,
@@ -479,9 +559,10 @@ export class DockerSandboxRunner implements SandboxRunner {
       workdir,
       id,
       devPort,
+      devContainerPort,
       daemonPort,
       repoAttached: false,
-      ownedVolumes: [],
+      workload: opts.workload ?? null,
     };
   }
 
@@ -557,17 +638,13 @@ export class DockerSandboxRunner implements SandboxRunner {
       workdir: rec.workdir,
       daemonUrl: rec.daemonUrl,
       devPort: rec.devPort,
+      devContainerPort: rec.devContainerPort,
       daemonPort: rec.daemonPort,
       repoAttached: rec.repoAttached,
-      ownedVolumes: rec.ownedVolumes,
+      workload: rec.workload,
     };
     await this.stateStore.put(id, RUNNER_KIND, { handle: rec.handle, state });
   }
-}
-
-function mountToArgs(m: Mount): string[] {
-  const suffix = m.readOnly ? ":ro" : "";
-  return ["-v", `${m.source}:${m.target}${suffix}`];
 }
 
 function hashId(id: SandboxId): string {

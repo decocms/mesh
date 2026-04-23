@@ -446,12 +446,12 @@ async function streamCoreInner(
             ? vmMetadata?.vmMap?.[input.userId]?.[input.branch]
             : undefined;
         const activeVm = activeVmEntry
-          ? activeVmEntry.runnerKind === "docker"
-            ? { runner: "docker" as const, vmId: activeVmEntry.vmId }
-            : {
-                runner: "freestyle" as const,
-                vmBaseUrl: activeVmEntry.previewUrl,
-              }
+          ? {
+              runnerKind: (activeVmEntry.runnerKind ?? "freestyle") as
+                | "docker"
+                | "freestyle",
+              vmId: activeVmEntry.vmId,
+            }
           : null;
 
         const builtInTools = isCliAgent

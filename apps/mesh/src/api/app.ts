@@ -24,7 +24,7 @@ import {
 } from "../core/context-factory";
 import type { MeshContext } from "../core/mesh-context";
 import { closeDatabase, getDb, type MeshDatabase } from "../database";
-import { sweepSandboxesOnShutdown } from "../sandbox/lifecycle";
+import { asDockerRunner, getSharedRunnerIfInit } from "../sandbox/lifecycle";
 import { createEventBus, type EventBus } from "../event-bus";
 import {
   flushMonitoringData,
@@ -1592,10 +1592,20 @@ export async function createApp(options: CreateAppOptions = {}) {
       currentRetentionTimer = null;
     }
 
-    // Phase 2.5: Sweep sandbox containers (docker runner only). Runs before
-    // NATS drain and DB close because the runner's state store writes during
-    // sweep. See `sandbox/lifecycle.ts` for the single-pod-per-host caveat.
-    await sweepSandboxesOnShutdown();
+    // Phase 2.5: Sweep sandbox containers — Docker only. Other runners
+    // produce sandboxes that outlive the mesh process by design (Freestyle
+    // bills idle VMs out of band; K8s pods are first-class cluster
+    // workloads), so a generic shutdown sweep would be actively wrong.
+    // Runs before NATS drain and DB close because the runner's state store
+    // writes during sweep. See plugin's `sweep.ts` for the
+    // single-pod-per-host caveat.
+    const dockerRunner = asDockerRunner(getSharedRunnerIfInit());
+    if (dockerRunner) {
+      const { sweepDockerOrphansOnShutdown } = await import(
+        "mesh-plugin-user-sandbox/runner"
+      );
+      await sweepDockerOrphansOnShutdown(dockerRunner);
+    }
 
     // Phase 3: Drain NATS (after all consumers stopped)
     if (natsProvider) {

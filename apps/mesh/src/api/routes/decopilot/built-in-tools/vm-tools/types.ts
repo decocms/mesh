@@ -1,16 +1,22 @@
 /**
- * Shared types for VM tool factories. Each runner implementation consumes
- * `CommonParams` plus its own transport-specific fields. The `VmToolsParams`
- * discriminated union is what the dispatch (`index.ts`) accepts — kind is
- * resolved at registry-build time.
+ * Shared types for the VM tool factory. The factory builds the same six
+ * LLM-visible tools (read/write/edit/grep/glob/bash) regardless of which
+ * runner backs the sandbox; transport differences live inside the runner's
+ * `proxyDaemonRequest`.
  */
 
-import type { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
+import type { SandboxRunner } from "mesh-plugin-user-sandbox/runner";
 
-/**
- * Fields every VM tool factory needs regardless of transport.
- */
-export interface CommonParams {
+export interface VmToolsParams {
+  /** The active sandbox runner (Docker / Freestyle / Kubernetes). */
+  readonly runner: SandboxRunner;
+  /**
+   * Lazy handle resolver. Invoked on every tool call; expected to be
+   * idempotent and memoised by the caller so the first invocation
+   * provisions the container (and any repo clone / env / prep-image
+   * resolution) and subsequent calls hand back the cached handle.
+   */
+  readonly ensureHandle: () => Promise<string>;
   readonly toolOutputMap: Map<string, string>;
   /**
    * Approval gate for mutating tools (write/edit/bash). Read-only tools
@@ -18,22 +24,3 @@ export interface CommonParams {
    */
   readonly needsApproval: boolean;
 }
-
-export interface FreestyleVmToolsParams extends CommonParams {
-  readonly runner: "freestyle";
-  readonly vmBaseUrl: string;
-}
-
-export interface DockerVmToolsParams extends CommonParams {
-  readonly runner: "docker";
-  readonly dockerRunner: DockerSandboxRunner;
-  /**
-   * Lazy handle resolver. Invoked on every tool call; expected to be idempotent
-   * and memoised by the caller so the first invocation provisions the container
-   * (and any repo clone / env / prep-image resolution) and subsequent calls
-   * hand back the cached handle.
-   */
-  readonly ensureHandle: () => Promise<string>;
-}
-
-export type VmToolsParams = FreestyleVmToolsParams | DockerVmToolsParams;

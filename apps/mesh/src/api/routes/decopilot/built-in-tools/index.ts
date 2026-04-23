@@ -14,8 +14,8 @@ import { createReadPromptTool } from "./prompts";
 import { createReadResourceTool } from "./resources";
 import { createSandboxTool, type VirtualClient } from "./sandbox";
 import { createVmTools } from "./vm-tools";
-import { getSharedRunner } from "@/sandbox/lifecycle";
-import { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
+import { getRunnerByKind } from "@/sandbox/lifecycle";
+import type { RunnerKind } from "mesh-plugin-user-sandbox/runner";
 import { createOpenInAgentTool } from "./open-in-agent";
 import { createSubtaskTool } from "./subtask";
 import { userAskTool } from "./user-ask";
@@ -27,12 +27,14 @@ import type { MeshProvider } from "@/ai-providers/types";
 
 /**
  * Active VM descriptor — resolved from `vmMap[userId][branch]` on the
- * Virtual MCP. Both runners flow through the same vmMap surface; the tagged
- * `runner` field drives transport dispatch.
+ * Virtual MCP. Both runners flow through `SandboxRunner` so the descriptor
+ * collapses to one shape: the runner kind (which routes to the right
+ * singleton via `getRunnerByKind`) plus the runner-internal handle.
  */
-export type ActiveVm =
-  | { runner: "freestyle"; vmBaseUrl: string }
-  | { runner: "docker"; vmId: string };
+export type ActiveVm = {
+  runnerKind: RunnerKind;
+  vmId: string;
+};
 
 export interface BuiltinToolParams {
   /** Provider — null for Claude Code (subtask tool is omitted when null) */
@@ -112,43 +114,25 @@ function buildAllTools(
       ctx,
     ),
   };
-  // VM file tools — the same six LLM-visible tools across runners (schemas in
-  // vm-tools/schemas.ts). Dispatch is driven by the `activeVm` runner tag
-  // resolved from vmMap[userId][branch]. When no entry exists, fall back to
-  // the QuickJS `sandbox` tool — VM_START must run first for file tools.
+  // VM file tools — same six LLM-visible tools across runners (schemas in
+  // vm-tools/schemas.ts). Dispatch resolves through `getRunnerByKind` so
+  // the entry's recorded runnerKind drives the routing, regardless of the
+  // current MESH_SANDBOX_RUNNER env value. When no entry exists, fall back
+  // to the QuickJS `sandbox` tool — VM_START must run first for file tools.
   const vmNeedsApproval =
     toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false;
-  if (activeVm?.runner === "freestyle") {
+  if (activeVm) {
+    const runner = getRunnerByKind(ctx, activeVm.runnerKind);
+    const { vmId } = activeVm;
     Object.assign(
       tools,
       createVmTools({
-        runner: "freestyle",
-        vmBaseUrl: activeVm.vmBaseUrl,
+        runner,
+        ensureHandle: () => Promise.resolve(vmId),
         toolOutputMap,
         needsApproval: vmNeedsApproval,
       }),
     );
-  } else if (activeVm?.runner === "docker") {
-    const runner = getSharedRunner(ctx);
-    if (runner instanceof DockerSandboxRunner) {
-      const { vmId } = activeVm;
-      Object.assign(
-        tools,
-        createVmTools({
-          runner: "docker",
-          dockerRunner: runner,
-          ensureHandle: () => Promise.resolve(vmId),
-          toolOutputMap,
-          needsApproval: vmNeedsApproval,
-        }),
-      );
-    } else {
-      tools.sandbox = createSandboxTool({
-        passthroughClient,
-        toolOutputMap,
-        needsApproval: vmNeedsApproval,
-      });
-    }
   } else {
     tools.sandbox = createSandboxTool({
       passthroughClient,

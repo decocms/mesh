@@ -1,17 +1,37 @@
 /**
- * In-VM Daemon Script Builder
+ * Freestyle in-VM daemon script builder.
  *
- * Generates the Node.js daemon that runs inside Freestyle VMs.
- * The daemon handles:
- *   1. Reverse proxy: strips X-Frame-Options/CSP for iframe embedding
- *   2. Process spawning: install/dev lifecycle with PTY + SSE streaming
- *   3. Liveness probing: probes upstream dev server
- *   4. File operations: read/write/edit/grep/glob/bash endpoints
+ * Generates the Node.js daemon that runs inside Freestyle VMs (lives at
+ * `/opt/daemon.js`, started by systemd). The daemon handles:
+ *   1. Reverse proxy on `:9000` → upstream dev server (HTML rewriting +
+ *      X-Frame-Options/CSP stripping for iframe embedding).
+ *   2. Process spawning: install + dev lifecycle with PTY + SSE streaming.
+ *   3. Liveness probing of the upstream dev server.
+ *   4. File operations: read / write / edit / grep / glob / bash endpoints
+ *      under `/_decopilot_vm/*`.
+ *
+ * The output is a single JS string that gets baked into the VmSpec via
+ * `additionalFiles` and started by a systemd service. Updates to this
+ * script require recreating freestyle VMs.
  */
 
-import { PACKAGE_MANAGER_DAEMON_CONFIG } from "../../shared/runtime-defaults";
+/**
+ * Package-manager → install command + run prefix for the in-VM daemon.
+ * Mirrors the runtime-defaults version in `apps/mesh` but inlined here so
+ * the runner package stays self-contained (no upward import into apps/mesh).
+ */
+const PACKAGE_MANAGER_DAEMON_CONFIG: Record<
+  string,
+  { install: string; runPrefix: string }
+> = {
+  npm: { install: "npm install", runPrefix: "npm run" },
+  pnpm: { install: "pnpm install", runPrefix: "pnpm run" },
+  yarn: { install: "yarn install", runPrefix: "yarn run" },
+  bun: { install: "bun install", runPrefix: "bun run" },
+  deno: { install: "deno install", runPrefix: "deno task" },
+};
 
-export interface DaemonConfig {
+interface DaemonConfig {
   upstreamPort: string;
   packageManager: string | null;
   pathPrefix: string;

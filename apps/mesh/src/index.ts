@@ -75,41 +75,54 @@ function withSecurityHeaders(res: Response): Response {
   });
 }
 
-// Sweep stale sandbox containers before we start serving. Best-effort: any
-// failure (docker CLI missing, daemon down, sweep errors) is logged but does
-// not block startup. This is the primary cleanup mechanism in dev — SIGTERM
-// handling races with the parent killing postgres, so boot sweep is what
-// actually keeps `docker ps` empty between sessions.
-const { sweepSandboxesOnBoot, getSharedRunnerIfInit } = await import(
-  "./sandbox/lifecycle"
-);
-await sweepSandboxesOnBoot();
-
 // Populated below if the local sandbox ingress is enabled; gracefulShutdown
 // closes these so the port is freed the moment this process exits instead of
 // lingering through the Hono server drain.
 let ingressServers: import("node:net").Server[] = [];
 
-// Local sandbox ingress — dev-only. Opt in with MESH_LOCAL_SANDBOX_INGRESS=1
-// or leave enabled by default when NODE_ENV !== "production". Browsers reach
-// preview iframes via `<handle>.sandboxes.localhost:<port>/`. macOS/Linux
-// resolve `*.localhost` to loopback natively, so no DNS setup is required.
-// Default port is 7070 — port 7000 conflicts with macOS AirPlay Receiver
-// (ControlCenter binds `*:7000` on IPv4 and IPv6, so a Chrome Happy-Eyeballs
-// race to `[::1]:7000` would hit Apple instead of us).
-if (
-  settings.nodeEnv !== "production" ||
-  process.env.MESH_LOCAL_SANDBOX_INGRESS === "1"
-) {
-  const { startLocalSandboxIngress } = await import("./sandbox/local-ingress");
-  const { DockerSandboxRunner } = await import(
+// Docker-only boot/dev wiring. Both hooks (boot sweep + local ingress) live
+// in the user-sandbox plugin because they're intimate with Docker — the
+// boot sweep talks to the local docker daemon via labels, the ingress
+// forwards to host-side container ports. Freestyle / Kubernetes runners
+// host their own VM/ingress lifecycle, so we skip the whole branch under
+// any non-docker runner kind.
+const { resolveRunnerKindFromEnv } = await import(
+  "mesh-plugin-user-sandbox/runner"
+);
+if (resolveRunnerKindFromEnv() === "docker") {
+  const { sweepDockerOrphansOnBoot, startLocalSandboxIngress } = await import(
     "mesh-plugin-user-sandbox/runner"
   );
-  const ingressPort = Number(process.env.SANDBOX_INGRESS_PORT ?? 7070);
-  ingressServers = startLocalSandboxIngress(() => {
-    const runner = getSharedRunnerIfInit();
-    return runner instanceof DockerSandboxRunner ? runner : null;
-  }, ingressPort);
+  const { asDockerRunner, getSharedRunnerIfInit } = await import(
+    "./sandbox/lifecycle"
+  );
+
+  // Sweep stale sandbox containers before we start serving. Best-effort:
+  // any failure (docker CLI missing, daemon down, sweep errors) is logged
+  // but does not block startup. This is the primary cleanup mechanism in
+  // dev — SIGTERM handling races with the parent killing postgres, so
+  // the boot sweep is what actually keeps `docker ps` empty between
+  // sessions.
+  await sweepDockerOrphansOnBoot();
+
+  // Local sandbox ingress — dev-only. Opt in with
+  // MESH_LOCAL_SANDBOX_INGRESS=1 or leave enabled by default when
+  // NODE_ENV !== "production". Browsers reach preview iframes via
+  // `<handle>.sandboxes.localhost:<port>/`. macOS/Linux resolve
+  // `*.localhost` to loopback natively, so no DNS setup is required.
+  // Default port is 7070 — port 7000 conflicts with macOS AirPlay Receiver
+  // (ControlCenter binds `*:7000` on IPv4 and IPv6, so a Chrome
+  // Happy-Eyeballs race to `[::1]:7000` would hit Apple instead of us).
+  const ingressDevEnabled =
+    settings.nodeEnv !== "production" ||
+    process.env.MESH_LOCAL_SANDBOX_INGRESS === "1";
+  if (ingressDevEnabled) {
+    const ingressPort = Number(process.env.SANDBOX_INGRESS_PORT ?? 7070);
+    ingressServers = startLocalSandboxIngress(
+      () => asDockerRunner(getSharedRunnerIfInit()),
+      ingressPort,
+    );
+  }
 }
 
 // Create the Hono app
