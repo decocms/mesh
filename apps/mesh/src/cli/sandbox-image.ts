@@ -15,17 +15,11 @@ export async function kickoffSandboxImageBuild(opts: {
   if (process.env.NODE_ENV === "production") return;
   if (process.env.MESH_SANDBOX_IMAGE) return;
 
-  const { resolveRunnerKindFromEnv, ensureSandboxImage } = await import(
+  const { tryResolveRunnerKindFromEnv, ensureSandboxImage } = await import(
     "mesh-plugin-user-sandbox/runner"
   );
 
-  let kind: "docker" | "freestyle";
-  try {
-    kind = resolveRunnerKindFromEnv();
-  } catch {
-    return;
-  }
-  if (kind !== "docker") return;
+  if (tryResolveRunnerKindFromEnv() !== "docker") return;
 
   const log = opts.noTui
     ? (line: string) => console.log(`[sandbox-image] ${line}`)
