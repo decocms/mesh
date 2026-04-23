@@ -85,7 +85,7 @@ describe("selectHeaderButton", () => {
       checks: [],
       reviews: null,
     });
-    expect(r?.label).toBe("Commit & Push");
+    expect(r?.label).toBe("Save changes");
     expect(r?.action).toBe("commit-and-push");
     expect(r?.disabled).toBeFalsy();
   });
@@ -97,7 +97,7 @@ describe("selectHeaderButton", () => {
       checks: [],
       reviews: null,
     });
-    expect(r?.label).toBe("Commit & Push");
+    expect(r?.label).toBe("Save changes");
   });
 
   test("ahead of base + closed non-merged PR → Reopen PR", () => {
@@ -107,7 +107,7 @@ describe("selectHeaderButton", () => {
       checks: [],
       reviews: null,
     });
-    expect(r?.label).toBe("Reopen PR");
+    expect(r?.label).toBe("Reopen");
     expect(r?.action).toBe("reopen");
   });
 
@@ -122,7 +122,7 @@ describe("selectHeaderButton", () => {
       checks: [],
       reviews: null,
     });
-    expect(r?.label).toBe("Create PR");
+    expect(r?.label).toBe("Submit for review");
     expect(r?.action).toBe("create-pr");
   });
 
@@ -133,7 +133,7 @@ describe("selectHeaderButton", () => {
       checks: [],
       reviews: null,
     });
-    expect(r?.label).toBe("Create PR");
+    expect(r?.label).toBe("Submit for review");
   });
 
   test("PR open + mergeable_state=dirty → Rebase on main", () => {
@@ -143,7 +143,7 @@ describe("selectHeaderButton", () => {
       checks: [],
       reviews: reviews({ mergeableState: "dirty" }),
     });
-    expect(r?.label).toBe("Rebase on main");
+    expect(r?.label).toBe("Sync with main");
     expect(r?.action).toBe("rebase");
   });
 
@@ -154,7 +154,7 @@ describe("selectHeaderButton", () => {
       checks: [check({ conclusion: "failure", name: "unit-test" })],
       reviews: reviews(),
     });
-    expect(r?.label).toBe("Fix checks");
+    expect(r?.label).toBe("Fix tests");
     expect(r?.action).toBe("fix-checks");
     expect(r?.meta?.failingChecks).toEqual(["unit-test"]);
   });
@@ -166,7 +166,7 @@ describe("selectHeaderButton", () => {
       checks: [check({ status: "in_progress", conclusion: null })],
       reviews: reviews(),
     });
-    expect(r?.label).toBe("Waiting for checks");
+    expect(r?.label).toBe("Running tests…");
     expect(r?.disabled).toBe(true);
   });
 
@@ -177,7 +177,7 @@ describe("selectHeaderButton", () => {
       checks: [],
       reviews: reviews({ draft: true }),
     });
-    expect(r?.label).toBe("Mark ready for review");
+    expect(r?.label).toBe("Mark ready");
     expect(r?.action).toBe("mark-ready");
   });
 
@@ -188,7 +188,7 @@ describe("selectHeaderButton", () => {
       checks: [],
       reviews: reviews({ unresolvedConversations: 2 }),
     });
-    expect(r?.label).toBe("Resolve review comments");
+    expect(r?.label).toBe("Address feedback");
     expect(r?.action).toBe("resolve-comments");
   });
 
@@ -199,7 +199,7 @@ describe("selectHeaderButton", () => {
       checks: [],
       reviews: reviews({ missingRequiredApprovals: true }),
     });
-    expect(r?.label).toBe("Waiting for review");
+    expect(r?.label).toBe("Awaiting review");
     expect(r?.disabled).toBe(true);
   });
 
@@ -210,7 +210,7 @@ describe("selectHeaderButton", () => {
       checks: [check()],
       reviews: reviews(),
     });
-    expect(r?.label).toBe("Merge");
+    expect(r?.label).toBe("Publish");
     expect(r?.action).toBe("merge-split");
   });
 
@@ -221,7 +221,7 @@ describe("selectHeaderButton", () => {
       checks: [check({ conclusion: "failure" })],
       reviews: reviews({ mergeableState: "dirty" }),
     });
-    expect(r?.label).toBe("Commit & Push");
+    expect(r?.label).toBe("Save changes");
   });
 
   test("priority inside PR open: conflicts beat failed checks", () => {
@@ -231,7 +231,7 @@ describe("selectHeaderButton", () => {
       checks: [check({ conclusion: "failure" })],
       reviews: reviews({ mergeableState: "dirty" }),
     });
-    expect(r?.label).toBe("Rebase on main");
+    expect(r?.label).toBe("Sync with main");
   });
 
   test("priority: failed checks beat in-progress checks", () => {
@@ -244,6 +244,6 @@ describe("selectHeaderButton", () => {
       ],
       reviews: reviews(),
     });
-    expect(r?.label).toBe("Fix checks");
+    expect(r?.label).toBe("Fix tests");
   });
 });

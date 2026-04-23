@@ -5,7 +5,7 @@ import type { PrReviewSignals } from "./use-pr-reviews.ts";
 /**
  * Descriptor returned by selectHeaderButton. Callers translate action →
  * prompt via the message-templates module. `disabled: true` means the
- * button renders as a status indicator (e.g., "Waiting for checks"), not
+ * button renders as a status indicator (e.g., "Running tests…"), not
  * clickable.
  */
 export type HeaderButton = {
@@ -62,53 +62,53 @@ export function selectHeaderButton(input: {
   const hasLocalWork =
     branchStatus.workingTreeDirty || branchStatus.unpushed > 0;
   if (hasLocalWork) {
-    return { label: "Commit & Push", action: "commit-and-push" };
+    return { label: "Save changes", action: "commit-and-push" };
   }
 
   if (branchStatus.aheadOfBase > 0) {
     if (pr && pr.state === "closed" && !pr.merged) {
-      return { label: "Reopen PR", action: "reopen" };
+      return { label: "Reopen", action: "reopen" };
     }
     if (!pr || pr.merged) {
-      return { label: "Create PR", action: "create-pr" };
+      return { label: "Submit for review", action: "create-pr" };
     }
 
     // pr.state === "open"
     const mergeableState = reviews?.mergeableState ?? "unknown";
 
     if (mergeableState === "dirty") {
-      return { label: `Rebase on ${pr.base}`, action: "rebase" };
+      return { label: `Sync with ${pr.base}`, action: "rebase" };
     }
 
     const failing = checks.filter(isCheckFailed).map((c) => c.name);
     if (failing.length > 0) {
       return {
-        label: "Fix checks",
+        label: "Fix tests",
         action: "fix-checks",
         meta: { failingChecks: failing },
       };
     }
 
     if (checks.some(isCheckInProgress)) {
-      return { label: "Waiting for checks", disabled: true };
+      return { label: "Running tests…", disabled: true };
     }
 
     if (reviews?.draft) {
-      return { label: "Mark ready for review", action: "mark-ready" };
+      return { label: "Mark ready", action: "mark-ready" };
     }
 
     if ((reviews?.unresolvedConversations ?? 0) > 0) {
       return {
-        label: "Resolve review comments",
+        label: "Address feedback",
         action: "resolve-comments",
       };
     }
 
     if (reviews?.missingRequiredApprovals) {
-      return { label: "Waiting for review", disabled: true };
+      return { label: "Awaiting review", disabled: true };
     }
 
-    return { label: "Merge", action: "merge-split" };
+    return { label: "Publish", action: "merge-split" };
   }
 
   return null;

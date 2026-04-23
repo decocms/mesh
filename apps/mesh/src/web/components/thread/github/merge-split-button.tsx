@@ -41,7 +41,7 @@ export function MergeSplitButton({
         disabled={disabled}
         onClick={squash}
       >
-        Merge
+        Publish
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -49,13 +49,13 @@ export function MergeSplitButton({
             size="sm"
             className="rounded-l-none px-2"
             disabled={disabled}
-            aria-label="More merge actions"
+            aria-label="More actions"
           >
             <ChevronDown className="h-3.5 w-3.5" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={review}>Review PR</DropdownMenuItem>
+          <DropdownMenuItem onClick={review}>Review</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
