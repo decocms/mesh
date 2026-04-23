@@ -11,6 +11,12 @@ import type { Kysely } from "kysely";
 import { DownstreamTokenStorage } from "../storage/downstream-token";
 import type { Database } from "../storage/types";
 import type { CredentialVault } from "../encryption/credential-vault";
+import {
+  canRefresh,
+  PROACTIVE_REFRESH_BUFFER_MS,
+  RECONNECT_ERROR,
+  refreshAndStore,
+} from "../oauth/token-refresh";
 
 export interface GitHubCloneInfo {
   cloneUrl: string;
@@ -32,14 +38,31 @@ export async function buildCloneInfo(
       "No GitHub token found. Ensure the mcp-github connection is authenticated.",
     );
   }
-  const cloneUrl = `https://x-access-token:${token.accessToken}@github.com/${owner}/${name}.git`;
+
+  let accessToken = token.accessToken;
+
+  // Proactive refresh: if the stored token is expiring soon and we have the
+  // OAuth fields needed to refresh, swap it for a fresh one before baking it
+  // into the clone URL. Mirrors GITHUB_LIST_USER_ORGS.
+  if (
+    canRefresh(token) &&
+    tokenStorage.isExpired(token, PROACTIVE_REFRESH_BUFFER_MS)
+  ) {
+    const refreshed = await refreshAndStore(token, tokenStorage);
+    if (!refreshed) {
+      throw new Error(RECONNECT_ERROR);
+    }
+    accessToken = refreshed;
+  }
+
+  const cloneUrl = `https://x-access-token:${accessToken}@github.com/${owner}/${name}.git`;
 
   let gitUserName = "Deco Studio";
   let gitUserEmail = "studio@deco.cx";
   try {
     const res = await fetch("https://api.github.com/user", {
       headers: {
-        Authorization: `token ${token.accessToken}`,
+        Authorization: `token ${accessToken}`,
         Accept: "application/vnd.github+json",
       },
     });

@@ -802,6 +802,7 @@ function ConnectionResults({
       if (authStatus.supportsOAuth && !authStatus.isAuthenticated) {
         const { token, tokenInfo, error } = await authenticateMcp({
           connectionId: id,
+          scope: "offline_access",
         });
         if (error || !token) {
           toast.error(`Authentication failed: ${error ?? "no token received"}`);

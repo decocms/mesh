@@ -46,23 +46,30 @@ mock.module("../../sandbox/lifecycle", () => ({
   asDockerRunner: () => null,
 }));
 
-const mockTokenGet = mock(async (_connectionId: string) => ({
-  id: "dtok_1",
-  connectionId: "conn_github_1",
-  accessToken: "ghu_test_token_123",
-  refreshToken: null,
-  scope: null,
-  expiresAt: null,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  clientId: null,
-  clientSecret: null,
-  tokenEndpoint: null,
-}));
-
 const { DownstreamTokenStorage: RealDownstreamTokenStorage } = await import(
   "../../storage/downstream-token"
 );
+import type { DownstreamTokenData } from "../../storage/downstream-token";
+import type { DownstreamToken } from "../../storage/types";
+
+const mockTokenGet = mock(
+  async (_connectionId: string): Promise<DownstreamToken | null> => ({
+    id: "dtok_1",
+    connectionId: "conn_github_1",
+    accessToken: "ghu_test_token_123",
+    refreshToken: null,
+    scope: null,
+    expiresAt: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    clientId: null,
+    clientSecret: null,
+    tokenEndpoint: null,
+  }),
+);
+
+const mockTokenUpsert = mock(async (_data: DownstreamTokenData) => {});
+const mockTokenDelete = mock(async (_connectionId: string) => {});
 
 mock.module("../../storage/downstream-token", () => ({
   DownstreamTokenStorage: class MockDownstreamTokenStorage extends RealDownstreamTokenStorage {
@@ -72,7 +79,47 @@ mock.module("../../storage/downstream-token", () => ({
       }
       return super.get(connectionId);
     }
+    override async upsert(data: DownstreamTokenData) {
+      if (data.connectionId === "conn_github_1") {
+        await mockTokenUpsert(data);
+        return {
+          id: "dtok_1",
+          connectionId: data.connectionId,
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+          scope: data.scope,
+          expiresAt: data.expiresAt,
+          clientId: data.clientId,
+          clientSecret: data.clientSecret,
+          tokenEndpoint: data.tokenEndpoint,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return super.upsert(data);
+    }
+    override async delete(connectionId: string) {
+      if (connectionId === "conn_github_1") {
+        await mockTokenDelete(connectionId);
+        return;
+      }
+      return super.delete(connectionId);
+    }
   },
+}));
+
+const mockRefreshAccessToken = mock(
+  async (): Promise<{
+    success: boolean;
+    accessToken?: string;
+    refreshToken?: string;
+    expiresIn?: number;
+    scope?: string;
+    error?: string;
+  }> => ({ success: true, accessToken: "ghu_refreshed_token" }),
+);
+mock.module("@/oauth/refresh-access-token", () => ({
+  refreshAccessToken: mockRefreshAccessToken,
 }));
 
 const { VM_START } = await import("./start");
@@ -219,6 +266,15 @@ describe("VM_START", () => {
       clientSecret: null,
       tokenEndpoint: null,
     }));
+    mockRefreshAccessToken.mockReset();
+    mockRefreshAccessToken.mockImplementation(async () => ({
+      success: true,
+      accessToken: "ghu_refreshed_token",
+    }));
+    mockTokenUpsert.mockReset();
+    mockTokenUpsert.mockImplementation(async () => {});
+    mockTokenDelete.mockReset();
+    mockTokenDelete.mockImplementation(async () => {});
   });
 
   it("calls runner.ensure with composed projectRef + repo + workload", async () => {
@@ -356,5 +412,77 @@ describe("VM_START", () => {
     await expect(
       VM_START.handler({ virtualMcpId: VMCP_ID, branch: BRANCH }, ctx),
     ).rejects.toThrow("No GitHub token found");
+  });
+
+  it("refreshes an expired GitHub token before handing it to the runner", async () => {
+    const pastExpiry = new Date(Date.now() - 60_000).toISOString();
+    mockTokenGet.mockImplementation(async () => ({
+      id: "dtok_1",
+      connectionId: "conn_github_1",
+      accessToken: "ghu_stale_token",
+      refreshToken: "ghr_refresh_123",
+      scope: "repo",
+      expiresAt: pastExpiry,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      clientId: "Iv1.test_client",
+      clientSecret: "test_secret",
+      tokenEndpoint: "https://github.com/login/oauth/access_token",
+    }));
+    mockRefreshAccessToken.mockImplementation(async () => ({
+      success: true,
+      accessToken: "ghu_refreshed_token",
+      refreshToken: "ghr_refresh_456",
+      expiresIn: 3600,
+      scope: "repo",
+    }));
+
+    const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
+    const ctx = makeCtx({ virtualMcp });
+
+    await VM_START.handler({ virtualMcpId: "vmcp_1", branch: BRANCH }, ctx);
+
+    expect(mockRefreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(mockTokenUpsert).toHaveBeenCalledTimes(1);
+    const upsertArg = (mockTokenUpsert.mock.calls as unknown[][])[0]![0] as {
+      accessToken: string;
+    };
+    expect(upsertArg.accessToken).toBe("ghu_refreshed_token");
+
+    const [, opts] = mockEnsure.mock.calls[0]! as [SandboxId, EnsureOptions];
+    expect(opts.repo?.cloneUrl).toContain("ghu_refreshed_token");
+    expect(opts.repo?.cloneUrl).not.toContain("ghu_stale_token");
+  });
+
+  it("throws RECONNECT_ERROR when refreshing an expired token fails", async () => {
+    const pastExpiry = new Date(Date.now() - 60_000).toISOString();
+    mockTokenGet.mockImplementation(async () => ({
+      id: "dtok_1",
+      connectionId: "conn_github_1",
+      accessToken: "ghu_stale_token",
+      refreshToken: "ghr_refresh_123",
+      scope: "repo",
+      expiresAt: pastExpiry,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      clientId: "Iv1.test_client",
+      clientSecret: "test_secret",
+      tokenEndpoint: "https://github.com/login/oauth/access_token",
+    }));
+    mockRefreshAccessToken.mockImplementation(async () => ({
+      success: false,
+      error: "invalid_grant",
+    }));
+
+    const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
+    const ctx = makeCtx({ virtualMcp });
+
+    await expect(
+      VM_START.handler({ virtualMcpId: "vmcp_1", branch: BRANCH }, ctx),
+    ).rejects.toThrow(
+      "GitHub token refresh failed — reconnect the mcp-github integration.",
+    );
+    expect(mockTokenDelete).toHaveBeenCalledWith("conn_github_1");
+    expect(mockEnsure).not.toHaveBeenCalled();
   });
 });

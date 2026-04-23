@@ -150,6 +150,7 @@ function ConnectionRow({
         connectionId,
         clientName: `MCP Test - ${title}`,
         timeout: 180000,
+        scope: "offline_access",
       });
 
       if (authResult.error) {

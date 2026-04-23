@@ -305,6 +305,7 @@ function ConnectionInspectorViewWithConnection({
   const handleAuthenticateForId = async (connId: string) => {
     const { token, tokenInfo, error } = await authenticateMcp({
       connectionId: connId,
+      scope: "offline_access",
     });
     if (error || !token) {
       toast.error(`Authentication failed: ${error}`);
