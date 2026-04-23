@@ -15,13 +15,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
-import { GitBranch01, Lock01 } from "@untitledui/icons";
-import { NewBranchForm } from "./new-branch-form";
+import { GitBranch01 } from "@untitledui/icons";
+import { generateBranchName } from "@/shared/branch-name";
 import { useBranches } from "./use-branches";
 
 interface Props {
@@ -33,17 +28,11 @@ interface Props {
   vmMap: VmMap | undefined;
   value: string | null | undefined;
   onChange: (branch: string) => void;
-  /**
-   * When true, the picker renders read-only with a lock icon + tooltip.
-   * Branch is pinned to the thread once committed — switching mid-thread
-   * would reroute its vmMap entry, so the user must start a new thread.
-   */
-  locked?: boolean;
 }
 
 /**
  * Grouped branch picker: "Your branches" (from vmMap) + "Other branches in
- * repo" (from github-mcp-server.list_branches) + "+ New branch" sub-form.
+ * repo" (from github-mcp-server.list_branches).
  */
 export function BranchPicker({
   orgId,
@@ -54,60 +43,28 @@ export function BranchPicker({
   vmMap,
   value,
   onChange,
-  locked = false,
 }: Props) {
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<"picker" | "new">("picker");
 
-  const { yours, others, defaultBase, isLoading, isError } = useBranches({
+  const { yours, others, isLoading, isError } = useBranches({
     orgId,
     userId,
     connectionId,
     vmMap,
     owner,
     repo,
-    enabled: open && !locked,
+    enabled: open,
   });
 
   const pick = (name: string) => {
     onChange(name);
     setOpen(false);
-    setMode("picker");
   };
 
   const label = value ?? "Select branch…";
 
-  if (locked) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled
-            className="h-7 gap-1.5 px-2 font-mono text-xs disabled:opacity-70"
-          >
-            <GitBranch01 className="h-3.5 w-3.5" />
-            <span className="max-w-[200px] truncate">{label}</span>
-            <Lock01 className="h-3 w-3 text-muted-foreground" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">
-          This thread is pinned to {value ?? "this branch"}. Start a new thread
-          to work on a different branch.
-        </TooltipContent>
-      </Tooltip>
-    );
-  }
-
   return (
-    <Popover
-      open={open}
-      onOpenChange={(o: boolean) => {
-        setOpen(o);
-        if (!o) setMode("picker");
-      }}
-    >
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -122,25 +79,50 @@ export function BranchPicker({
         className="w-[min(420px,calc(100vw-2rem))] p-0"
         align="start"
       >
-        {mode === "picker" ? (
-          <Command>
+        <Command>
+          <div className="flex items-center border-b pr-2 [&>[data-slot=command-input-wrapper]]:flex-1 [&>[data-slot=command-input-wrapper]]:border-b-0">
             <CommandInput placeholder="Search branches…" />
-            <CommandList>
-              {isError && (
-                <div className="p-3 text-xs text-muted-foreground">
-                  Couldn't load branches from GitHub. You can still pick from
-                  your branches or create a new one.
-                </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 shrink-0"
+              onClick={() => pick(generateBranchName())}
+            >
+              New
+            </Button>
+          </div>
+          <CommandList>
+            {isError && (
+              <div className="p-3 text-xs text-muted-foreground">
+                Couldn't load branches from GitHub. You can still pick from your
+                branches.
+              </div>
+            )}
+            {!isError &&
+              !isLoading &&
+              yours.length === 0 &&
+              others.length === 0 && (
+                <CommandEmpty>No branches found.</CommandEmpty>
               )}
-              {!isError &&
-                !isLoading &&
-                yours.length === 0 &&
-                others.length === 0 && (
-                  <CommandEmpty>No branches found.</CommandEmpty>
-                )}
-              {yours.length > 0 && (
-                <CommandGroup heading="Your branches">
-                  {yours.map((b) => (
+            {yours.length > 0 && (
+              <CommandGroup heading="Your branches">
+                {yours.map((b) => (
+                  <CommandItem
+                    key={b.name}
+                    value={b.name}
+                    onSelect={() => pick(b.name)}
+                  >
+                    <GitBranch01 className="mr-2 h-4 w-4" />
+                    <span className="flex-1 truncate">{b.name}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+            {others.length > 0 && (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading="Other branches in repo">
+                  {others.map((b) => (
                     <CommandItem
                       key={b.name}
                       value={b.name}
@@ -148,51 +130,18 @@ export function BranchPicker({
                     >
                       <GitBranch01 className="mr-2 h-4 w-4" />
                       <span className="flex-1 truncate">{b.name}</span>
+                      {b.author && (
+                        <span className="text-xs text-muted-foreground">
+                          @{b.author}
+                        </span>
+                      )}
                     </CommandItem>
                   ))}
                 </CommandGroup>
-              )}
-              {others.length > 0 && (
-                <>
-                  <CommandSeparator />
-                  <CommandGroup heading="Other branches in repo">
-                    {others.map((b) => (
-                      <CommandItem
-                        key={b.name}
-                        value={b.name}
-                        onSelect={() => pick(b.name)}
-                      >
-                        <GitBranch01 className="mr-2 h-4 w-4" />
-                        <span className="flex-1 truncate">{b.name}</span>
-                        {b.author && (
-                          <span className="text-xs text-muted-foreground">
-                            @{b.author}
-                          </span>
-                        )}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </>
-              )}
-              <CommandSeparator />
-              <CommandGroup>
-                <CommandItem onSelect={() => setMode("new")}>
-                  ✚ New branch…
-                </CommandItem>
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        ) : (
-          <NewBranchForm
-            orgId={orgId}
-            connectionId={connectionId}
-            owner={owner}
-            repo={repo}
-            defaultBase={defaultBase}
-            onBack={() => setMode("picker")}
-            onCreated={pick}
-          />
-        )}
+              </>
+            )}
+          </CommandList>
+        </Command>
       </PopoverContent>
     </Popover>
   );

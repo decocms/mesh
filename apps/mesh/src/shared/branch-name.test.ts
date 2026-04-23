@@ -3,14 +3,14 @@ import { describe, expect, test } from "bun:test";
 import { generateBranchName } from "./branch-name";
 
 describe("generateBranchName", () => {
-  test("returns a string with the decopilot/ prefix", () => {
+  test("returns a string with the deco/ prefix", () => {
     const name = generateBranchName();
-    expect(name.startsWith("decopilot/")).toBe(true);
+    expect(name.startsWith("deco/")).toBe(true);
   });
 
   test("returns a hyphenated two-word body after the prefix", () => {
     const name = generateBranchName();
-    const body = name.slice("decopilot/".length);
+    const body = name.slice("deco/".length);
     const parts = body.split("-");
     expect(parts.length).toBe(2);
     expect(parts[0]!.length).toBeGreaterThan(0);

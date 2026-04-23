@@ -321,7 +321,7 @@ describe("VM_START", () => {
 
     const result = await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
 
-    expect(result.branch.startsWith("decopilot/")).toBe(true);
+    expect(result.branch.startsWith("deco/")).toBe(true);
     const updateCall = (updateSpy.mock.calls as unknown[][])[0]!;
     const updated = (updateCall[2] as { metadata: { vmMap: VmMap } }).metadata;
     expect(updated.vmMap.user_1?.[result.branch]).toMatchObject({

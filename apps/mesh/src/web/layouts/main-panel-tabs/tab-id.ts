@@ -114,15 +114,17 @@ export function resolveDefaultTabId(
       return formatPinnedViewTabId(def.id, def.toolName);
     }
     const declaredTabIds = metadata?.tabs?.map((t) => t.id) ?? [];
-    if (def.id && declaredTabIds.includes(def.id)) return def.id;
-    return (
-      declaredTabIds[0] ?? coerceForGithub("instructions", hasActiveGithubRepo)
+    if (def.id && declaredTabIds.includes(def.id))
+      return coerceForGithub(def.id, hasActiveGithubRepo);
+    return coerceForGithub(
+      declaredTabIds[0] ?? "instructions",
+      hasActiveGithubRepo,
     );
   }
 
-  return (
-    metadata?.tabs?.[0]?.id ??
-    coerceForGithub("instructions", hasActiveGithubRepo)
+  return coerceForGithub(
+    metadata?.tabs?.[0]?.id ?? "instructions",
+    hasActiveGithubRepo,
   );
 }
 

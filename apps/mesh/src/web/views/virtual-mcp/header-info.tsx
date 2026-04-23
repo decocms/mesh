@@ -1,10 +1,7 @@
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
-import { useProjectContext } from "@decocms/mesh-sdk";
-import { authClient } from "../../lib/auth-client.ts";
-import { AgentAvatar } from "../../components/agent-icon.tsx";
-import { BranchPicker } from "../../components/thread/github/branch-picker.tsx";
+import { Users03 } from "@untitledui/icons";
+import { IntegrationIcon } from "../../components/integration-icon";
 import { HeaderActions } from "../../components/thread/github/header-actions.tsx";
-import { useChatTask } from "../../components/chat/context.tsx";
 import { Toolbar } from "../../layouts/agent-shell-layout/toolbar.tsx";
 
 export function VirtualMcpHeaderInfo({
@@ -12,37 +9,29 @@ export function VirtualMcpHeaderInfo({
 }: {
   virtualMcp: VirtualMCPEntity;
 }) {
-  const title = virtualMcp.title ?? "";
-  const { org } = useProjectContext();
-  const { data: session } = authClient.useSession();
-  const userId = session?.user?.id ?? "";
-  const { currentBranch, isBranchLocked, setCurrentTaskBranch } = useChatTask();
-
-  const githubRepo = virtualMcp.metadata?.githubRepo ?? null;
-  const showBranchPicker = !!githubRepo?.connectionId && !!userId;
+  const showActions = !!virtualMcp.metadata?.githubRepo?.connectionId;
 
   return (
-    <Toolbar.Left>
-      <div className="flex items-center gap-2 min-w-0">
-        <AgentAvatar icon={virtualMcp.icon} name={title} size="xs" />
-        <span className="text-sm font-medium text-foreground truncate">
-          {title}
-        </span>
-        {showBranchPicker && (
-          <BranchPicker
-            orgId={org.id}
-            userId={userId}
-            connectionId={githubRepo.connectionId!}
-            owner={githubRepo.owner}
-            repo={githubRepo.name}
-            vmMap={virtualMcp.metadata?.vmMap}
-            value={currentBranch}
-            onChange={setCurrentTaskBranch}
-            locked={isBranchLocked}
+    <>
+      <Toolbar.Center>
+        <div className="flex items-center gap-2 min-w-0">
+          <IntegrationIcon
+            icon={virtualMcp.icon}
+            name={virtualMcp.title}
+            size="xs"
+            fallbackIcon={<Users03 size={14} />}
+            className="size-5 min-w-5 rounded-md"
           />
-        )}
-        {showBranchPicker && <HeaderActions virtualMcpId={virtualMcp.id} />}
-      </div>
-    </Toolbar.Left>
+          <span className="text-sm font-medium text-foreground truncate">
+            {virtualMcp.title}
+          </span>
+        </div>
+      </Toolbar.Center>
+      {showActions && (
+        <Toolbar.Right>
+          <HeaderActions virtualMcpId={virtualMcp.id} />
+        </Toolbar.Right>
+      )}
+    </>
   );
 }

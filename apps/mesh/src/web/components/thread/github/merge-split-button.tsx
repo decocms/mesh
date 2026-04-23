@@ -31,18 +31,17 @@ export function MergeSplitButton({
   send,
 }: Props) {
   const squash = () => send(tpl.mergeSquash({ owner, repo, prNumber, base }));
-  const rebase = () => send(tpl.mergeRebase({ owner, repo, prNumber, base }));
-  const commit = () => send(tpl.mergeCommit({ owner, repo, prNumber, base }));
+  const review = () => send(tpl.reviewPr({ owner, repo, prNumber }));
 
   return (
     <div className="inline-flex items-stretch rounded-md">
       <Button
         size="sm"
-        className="rounded-r-none border-r-0"
+        className="rounded-r-none border-r border-primary-foreground/20"
         disabled={disabled}
         onClick={squash}
       >
-        Squash & merge
+        Publish
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -50,15 +49,13 @@ export function MergeSplitButton({
             size="sm"
             className="rounded-l-none px-2"
             disabled={disabled}
-            aria-label="Other merge strategies"
+            aria-label="More actions"
           >
             <ChevronDown className="h-3.5 w-3.5" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={squash}>Squash and merge</DropdownMenuItem>
-          <DropdownMenuItem onClick={rebase}>Rebase and merge</DropdownMenuItem>
-          <DropdownMenuItem onClick={commit}>Merge commit</DropdownMenuItem>
+          <DropdownMenuItem onClick={review}>Review</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

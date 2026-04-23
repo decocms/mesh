@@ -26,7 +26,7 @@ export function ChecksTab({ pr, connectionId, owner, repo }: Props) {
     connectionId,
     owner,
     repo,
-    headSha: pr.headSha,
+    prNumber: pr.number,
   });
 
   const rerun = (name: string) =>

@@ -8,6 +8,7 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import {
   getWellKnownDecopilotVirtualMCP,
   useProjectContext,
+  useVirtualMCP,
 } from "@decocms/mesh-sdk";
 import { ArrowRight, Users03 } from "@untitledui/icons";
 import { useQuery } from "@tanstack/react-query";
@@ -18,6 +19,8 @@ import { Chat } from "./index";
 import { useChatStream, useChatPrefs } from "./context";
 import { ChatContextPanel } from "./context-panel";
 import { wasCreditsEmptyDismissed } from "./credits-empty-state";
+import { useChatNavigation } from "./hooks/use-chat-navigation.ts";
+import { BranchPicker } from "../thread/github/branch-picker.tsx";
 
 import { useAiProviderKeys } from "@/web/hooks/collections/use-ai-providers";
 import { useDecoCredits } from "@/web/hooks/use-deco-credits";
@@ -202,9 +205,16 @@ function HomeEmptyState({
 function SidebarEmptyState() {
   const { org } = useProjectContext();
   const { selectedVirtualMcp } = useChatPrefs();
+  const { data: session } = authClient.useSession();
+  const { branch, setBranch } = useChatNavigation();
 
   const defaultAgent = getWellKnownDecopilotVirtualMCP(org.id);
   const displayAgent = selectedVirtualMcp ?? defaultAgent;
+  const fullVm = useVirtualMCP(displayAgent.id);
+
+  const userId = session?.user?.id ?? "";
+  const githubRepo = fullVm?.metadata?.githubRepo ?? null;
+  const showBranchPicker = !!githubRepo?.connectionId && !!userId;
 
   return (
     <div className="h-full w-full flex flex-col items-center justify-center gap-6 px-4">
@@ -223,6 +233,20 @@ function SidebarEmptyState() {
           {displayAgent.description ??
             "Ask anything about configuring model providers or using MCP Mesh."}
         </div>
+        {showBranchPicker && (
+          <div className="mt-2">
+            <BranchPicker
+              orgId={org.id}
+              userId={userId}
+              connectionId={githubRepo.connectionId!}
+              owner={githubRepo.owner}
+              repo={githubRepo.name}
+              vmMap={fullVm?.metadata?.vmMap}
+              value={branch}
+              onChange={setBranch}
+            />
+          </div>
+        )}
       </div>
       <div className="w-full max-w-3xl mx-auto">
         <Chat.IceBreakers />

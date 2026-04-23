@@ -40,18 +40,6 @@ export function mergeSquash(
   return `On repo \`${repoRef(ctx)}\`, squash-merge PR #${ctx.prNumber} into \`${ctx.base}\`. You may call the GitHub merge API for this since it's a PR-level operation; use the BASH tool with git only if you need to prep or reorganize commits first.`;
 }
 
-export function mergeRebase(
-  ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber" | "base">,
-): string {
-  return `On repo \`${repoRef(ctx)}\`, rebase-merge PR #${ctx.prNumber} into \`${ctx.base}\`. Prefer a true rebase via the BASH tool (\`git rebase ${ctx.base}\` in the vm, then force-push), and only use the GitHub merge API after the branch is ready.`;
-}
-
-export function mergeCommit(
-  ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber" | "base">,
-): string {
-  return `On repo \`${repoRef(ctx)}\`, merge PR #${ctx.prNumber} into \`${ctx.base}\` with a merge commit via the GitHub merge API. Use the BASH tool with git only if you need to prep commits first.`;
-}
-
 export function rebaseOnBase(
   ctx: Pick<TemplateContext, "owner" | "repo" | "branch" | "base">,
 ): string {
@@ -64,10 +52,35 @@ export function rerunCheck(
   return `On repo \`${repoRef(ctx)}\`, re-run the \`${ctx.checkName}\` check on PR #${ctx.prNumber} via the GitHub MCP tools. If an empty commit is needed to retrigger CI, use the BASH tool with git to create and push it.`;
 }
 
-export function closePr(
+export function commitAndPush(
+  ctx: Pick<TemplateContext, "owner" | "repo" | "branch">,
+): string {
+  return `On repo \`${repoRef(ctx)}\`, commit every pending change in the vm's working tree with a concise conventional-commit message summarizing the diff, then push to \`origin/${ctx.branch}\`. If there are already-committed changes ahead of the remote, push those in the same invocation. ${GIT_CLI_PREAMBLE}`;
+}
+
+export function fixChecks(
+  ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber" | "failingChecks">,
+): string {
+  const list = (ctx.failingChecks ?? []).map((n) => `\`${n}\``).join(", ");
+  return `On repo \`${repoRef(ctx)}\`, PR #${ctx.prNumber} has the following failing checks: ${list}. For each: read the check's logs via the GitHub MCP tools, diagnose the root cause, apply the smallest fix that makes the check pass in the vm's working tree, commit, and push. ${GIT_CLI_PREAMBLE}`;
+}
+
+export function markReadyForReview(
   ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber">,
 ): string {
-  return `On repo \`${repoRef(ctx)}\`, close PR #${ctx.prNumber} without merging. Use the GitHub MCP tools for this PR-level operation.`;
+  return `On repo \`${repoRef(ctx)}\`, mark PR #${ctx.prNumber} as ready for review. Use the GitHub MCP tools for this PR-level operation.`;
+}
+
+export function resolveReviewComments(
+  ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber">,
+): string {
+  return `On repo \`${repoRef(ctx)}\`, read the unresolved review threads on PR #${ctx.prNumber} via the GitHub MCP tools. For each thread: understand the reviewer's ask, make the needed changes in the vm's working tree, commit, push, post a reply explaining what changed, and mark the thread resolved. If a comment is a question that doesn't need a code change, reply with the answer and resolve. ${GIT_CLI_PREAMBLE}`;
+}
+
+export function reviewPr(
+  ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber">,
+): string {
+  return `On repo \`${repoRef(ctx)}\`, review PR #${ctx.prNumber}. Read the full diff via the GitHub MCP tools, then analyze every changed file for correctness, security, code quality, and alignment with the repo's existing patterns. Post specific line-level review comments where you have concerns, then submit an overall review (approve / request changes / comment) with a concise summary. Do not modify the code — this is a read-and-comment pass.`;
 }
 
 export function reopenPr(

@@ -341,6 +341,9 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
       }
       setStatusLabel("");
       invalidateVirtualMcpQueries(queryClient);
+      // override stays "creating" until the vmMap refetch populates vmData,
+      // at which point the sync-effect above flips it to null → derivedStatus
+      // takes over as "running".
     } catch (error) {
       setOverride("error");
       setErrorMsg(
@@ -368,6 +371,9 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     }
 
     invalidateVirtualMcpQueries(queryClient);
+    // override stays "stopping" until the vmMap refetch removes the entry,
+    // at which point the sync-effect above flips it to null → derivedStatus
+    // takes over as "idle".
   };
 
   const githubRepo = useActiveGithubRepo();

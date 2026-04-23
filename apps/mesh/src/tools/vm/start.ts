@@ -97,7 +97,7 @@ export const VM_START = defineTool({
       .min(1)
       .optional()
       .describe(
-        "Optional git branch to check out. When omitted the handler generates `decopilot/<adjective>-<noun>` and uses it. The resolved branch is returned in the response so callers can persist it.",
+        "Optional git branch to check out. When omitted the handler generates `deco/<adjective>-<noun>` and uses it. The resolved branch is returned in the response so callers can persist it.",
       ),
   }),
   outputSchema: z.object({

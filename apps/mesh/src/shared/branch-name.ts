@@ -4,7 +4,7 @@
  * orchestrator — not the sandbox — decides the branch name and can persist
  * it to vmMap before the daemon ever sees it.
  *
- * Format: `decopilot/<adjective>-<noun>`
+ * Format: `deco/<adjective>-<noun>`
  */
 
 const ADJECTIVES: readonly string[] = [
@@ -116,5 +116,5 @@ const NOUNS: readonly string[] = [
 export function generateBranchName(): string {
   const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
   const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
-  return `decopilot/${adj}-${noun}`;
+  return `deco/${adj}-${noun}`;
 }

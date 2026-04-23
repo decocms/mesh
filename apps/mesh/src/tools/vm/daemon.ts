@@ -149,6 +149,9 @@ const replayBuffers = { setup: "", daemon: "" };
 const REPLAY_BYTES = 4096;
 let setupDone = false;
 let discoveredScripts = null;
+let lastBranchStatus = null;
+let branchStatusTimer = null;
+let branchStatusWatcher = null;
 
 function broadcastChunk(source, data) {
   if (!data) return;
@@ -165,6 +168,80 @@ function broadcastEvent(eventName, data) {
   const payload = JSON.stringify(data);
   for (const res of sseClients) {
     if (res.writable) res.write("event: " + eventName + "\\ndata: " + payload + "\\n\\n");
+  }
+}
+
+function computeBranchStatus() {
+  const exec = (cmd) => {
+    try {
+      return execSync(cmd, {
+        cwd: APP_ROOT,
+        uid: DECO_UID,
+        gid: DECO_GID,
+        env: DECO_ENV,
+        stdio: ["ignore", "pipe", "ignore"],
+      }).toString().trim();
+    } catch (e) {
+      return "";
+    }
+  };
+  const refExists = (ref) => exec("git rev-parse --verify --quiet " + JSON.stringify(ref)).length > 0;
+  try {
+    const branch = exec("git rev-parse --abbrev-ref HEAD");
+    if (!branch || branch === "HEAD") return null;
+    let base = exec("git symbolic-ref --short refs/remotes/origin/HEAD");
+    if (base.startsWith("origin/")) base = base.slice("origin/".length);
+    if (!base) base = "main";
+    const dirty = exec("git status --porcelain=v1").length > 0;
+
+    // origin/<branch> may not exist (not fetched yet, or local-only). Fall back
+    // to HEAD on the "branch" side when it's missing — we can still measure
+    // ahead-of-base that way; unpushed stays 0 because we can't see a diff.
+    const branchRef = refExists("origin/" + branch) ? "origin/" + branch : "HEAD";
+    const unpushed = branchRef === "origin/" + branch
+      ? Number(exec("git rev-list --count origin/" + branch + "..HEAD") || "0")
+      : 0;
+
+    let aheadOfBase = 0, behindBase = 0;
+    if (refExists("origin/" + base)) {
+      const lrcount = exec("git rev-list --left-right --count origin/" + base + "..." + branchRef);
+      const m = lrcount.match(/^(\\d+)\\s+(\\d+)$/);
+      if (m) { behindBase = Number(m[1]); aheadOfBase = Number(m[2]); }
+    }
+    return { branch: branch, base: base, workingTreeDirty: dirty, unpushed: unpushed, aheadOfBase: aheadOfBase, behindBase: behindBase };
+  } catch (e) {
+    log("branch-status compute failed:", e && e.message ? e.message : e);
+    return null;
+  }
+}
+
+function emitBranchStatus() {
+  const next = computeBranchStatus();
+  if (!next) return;
+  if (lastBranchStatus && JSON.stringify(lastBranchStatus) === JSON.stringify(next)) return;
+  lastBranchStatus = next;
+  broadcastEvent("branch-status", Object.assign({ type: "branch-status" }, next));
+}
+
+function scheduleBranchStatusRefresh() {
+  if (branchStatusTimer) return;
+  branchStatusTimer = setTimeout(() => {
+    branchStatusTimer = null;
+    emitBranchStatus();
+  }, 250);
+}
+
+function watchGitDir() {
+  if (branchStatusWatcher) return;
+  const gitDir = APP_ROOT + "/.git";
+  try {
+    branchStatusWatcher = fs.watch(gitDir, { recursive: true }, () => {
+      scheduleBranchStatusRefresh();
+    });
+    log("branch-status: watching " + gitDir);
+  } catch (e) {
+    log("branch-status: fs.watch failed, falling back to polling:", e && e.message ? e.message : e);
+    setInterval(emitBranchStatus, 5000);
   }
 }
 
@@ -231,7 +308,7 @@ function discoverScripts() {
 function runSetup() {
   // Clone the repo's default branch, then switch to BRANCH — fetching it
   // from origin when the remote has it, or creating it locally off default
-  // when it does not. This keeps newly-generated decopilot/* branches
+  // when it does not. This keeps newly-generated deco/* branches
   // working without requiring the caller to push first.
   // BRANCH is always non-empty — validated at daemon build time.
   const branchNameOk = (b) => /^[A-Za-z0-9._/-]+$/.test(b) && !b.startsWith("-");
@@ -271,8 +348,18 @@ function runSetup() {
 
     // Resolve BRANCH: fetch from remote when it exists there, otherwise
     // create locally off the default branch we just cloned.
+    //
+    // The refspec form +refs/heads/BRANCH:refs/remotes/origin/BRANCH creates
+    // the remote-tracking ref in one step so branch-status can diff against
+    // origin/<branch>. The paired local-branch copy happens with a second
+    // fetch using the BRANCH:BRANCH refspec below.
     let branchOnRemote = false;
     try {
+      execSync(
+        "git fetch origin " +
+          JSON.stringify("+refs/heads/" + BRANCH + ":refs/remotes/origin/" + BRANCH),
+        { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV, stdio: "pipe" },
+      );
       execSync(
         "git fetch origin " + JSON.stringify(BRANCH) + ":" + JSON.stringify(BRANCH),
         { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV, stdio: "pipe" },
@@ -300,12 +387,14 @@ function runSetup() {
 
     if (!PM) {
       setupDone = true;
+      emitBranchStatus();
+      watchGitDir();
       log("setup complete (clone only, no package manager)");
       return;
     }
     // Run install in the same "setup" stream
     const pmConfig = PM_CONFIG[PM];
-    if (!pmConfig) { setupDone = true; return; }
+    if (!pmConfig) { setupDone = true; emitBranchStatus(); watchGitDir(); return; }
     const corepackSetup = "export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 && corepack enable && ";
     const installCmd = PATH_PREFIX + "cd /app && " + corepackSetup + pmConfig.install;
     const installLabel = "$ " + pmConfig.install;
@@ -323,6 +412,8 @@ function runSetup() {
     installChild.on("close", (installCode) => {
       log("install exited code=" + installCode);
       setupDone = true;
+      emitBranchStatus();
+      watchGitDir();
       if (installCode === 0) {
         log("setup complete, discovering scripts");
         discoverScripts();
@@ -579,6 +670,11 @@ http.createServer(async (req, res) => {
     // 4. Replay active processes
     const active = Object.keys(children).filter(k => children[k] !== null);
     res.write("event: processes\\ndata: " + JSON.stringify({ type: "processes", active: active }) + "\\n\\n");
+
+    // 5. Replay last branch-status
+    if (lastBranchStatus) {
+      res.write("event: branch-status\\ndata: " + JSON.stringify(Object.assign({ type: "branch-status" }, lastBranchStatus)) + "\\n\\n");
+    }
 
     sseClients.add(res);
     log("SSE connect, clients=" + sseClients.size);

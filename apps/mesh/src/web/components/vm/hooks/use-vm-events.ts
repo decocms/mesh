@@ -17,6 +17,15 @@ export interface VmStatus {
   htmlSupport: boolean;
 }
 
+export interface BranchStatus {
+  branch: string;
+  base: string;
+  workingTreeDirty: boolean;
+  unpushed: number;
+  aheadOfBase: number;
+  behindBase: number;
+}
+
 export type ChunkHandler = (source: string, data: string) => void;
 
 const BUFFER_BYTES = 16384;
@@ -58,6 +67,7 @@ const EVENT_TYPES = [
   "scripts",
   "processes",
   "reload",
+  "branch-status",
 ] as const;
 
 export function useVmEvents(
@@ -80,6 +90,7 @@ export function useVmEvents(
   // `hasData` during render see fresh data — buffer mutation alone doesn't
   // trigger a re-render.
   const [, setLogTick] = useState(0);
+  const [branchStatus, setBranchStatus] = useState<BranchStatus | null>(null);
   const onChunkRef = useRef(onChunk);
   onChunkRef.current = onChunk;
   const onReloadRef = useRef(onReload);
@@ -105,6 +116,7 @@ export function useVmEvents(
     setNotFound(false);
     setScripts([]);
     setActiveProcesses([]);
+    setBranchStatus(null);
     buffers.current.clear();
 
     let disposed = false;
@@ -180,6 +192,15 @@ export function useVmEvents(
           setActiveProcesses(data.active ?? []);
         } else if (e.type === "reload") {
           onReloadRef.current?.();
+        } else if (e.type === "branch-status") {
+          setBranchStatus({
+            branch: String(data.branch ?? ""),
+            base: String(data.base ?? "main"),
+            workingTreeDirty: Boolean(data.workingTreeDirty),
+            unpushed: Number(data.unpushed ?? 0),
+            aheadOfBase: Number(data.aheadOfBase ?? 0),
+            behindBase: Number(data.behindBase ?? 0),
+          });
         }
       } catch {
         // ignore parse errors
@@ -260,6 +281,7 @@ export function useVmEvents(
     notFound,
     scripts,
     activeProcesses,
+    branchStatus,
     getBuffer: (source: string) => buffers.current.get(source)?.get() ?? "",
     hasData: (source: string) =>
       (buffers.current.get(source)?.get().length ?? 0) > 0,

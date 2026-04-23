@@ -63,7 +63,6 @@ import { EmptyState } from "@/web/components/empty-state";
 import { useChatMainPanelState } from "@/web/hooks/use-layout-state";
 import { getActiveGithubRepo } from "@/web/lib/github-repo";
 import { TasksPanelStateProvider } from "@/web/hooks/use-tasks-panel-state";
-import { Separator } from "@deco/ui/components/separator.tsx";
 import { Toolbar } from "./toolbar";
 import { TasksPanelColumn } from "./tasks-panel-column";
 import { ChatMainPanelGroup } from "./chat-main-panel-group";
@@ -455,11 +454,15 @@ export default function AgentShellLayout() {
                 <TasksPanelStateProvider>
                   <Toolbar>
                     <Toolbar.Header>
-                      <Toolbar.Nav />
-                      <Toolbar.LeftSlot />
-                      <Toolbar.TabsSlot />
-                      <Separator orientation="vertical" className="mx-2 h-5" />
-                      <Toolbar.TogglesSlot />
+                      <Toolbar.LeftColumn>
+                        <Toolbar.Nav />
+                        <Toolbar.TogglesSlot />
+                      </Toolbar.LeftColumn>
+                      <Toolbar.CenterSlot />
+                      <Toolbar.RightColumn>
+                        <Toolbar.TabsSlot />
+                        <Toolbar.RightSlot />
+                      </Toolbar.RightColumn>
                     </Toolbar.Header>
                     <div className="flex-1 min-h-0 flex flex-row">
                       <TasksPanelColumn />
