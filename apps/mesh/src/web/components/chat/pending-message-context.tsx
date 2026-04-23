@@ -9,7 +9,7 @@
 import { createContext, use, useRef, useState, type ReactNode } from "react";
 import type { SendMessageParams } from "./store/types";
 
-export const PENDING_MESSAGE_TTL_MS = 10_000;
+const PENDING_MESSAGE_TTL_MS = 10_000;
 
 export interface PendingMessage {
   taskId: string;
