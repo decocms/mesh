@@ -51,9 +51,8 @@ import {
   useVirtualMCP,
 } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
-import { useQueryClient } from "@tanstack/react-query";
-import { invalidateVirtualMcpQueries } from "@/web/lib/query-keys";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { useVmStart } from "@/web/components/vm/hooks/use-vm-start";
 import { useStatusSounds } from "../../hooks/use-status-sounds";
 import { useChatNavigation } from "@/web/components/chat/hooks/use-chat-navigation";
 import { generateBranchName } from "@/shared/branch-name";
@@ -244,16 +243,17 @@ function AgentInsetProvider() {
   }, [urlBranch, hasActiveGithubRepo, setBranch, userId, vmMap]);
 
   // Auto-start the VM when the thread lands on a branch without a registered
-  // entry. Ensures every github-linked thread has a live vm and a stable
-  // preview URL, so the user never sees "No server running" and vmMap is
-  // always populated for the sticky-branch logic above.
-  const queryClient = useQueryClient();
+  // entry. Routed through useVmStart so concurrent mounts (preview, env, this
+  // layout) for the same (virtualMcpId, branch) collapse onto one in-flight
+  // upstream call instead of stacking 10–30s container-create requests.
   const autoStartClient = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
+  const autoStart = useVmStart(autoStartClient);
+  const { mutate: triggerAutoStart } = autoStart;
   const autoStartingBranchRef = useRef<string | null>(null);
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — fires VM_START when vmMap is missing an entry for (user, branch); ref guard dedupes concurrent mounts and the effect tears itself down on success via query invalidation
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — fires VM_START when vmMap is missing an entry for (user, branch); ref guard dedupes within this mount, module-level map dedupes across components
   useEffect(() => {
     if (!hasActiveGithubRepo) return;
     if (!userId) return;
@@ -261,28 +261,26 @@ function AgentInsetProvider() {
     if (vmMap?.[userId]?.[urlBranch]) return;
     if (autoStartingBranchRef.current === urlBranch) return;
     autoStartingBranchRef.current = urlBranch;
-    autoStartClient
-      .callTool({
-        name: "VM_START",
-        arguments: { virtualMcpId, branch: urlBranch },
-      })
-      .then(() => invalidateVirtualMcpQueries(queryClient))
-      .catch((err) => {
-        console.error("[auto-start-vm] failed:", err);
-      })
-      .finally(() => {
-        if (autoStartingBranchRef.current === urlBranch) {
-          autoStartingBranchRef.current = null;
-        }
-      });
+    triggerAutoStart(
+      { virtualMcpId, branch: urlBranch },
+      {
+        onError: (err) => {
+          console.error("[auto-start-vm] failed:", err);
+        },
+        onSettled: () => {
+          if (autoStartingBranchRef.current === urlBranch) {
+            autoStartingBranchRef.current = null;
+          }
+        },
+      },
+    );
   }, [
     hasActiveGithubRepo,
     userId,
     urlBranch,
     vmMap,
     virtualMcpId,
-    autoStartClient,
-    queryClient,
+    triggerAutoStart,
   ]);
 
   const chatVirtualMcpId = virtualMcpId;

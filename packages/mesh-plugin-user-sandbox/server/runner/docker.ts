@@ -13,7 +13,7 @@ import {
   startContainer,
   type DockerResult,
 } from "../docker-cli";
-import type { RunnerStateStore } from "./state-store";
+import type { RunnerStateStore, RunnerStateStoreOps } from "./state-store";
 import type {
   EnsureOptions,
   ExecInput,
@@ -115,11 +115,15 @@ export class DockerSandboxRunner implements SandboxRunner {
     if (pending) return pending;
     // In-process dedupe + state-store `withLock` (cross-pod). Without withLock
     // we're single-pod-safe only — prod MUST ship a store that implements it.
-    const runInner = () => this.ensureInner(id, labelId, opts);
+    // The scoped store passed to the callback reuses the lock's connection;
+    // without that, nested stateStore calls race the main pool and can
+    // deadlock at `databasePoolMax` concurrent provisionings.
     const p =
       this.stateStore && this.stateStore.withLock
-        ? this.stateStore.withLock(id, RUNNER_KIND, runInner)
-        : runInner();
+        ? this.stateStore.withLock(id, RUNNER_KIND, (scoped) =>
+            this.ensureInner(id, labelId, opts, scoped),
+          )
+        : this.ensureInner(id, labelId, opts, this.stateStore);
     this.inflight.set(labelId, p);
     try {
       return await p;
@@ -231,20 +235,21 @@ export class DockerSandboxRunner implements SandboxRunner {
     id: SandboxId,
     labelId: string,
     opts: EnsureOptions,
+    store: RunnerStateStoreOps | null,
   ): Promise<Sandbox> {
     // 1. State store → survives mesh restart + cross-process race.
-    if (this.stateStore) {
-      const persisted = await this.stateStore.get(id, RUNNER_KIND);
+    if (store) {
+      const persisted = await store.get(id, RUNNER_KIND);
       if (persisted) {
         const probed = await this.probePersisted(id, persisted);
         if (probed) {
           this.byHandle.set(probed.handle, probed);
-          await this.attachRepoIfNeeded(id, probed, opts);
+          await this.attachRepoIfNeeded(id, probed, opts, store);
           await this.startDevServerIfNeeded(probed, opts);
           return this.toSandbox(probed);
         }
         // Stale row — purge, fall through to discovery.
-        await this.stateStore.delete(id, RUNNER_KIND);
+        await store.delete(id, RUNNER_KIND);
       }
     }
 
@@ -253,15 +258,15 @@ export class DockerSandboxRunner implements SandboxRunner {
     if (existingHandle) {
       const tracked = this.byHandle.get(existingHandle);
       if (tracked) {
-        await this.attachRepoIfNeeded(id, tracked, opts);
+        await this.attachRepoIfNeeded(id, tracked, opts, store);
         await this.startDevServerIfNeeded(tracked, opts);
         return this.toSandbox(tracked);
       }
       const recovered = await this.recoverSandbox(id, existingHandle, opts);
       if (recovered) {
         this.byHandle.set(existingHandle, recovered);
-        await this.persist(id, recovered);
-        await this.attachRepoIfNeeded(id, recovered, opts);
+        await this.persist(id, recovered, store);
+        await this.attachRepoIfNeeded(id, recovered, opts, store);
         await this.startDevServerIfNeeded(recovered, opts);
         return this.toSandbox(recovered);
       }
@@ -272,7 +277,7 @@ export class DockerSandboxRunner implements SandboxRunner {
     const rec = await this.provision(id, labelId, opts);
     this.byHandle.set(rec.handle, rec);
     try {
-      await this.attachRepoIfNeeded(id, rec, opts);
+      await this.attachRepoIfNeeded(id, rec, opts, store);
     } catch (err) {
       this.byHandle.delete(rec.handle);
       await this.stopContainer(rec.handle).catch((stopErr) =>
@@ -283,7 +288,7 @@ export class DockerSandboxRunner implements SandboxRunner {
       );
       throw err;
     }
-    await this.persist(id, rec);
+    await this.persist(id, rec, store);
     await this.startDevServerIfNeeded(rec, opts);
     return this.toSandbox(rec);
   }
@@ -301,11 +306,12 @@ export class DockerSandboxRunner implements SandboxRunner {
     id: SandboxId,
     rec: DockerRecord,
     opts: EnsureOptions,
+    store: RunnerStateStoreOps | null,
   ): Promise<void> {
     if (!opts.repo || rec.repoAttached) return;
     await bootstrapRepo(rec.daemonUrl, rec.token, rec.workdir, opts.repo);
     rec.repoAttached = true;
-    await this.persist(id, rec);
+    await this.persist(id, rec, store);
   }
 
   /** Fire-and-forget `/dev/start` (idempotent on daemon); VM_START returns fast. */
@@ -592,8 +598,12 @@ export class DockerSandboxRunner implements SandboxRunner {
     return parts.length ? ` (${parts.join(" ")})` : "";
   }
 
-  private async persist(id: SandboxId, rec: DockerRecord): Promise<void> {
-    if (!this.stateStore) return;
+  private async persist(
+    id: SandboxId,
+    rec: DockerRecord,
+    store: RunnerStateStoreOps | null,
+  ): Promise<void> {
+    if (!store) return;
     const state: PersistedDockerState = {
       token: rec.token,
       workdir: rec.workdir,
@@ -604,7 +614,7 @@ export class DockerSandboxRunner implements SandboxRunner {
       repoAttached: rec.repoAttached,
       workload: rec.workload,
     };
-    await this.stateStore.put(id, RUNNER_KIND, { handle: rec.handle, state });
+    await store.put(id, RUNNER_KIND, { handle: rec.handle, state });
   }
 }
 

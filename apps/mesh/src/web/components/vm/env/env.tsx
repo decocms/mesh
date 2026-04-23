@@ -366,7 +366,6 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
       | { runtime?: { selected: string | null; port?: string | null } | null }
       | undefined
   )?.runtime;
-  const isDetecting = runtime === undefined;
   const NONE_VALUE = "__none__";
   const packageManagers = Object.keys(
     PACKAGE_MANAGER_CONFIG,
@@ -425,68 +424,53 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
             />
           </a>
 
-          {isDetecting ? (
-            <div className="flex items-center justify-center gap-2 w-full">
-              <Loading01
-                size={14}
-                className="animate-spin text-muted-foreground"
-              />
-              <p className="text-sm text-muted-foreground">
-                Detecting project configuration...
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-wrap items-end justify-between gap-2 w-full">
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="env-runtime" className="text-xs font-medium">
-                  Runtime
-                </Label>
-                <Select
-                  value={runtime?.selected ?? NONE_VALUE}
-                  onValueChange={(v) =>
-                    handleFieldUpdate("selected", v === NONE_VALUE ? null : v)
-                  }
-                >
-                  <SelectTrigger id="env-runtime" className="w-28">
-                    <SelectValue placeholder="None" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NONE_VALUE}>None</SelectItem>
-                    {packageManagers.map((pm) => (
-                      <SelectItem key={pm} value={pm}>
-                        {pm}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="env-port" className="text-xs font-medium">
-                  Port
-                </Label>
-                <Input
-                  id="env-port"
-                  placeholder="3000"
-                  className="w-20 h-8"
-                  defaultValue={runtime?.port ?? ""}
-                  onBlur={(e) =>
-                    handleFieldUpdate("port", e.target.value || null)
-                  }
-                />
-              </div>
-              <Button
-                onClick={handleStart}
-                disabled={isStopping || isDetecting}
+          <div className="flex flex-wrap items-end justify-between gap-2 w-full">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="env-runtime" className="text-xs font-medium">
+                Runtime
+              </Label>
+              <Select
+                value={runtime?.selected ?? NONE_VALUE}
+                onValueChange={(v) =>
+                  handleFieldUpdate("selected", v === NONE_VALUE ? null : v)
+                }
               >
-                {isStopping ? (
-                  <Loading01 size={14} className="animate-spin" />
-                ) : (
-                  <Play size={14} />
-                )}
-                {isStopping ? "Stopping..." : "Run"}
-              </Button>
+                <SelectTrigger id="env-runtime" className="w-28">
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE_VALUE}>None</SelectItem>
+                  {packageManagers.map((pm) => (
+                    <SelectItem key={pm} value={pm}>
+                      {pm}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          )}
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="env-port" className="text-xs font-medium">
+                Port
+              </Label>
+              <Input
+                id="env-port"
+                placeholder="3000"
+                className="w-20 h-8"
+                defaultValue={runtime?.port ?? ""}
+                onBlur={(e) =>
+                  handleFieldUpdate("port", e.target.value || null)
+                }
+              />
+            </div>
+            <Button onClick={handleStart} disabled={isStopping}>
+              {isStopping ? (
+                <Loading01 size={14} className="animate-spin" />
+              ) : (
+                <Play size={14} />
+              )}
+              {isStopping ? "Stopping..." : "Run"}
+            </Button>
+          </div>
         </div>
       </div>
     );

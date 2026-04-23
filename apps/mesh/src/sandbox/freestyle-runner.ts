@@ -20,6 +20,7 @@ import {
   type ExecOutput,
   type ProxyRequestInit,
   type RunnerStateStore,
+  type RunnerStateStoreOps,
   type Sandbox,
   type SandboxId,
   type SandboxRunner,
@@ -81,12 +82,15 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     const pending = this.inflight.get(key);
     if (pending) return pending;
     // See DockerSandboxRunner.ensure — state-store lock serializes across
-    // pods; in-memory inflight dedupes within this process.
-    const runInner = () => this.ensureInner(id, opts);
+    // pods; in-memory inflight dedupes within this process. The scoped
+    // store reuses the lock connection so nested reads/writes don't starve
+    // the main pg pool during long provisioning.
     const p =
       this.stateStore && this.stateStore.withLock
-        ? this.stateStore.withLock(id, RUNNER_KIND, runInner)
-        : runInner();
+        ? this.stateStore.withLock(id, RUNNER_KIND, (scoped) =>
+            this.ensureInner(id, opts, scoped),
+          )
+        : this.ensureInner(id, opts, this.stateStore);
     this.inflight.set(key, p);
     try {
       return await p;
@@ -247,6 +251,7 @@ export class FreestyleSandboxRunner implements SandboxRunner {
   private async ensureInner(
     id: SandboxId,
     opts: EnsureOptions,
+    store: RunnerStateStoreOps | null,
   ): Promise<Sandbox> {
     if (!opts.repo) {
       throw new Error(
@@ -259,21 +264,21 @@ export class FreestyleSandboxRunner implements SandboxRunner {
       );
     }
     // 1. State-store resume.
-    if (this.stateStore) {
-      const persisted = await this.stateStore.get(id, RUNNER_KIND);
+    if (store) {
+      const persisted = await store.get(id, RUNNER_KIND);
       if (persisted) {
         const probed = await this.resume(id, persisted, opts);
         if (probed) {
           this.byHandle.set(probed.handle, probed);
           return this.toSandbox(probed);
         }
-        await this.stateStore.delete(id, RUNNER_KIND);
+        await store.delete(id, RUNNER_KIND);
       }
     }
     // 2. Fresh provision.
     const rec = await this.provision(id, opts);
     this.byHandle.set(rec.handle, rec);
-    await this.persist(id, rec);
+    await this.persist(id, rec, store);
     return this.toSandbox(rec);
   }
 
@@ -292,6 +297,19 @@ export class FreestyleSandboxRunner implements SandboxRunner {
   ): Promise<FreestyleRecord | null> {
     const state = persisted.state as Partial<PersistedFreestyleState>;
     if (!state.vmId || !state.previewDomain || !state.repo) return null;
+    // Workload (runtime / packageManager / devPort) is baked into the
+    // daemon script at VM create time — see buildSpec's additionalFiles.
+    // `freestyle.vms.ref({ vmId, spec }).start()` boots the existing VM
+    // with the already-written /opt/daemon.js; the rebuilt spec is
+    // effectively ignored. When the caller's workload has diverged from
+    // what was baked, resume would silently keep running the old PM. Bail
+    // so ensureInner deletes the stale state row and provisions fresh.
+    if (!workloadEquals(opts.workload ?? null, state.workload ?? null)) {
+      console.warn(
+        `[FreestyleSandboxRunner] resume vm ${state.vmId} skipped: workload changed (persisted=${JSON.stringify(state.workload)} current=${JSON.stringify(opts.workload ?? null)}); will recreate`,
+      );
+      return null;
+    }
     const workload = opts.workload ?? state.workload ?? null;
     // VmSpec is a pure builder — deterministic rebuild matches create-time spec.
     const spec = this.buildSpec({
@@ -483,8 +501,12 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     return rec;
   }
 
-  private async persist(id: SandboxId, rec: FreestyleRecord): Promise<void> {
-    if (!this.stateStore) return;
+  private async persist(
+    id: SandboxId,
+    rec: FreestyleRecord,
+    store: RunnerStateStoreOps | null,
+  ): Promise<void> {
+    if (!store) return;
     const state: PersistedFreestyleState = {
       vmId: rec.vmId,
       previewDomain: rec.previewDomain,
@@ -492,7 +514,7 @@ export class FreestyleSandboxRunner implements SandboxRunner {
       workload: rec.workload,
       repo: rec.repo,
     };
-    await this.stateStore.put(id, RUNNER_KIND, { handle: rec.handle, state });
+    await store.put(id, RUNNER_KIND, { handle: rec.handle, state });
   }
 
   /** Same base64 scheme as `proxyDaemonRequest` — parity with exec path. */
@@ -527,6 +549,16 @@ export function translateDaemonPath(path: string): string | null {
   if (stripped === "/bash") return "/_decopilot_vm/bash";
   // Pass through — a 404 on freestyle's side is the right caller signal.
   return stripped;
+}
+
+function workloadEquals(a: Workload | null, b: Workload | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.runtime === b.runtime &&
+    a.packageManager === b.packageManager &&
+    a.devPort === b.devPort
+  );
 }
 
 function deriveRepoLabel(cloneUrl: string): string {

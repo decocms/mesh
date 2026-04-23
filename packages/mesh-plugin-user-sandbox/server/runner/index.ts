@@ -32,6 +32,7 @@ export type {
   RunnerStateRecordWithId,
   RunnerStatePut,
   RunnerStateStore,
+  RunnerStateStoreOps,
 } from "./state-store";
 export {
   composeSandboxRef,
