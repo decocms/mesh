@@ -33,7 +33,9 @@ const mockRefreshAccessToken =
       >
     ) => Promise<TokenRefreshResult>
   >();
+const actualTokenRefresh = await import("@/oauth/token-refresh");
 mock.module("@/oauth/token-refresh", () => ({
+  ...actualTokenRefresh,
   refreshAccessToken: mockRefreshAccessToken,
 }));
 

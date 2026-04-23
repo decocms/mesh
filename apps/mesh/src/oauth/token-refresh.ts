@@ -6,6 +6,7 @@
  */
 
 import type { DownstreamToken } from "../storage/types";
+import type { DownstreamTokenStorage } from "../storage/downstream-token";
 
 /**
  * Result of a token refresh attempt
@@ -126,4 +127,37 @@ export async function refreshAccessToken(
       error: error instanceof Error ? error.message : "Token refresh failed",
     };
   }
+}
+
+export const PROACTIVE_REFRESH_BUFFER_MS = 5 * 60 * 1000;
+
+export const RECONNECT_ERROR =
+  "GitHub token refresh failed — reconnect the mcp-github integration.";
+
+export function canRefresh(token: DownstreamToken): boolean {
+  return !!token.refreshToken && !!token.tokenEndpoint && !!token.clientId;
+}
+
+export async function refreshAndStore(
+  token: DownstreamToken,
+  tokenStorage: DownstreamTokenStorage,
+): Promise<string | null> {
+  const result = await refreshAccessToken(token);
+  if (!result.success || !result.accessToken) {
+    await tokenStorage.delete(token.connectionId);
+    return null;
+  }
+  await tokenStorage.upsert({
+    connectionId: token.connectionId,
+    accessToken: result.accessToken,
+    refreshToken: result.refreshToken ?? token.refreshToken,
+    scope: result.scope ?? token.scope,
+    expiresAt: result.expiresIn
+      ? new Date(Date.now() + result.expiresIn * 1000)
+      : null,
+    clientId: token.clientId,
+    clientSecret: token.clientSecret,
+    tokenEndpoint: token.tokenEndpoint,
+  });
+  return result.accessToken;
 }
