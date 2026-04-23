@@ -6,7 +6,8 @@
  * own private fields. See packages/mesh-plugin-user-sandbox/server/runner/.
  */
 
-import type { Kysely } from "kysely";
+import { createHash } from "node:crypto";
+import { sql, type Kysely } from "kysely";
 import type {
   RunnerStatePut,
   RunnerStateRecord,
@@ -15,6 +16,23 @@ import type {
   SandboxId,
 } from "mesh-plugin-user-sandbox/runner";
 import type { Database } from "./types";
+
+/**
+ * Hash `(userId, projectRef, kind)` to a signed int64 for
+ * `pg_advisory_xact_lock`. SHA-256 → first 8 bytes as big-endian,
+ * then cast to a signed bigint so the range fits pg's `bigint`.
+ */
+function lockKey(id: SandboxId, kind: string): bigint {
+  const h = createHash("sha256")
+    .update(id.userId)
+    .update("\x00")
+    .update(id.projectRef)
+    .update("\x00")
+    .update(kind)
+    .digest();
+  // Read the first 8 bytes as a signed big-endian int64.
+  return h.readBigInt64BE(0);
+}
 
 export class KyselySandboxRunnerStateStore implements RunnerStateStore {
   constructor(private db: Kysely<Database>) {}
@@ -92,5 +110,26 @@ export class KyselySandboxRunnerStateStore implements RunnerStateStore {
       .where("runner_kind", "=", kind)
       .where("handle", "=", handle)
       .execute();
+  }
+
+  /**
+   * Serialize ensure() across pods with `pg_advisory_xact_lock`. The lock
+   * is transactional — postgres releases it automatically on COMMIT /
+   * ROLLBACK / connection drop, so a crashed pod never strands a sandbox.
+   *
+   * We don't expect this lock to contend in practice (a single user rarely
+   * hits VM_START from two pods simultaneously), so the transaction
+   * overhead is acceptable even for the happy path.
+   */
+  async withLock<T>(
+    id: SandboxId,
+    kind: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const key = lockKey(id, kind);
+    return this.db.transaction().execute(async (trx) => {
+      await sql`select pg_advisory_xact_lock(${key}::bigint)`.execute(trx);
+      return fn();
+    });
   }
 }

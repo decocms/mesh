@@ -326,6 +326,22 @@ function discoverScripts() {
   discoveredScripts = scriptNames;
   log("discovered scripts:", scriptNames.join(", ") || "(none)");
   broadcastEvent("scripts", { type: "scripts", scripts: scriptNames });
+
+  // Auto-start the first well-known starter script so the preview boots
+  // without a manual click. Docker's runner fires /_daemon/dev/start from
+  // startDevServerIfNeeded; on freestyle the /dev/* path is a no-op (handled
+  // by systemd, not the daemon), so if we don't kick it here the dev server
+  // only runs after the user opens the env panel and clicks Run.
+  const pmConfig = PM_CONFIG[PM];
+  if (pmConfig) {
+    const autoStart = WELL_KNOWN_STARTERS.find((s) => scriptNames.includes(s));
+    if (autoStart) {
+      const cmd = PATH_PREFIX + "cd /app && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=" + PORT + " " + pmConfig.runPrefix + " " + autoStart;
+      const label = "$ " + pmConfig.runPrefix + " " + autoStart;
+      log("auto-start", autoStart);
+      runProcess(autoStart, cmd, label);
+    }
+  }
 }
 
 function runSetup() {
@@ -782,7 +798,7 @@ http.createServer(async (req, res) => {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST",
-      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Headers": "Content-Type, Accept, Cache-Control, Authorization",
     });
     res.end();
     return;

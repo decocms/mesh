@@ -106,7 +106,13 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     const key = sandboxIdKey(id);
     const pending = this.inflight.get(key);
     if (pending) return pending;
-    const p = this.ensureInner(id, opts);
+    // See DockerSandboxRunner.ensure — state-store lock serializes across
+    // pods; in-memory inflight dedupes within this process.
+    const runInner = () => this.ensureInner(id, opts);
+    const p =
+      this.stateStore && this.stateStore.withLock
+        ? this.stateStore.withLock(id, RUNNER_KIND, runInner)
+        : runInner();
     this.inflight.set(key, p);
     try {
       return await p;

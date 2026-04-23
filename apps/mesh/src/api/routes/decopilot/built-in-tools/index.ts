@@ -60,9 +60,9 @@ export interface BuiltinToolParams {
  * (derived via ReturnType) can render historical plan parts regardless
  * of the current chat mode.
  */
-export type BuiltInToolSet = ReturnType<typeof buildAllTools>;
+export type BuiltInToolSet = Awaited<ReturnType<typeof buildAllTools>>;
 
-function buildAllTools(
+async function buildAllTools(
   writer: UIMessageStreamWriter,
   params: BuiltinToolParams,
   ctx: MeshContext,
@@ -122,7 +122,7 @@ function buildAllTools(
   const vmNeedsApproval =
     toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false;
   if (activeVm) {
-    const runner = getRunnerByKind(ctx, activeVm.runnerKind);
+    const runner = await getRunnerByKind(ctx, activeVm.runnerKind);
     const { vmId } = activeVm;
     Object.assign(
       tools,
@@ -190,12 +190,12 @@ function buildAllTools(
  * Get built-in tools as a ToolSet.
  * propose_plan is only included when chat mode is `plan`.
  */
-export function getBuiltInTools(
+export async function getBuiltInTools(
   writer: UIMessageStreamWriter,
   params: BuiltinToolParams,
   ctx: MeshContext,
 ) {
-  const tools = buildAllTools(writer, params, ctx);
+  const tools = await buildAllTools(writer, params, ctx);
 
   if (!params.isPlanMode) {
     const { propose_plan: _, ...rest } = tools;

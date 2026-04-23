@@ -70,7 +70,7 @@ export const VM_DELETE = defineTool({
     // env-active runner directly — that would tear down the wrong VM type
     // when a pod flips MESH_SANDBOX_RUNNER between start and stop.
     const kind: RunnerKind = entry.runnerKind ?? "freestyle";
-    const runner = getRunnerByKind(ctx, kind);
+    const runner = await getRunnerByKind(ctx, kind);
     await runner
       .delete(entry.vmId)
       .catch((err) =>

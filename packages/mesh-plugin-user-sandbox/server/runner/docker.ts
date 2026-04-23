@@ -134,7 +134,16 @@ export class DockerSandboxRunner implements SandboxRunner {
     const labelId = hashId(id);
     const pending = this.inflight.get(labelId);
     if (pending) return pending;
-    const p = this.ensureInner(id, labelId, opts);
+    // In-process dedupe wraps the outer call; the state-store's `withLock`
+    // (when available) serializes across pods. Without it we're
+    // single-pod-safe only — two pods racing the same (user, projectRef)
+    // will each provision a container and leak one. Production deploys
+    // must ship a state store that implements `withLock`.
+    const runInner = () => this.ensureInner(id, labelId, opts);
+    const p =
+      this.stateStore && this.stateStore.withLock
+        ? this.stateStore.withLock(id, RUNNER_KIND, runInner)
+        : runInner();
     this.inflight.set(labelId, p);
     try {
       return await p;
@@ -152,15 +161,22 @@ export class DockerSandboxRunner implements SandboxRunner {
     const rec = await this.lookupRecord(handle);
     this.byHandle.delete(handle);
     // Best-effort graceful dev-server shutdown before the container teardown
-    // forcibly kills everything. Failures swallowed — the container stop
-    // below is the source of truth.
+    // forcibly kills everything. Failures are logged but not thrown — the
+    // container stop below is the source of truth. We log (rather than
+    // silently swallow) so a systemic daemon outage surfaces in ops instead
+    // of hiding behind a successful teardown.
     if (rec) {
       await proxyDaemonRequestClient(
         rec.daemonUrl,
         rec.token,
         "/_daemon/dev/stop",
         { method: "POST", headers: new Headers(), body: null },
-      ).catch(() => {});
+      ).catch((err) =>
+        console.warn(
+          `[DockerSandboxRunner] graceful dev-stop failed for ${handle}:`,
+          err instanceof Error ? err.message : String(err),
+        ),
+      );
     }
     await this.stopContainer(handle);
     if (this.stateStore) {
@@ -191,7 +207,14 @@ export class DockerSandboxRunner implements SandboxRunner {
     for (const id of ids) {
       await this.stopContainer(id);
       if (this.stateStore) {
-        await this.stateStore.deleteByHandle(RUNNER_KIND, id).catch(() => {});
+        await this.stateStore
+          .deleteByHandle(RUNNER_KIND, id)
+          .catch((err) =>
+            console.warn(
+              `[DockerSandboxRunner] sweep: state-store deleteByHandle(${id}) failed:`,
+              err instanceof Error ? err.message : String(err),
+            ),
+          );
       }
     }
     return ids.length;
@@ -298,7 +321,12 @@ export class DockerSandboxRunner implements SandboxRunner {
       await this.attachRepoIfNeeded(id, rec, opts);
     } catch (err) {
       this.byHandle.delete(rec.handle);
-      await this.stopContainer(rec.handle).catch(() => {});
+      await this.stopContainer(rec.handle).catch((stopErr) =>
+        console.warn(
+          `[DockerSandboxRunner] cleanup stop after attach failure (${rec.handle}) itself failed:`,
+          stopErr instanceof Error ? stopErr.message : String(stopErr),
+        ),
+      );
       throw err;
     }
     await this.persist(id, rec);
@@ -517,7 +545,12 @@ export class DockerSandboxRunner implements SandboxRunner {
     try {
       await waitForDaemonReady(daemonUrl);
     } catch (err) {
-      await this.stopContainer(handle).catch(() => {});
+      await this.stopContainer(handle).catch((stopErr) =>
+        console.warn(
+          `[DockerSandboxRunner] cleanup stop after waitForDaemonReady failure (${handle}) itself failed:`,
+          stopErr instanceof Error ? stopErr.message : String(stopErr),
+        ),
+      );
       throw err;
     }
   }

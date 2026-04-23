@@ -165,7 +165,7 @@ async function provisionSandbox(
     virtualMcpId,
     branch,
   });
-  const runner = getSharedRunner(ctx);
+  const runner = await getSharedRunner(ctx);
   const sandbox = await runner.ensure(
     { userId, projectRef },
     {

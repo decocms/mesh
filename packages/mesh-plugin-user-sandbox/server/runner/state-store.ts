@@ -40,4 +40,18 @@ export interface RunnerStateStore {
   put(id: SandboxId, kind: string, entry: RunnerStatePut): Promise<void>;
   delete(id: SandboxId, kind: string): Promise<void>;
   deleteByHandle(kind: string, handle: string): Promise<void>;
+  /**
+   * Serialize concurrent `ensure()` calls for the same (id, kind) across
+   * every pod sharing this store. Implementations should take a lock keyed
+   * on `(id.userId, id.projectRef, kind)`, run `fn`, and release the lock
+   * when `fn` settles. The lock auto-releases on connection loss so a
+   * crashed pod never strands a sandbox.
+   *
+   * Optional: in-memory / test state stores can omit it. Runners check for
+   * the method and fall back to in-process-only dedupe when absent, which
+   * is correct single-pod behavior but still leaks containers under
+   * multi-pod races — so production deploys MUST use a store that
+   * implements this.
+   */
+  withLock?<T>(id: SandboxId, kind: string, fn: () => Promise<T>): Promise<T>;
 }

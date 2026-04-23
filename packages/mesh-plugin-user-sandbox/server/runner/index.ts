@@ -15,6 +15,7 @@
  * into the host app's `getRunnerByKind` factory.
  */
 
+import { spawnSync } from "node:child_process";
 import { DockerSandboxRunner, type DockerRunnerOptions } from "./docker";
 import type { RunnerStateStore } from "./state-store";
 import type { SandboxRunner } from "./types";
@@ -77,11 +78,59 @@ export function createDockerRunner(
   });
 }
 
+let cachedDockerInstalled: boolean | null = null;
+
 /**
- * Read `MESH_SANDBOX_RUNNER`. Default `freestyle` (production today).
+ * Best-effort probe: is the `docker` CLI on PATH? We only care that the
+ * binary exists — actually reaching the daemon is a separate concern that
+ * surfaces at first use. Cached after the first call because this runs on
+ * every `resolveRunnerKindFromEnv()` in the default-local path.
+ */
+function isDockerInstalled(): boolean {
+  if (cachedDockerInstalled !== null) return cachedDockerInstalled;
+  try {
+    const result = spawnSync("docker", ["--version"], {
+      stdio: "ignore",
+      timeout: 2000,
+    });
+    cachedDockerInstalled = result.status === 0;
+  } catch {
+    cachedDockerInstalled = false;
+  }
+  return cachedDockerInstalled;
+}
+
+/**
+ * Resolve the active runner kind.
+ *
+ * Rules:
+ *   1. `MESH_SANDBOX_RUNNER=docker|freestyle` — explicit, always honored.
+ *   2. Production with no explicit value — throw. Operators must opt in
+ *      to a runner; we do not silently pick one for a production deploy.
+ *   3. Local dev with no explicit value — `docker` when the CLI is on
+ *      PATH. If not, throw with a message asking the operator to install
+ *      Docker or set the env explicitly.
+ *
+ * Freestyle is never picked implicitly — the SDK is an optional dependency
+ * and its runner is dynamically imported by the host app only when selected.
  */
 export function resolveRunnerKindFromEnv(): RunnerKind {
   const raw = process.env.MESH_SANDBOX_RUNNER;
   if (raw === "docker" || raw === "freestyle") return raw;
-  return "freestyle";
+  if (raw && raw.length > 0) {
+    throw new Error(
+      `Unknown MESH_SANDBOX_RUNNER="${raw}" — expected "docker" or "freestyle".`,
+    );
+  }
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      `MESH_SANDBOX_RUNNER must be set explicitly in production — ` +
+        `choose "docker" or "freestyle".`,
+    );
+  }
+  if (isDockerInstalled()) return "docker";
+  throw new Error(
+    `No sandbox runner available: Docker CLI not found on PATH. ` +
+      `Install Docker for local dev, or set MESH_SANDBOX_RUNNER explicitly.`,
+  );
 }

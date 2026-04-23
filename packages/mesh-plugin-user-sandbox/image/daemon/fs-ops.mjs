@@ -7,6 +7,12 @@
  * resolution but is NEVER treated as the root. It must itself resolve under
  * WORKDIR. The root is always WORKDIR. A caller cannot read/write outside
  * WORKDIR by passing `cwd: "/"`.
+ *
+ * Symlinks: every path is `realpath`-resolved before the prefix check, so a
+ * symlink inside WORKDIR that points outside (or a sequence of them) cannot
+ * be used to escape. The resolution is tolerant of leaf-level non-existence
+ * (write/create flows) — we resolve the nearest existing ancestor and then
+ * append the unresolved tail.
  */
 
 import { spawn } from "node:child_process";
@@ -16,16 +22,50 @@ import { WORKDIR } from "./config.mjs";
 import { parsedBody, send } from "./http-helpers.mjs";
 
 /**
+ * `realpath` an absolute path, walking up to the nearest ancestor that
+ * exists when the leaf (or several leaves) don't exist yet. Returns the
+ * fully-resolved canonical absolute path. Used to defeat symlink escapes.
+ */
+function realpathTolerant(abs) {
+  const parts = [];
+  let current = abs;
+  // Walk up until we hit a directory that exists. The loop terminates at "/",
+  // which always exists, so it can't infinite-loop.
+  while (true) {
+    try {
+      return path.join(fs.realpathSync(current), ...parts.reverse());
+    } catch (err) {
+      if (err && err.code === "ENOENT") {
+        const base = path.basename(current);
+        const parent = path.dirname(current);
+        if (parent === current) return abs; // reached root without resolving
+        parts.push(base);
+        current = parent;
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+const WORKDIR_REAL = fs.realpathSync(WORKDIR);
+
+function isUnderWorkdir(absResolved) {
+  return (
+    absResolved === WORKDIR_REAL ||
+    absResolved.startsWith(WORKDIR_REAL + path.sep)
+  );
+}
+
+/**
  * Resolve `body.cwd` to an absolute directory under WORKDIR. Empty/missing
- * returns WORKDIR itself. Returns null if cwd escapes WORKDIR.
+ * returns WORKDIR itself. Returns null if cwd escapes WORKDIR — including
+ * through a symlink.
  */
 function resolveCwd(cwd) {
-  if (!cwd) return WORKDIR;
-  const resolved = path.resolve(WORKDIR, cwd);
-  if (resolved !== WORKDIR && !resolved.startsWith(WORKDIR + path.sep)) {
-    return null;
-  }
-  return resolved;
+  if (!cwd) return WORKDIR_REAL;
+  const resolved = realpathTolerant(path.resolve(WORKDIR_REAL, cwd));
+  return isUnderWorkdir(resolved) ? resolved : null;
 }
 
 /**
@@ -37,11 +77,8 @@ function resolveCwd(cwd) {
 function safePath(p, cwd) {
   const base = resolveCwd(cwd);
   if (base === null) return null;
-  const resolved = path.resolve(base, p ?? "");
-  if (resolved !== WORKDIR && !resolved.startsWith(WORKDIR + path.sep)) {
-    return null;
-  }
-  return resolved;
+  const resolved = realpathTolerant(path.resolve(base, p ?? ""));
+  return isUnderWorkdir(resolved) ? resolved : null;
 }
 
 export async function handleFsRead(req, res) {

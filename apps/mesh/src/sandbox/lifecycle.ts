@@ -33,17 +33,26 @@ import {
   type SandboxRunner,
 } from "mesh-plugin-user-sandbox/runner";
 import { KyselySandboxRunnerStateStore } from "@/storage/sandbox-runner-state";
-import { FreestyleSandboxRunner } from "./freestyle-runner";
 
 const runners: Partial<Record<RunnerKind, SandboxRunner>> = {};
 
-function instantiate(kind: RunnerKind, ctx: MeshContext): SandboxRunner {
+async function instantiate(
+  kind: RunnerKind,
+  ctx: MeshContext,
+): Promise<SandboxRunner> {
   const stateStore = new KyselySandboxRunnerStateStore(ctx.db);
   switch (kind) {
     case "docker":
       return new DockerSandboxRunner({ stateStore });
-    case "freestyle":
+    case "freestyle": {
+      // Dynamic import keeps `freestyle-sandboxes` (and the `@freestyle-sh/*`
+      // helpers it pulls in) out of the module graph on docker-only deploys.
+      // Those packages are listed as `optionalDependencies` in
+      // `apps/mesh/package.json` — operators who don't opt in to freestyle
+      // never need to install them.
+      const { FreestyleSandboxRunner } = await import("./freestyle-runner");
       return new FreestyleSandboxRunner({ stateStore });
+    }
     default: {
       const exhaustive: never = kind;
       throw new Error(`Unknown runner kind: ${String(exhaustive)}`);
@@ -56,7 +65,7 @@ function instantiate(kind: RunnerKind, ctx: MeshContext): SandboxRunner {
  * on first call. Used by VM_START + the daemon-proxy route + decopilot's
  * VM tools where we always want the current configuration.
  */
-export function getSharedRunner(ctx: MeshContext): SandboxRunner {
+export function getSharedRunner(ctx: MeshContext): Promise<SandboxRunner> {
   return getRunnerByKind(ctx, resolveRunnerKindFromEnv());
 }
 
@@ -65,13 +74,13 @@ export function getSharedRunner(ctx: MeshContext): SandboxRunner {
  * teardown follows the entry's recorded `runnerKind` instead of the
  * (possibly different) current env config.
  */
-export function getRunnerByKind(
+export async function getRunnerByKind(
   ctx: MeshContext,
   kind: RunnerKind,
-): SandboxRunner {
+): Promise<SandboxRunner> {
   const cached = runners[kind];
   if (cached) return cached;
-  const runner = instantiate(kind, ctx);
+  const runner = await instantiate(kind, ctx);
   runners[kind] = runner;
   return runner;
 }
@@ -80,10 +89,17 @@ export function getRunnerByKind(
  * Return the active runner iff already created. Used by the local-ingress
  * wiring to expose the runner for preview routing without forcing a
  * MeshContext (and therefore a DB connection) before any request has
- * touched a sandbox.
+ * touched a sandbox. Safe to call before env resolution has succeeded —
+ * returns null if the env is unresolved.
  */
 export function getSharedRunnerIfInit(): SandboxRunner | null {
-  return runners[resolveRunnerKindFromEnv()] ?? null;
+  let kind: RunnerKind;
+  try {
+    kind = resolveRunnerKindFromEnv();
+  } catch {
+    return null;
+  }
+  return runners[kind] ?? null;
 }
 
 /**

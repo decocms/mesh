@@ -52,7 +52,7 @@ async function authorizeSandbox(
       400,
     );
   }
-  return { handle, runner: getRunnerByKind(ctx, kind) };
+  return { handle, runner: await getRunnerByKind(ctx, kind) };
 }
 
 export function createSandboxDaemonRoutes() {
