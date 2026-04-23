@@ -49,11 +49,12 @@ export function usePrReviews(args: Args) {
 
   return useMCPToolCallQuery<PrReviewSignals | null>({
     client,
-    toolName: "get_pull_request",
+    toolName: "pull_request_read",
     toolArguments: {
+      method: "get",
       owner: args.owner,
       repo: args.repo,
-      pull_number: args.prNumber ?? 0,
+      pullNumber: args.prNumber ?? 0,
     },
     enabled: !!args.prNumber,
     refetchInterval: POLL,

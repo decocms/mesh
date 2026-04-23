@@ -1,13 +1,16 @@
 /**
  * PR panel data hooks.
  *
- * Both reads and writes go through the existing `useMCPToolCallQuery` /
- * `useMCPToolCallMutation` against the github-mcp-server downstream
- * connection — no new mesh tools or endpoints. Polling 60s when active.
+ * All reads go through the unified `pull_request_read` tool on
+ * github-mcp-server, which exposes sub-calls via a `method` arg:
+ *   method: "get"             → PR details
+ *   method: "get_files"       → files changed
+ *   method: "get_check_runs"  → CI check runs for the head commit
+ *   method: "get_comments"    → issue-level comments
+ *   method: "get_reviews"     → submitted reviews
  *
- * github-mcp-server returns results as either `structuredContent` (parsed)
- * or `content: [{ type: "text", text: "<json>" }]` (stringified). The
- * extract* helpers normalize both shapes.
+ * Tool args use camelCase (pullNumber, perPage). Listing PRs by branch
+ * still goes through the separate `list_pull_requests` tool.
  */
 
 import { useMCPClient, useMCPToolCallQuery } from "@decocms/mesh-sdk";
@@ -97,7 +100,7 @@ export function usePrByBranch(args: RepoArgs & { branch: string | null }) {
       repo: args.repo,
       state: "all",
       head: args.branch ? `${args.owner}:${args.branch}` : undefined,
-      per_page: 1,
+      perPage: 1,
     },
     enabled: !!args.branch,
     refetchInterval: POLL,
@@ -128,11 +131,8 @@ export function usePrByBranch(args: RepoArgs & { branch: string | null }) {
 }
 
 /**
- * Fetches the file list for a PR via github-mcp-server.
- *
- * The tool name varies between github-mcp-server builds — try the common
- * names in order: `get_pull_request_files`, `list_pull_request_files`.
- * If neither matches your server, adjust the `toolName` here.
+ * Fetches the file list for a PR via pull_request_read(get_files).
+ * Server returns `changes = additions + deletions`; we derive deletions.
  */
 export function usePrFiles(
   args: RepoArgs & { prNumber: number | null | undefined },
@@ -144,11 +144,12 @@ export function usePrFiles(
 
   return useMCPToolCallQuery<PrFile[]>({
     client,
-    toolName: "get_pull_request_files",
+    toolName: "pull_request_read",
     toolArguments: {
+      method: "get_files",
       owner: args.owner,
       repo: args.repo,
-      pull_number: args.prNumber ?? 0,
+      pullNumber: args.prNumber ?? 0,
     },
     enabled: !!args.prNumber,
     refetchInterval: POLL,
@@ -157,28 +158,30 @@ export function usePrFiles(
     select: (r) => {
       const arr = extractToolJson<Record<string, unknown>[]>(r);
       if (!Array.isArray(arr)) return [];
-      return arr.map(
-        (f): PrFile => ({
+      return arr.map((f): PrFile => {
+        const additions = Number(f.additions ?? 0);
+        const changes = Number(f.changes ?? additions);
+        const deletions = Number(
+          f.deletions ?? Math.max(0, changes - additions),
+        );
+        return {
           filename: String(f.filename ?? ""),
           status: (f.status as PrFile["status"] | undefined) ?? "modified",
-          additions: Number(f.additions ?? 0),
-          deletions: Number(f.deletions ?? 0),
+          additions,
+          deletions,
           blobUrl: typeof f.blob_url === "string" ? f.blob_url : null,
-        }),
-      );
+        };
+      });
     },
   });
 }
 
 /**
- * Fetches CI check runs for a specific commit SHA (the PR's head).
- *
- * If the downstream server exposes `list_check_runs` with a different
- * argument shape, adjust `toolArguments` below — github-mcp-server's
- * common arg is `ref: <sha>`.
+ * Fetches CI check runs for a PR's head commit via
+ * pull_request_read(get_check_runs).
  */
 export function useChecks(
-  args: RepoArgs & { headSha: string | null | undefined },
+  args: RepoArgs & { prNumber: number | null | undefined },
 ) {
   const client = useMCPClient({
     connectionId: args.connectionId,
@@ -187,19 +190,19 @@ export function useChecks(
 
   return useMCPToolCallQuery<CheckRun[]>({
     client,
-    toolName: "list_check_runs",
+    toolName: "pull_request_read",
     toolArguments: {
+      method: "get_check_runs",
       owner: args.owner,
       repo: args.repo,
-      ref: args.headSha ?? "",
+      pullNumber: args.prNumber ?? 0,
     },
-    enabled: !!args.headSha,
+    enabled: !!args.prNumber,
     refetchInterval: POLL,
     refetchIntervalInBackground: false,
     staleTime: STALE,
     select: (r) => {
-      // github-mcp-server typically wraps check runs as { check_runs: [...] }.
-      // Accept both that envelope and a raw array for resilience.
+      // Accept both `{ check_runs: [...] }` envelopes and raw arrays.
       const raw = extractToolJson<
         { check_runs?: Record<string, unknown>[] } | Record<string, unknown>[]
       >(r);
@@ -230,13 +233,9 @@ export function useChecks(
 }
 
 /**
- * Issue-level comments on a PR (the generic comment thread). Does NOT
- * return review comments tied to a file + line — those belong near the
- * diff on the Changes tab and are out of scope for this hook.
- *
- * Common tool names: `get_issue_comments` (with issue_number = pr_number)
- * or `list_pull_request_comments`. Adjust `toolName` to match your
- * downstream github-mcp-server build.
+ * Issue-level comments on a PR via pull_request_read(get_comments).
+ * Does NOT return review comments tied to a file + line — those belong
+ * near the diff on the Changes tab and are out of scope for this hook.
  */
 export function usePrComments(
   args: RepoArgs & { prNumber: number | null | undefined },
@@ -248,11 +247,12 @@ export function usePrComments(
 
   return useMCPToolCallQuery<PrComment[]>({
     client,
-    toolName: "get_issue_comments",
+    toolName: "pull_request_read",
     toolArguments: {
+      method: "get_comments",
       owner: args.owner,
       repo: args.repo,
-      issue_number: args.prNumber ?? 0,
+      pullNumber: args.prNumber ?? 0,
     },
     enabled: !!args.prNumber,
     refetchInterval: POLL,

@@ -61,7 +61,7 @@ export function HeaderActions({ virtualMcpId }: Props) {
     connectionId: githubRepo?.connectionId ?? "",
     owner: githubRepo?.owner ?? "",
     repo: githubRepo?.name ?? "",
-    headSha: pr?.headSha ?? null,
+    prNumber: pr && pr.state === "open" ? pr.number : null,
   });
 
   const reviewsQuery = usePrReviews({
