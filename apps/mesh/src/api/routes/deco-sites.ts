@@ -13,6 +13,7 @@
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
 import { getUserId } from "../../core/mesh-context";
+import { generatePrefixedId } from "../../shared/utils/generate-id";
 import { fetchToolsFromMCP } from "../../tools/connection/fetch-tools";
 
 type Variables = { meshContext: MeshContext };
@@ -190,7 +191,6 @@ async function getOrCreateTeamServiceAccount(
 ): Promise<string> {
   const email = serviceAccountEmail(teamId);
 
-  // Check if profile already exists for this service account.
   const existingProfile = await supabaseGet<{ user_id: string }>(
     supabaseUrl,
     serviceKey,
@@ -198,12 +198,30 @@ async function getOrCreateTeamServiceAccount(
   );
 
   if (existingProfile[0]?.user_id) {
-    // Service account exists — return its API key.
-    return getOrCreateDecoApiKey(
+    const authUserId = existingProfile[0].user_id;
+
+    // Ensure the member row exists for this team (may be missing if a previous
+    // run created the profile but failed before reaching step 3).
+    const existingMember = await supabaseGet<{ id: number }>(
       supabaseUrl,
       serviceKey,
-      existingProfile[0].user_id,
+      `members?user_id=eq.${encodeURIComponent(authUserId)}&team_id=eq.${teamId}&select=id&limit=1`,
     );
+
+    if (!existingMember[0]?.id) {
+      const member = await supabasePost<{ id: number }>(
+        supabaseUrl,
+        serviceKey,
+        "members",
+        { user_id: authUserId, team_id: teamId, admin: true },
+      );
+      await supabasePost<{ id: number }>(supabaseUrl, serviceKey, "member_roles", {
+        member_id: member.id,
+        role_id: 1,
+      });
+    }
+
+    return getOrCreateDecoApiKey(supabaseUrl, serviceKey, authUserId);
   }
 
   // 1. Create Supabase Auth user
@@ -365,17 +383,19 @@ app.post("/connection", async (c) => {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
-  let body: { siteName: string; connId: string; orgId: string };
+  let body: { siteName: string; orgId: string };
   try {
     body = await c.req.json();
   } catch {
     return c.json({ error: "Invalid request body" }, 400);
   }
 
-  const { siteName, connId, orgId } = body;
-  if (!siteName || !connId || !orgId) {
-    return c.json({ error: "siteName, connId, and orgId are required" }, 400);
+  const { siteName, orgId } = body;
+  if (!siteName || !orgId) {
+    return c.json({ error: "siteName and orgId are required" }, 400);
   }
+
+  const connId = generatePrefixedId("conn");
 
   // Validate siteName is a safe DNS subdomain label to prevent SSRF.
   if (!/^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/.test(siteName)) {

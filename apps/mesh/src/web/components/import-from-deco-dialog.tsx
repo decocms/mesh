@@ -18,7 +18,6 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { ArrowLeft } from "@untitledui/icons";
 import { authClient } from "@/web/lib/auth-client";
-import { generatePrefixedId } from "@/shared/utils/generate-id";
 import { KEYS } from "@/web/lib/query-keys";
 import { generateSlug } from "@/web/lib/slug";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
@@ -112,11 +111,10 @@ export function ImportFromDecoDialog({
     mutationFn: async (siteName: string) => {
       // 1. Create the connection server-side so the deco.cx API key never
       //    reaches the browser — the backend fetches and encrypts it directly.
-      const connId = generatePrefixedId("conn");
       const connRes = await fetch("/api/deco-sites/connection", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ siteName, connId, orgId: org.id }),
+        body: JSON.stringify({ siteName, orgId: org.id }),
       });
       const connBody = (await connRes.json().catch(() => ({}))) as {
         connId?: string;
@@ -127,6 +125,11 @@ export function ImportFromDecoDialog({
         throw new Error(
           connBody.error ?? `Failed to create connection (${connRes.status})`,
         );
+      }
+
+      const connId = connBody.connId;
+      if (!connId) {
+        throw new Error("Server did not return a connection ID");
       }
 
       const projectIcon = connBody.icon ?? null;
@@ -170,6 +173,18 @@ export function ImportFromDecoDialog({
                     label: "Monitor",
                     icon: null,
                   },
+                  {
+                    connectionId: connId,
+                    toolName: "list_pull_requests",
+                    label: "Pull Requests",
+                    icon: null,
+                  },
+                  {
+                    connectionId: connId,
+                    toolName: "list_releases",
+                    label: "Releases",
+                    icon: null,
+                  }
                 ],
                 layout: {
                   defaultMainView: {
