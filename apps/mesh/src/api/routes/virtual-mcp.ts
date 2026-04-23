@@ -128,6 +128,39 @@ export async function handleVirtualMcpRequest(
       "passthrough",
     );
 
+    // Resolve instructions: prefer metadata.instructions, then auto-fetch from
+    // connected MCP prompts. This allows MCP servers to declare their own system
+    // prompt via a named prompt resource — no manual copy-paste into the studio.
+    let instructions: string | undefined =
+      typeof virtualMcp.metadata?.instructions === "string"
+        ? virtualMcp.metadata.instructions
+        : undefined;
+    if (!instructions) {
+      try {
+        const promptsResult = await client.listPrompts().catch(() => ({ prompts: [] }));
+        if (promptsResult.prompts.length > 0) {
+          // Prefer a prompt whose name matches the agent title, otherwise use first
+          const agentSlug = (virtualMcp.title ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+          const matchingPrompt =
+            promptsResult.prompts.find(
+              (p) => p.name.toLowerCase().replace(/[^a-z0-9]/g, "") === agentSlug,
+            ) ?? promptsResult.prompts[0];
+          if (matchingPrompt) {
+            const promptResult = await client.getPrompt({ name: matchingPrompt.name }).catch(() => null);
+            if (promptResult) {
+              const text = promptResult.messages
+                .filter((m) => m.content.type === "text")
+                .map((m) => (m.content as { type: "text"; text: string }).text)
+                .join("\n\n");
+              if (text) instructions = text;
+            }
+          }
+        }
+      } catch {
+        // Non-fatal — fall through with no instructions
+      }
+    }
+
     // Build ImplementationSchema-compatible server info
     const serverInfo = {
       name: virtualMcp.id ?? "Decopilot",
@@ -140,10 +173,7 @@ export async function handleVirtualMcpRequest(
     // Create server from client using the bridge
     const server = createServerFromClient(client, serverInfo, {
       capabilities: { tools: {}, resources: {}, prompts: {} },
-      instructions:
-        typeof virtualMcp.metadata?.instructions === "string"
-          ? virtualMcp.metadata.instructions
-          : undefined,
+      instructions,
       toolCallTimeoutMs: MCP_TOOL_CALL_TIMEOUT_MS,
     });
 
