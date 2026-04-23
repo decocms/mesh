@@ -84,9 +84,9 @@ function isDockerInstalled(): boolean {
 /**
  * Rules:
  *   1. `MESH_SANDBOX_RUNNER=docker|freestyle` — honored.
- *   2. Production w/o explicit value — throw (no silent picks in prod).
- *   3. Dev w/o explicit value — docker if CLI present, else throw.
- * Freestyle is never picked implicitly (optional dep, dynamically imported).
+ *   2. No explicit value, `FREESTYLE_API_KEY` set — pick freestyle.
+ *   3. Production w/o explicit value and no freestyle key — throw.
+ *   4. Dev w/o explicit value — docker if CLI present, else throw.
  */
 export function resolveRunnerKindFromEnv(): RunnerKind {
   const raw = process.env.MESH_SANDBOX_RUNNER;
@@ -96,10 +96,11 @@ export function resolveRunnerKindFromEnv(): RunnerKind {
       `Unknown MESH_SANDBOX_RUNNER="${raw}" — expected "docker" or "freestyle".`,
     );
   }
+  if (process.env.FREESTYLE_API_KEY) return "freestyle";
   if (process.env.NODE_ENV === "production") {
     throw new Error(
       `MESH_SANDBOX_RUNNER must be set explicitly in production — ` +
-        `choose "docker" or "freestyle".`,
+        `choose "docker" or "freestyle" (or set FREESTYLE_API_KEY).`,
     );
   }
   if (isDockerInstalled()) return "docker";
