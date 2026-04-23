@@ -11,9 +11,6 @@
     "./shared": "./shared.ts",
     "./runner": "./server/runner/index.ts"
   },
-  "dependencies": {
-    "freestyle-sandboxes": "^0.1.46"
-  },
   "devDependencies": {
     "@types/bun": "latest",
     "typescript": "^5.8.3"

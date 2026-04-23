@@ -81,40 +81,6 @@ export interface SandboxRunner {
   delete(handle: string): Promise<void>;
   alive(handle: string): Promise<boolean>;
   sweepOrphans(): Promise<number>;
-  /**
-   * Reconcile the platform-level ingress that routes
-   * `<handle>.sandboxes.<root>/*` and `/_daemon/*` to the pod's :3000 / :9000
-   * ports. Optional — Docker uses a local forwarder bound on the mesh host,
-   * so this is a no-op there. TODO(kubernetes-runner): implement for the
-   * k8s runner (create an Ingress with two path rules hitting two service
-   * ports on the same pod).
-   */
-  ensureIngress?(handle: string): Promise<void>;
-  /**
-   * Return a base URL the mesh process can use to reach the sandbox daemon.
-   * All dev-server traffic is proxied through the daemon via its `/proxy/:port/*`
-   * endpoint — no extra host ports are published. Returns null for runners
-   * that don't expose a daemon (e.g. Freestyle with its own domain).
-   */
-  resolveDaemonUrl?(handle: string): Promise<string | null>;
-  /**
-   * Daemon bearer token for server-to-server calls. The mesh preview proxy
-   * attaches this when forwarding requests into the container. Never surfaced
-   * to the browser. Returns null for runners that don't use a daemon.
-   */
-  resolveDaemonToken?(handle: string): Promise<string | null>;
-  /**
-   * Copy a host file into the container at the given path. Used when a
-   * resource needs to exist inside a sandbox that was already provisioned
-   * without the corresponding bind mount (e.g. claude-code creds injected
-   * into an existing preview sandbox mid-session). Parent directories are
-   * created as needed. File mode is preserved.
-   */
-  copyFileToContainer?(
-    handle: string,
-    hostPath: string,
-    containerPath: string,
-  ): Promise<void>;
 }
 
 export function sandboxIdKey(id: SandboxId): string {

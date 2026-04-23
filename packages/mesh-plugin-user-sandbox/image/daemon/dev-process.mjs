@@ -19,10 +19,10 @@ import {
   RESPAWN_MAX_IN_WINDOW,
   RESPAWN_WINDOW_MS,
   WORKDIR,
+  childEnv,
 } from "./config.mjs";
 import { crashBackoffRemainingMs, dev } from "./dev-state.mjs";
 import { appendLog, setPhase } from "./events.mjs";
-import { childEnv, ensureDenoInstalled } from "./lazy-install.mjs";
 import {
   detectPackageManager,
   detectRuntime,
@@ -243,18 +243,11 @@ export async function startDev({
     return;
   }
 
-  // Install step. For Node/Bun we gate on node_modules; for Deno we only
-  // ensure the Deno binary is present — `deno task` handles module caching
-  // on first run, and `deno install` semantics vary too much across versions
-  // to be a reliable warm-up call here.
-  if (runtime === "deno") {
-    setPhase("installing");
-    const ok = await ensureDenoInstalled();
-    if (!ok) {
-      setPhase("crashed");
-      return;
-    }
-  } else if (!hasNodeModules(workdir)) {
+  // Install step. Node/Bun gate on node_modules; Deno relies on `deno task`
+  // handling module caching on first run (`deno install` semantics vary too
+  // much across versions to be a reliable warm-up). The Deno binary ships
+  // with the base image.
+  if (runtime !== "deno" && !hasNodeModules(workdir)) {
     setPhase("installing");
     appendLog("setup", `[setup] running ${pm} install in ${workdir}\n`);
     const code = await runInstall(pm, ["install"], workdir);
@@ -281,8 +274,6 @@ export async function startDev({
   // output keeps ANSI colors / progress animations that frameworks emit when
   // they detect a TTY. Without this, `process.stdout.isTTY === false`
   // inside the child strips formatting and preview logs look washed out.
-  // Full DENO_BIN path so PATH doesn't need /opt/deno/bin when Deno was
-  // lazy-installed.
   const humanCmd =
     runtime === "deno" ? `${DENO_BIN} task ${script}` : `${pm} run ${script}`;
   const child = spawn("script", ["-q", "-c", humanCmd, "/dev/null"], {

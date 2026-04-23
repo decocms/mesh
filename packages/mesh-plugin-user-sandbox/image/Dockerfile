@@ -3,8 +3,7 @@
 FROM node:22-bookworm-slim
 
 # Runtime deps + bun + deno. Claude Code is NOT in this image — use
-# Dockerfile.claude for the claude-enabled variant. The daemon still has a
-# lazy-install fallback (also bun-based) for unusual paths.
+# Dockerfile.claude for the claude-enabled variant.
 # `locales` + a generated `en_US.UTF-8` are load-bearing: repos that use
 # `embedded-postgres` (decocms/studio dev server, any app running mesh
 # in-sandbox) refuse to init without it. Matches the Freestyle VM_START

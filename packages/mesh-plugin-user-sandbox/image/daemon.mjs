@@ -18,6 +18,7 @@ import {
   MAX_SSE_CLIENTS,
   PORT,
   WORKDIR,
+  childEnv,
 } from "./daemon/config.mjs";
 import { startDecoWatcher } from "./daemon/deco-watcher.mjs";
 import { startDev, stopDev } from "./daemon/dev-process.mjs";
@@ -42,7 +43,6 @@ import {
   send,
   sendText,
 } from "./daemon/http-helpers.mjs";
-import { childEnv } from "./daemon/lazy-install.mjs";
 import { inspectWorkdir } from "./daemon/workdir.mjs";
 
 const DAEMON_PREFIX = "/_daemon";

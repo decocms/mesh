@@ -9,8 +9,17 @@ export const PORT = Number(process.env.DAEMON_PORT ?? 9000);
 export const TOKEN = process.env.DAEMON_TOKEN;
 export const WORKDIR = process.env.WORKDIR ?? "/app";
 
-export const DENO_INSTALL_DIR = "/opt/deno";
-export const DENO_BIN = `${DENO_INSTALL_DIR}/bin/deno`;
+export const DENO_BIN = "/opt/deno/bin/deno";
+
+/**
+ * Shallow clone of `process.env` with `DAEMON_TOKEN` stripped. Every spawned
+ * child gets this — the token must never leak to user code.
+ */
+export function childEnv(extra) {
+  const env = { ...process.env, ...(extra ?? {}) };
+  delete env.DAEMON_TOKEN;
+  return env;
+}
 
 // SSE subscriber cap. A runaway reconnecting client shouldn't be able to
 // exhaust the daemon's sockets; mesh never opens more than one per viewer.
