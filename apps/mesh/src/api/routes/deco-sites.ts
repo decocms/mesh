@@ -123,6 +123,125 @@ async function getOrCreateDecoApiKey(
   return created.id;
 }
 
+const SERVICE_ACCOUNT_EMAIL_PREFIX = "deco-team-";
+const SERVICE_ACCOUNT_EMAIL_DOMAIN = "deco.cx";
+
+function serviceAccountEmail(teamId: number): string {
+  return `${SERVICE_ACCOUNT_EMAIL_PREFIX}${teamId}@${SERVICE_ACCOUNT_EMAIL_DOMAIN}`;
+}
+
+async function resolveTeamIdForSite(
+  supabaseUrl: string,
+  serviceKey: string,
+  siteName: string,
+): Promise<number | null> {
+  const sites = await supabaseGet<{ team: number | null }>(
+    supabaseUrl,
+    serviceKey,
+    `sites?name=eq.${encodeURIComponent(siteName)}&select=team&limit=1`,
+  );
+  return sites[0]?.team ?? null;
+}
+
+/**
+ * Creates a Supabase Auth user via the Admin API.
+ * Returns the new user's `id` (UUID).
+ */
+async function createSupabaseAuthUser(
+  supabaseUrl: string,
+  serviceKey: string,
+  email: string,
+): Promise<string> {
+  const res = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
+    method: "POST",
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email,
+      email_confirm: true,
+      app_metadata: { mesh_service_account: true },
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    console.error(
+      `[deco-sites] Auth admin create user error (${res.status}): ${text}`,
+    );
+    throw new Error(`Failed to create auth user (${res.status})`);
+  }
+  const user = (await res.json()) as { id: string };
+  return user.id;
+}
+
+/**
+ * Get or create a service account for the given deco.cx team.
+ *
+ * A service account is a Supabase auth user + profile + team member (owner role)
+ * with its own API key. One service account is shared across all sites in the
+ * same team.
+ */
+async function getOrCreateTeamServiceAccount(
+  supabaseUrl: string,
+  serviceKey: string,
+  teamId: number,
+): Promise<string> {
+  const email = serviceAccountEmail(teamId);
+
+  // Check if profile already exists for this service account.
+  const existingProfile = await supabaseGet<{ user_id: string }>(
+    supabaseUrl,
+    serviceKey,
+    `profiles?email=eq.${encodeURIComponent(email)}&select=user_id&limit=1`,
+  );
+
+  if (existingProfile[0]?.user_id) {
+    // Service account exists — return its API key.
+    return getOrCreateDecoApiKey(
+      supabaseUrl,
+      serviceKey,
+      existingProfile[0].user_id,
+    );
+  }
+
+  // 1. Create Supabase Auth user
+  const authUserId = await createSupabaseAuthUser(
+    supabaseUrl,
+    serviceKey,
+    email,
+  );
+
+  // 2. Create profile
+  await supabasePost<{ id: number }>(supabaseUrl, serviceKey, "profiles", {
+    user_id: authUserId,
+    email,
+    name: `Mesh Service Account (team ${teamId})`,
+  });
+
+  // 3. Create team membership (admin: true)
+  const member = await supabasePost<{ id: number }>(
+    supabaseUrl,
+    serviceKey,
+    "members",
+    {
+      user_id: authUserId,
+      team_id: teamId,
+      admin: true,
+    },
+  );
+
+  // 4. Assign owner role (role_id = 1)
+  await supabasePost<{ id: number }>(supabaseUrl, serviceKey, "member_roles", {
+    member_id: member.id,
+    role_id: 1,
+  });
+
+  // 5. Create and return API key
+  return getOrCreateDecoApiKey(supabaseUrl, serviceKey, authUserId);
+}
+
 // Require an authenticated user on every handler in this router.
 app.use("*", async (c, next) => {
   const ctx = c.get("meshContext");
@@ -281,15 +400,36 @@ app.post("/connection", async (c) => {
   const { supabaseUrl, serviceKey } = config;
 
   try {
+    // Verify the user has a deco.cx account.
     const profileId = await resolveProfileId(supabaseUrl, serviceKey, email);
     if (!profileId) {
       return c.json({ error: "No deco.cx account found for this user" }, 404);
     }
 
-    const apiKey = await getOrCreateDecoApiKey(
+    // Resolve which team owns this site.
+    const teamId = await resolveTeamIdForSite(
       supabaseUrl,
       serviceKey,
-      profileId,
+      siteName,
+    );
+    if (!teamId) {
+      return c.json({ error: "Site not found or has no team" }, 404);
+    }
+
+    // Verify the user is a member of the site's team.
+    const decoMembership = await supabaseGet<{ id: number }>(
+      supabaseUrl,
+      serviceKey,
+      `members?user_id=eq.${encodeURIComponent(profileId)}&team_id=eq.${teamId}&deleted_at=is.null&select=id&limit=1`,
+    );
+    if (!decoMembership[0]) {
+      return c.json({ error: "You are not a member of this site's team" }, 403);
+    }
+
+    const apiKey = await getOrCreateTeamServiceAccount(
+      supabaseUrl,
+      serviceKey,
+      teamId,
     );
 
     // Fetch tools and scopes from the MCP server before storing, mirroring
