@@ -64,7 +64,7 @@ export function TasksSection({
         : memberFiltered;
 
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex flex-col gap-0.5 mt-1">
       <div className="px-2 h-7 flex items-center justify-between text-xs font-medium text-muted-foreground mb-1">
         <span>{title}</span>
         <div className="flex items-center gap-0.5">
