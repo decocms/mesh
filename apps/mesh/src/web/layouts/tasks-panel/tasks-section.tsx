@@ -16,7 +16,7 @@ type MemberFilter = "all" | "mine";
 
 const FILTER_LABELS: Record<FilterOption, string> = {
   all: "All tasks",
-  manual: "Manual",
+  manual: "Chats",
   automation: "Automation",
 };
 
