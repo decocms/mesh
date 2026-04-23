@@ -1,23 +1,10 @@
 /**
- * Freestyle sandbox runner.
- *
- * Spins up a Freestyle VM per (user, projectRef). The VM runs an in-VM
- * daemon (see `freestyle-daemon-script.ts`) that:
- *   1. Clones the requested repo + checks out the branch
- *   2. Runs `<pm> install`
- *   3. Reverse-proxies `:9000` to the dev server
- *   4. Serves `/_decopilot_vm/*` for file ops + bash + SSE events
- *
- * Persistent state (vmId, previewDomain, repo, workload) lives in
- * `sandbox_runner_state` keyed by `(userId, projectRef, "freestyle")` so a
- * mesh restart can resume an existing VM by `freestyle.vms.ref({ vmId, spec })`
- * without a new create call (which would generate a new public URL).
- *
- * Exec / file ops / preview all hit the public freestyle domain
- * (`<hash>.deco.studio`) — the daemon is reachable from anywhere with the
- * URL, no per-pod bearer token. (Cloudflare WAF in front of the freestyle
- * domain is the only ingress filter; payloads to `/_decopilot_vm/*` are
- * base64-encoded to avoid the WAF matching shell-looking JSON bodies.)
+ * Freestyle sandbox runner. One VM per (user, projectRef). Persistent
+ * state in `sandbox_runner_state` lets a mesh restart resume via
+ * `freestyle.vms.ref({ vmId, spec }).start()` — lose the ref and every
+ * restart would churn a new VM with a new public URL.
+ * Payloads to `/_decopilot_vm/*` are base64-encoded to dodge the
+ * Cloudflare WAF in front of freestyle domains.
  */
 
 import { createHash } from "node:crypto";
@@ -48,17 +35,9 @@ const DEFAULT_IDLE_TIMEOUT_SECONDS = 1800;
 
 interface FreestyleRunnerOptions {
   stateStore?: RunnerStateStore;
-  /**
-   * Root domain for VM preview URLs. Each VM is registered with
-   * `<domainKey>.<previewRootDomain>`. Defaults to `deco.studio`.
-   * Override per environment if the freestyle account uses a different
-   * apex (custom domain).
-   */
+  /** Override when the freestyle account uses a custom apex. Default: `deco.studio`. */
   previewRootDomain?: string;
-  /**
-   * Idle timeout passed to `freestyle.vms.create`. Override for
-   * tests / staging where you want longer-lived VMs.
-   */
+  /** Override for tests / staging where you want longer-lived VMs. */
   idleTimeoutSeconds?: number;
 }
 
@@ -69,12 +48,7 @@ interface FreestyleRecord {
   workdir: string;
   id: SandboxId;
   workload: Workload | null;
-  /**
-   * Inputs needed to rebuild the `VmSpec` on resume after mesh restart.
-   * Freestyle's `ref({ vmId, spec }).start()` wants the same spec the VM
-   * was created with — without it, resume fails and we'd churn a new VM
-   * (and a new public URL) on every restart.
-   */
+  /** Persisted so VmSpec can be rebuilt deterministically on resume. */
   repo: NonNullable<EnsureOptions["repo"]>;
 }
 
@@ -121,11 +95,7 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     }
   }
 
-  /**
-   * Freestyle daemon serves `/_decopilot_vm/bash` directly — no separate
-   * exec channel. We POST through the daemon transport so the bearer/CORS
-   * story is identical to the file-ops path.
-   */
+  /** Routes through the daemon transport so CORS/bearer match file-ops. */
   async exec(handle: string, input: ExecInput): Promise<ExecOutput> {
     const rec = await this.requireRecord(handle);
     const res = await this.postDaemon(rec, "/_decopilot_vm/bash", {
@@ -151,8 +121,7 @@ export class FreestyleSandboxRunner implements SandboxRunner {
       stdout: json.stdout ?? "",
       stderr: json.stderr ?? "",
       exitCode: json.exitCode ?? -1,
-      // Daemon doesn't currently surface a timed-out flag — exitCode === -1
-      // is the closest signal (kill on timeout sets it that way).
+      // Daemon has no timed-out flag; exitCode === -1 is set by kill-on-timeout.
       timedOut: (json.exitCode ?? 0) === -1,
     };
   }
@@ -187,11 +156,7 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     }
   }
 
-  /**
-   * Best-effort liveness via daemon health. Freestyle's SDK doesn't expose
-   * a cheap status check; hitting `/_decopilot_vm/scripts` (a tiny GET) is
-   * the cheapest "is the daemon up" signal we have.
-   */
+  /** Freestyle SDK has no cheap status check; small GET is our best signal. */
   async alive(handle: string): Promise<boolean> {
     const rec = await this.lookupRecord(handle);
     if (!rec) return false;
@@ -213,18 +178,12 @@ export class FreestyleSandboxRunner implements SandboxRunner {
   }
 
   /**
-   * Daemon proxy. Callers speak Docker's canonical `/_daemon/<…>` path
-   * scheme; this method translates to the freestyle daemon's actual paths:
-   *
-   *   `/_daemon/fs/<op>`         → `/_decopilot_vm/<op>`
-   *   `/_daemon/bash`            → `/_decopilot_vm/bash`
-   *   `/_daemon/_decopilot_vm/…` → `/_decopilot_vm/…` (browser SSE)
-   *   `/_daemon/dev/…`           → no-op (returns 204; freestyle's dev server
-   *                                 boots via systemd, not via daemon HTTP)
-   *
-   * Body is base64-encoded for POST/PUT to avoid Cloudflare WAF matching
-   * shell-looking JSON bodies (mirrors the legacy `vm-tools/freestyle.ts`
-   * encoding behavior).
+   * Translates Docker's canonical `/_daemon/*` to freestyle's `/_decopilot_vm/*`:
+   *   /_daemon/fs/<op>         → /_decopilot_vm/<op>
+   *   /_daemon/bash            → /_decopilot_vm/bash
+   *   /_daemon/_decopilot_vm/… → /_decopilot_vm/… (browser SSE)
+   *   /_daemon/dev/…           → 204 (systemd handles dev on freestyle)
+   * Bodies are base64-encoded to dodge the Cloudflare WAF.
    */
   async proxyDaemonRequest(
     handle: string,
@@ -285,10 +244,6 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // internals
-  // ---------------------------------------------------------------------------
-
   private async ensureInner(
     id: SandboxId,
     opts: EnsureOptions,
@@ -338,9 +293,7 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     const state = persisted.state as Partial<PersistedFreestyleState>;
     if (!state.vmId || !state.previewDomain || !state.repo) return null;
     const workload = opts.workload ?? state.workload ?? null;
-    // Rebuild the spec from persisted inputs + caller's workload override.
-    // VmSpec instances are pure builders; rebuilding deterministically
-    // matches what was passed at create time when both inputs match.
+    // VmSpec is a pure builder — deterministic rebuild matches create-time spec.
     const spec = this.buildSpec({
       repo: state.repo,
       workload,
@@ -384,9 +337,7 @@ export class FreestyleSandboxRunner implements SandboxRunner {
         idleTimeoutSeconds: this.idleTimeoutSeconds,
       });
     } catch (err) {
-      // Freestyle wraps server-side failures as `InternalErrorError`. Surface
-      // which call failed so logs distinguish provision-time errors from
-      // resume / start / domain-conflict scenarios.
+      // Freestyle wraps failures as InternalErrorError — name the call site.
       throw new Error(
         `[FreestyleSandboxRunner] vms.create failed for domain=${previewDomain} user=${id.userId} projectRef=${id.projectRef}: ${
           err instanceof Error ? err.message : String(err)
@@ -406,11 +357,9 @@ export class FreestyleSandboxRunner implements SandboxRunner {
   }
 
   /**
-   * Stable per-(userId, projectRef) domain key. 16 hex chars (64 bits) is
-   * enough collision resistance for a per-user routing key. The hash
-   * intentionally uses the new ref shape — so existing prod entries (keyed
-   * off a different hash input pre-Stage 0) won't resume; they'll get a new
-   * VM + new URL on next ensure(). Old VMs idle out via `idleTimeoutSeconds`.
+   * Stable per-(userId, projectRef) domain key. 16 hex (64 bits) is
+   * enough collision resistance for a per-user routing key; old VMs idle
+   * out via `idleTimeoutSeconds`.
    */
   private computeDomainKey(id: SandboxId): string {
     return createHash("sha256")
@@ -546,11 +495,7 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     await this.stateStore.put(id, RUNNER_KIND, { handle: rec.handle, state });
   }
 
-  /**
-   * Internal POST helper for `exec` — uses the same base64-encoding scheme
-   * as `proxyDaemonRequest` so callers see identical behavior whether they
-   * go through the runner's exec method or the proxy.
-   */
+  /** Same base64 scheme as `proxyDaemonRequest` — parity with exec path. */
   private async postDaemon(
     rec: FreestyleRecord,
     path: string,
@@ -567,36 +512,23 @@ export class FreestyleSandboxRunner implements SandboxRunner {
 }
 
 /**
- * Translate Docker's `/_daemon/*` path scheme to freestyle's `/_decopilot_vm/*`.
- * Returns `null` for paths that have no freestyle analogue (caller should
- * 204 / no-op).
- *
- * Exported for unit testing. The mapping is the only Docker-vs-Freestyle
- * surface that's easy to break silently when adding a third runner.
+ * Docker `/_daemon/*` → freestyle `/_decopilot_vm/*`. Returns null for
+ * paths with no freestyle analogue (caller 204s). Exported for tests —
+ * easiest Docker-vs-Freestyle surface to break silently.
  */
 export function translateDaemonPath(path: string): string | null {
   const stripped = path.replace(/^\/_daemon(?=\/|$)/, "") || "/";
-  // dev lifecycle is systemd-managed inside freestyle VMs; no HTTP equivalent.
+  // /dev/* is systemd-managed on freestyle, no HTTP equivalent.
   if (stripped === "/dev" || stripped.startsWith("/dev/")) return null;
-  // SSE + scripts already use the `/_decopilot_vm/` namespace.
   if (stripped.startsWith("/_decopilot_vm/")) return stripped;
-  // File ops live under `/fs/<op>` in Docker's daemon, `/_decopilot_vm/<op>`
-  // in freestyle's. Map them across.
   if (stripped.startsWith("/fs/")) {
     return `/_decopilot_vm/${stripped.slice("/fs/".length)}`;
   }
-  // Bash: Docker has `/_daemon/bash`; freestyle has `/_decopilot_vm/bash`.
   if (stripped === "/bash") return "/_decopilot_vm/bash";
-  // Anything else — pass through as-is. Most likely a 404 on freestyle's side,
-  // which is the right signal to the caller.
+  // Pass through — a 404 on freestyle's side is the right caller signal.
   return stripped;
 }
 
-/**
- * Derive a human-readable repo label from a clone URL.
- * `https://github.com/owner/name.git` → `owner/name`.
- * Falls back to the URL's pathname (or the URL itself if parsing fails).
- */
 function deriveRepoLabel(cloneUrl: string): string {
   try {
     const u = new URL(cloneUrl);
@@ -607,10 +539,7 @@ function deriveRepoLabel(cloneUrl: string): string {
   }
 }
 
-/**
- * Encode a JS string as base64(percent-encoded UTF-8). Mirrors the
- * decode path in `freestyle-daemon-script.ts`'s `parseJsonBody`.
- */
+/** Mirrors the decode path in `freestyle-daemon-script.ts`'s `parseJsonBody`. */
 function encodeBase64Utf8(text: string): string {
   return btoa(
     encodeURIComponent(text).replace(/%([0-9A-F]{2})/g, (_, p1) =>

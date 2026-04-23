@@ -1,9 +1,3 @@
-/**
- * Shared behavior for both VM tool transports: output truncation into the
- * toolOutputMap (so large grep/read/bash results don't blow context), and a
- * stable error shape for transport failures.
- */
-
 import {
   MAX_RESULT_TOKENS,
   createOutputPreview,
@@ -11,9 +5,8 @@ import {
 } from "../read-tool-output";
 
 /**
- * When the result exceeds MAX_RESULT_TOKENS, stash it in `toolOutputMap`
- * keyed by a fresh id and return a preview pointer. The LLM then calls
- * `read_tool_output` with the id to extract what it needs.
+ * Oversized results are stashed in `toolOutputMap` and returned as a preview
+ * pointer; the LLM extracts via `read_tool_output`.
  */
 export function maybeTruncate(
   result: unknown,

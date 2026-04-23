@@ -1,12 +1,6 @@
 /**
- * Wire-protocol helpers for the sandbox daemon's HTTP API.
- *
- * All control-plane routes live under `/_daemon/*` on the daemon's port.
- * Callers pass the full path (including the `/_daemon` prefix) — the helpers
- * don't magic it in, so each call site is greppable.
- *
- * Pure functions parameterised by `(daemonUrl, token, …)` — no class state,
- * no docker CLI. Reusable from any runner that targets the same daemon image.
+ * Pure helpers for the daemon's `/_daemon/*` HTTP API. Callers pass the full
+ * path (incl. `/_daemon`) so call sites stay greppable.
  */
 
 import { gitIdentityScript, shellQuote, sleep } from "../shared";
@@ -17,7 +11,6 @@ const HEALTH_PROBE_TIMEOUT_MS = 500;
 const READY_ATTEMPTS = 25;
 const READY_INTERVAL_MS = 200;
 
-/** One-shot GET /health — true iff the daemon answers ok within the probe window. */
 export async function probeDaemonHealth(daemonUrl: string): Promise<boolean> {
   try {
     const res = await fetch(`${daemonUrl}/health`, {
@@ -29,7 +22,7 @@ export async function probeDaemonHealth(daemonUrl: string): Promise<boolean> {
   }
 }
 
-/** Poll /health until ready; throws on timeout. Does not stop the container. */
+/** Polls /health; throws on timeout. Does not stop the container. */
 export async function waitForDaemonReady(daemonUrl: string): Promise<void> {
   for (let i = 0; i < READY_ATTEMPTS; i++) {
     if (await probeDaemonHealth(daemonUrl)) return;
@@ -42,7 +35,6 @@ export async function waitForDaemonReady(daemonUrl: string): Promise<void> {
   );
 }
 
-/** POST /_daemon/bash — run a shell command inside the container. */
 export async function daemonBash(
   daemonUrl: string,
   token: string,
@@ -84,20 +76,11 @@ export async function daemonBash(
 }
 
 /**
- * Idempotent repo bootstrap: sets global git identity, then clones into
- * `workdir`. Three branches:
- *  - `workdir/.git` exists → already a repo, skip.
- *  - `workdir` empty → clone directly.
- *  - `workdir` non-empty and not a repo → late-attach. Move every existing
- *    file (including dotfiles) into a sibling `<workdir>.prelink.<unix-ts>/`
- *    backup so the clone can proceed without clobbering user work.
- *
- * When `repo.branch` is set, an additional step resolves the branch after
- * clone: fetch it from origin when the remote has it, otherwise create it
- * locally off whatever the clone landed on (typically the default branch).
- * This mirrors the Freestyle daemon's branch-resolution behavior so docker
- * sandboxes start on the branch the caller requested instead of silently
- * sitting on the default.
+ * Idempotent repo bootstrap. Three branches: (1) `.git` exists → skip;
+ * (2) workdir empty → clone; (3) workdir non-empty → late-attach by moving
+ * existing files to `<workdir>.prelink.<ts>/` before cloning.
+ * Post-clone branch resolution (fetch-or-create) mirrors the Freestyle daemon
+ * so docker sandboxes land on the requested branch, not the default.
  */
 export async function bootstrapRepo(
   daemonUrl: string,
@@ -110,8 +93,7 @@ export async function bootstrapRepo(
 
   const cloneBlock = `if [ -d ${qWorkdir}/.git ]; then echo "workdir already a git repo, skipping clone"; elif [ -z "$(ls -A ${qWorkdir} 2>/dev/null)" ]; then git clone ${qCloneUrl} ${qWorkdir}; else BACKUP=${qWorkdir}.prelink.$(date +%s) && mkdir -p "$BACKUP" && ( shopt -s dotglob nullglob && mv ${qWorkdir}/* "$BACKUP"/ ) && echo "moved pre-link contents to $BACKUP" && git clone ${qCloneUrl} ${qWorkdir}; fi`;
 
-  // Validate branch name shape before interpolating — defense in depth even
-  // though the shell-quoting is already safe, mirrors daemon.ts runSetup().
+  // Defense-in-depth branch name validation, mirrors daemon.ts runSetup().
   const branchBlock = (() => {
     if (!repo.branch) return null;
     if (
@@ -131,7 +113,7 @@ export async function bootstrapRepo(
   ]
     .filter((part): part is string => part !== null)
     .join(" && ");
-  // git clone for medium repos can easily exceed the default 60s exec timeout.
+  // Medium repos routinely exceed the default 60s exec timeout.
   const result = await daemonBash(daemonUrl, token, {
     command: cmd,
     timeoutMs: 10 * 60_000,
@@ -143,11 +125,8 @@ export async function bootstrapRepo(
   }
 }
 
-/**
- * Dropped before proxying to the daemon: mesh session cookies (otherwise
- * user code inside the sandbox sees the caller's session) plus hop-by-hop
- * headers per RFC 7230.
- */
+// Dropped before proxying: session cookies (user code must not see the
+// caller's session) + hop-by-hop headers per RFC 7230.
 const STRIP_REQUEST_HEADERS = [
   "cookie",
   "host",
@@ -163,15 +142,9 @@ const STRIP_REQUEST_HEADERS = [
 ];
 
 /**
- * HTTP passthrough to the daemon. Caller passes the full daemon path
- * (e.g. `/_daemon/dev/status`). The browser's cookies + auth header are
- * dropped and replaced with the bearer. Returns the native `Response` so the
- * body streams through without buffering.
- *
- * `signal` must be the client's AbortSignal (e.g. `c.req.raw.signal` in
- * Hono). For long-lived streams — especially SSE — the browser closing the
- * connection has to cascade all the way to the daemon so it can drop the
- * subscriber.
+ * HTTP passthrough to the daemon. Returns the native Response (streamed, not
+ * buffered). `signal` must be the client's AbortSignal — closing the browser
+ * connection must cascade to the daemon so SSE subscribers are dropped.
  */
 export async function proxyDaemonRequest(
   daemonUrl: string,

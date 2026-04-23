@@ -8,11 +8,8 @@ import { join } from "path";
 
 const repoRoot = join(import.meta.dir, "..");
 
-// Hot-reload the sandbox daemon inside the container: the Docker runner
-// reads this env var and, when set, bind-mounts the host source over
-// `/opt/sandbox-daemon` + runs it under `node --watch`. Saving any .mjs
-// under `packages/mesh-plugin-user-sandbox/image/` restarts the daemon in
-// place — no `docker build`, no container restart by hand.
+// Hot-reload the sandbox daemon: Docker runner bind-mounts this dir over
+// `/opt/sandbox-daemon` and runs it under `node --watch`. No rebuild needed.
 const sandboxDaemonDir = join(
   repoRoot,
   "packages/mesh-plugin-user-sandbox/image",

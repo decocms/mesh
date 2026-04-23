@@ -1,13 +1,8 @@
 #!/usr/bin/env node
 /**
- * Sandbox daemon entry: builds the HTTP server, routes control-plane requests
- * under `/_daemon/*`, and tears down the dev process on SIGINT/SIGTERM.
- *
- * Port layout inside the container:
- *   - `:DEV_PORT` (3000)  — the user's dev server, bound directly. Pods
- *     expose this port externally; the daemon does NOT proxy dev traffic.
- *   - `:DAEMON_PORT` (9000) — this daemon. Everything is under `/_daemon/*`
- *     and bearer-authed. Anything else on 9000 returns 404.
+ * Port layout: :DEV_PORT (3000) = user's dev server, bound directly (pods
+ * expose it; daemon does NOT proxy dev traffic). :DAEMON_PORT (9000) = this
+ * daemon, all routes under `/_daemon/*` and bearer-authed.
  */
 
 import { spawn } from "node:child_process";
@@ -74,11 +69,7 @@ function runBash(command, timeoutMs, cwd = WORKDIR) {
   });
 }
 
-/**
- * Reject any request that still carries a `threadId` param, so stale callers
- * surface as 400s instead of being silently accepted. Pod-per-thread → the
- * daemon has no thread concept any more.
- */
+/** Pod-per-thread: reject stale `threadId` callers with 400. */
 async function rejectsThreadId(req, res, url) {
   const u = new URL(url, "http://local");
   if (u.searchParams.has("threadId")) {
@@ -99,8 +90,7 @@ async function rejectsThreadId(req, res, url) {
         });
         return true;
       }
-      // Stash the already-parsed body so route handlers don't re-read the
-      // stream (Node's IncomingMessage only yields its data once).
+      // IncomingMessage yields data once — stash for downstream handlers.
       req._parsedBody = body ?? {};
     }
   }
@@ -108,9 +98,7 @@ async function rejectsThreadId(req, res, url) {
 }
 
 const server = http.createServer(async (req, res) => {
-  // Health is intentionally unauthenticated — runner probes it before a
-  // token is in play. No /_daemon prefix because this is the only non-
-  // /_daemon route the daemon answers.
+  // Unauthenticated: runner probes health before token exists.
   if (req.method === "GET" && req.url === "/health") {
     send(res, 200, { ok: true });
     return;
@@ -118,19 +106,16 @@ const server = http.createServer(async (req, res) => {
 
   const rawUrl = req.url ?? "/";
 
-  // Everything else must be under /_daemon/*. Anything else is 404.
   if (!rawUrl.startsWith(`${DAEMON_PREFIX}/`) && rawUrl !== DAEMON_PREFIX) {
     send(res, 404, { error: "not found" });
     return;
   }
 
-  // Sub-path after the daemon prefix, with query preserved.
   const sub = rawUrl.slice(DAEMON_PREFIX.length);
   const subUrl = sub.length === 0 ? "/" : sub;
 
-  // CORS preflight for daemon-direct routes. Mesh normally proxies these
-  // server-to-server so preflight rarely fires in practice, but browsers
-  // that hit the daemon directly (dev loops, tools) still need the OK.
+  // Preflight for clients that hit the daemon directly (dev loops, tools);
+  // mesh normally proxies server-to-server.
   if (
     req.method === "OPTIONS" &&
     (subUrl.startsWith("/fs/") || subUrl.startsWith("/_decopilot_vm/"))

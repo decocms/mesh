@@ -1,21 +1,9 @@
 /**
- * VmEventsProvider — owns exactly one SSE connection to the VM daemon's
- * /_decopilot_vm/events endpoint and fans out to all consumers via context.
- *
- * Replaces the previous per-consumer EventSource model (preview + env +
- * header-actions each opening their own). Multiplexing prevents hitting
- * the daemon's MAX_SSE_CLIENTS cap.
- *
- * Consumers read state via useVmEvents() (argless). PTY chunk subscribers
- * register with useVmChunkHandler(fn); iframe-reload subscribers register
- * with useVmReloadHandler(fn) — both backed by ref-counted Sets owned by
- * the provider.
- *
- * The caller passes `daemonBaseUrl` — a URL that the EventSource can hit
- * directly. Docker runners route through the mesh proxy
- * (`/api/sandbox/<vmId>/_daemon`) so the bearer token stays server-side;
- * Freestyle runners hit the VM's own domain. The provider appends
- * `/_decopilot_vm/events` to whichever base it gets.
+ * Single SSE connection to the VM daemon, fanned out via context — one
+ * EventSource instead of per-consumer (which would hit MAX_SSE_CLIENTS).
+ * daemonBaseUrl: docker goes through `/api/sandbox/<vmId>/_daemon` (bearer
+ * stays server-side); freestyle hits the VM's own domain directly. Provider
+ * appends `/_decopilot_vm/events`.
  */
 
 import {
@@ -38,11 +26,7 @@ export interface BranchStatus {
   unpushed: number;
   aheadOfBase: number;
   behindBase: number;
-  /**
-   * Current HEAD sha of the local branch (falls back to origin/<branch>
-   * when the remote-tracking ref exists). Empty string if the daemon
-   * couldn't compute it.
-   */
+  /** HEAD sha (falls back to origin/<branch>). Empty if the daemon couldn't compute it. */
   headSha: string;
 }
 
@@ -52,28 +36,15 @@ export type ReloadHandler = () => void;
 export interface VmEventsValue {
   status: VmStatus;
   suspended: boolean;
-  /**
-   * True when the daemon endpoint reports 404 — the handle no longer exists
-   * in sandbox_runner_state. Callers should reprovision via VM_START rather
-   * than retry forever. Cleared when daemonBaseUrl changes.
-   */
+  /** 404 on daemon endpoint = handle gone; reprovision via VM_START. Cleared on daemonBaseUrl change. */
   notFound: boolean;
   scripts: string[];
   activeProcesses: string[];
   branchStatus: BranchStatus | null;
   getBuffer: (source: string) => string;
   hasData: (source: string) => boolean;
-  /**
-   * Register a chunk handler. Returns an unsubscribe function.
-   * Handlers are invoked synchronously on every "log" SSE event.
-   */
   subscribeChunks: (handler: ChunkHandler) => () => void;
-  /**
-   * Register a reload handler. Returns an unsubscribe function.
-   * Handlers are invoked synchronously on every "reload" SSE event —
-   * used for iframe refresh on config edits that framework HMR doesn't
-   * watch.
-   */
+  /** "reload" SSE fires on config edits framework HMR doesn't watch. */
   subscribeReload: (handler: ReloadHandler) => () => void;
 }
 
@@ -110,13 +81,9 @@ class ChunkBuffer {
   }
 }
 
-/**
- * Time the connection must stay down before we declare the VM "suspended".
- * We key off connection state (not event silence) because a ready-state
- * dev server legitimately has nothing to emit. The daemon ships an SSE
- * comment every 15s which keeps TCP warm and makes `EventSource.onerror`
- * fire promptly when the VM actually goes away.
- */
+// Keyed on connection state (NOT event silence) — a ready dev server has
+// nothing to emit. Daemon sends a 15s SSE heartbeat to keep TCP warm so
+// EventSource.onerror fires promptly when the VM actually goes away.
 const SUSPENDED_AFTER_ERROR_MS = 60_000;
 
 const BASE_RECONNECT_DELAY_MS = 1_000;
@@ -147,9 +114,7 @@ export function VmEventsProvider({
   const [scripts, setScripts] = useState<string[]>([]);
   const [activeProcesses, setActiveProcesses] = useState<string[]>([]);
   const [branchStatus, setBranchStatus] = useState<BranchStatus | null>(null);
-  // Bumped whenever log chunks land so consumers reading `getBuffer` /
-  // `hasData` during render see fresh data — buffer mutation alone doesn't
-  // trigger a re-render.
+  // Bumped on log chunks so getBuffer/hasData consumers re-render; buffer mutation alone doesn't.
   const [, setLogTick] = useState(0);
 
   const buffers = useRef(new Map<string, ChunkBuffer>());
@@ -167,8 +132,7 @@ export function VmEventsProvider({
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — SSE subscription lifecycle requires cleanup on unmount; single EventSource with reconnect logic
   useEffect(() => {
-    // Reset state whenever the daemon URL changes (including clearing to null
-    // when the VM goes away) so stale data doesn't linger across branches.
+    // Reset on daemon URL change so stale data doesn't linger across branches.
     setStatus({ ready: false, htmlSupport: false });
     setSuspended(false);
     setNotFound(false);
@@ -189,10 +153,8 @@ export function VmEventsProvider({
     let es: EventSource | null = null;
     const probeAbort = new AbortController();
 
-    // One-shot status probe. EventSource's onerror doesn't expose the HTTP
-    // status, so we fetch the same URL once to distinguish "sandbox deleted"
-    // (404 → permanent until daemonBaseUrl changes) from a transient
-    // disconnect.
+    // EventSource.onerror doesn't expose HTTP status; fetch once to distinguish
+    // 404 (sandbox deleted, permanent) from a transient disconnect.
     async function probeMissing(): Promise<boolean> {
       try {
         const res = await fetch(sseUrl, {
@@ -201,7 +163,6 @@ export function VmEventsProvider({
           cache: "no-store",
           signal: probeAbort.signal,
         });
-        // We only care about the status code; cancel the stream immediately.
         if (res.body) {
           try {
             await res.body.cancel();
@@ -236,9 +197,7 @@ export function VmEventsProvider({
 
         if (e.type === "log" && typeof data.data === "string") {
           const source = data.source as string;
-          // xterm.js treats bare `\n` as "cursor down, keep column" — the
-          // daemon forwards raw `\n` from child stdout, so without this each
-          // line would start wherever the previous one ended.
+          // xterm.js reads bare `\n` as "cursor down, keep column" — normalize.
           const normalized = data.data.replace(/\r?\n/g, "\r\n");
           getOrCreateBuffer(source).append(normalized);
           for (const fn of chunkHandlers.current) {
@@ -295,9 +254,7 @@ export function VmEventsProvider({
 
       es.onerror = () => {
         if (es?.readyState !== EventSource.CLOSED) return;
-        // Start (or keep running) the suspend timer only while we're
-        // actively disconnected. If we reconnect before it fires, the next
-        // onopen clears it.
+        // Timer runs only while disconnected; onopen clears it on reconnect.
         enterSuspendTimerIfIdle();
         if (hasProbed) {
           scheduleReconnect();
@@ -307,9 +264,8 @@ export function VmEventsProvider({
         probeMissing().then((missing) => {
           if (disposed) return;
           if (missing) {
-            // Sandbox is gone — stop reconnecting and surface the signal so
-            // the caller can reprovision via VM_START. A fresh entry in
-            // vmMap changes daemonBaseUrl, which remounts this effect.
+            // Sandbox gone — stop reconnecting; caller reprovisions via VM_START,
+            // which changes daemonBaseUrl and remounts this effect.
             setNotFound(true);
             return;
           }

@@ -1,9 +1,3 @@
-/**
- * Docker CLI primitives used by the sandbox runner. One module for the
- * spawn-and-parse plumbing (`dockerExec`) and the higher-level `docker run -d`
- * helper (`startContainer`) so the runner can focus on flag assembly.
- */
-
 import { spawn } from "node:child_process";
 
 export interface DockerResult {
@@ -12,10 +6,7 @@ export interface DockerResult {
   code: number;
 }
 
-/**
- * Canonical workdir inside every sandbox image. Overridable per-ensure via
- * `EnsureOptions.workdir`, but by default thread containers start here.
- */
+/** Default workdir inside sandbox images; overridable via `EnsureOptions.workdir`. */
 export const DEFAULT_WORKDIR = "/app";
 
 export type DockerExecFn = (
@@ -24,12 +15,8 @@ export type DockerExecFn = (
 ) => Promise<DockerResult>;
 
 /**
- * Run `docker <args>`. When `timeoutMs` is set, a SIGKILL is delivered on
- * expiry and the stderr is augmented with a `[docker <subcommand>] timed out
- * after <ms>ms` line so upstream errors are self-diagnosing.
- *
- * ENOENT at spawn time is rewritten into a human-readable "install Docker"
- * error — by far the most common failure mode on fresh dev machines.
+ * On timeout, SIGKILL + append `[docker <sub>] timed out after <ms>ms` to
+ * stderr. ENOENT at spawn is rewritten to an "install Docker" message.
  */
 export function dockerExec(
   args: string[],
@@ -72,29 +59,17 @@ export function dockerExec(
 }
 
 export interface StartContainerOptions {
-  /**
-   * Flags appended to `docker run -d` (before the image). Caller owns labels,
-   * mounts, port mappings, env, entrypoint overrides.
-   */
+  /** Flags passed before the image; caller owns labels, mounts, ports, env, entrypoint. */
   args: readonly string[];
-  /** Command + args to run as the container's main process (after the image). */
   command?: readonly string[];
   timeoutMs?: number;
-  /** Short human label (e.g. "sandbox") used in error messages. */
+  /** Short label used in error messages. */
   label: string;
-  /**
-   * Optional override of the docker-cli spawn. Defaults to the shared
-   * `dockerExec`. Exposed so `DockerSandboxRunner`'s test-mode `exec`
-   * injection continues to work through this helper.
-   */
+  /** Override for test-mode `exec` injection from DockerSandboxRunner. */
   exec?: DockerExecFn;
 }
 
-/**
- * `docker run -d <args> <image> [command...]` — detached launch, parse the
- * container id off stdout, throw with a readable message on spawn failure or
- * missing id.
- */
+/** `docker run -d <args> <image> [command...]` — returns container id. */
 export async function startContainer(
   image: string,
   opts: StartContainerOptions,

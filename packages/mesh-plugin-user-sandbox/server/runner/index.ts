@@ -1,18 +1,6 @@
 /**
- * Sandbox runner package public surface.
- *
- * Exports:
- *  - The `SandboxRunner` interface every runner implements.
- *  - `DockerSandboxRunner` (the only first-party runner that ships in this
- *    package — Docker has no apps/mesh-level deps).
- *  - `composeSandboxRef` and supporting types — single source of truth for
- *    `projectRef` encoding.
- *  - State-store contracts so host apps can plug their own persistence.
- *
- * Other runners (Freestyle, Kubernetes, …) live in apps/mesh because their
- * SDKs introduce dependencies that don't belong in this package's surface.
- * They implement the `SandboxRunner` interface re-exported here and slot
- * into the host app's `getRunnerByKind` factory.
+ * Public surface. Ships `DockerSandboxRunner` only — runners with heavy SDKs
+ * (Freestyle, K8s) live in apps/mesh and slot into `getRunnerByKind`.
  */
 
 import { spawnSync } from "node:child_process";
@@ -53,9 +41,8 @@ export {
 } from "./sandbox-ref";
 
 /**
- * Runner kinds the system knows about. Used as the discriminator on
- * `SandboxRunner.kind`, on `sandbox_runner_state.runner_kind`, and on
- * `vmMap` entries. Keep in sync with each runner's `readonly kind`.
+ * Discriminator used on `SandboxRunner.kind`, `sandbox_runner_state.runner_kind`,
+ * and `vmMap` entries. Keep in sync with each runner's `readonly kind`.
  */
 export type RunnerKind = "docker" | "freestyle";
 
@@ -64,11 +51,7 @@ export interface CreateDockerRunnerOptions {
   docker?: Omit<DockerRunnerOptions, "stateStore">;
 }
 
-/**
- * Construct a `DockerSandboxRunner` with an injected state store. Convenience
- * for host apps that wire only the in-package runner directly. For runners
- * that live in apps/mesh (Freestyle), construct the class explicitly.
- */
+/** Convenience for host apps wiring only the in-package runner. */
 export function createDockerRunner(
   opts: CreateDockerRunnerOptions = {},
 ): SandboxRunner {
@@ -80,12 +63,7 @@ export function createDockerRunner(
 
 let cachedDockerInstalled: boolean | null = null;
 
-/**
- * Best-effort probe: is the `docker` CLI on PATH? We only care that the
- * binary exists — actually reaching the daemon is a separate concern that
- * surfaces at first use. Cached after the first call because this runs on
- * every `resolveRunnerKindFromEnv()` in the default-local path.
- */
+/** Probes only the CLI presence (not daemon reachability). Cached. */
 function isDockerInstalled(): boolean {
   if (cachedDockerInstalled !== null) return cachedDockerInstalled;
   try {
@@ -101,18 +79,11 @@ function isDockerInstalled(): boolean {
 }
 
 /**
- * Resolve the active runner kind.
- *
  * Rules:
- *   1. `MESH_SANDBOX_RUNNER=docker|freestyle` — explicit, always honored.
- *   2. Production with no explicit value — throw. Operators must opt in
- *      to a runner; we do not silently pick one for a production deploy.
- *   3. Local dev with no explicit value — `docker` when the CLI is on
- *      PATH. If not, throw with a message asking the operator to install
- *      Docker or set the env explicitly.
- *
- * Freestyle is never picked implicitly — the SDK is an optional dependency
- * and its runner is dynamically imported by the host app only when selected.
+ *   1. `MESH_SANDBOX_RUNNER=docker|freestyle` — honored.
+ *   2. Production w/o explicit value — throw (no silent picks in prod).
+ *   3. Dev w/o explicit value — docker if CLI present, else throw.
+ * Freestyle is never picked implicitly (optional dep, dynamically imported).
  */
 export function resolveRunnerKindFromEnv(): RunnerKind {
   const raw = process.env.MESH_SANDBOX_RUNNER;

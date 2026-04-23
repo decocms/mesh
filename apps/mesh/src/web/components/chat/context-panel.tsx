@@ -232,15 +232,12 @@ export function ChatContextPanel({
     }>,
   );
 
-  // Context % reflects the last assistant turn's end-of-turn context fill,
-  // not the cumulative billed tokens summed across the whole session.
+  // Context % = last assistant turn's end-of-turn fill, NOT cumulative billed tokens.
   const lastAssistantMessage = [...(messages as ChatMessage[])]
     .reverse()
     .find((m) => m.role === "assistant" && m.metadata?.usage);
   const lastAssistantUsage = lastAssistantMessage?.metadata?.usage;
-  // Prefer runtime-reported limits from the last assistant message (Claude
-  // Code fills these from the CLI's result message); fall back to the model
-  // catalog.
+  // Prefer runtime-reported limits (Claude Code fills these from CLI result); fall back to catalog.
   const contextWindow =
     lastAssistantMessage?.metadata?.modelLimits?.contextWindow ??
     selectedModel?.limits?.contextWindow ??

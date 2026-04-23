@@ -1,16 +1,7 @@
 /**
- * call-vm-tool — wrapper around `mcpClient.callTool` that surfaces
- * MCP-protocol errors as thrown exceptions.
- *
- * The MCP TypeScript SDK does NOT throw when a tool handler throws on the
- * server side. Instead it returns a successful Promise resolving to
- * `{ isError: true, content: [{ type: "text", text: "<msg>" }] }`. Naively
- * `.catch()`-ing the promise misses every server-side failure — which is
- * how VM_START bootstrap failures (bad GitHub token, clone refused, etc.)
- * were silently being swallowed and the UI hung on "Booting…" forever.
- *
- * Use this helper for any VM-related callTool so the failure path is
- * uniform and surfaceable.
+ * MCP SDK does NOT throw on server-side tool errors — it returns a resolved
+ * promise with `{ isError: true, ... }`. `.catch()` misses everything. Use
+ * this wrapper so VM bootstrap failures don't hang the UI on "Booting…".
  */
 
 interface MinimalMcpClient {
@@ -26,12 +17,6 @@ interface McpToolResult {
   structuredContent?: unknown;
 }
 
-/**
- * Calls an MCP tool and throws an `Error` whose `.message` is the
- * server-reported failure text whenever the response carries
- * `isError: true`. Returns the raw `CallToolResult` on success so the
- * caller can read `structuredContent` / `content` as usual.
- */
 export async function callVmTool(
   client: MinimalMcpClient,
   name: string,

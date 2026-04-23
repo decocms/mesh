@@ -223,9 +223,7 @@ function AgentInsetProvider() {
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
   const vmMap = entity?.metadata?.vmMap;
-  // Daemon base URL for `/_decopilot_vm/*` calls. Docker goes through the
-  // mesh proxy at `/api/sandbox/<vmId>/_daemon` (bearer token stays
-  // server-side); Freestyle hits the VM's own domain directly.
+  // daemonBaseUrl routing rationale: see VmEventsProvider.
   const vmEntry =
     userId && urlBranch ? (vmMap?.[userId]?.[urlBranch] ?? null) : null;
   const vmDaemonBaseUrl = vmEntry
@@ -240,10 +238,8 @@ function AgentInsetProvider() {
     if (!userId) return;
     const userBranches = vmMap?.[userId];
     const existing = userBranches ? Object.keys(userBranches)[0] : undefined;
-    // URL only — this runs outside Chat.Provider so we can't reach the
-    // thread-persistence helpers. The branch lands on thread.branch when
-    // createMemory sees it on the first stream request; until then the
-    // thread is cache-only anyway.
+    // URL only — runs outside Chat.Provider (no thread-persistence helpers).
+    // createMemory writes thread.branch on the first stream request.
     setBranch(existing ?? generateBranchName());
   }, [urlBranch, hasActiveGithubRepo, setBranch, userId, vmMap]);
 

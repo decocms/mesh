@@ -25,12 +25,6 @@ import { createWebSearchTool } from "./web-search";
 import type { ModelsConfig } from "../types";
 import type { MeshProvider } from "@/ai-providers/types";
 
-/**
- * Active VM descriptor — resolved from `vmMap[userId][branch]` on the
- * Virtual MCP. Both runners flow through `SandboxRunner` so the descriptor
- * collapses to one shape: the runner kind (which routes to the right
- * singleton via `getRunnerByKind`) plus the runner-internal handle.
- */
 export type ActiveVm = {
   runnerKind: RunnerKind;
   vmId: string;

@@ -61,7 +61,6 @@ export function PreviewContent() {
     useState<VisualEditorPayload | null>(null);
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Read VM data from entity metadata, keyed by (userId, branch).
   // vmMap[userId][branch] -> { vmId, previewUrl, runnerKind? }
   const userId = session?.user?.id;
   const metadata = inset?.entity?.metadata as
@@ -71,10 +70,7 @@ export function PreviewContent() {
     userId && branch ? metadata?.vmMap?.[userId]?.[branch] : undefined;
   const previewUrl = vmEntry?.previewUrl ?? null;
 
-  // Read SSE state from the shared VmEventsProvider. Subscribe to the
-  // daemon's "reload" event for iframe refresh on config edits that
-  // framework HMR doesn't watch (.ts/.tsx edits go through the framework's
-  // own reload path).
+  // "reload" fires on config edits framework HMR won't catch (.ts/.tsx use HMR).
   const vmEvents = useVmEvents();
   useVmReloadHandler(() => {
     const iframe = previewIframeRef.current;
@@ -86,17 +82,9 @@ export function PreviewContent() {
   const hasHtmlPreview = vmEvents.status.htmlSupport;
   const suspended = vmEvents.suspended;
 
-  // Gate the iframe on upstream readiness so the user doesn't see the
-  // browser's "didn't send any data" page while the container is still
-  // booting / installing / waiting for the dev server to bind. Once the
-  // upstream has ever reported ready for this previewUrl, keep the iframe
-  // mounted — brief HMR hiccups shouldn't re-show the boot screen.
-  //
-  // `at` anchors the booting overlay's elapsed timer. We prefer the
-  // server-stamped `vmEntry.createdAt` (persisted in vmMap) so the timer
-  // survives browser reloads and tab remounts; only fall back to the
-  // client-observed mount moment for legacy entries written before the
-  // field existed.
+  // Gate iframe on upstream readiness to avoid "didn't send any data" page;
+  // keep mounted once ever-ready so HMR hiccups don't re-show the boot screen.
+  // `at` uses server-stamped vmEntry.createdAt so the timer survives remounts.
   const bootTrackedRef = useRef<{ url: string; at: number; ready: boolean }>({
     url: "",
     at: 0,
@@ -114,18 +102,10 @@ export function PreviewContent() {
   }
   const booting = !!previewUrl && !bootTrackedRef.current.ready && !suspended;
 
-  // VM_START routing. One mutation, two triggers (auto-start, self-heal),
-  // plus a manual retry button. The mutation owns the in-flight + error
-  // state, so we no longer need to ping-pong an error string through the
-  // SSE provider just to share it across triggers within this component.
-  //
-  // Dedup is split by trigger because the *meaning* of "already tried"
-  // differs:
-  //   - auto-start: once per taskId (fresh task → fresh attempt)
-  //   - self-heal: once per dead vmId (don't loop on repeated 404s for the
-  //     same handle; a brand-new vmId after a successful reprovision is
-  //     fair game).
-  // Putting both in the same ref would conflate them.
+  // One mutation, two triggers. Dedup differs by meaning:
+  //   auto-start: once per taskId
+  //   self-heal:  once per dead vmId (don't loop on repeat 404s; new vmId OK)
+  // A shared ref would conflate them.
   const virtualMcpId = inset?.entity?.id ?? null;
   const mcpClient = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -136,21 +116,15 @@ export function PreviewContent() {
   const autoStartedForTaskRef = useRef<string | null>(null);
   const reprovisionedForVmIdRef = useRef<string | null>(null);
 
-  // The trigger function captures `branch`, `virtualMcpId`, the mutation,
-  // and `setCurrentTaskBranch` — all of which churn on unrelated renders.
-  // We funnel it through a ref-latest so the auto-start / self-heal
-  // effects below can have honest, minimal dep arrays (only the upstream
-  // *signals* that should cause a fire, not the closure inputs the
-  // function happens to read). This mirrors the pattern already used by
-  // useVmChunkHandler / useVmReloadHandler in this directory.
+  // ref-latest pattern: effects below depend only on upstream signals, not
+  // on this closure's churning captures (branch, mutation, setter).
   const triggerStart = (reason: "auto-start" | "self-heal") => {
     if (!virtualMcpId) return;
     const args: VmStartArgs = { virtualMcpId };
     if (branch) args.branch = branch;
     startVm.mutate(args, {
       onSuccess: (data) => {
-        // VM_START generates a branch when none was passed; persist it to
-        // the URL so subsequent renders resolve via vmMap[userId][branch].
+        // Server-generated branch: persist so later renders resolve via vmMap.
         if (data?.branch && !branch) setCurrentTaskBranch(data.branch);
       },
       onError: (err) => {
@@ -161,18 +135,10 @@ export function PreviewContent() {
   const triggerStartRef = useRef(triggerStart);
   triggerStartRef.current = triggerStart;
 
-  // Auto-start for github-linked threads when no vmEntry exists. Semantics:
-  // *if you arrive at a task with no VM, provision one* — NOT *ensure a VM
-  // always exists*. Once we've ever seen a vmEntry for this taskId, the
-  // user owns its lifecycle, and an explicit stop must NOT re-trigger
-  // auto-start (otherwise it races with the user's next manual Start in
-  // the env panel and two VM_STARTs fight over the vmMap slot, which
-  // typically lands the iframe on a half-booted sandbox stuck on
-  // "Starting dev server").
-  //
-  // Mark the ref the moment we observe an existing entry, *before*
-  // evaluating shouldAutoStart, so a transient null between user stop and
-  // user start can't sneak through.
+  // Auto-start = "arrive → provision one", NOT "always ensure exists". Once
+  // a vmEntry is seen for this taskId, explicit stop must NOT re-trigger (or
+  // it races the user's manual Start). Mark ref on first-sight, BEFORE
+  // evaluating shouldAutoStart, so a transient null can't sneak through.
   if (taskId && vmEntry && autoStartedForTaskRef.current !== taskId) {
     autoStartedForTaskRef.current = taskId;
   }
@@ -191,11 +157,7 @@ export function PreviewContent() {
     triggerStartRef.current("auto-start");
   }, [shouldAutoStart, taskId]);
 
-  // Self-heal when vmMap points at a sandbox that no longer exists. The SSE
-  // probe in useVmEvents flips `notFound` on 404; VM_START purges the stale
-  // handle and writes a fresh entry into vmMap (Docker: via runner.ensure;
-  // Freestyle: via the stale-entry fallback). Dedup by the dead vmId so we
-  // don't loop on repeated 404s for the same handle.
+  // Self-heal stale vmMap entries (SSE 404 → notFound). Dedup by dead vmId.
   const deadVmId = vmEvents.notFound ? (vmEntry?.vmId ?? null) : null;
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — one-shot reprovision trigger gated on the notFound→deadVmId derivation
   useEffect(() => {
@@ -213,7 +175,6 @@ export function PreviewContent() {
     triggerStartRef.current("auto-start");
   };
 
-  // Visual-editor postMessage listener.
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — DOM event subscription
   useEffect(() => {
     if (!previewUrl) return;
@@ -375,11 +336,8 @@ export function PreviewContent() {
         )}
         {previewUrl && !booting && (
           <iframe
-            // Keyed on previewUrl so cross-branch navigation unmounts the
-            // old frame and mounts a fresh one — `src` mutations on the
-            // same element don't reliably refetch in every browser, and
-            // also leaks in-frame state (postMessage listeners, scroll
-            // position) from the previous branch.
+            // Key on previewUrl: `src` mutations don't reliably refetch in all
+            // browsers and leak in-frame state across branches.
             key={previewUrl}
             ref={previewIframeRef}
             src={previewUrl}

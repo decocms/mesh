@@ -1,11 +1,6 @@
 /**
- * Dev-server lifecycle: install if needed, spawn the configured dev script,
- * track phases, and tear it down cleanly. One dev process per pod.
- *
- * The dev server MUST bind `0.0.0.0:3000` inside the container. Pods expose
- * :3000 externally (the daemon does not proxy dev traffic), so a framework
- * that ignores $PORT will leave this daemon in phase=`crashed` with a clear
- * readiness-probe timeout message.
+ * Dev server MUST bind 0.0.0.0:3000; frameworks that ignore $PORT will
+ * land in phase=`crashed` via readiness-probe timeout.
  */
 
 import { spawn } from "node:child_process";
@@ -37,11 +32,8 @@ const READINESS_TIMEOUT_MS = 60_000;
 function killDev(signal = "SIGTERM") {
   if (!dev.child || dev.child.pid == null) return;
   try {
-    // Signal the script runner directly (not the process group). Runners
-    // like `deno task`, `bun run`, and `pnpm run` trap SIGTERM and forward
-    // it to their child; broadcasting to the pgid would signal the user's
-    // server twice. `waitForExit` still escalates to a pgid SIGKILL after
-    // the grace window, catching orphaned descendants on the way out.
+    // Signal the script runner directly, not the process group: runners
+    // (deno task/bun run/pnpm run) already forward SIGTERM to their child.
     dev.child.kill(signal);
   } catch {}
 }
@@ -89,11 +81,6 @@ function hasNodeModules(workdir) {
   }
 }
 
-/**
- * Poll the dev server's loopback port until it accepts a connection, or
- * timeout. First successful connect → phase=`ready`. Timeout → phase=`crashed`
- * with a message pointing at the bind contract.
- */
 async function probeDevReady() {
   const started = Date.now();
   while (Date.now() - started < READINESS_TIMEOUT_MS) {
@@ -134,13 +121,7 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-/**
- * Schedule a respawn after a clean self-exit, throttled by a rolling window.
- * Handles the pathological case (a script that exits 0 every few hundred ms)
- * without ever interfering with normal HMR: 20 respawns in 60s is far beyond
- * what any real edit cadence produces — even an LLM touching 30 files in
- * rapid succession only triggers one exit per source-change batch.
- */
+/** Respawn after clean self-exit; rolling-window cap catches pathological loops. */
 function scheduleAutoRespawn() {
   const now = Date.now();
   dev.respawnTimes = (dev.respawnTimes || []).filter(
@@ -191,11 +172,8 @@ export async function startDev({
   ) {
     return;
   }
-  // Crash-loop guard: a non-forcing caller (e.g. UI polling loop) asking to
-  // start during the backoff window after a fast-crash streak is refused.
-  // `restart: true` bypasses so a human-triggered "restart dev server" button
-  // or a code fix still works. Without this, UI polls hammer `/dev/start`
-  // when the dev script has a persistent startup failure.
+  // Crash-loop guard: non-forcing start during backoff is refused so UI
+  // polls don't hammer /dev/start; `restart: true` bypasses for manual retry.
   if (!restart && dev.phase === "crashed") {
     const wait = crashBackoffRemainingMs();
     if (wait > 0) {
@@ -219,8 +197,7 @@ export async function startDev({
   dev.exitCode = null;
   dev.startedAt = Date.now();
 
-  // Caller's hint wins; otherwise sniff the workdir. Deno wins over Node
-  // when both `package.json` and `deno.json` exist (common in deco-sites).
+  // Hint wins; else sniff. Deno beats Node when both configs exist.
   const runtime =
     runtimeHint === "deno" || runtimeHint === "bun" || runtimeHint === "node"
       ? runtimeHint
@@ -243,10 +220,7 @@ export async function startDev({
     return;
   }
 
-  // Install step. Node/Bun gate on node_modules; Deno relies on `deno task`
-  // handling module caching on first run (`deno install` semantics vary too
-  // much across versions to be a reliable warm-up). The Deno binary ships
-  // with the base image.
+  // Node/Bun gate on node_modules; Deno lets `deno task` handle caching.
   if (runtime !== "deno" && !hasNodeModules(workdir)) {
     setPhase("installing");
     appendLog("setup", `[setup] running ${pm} install in ${workdir}\n`);
@@ -261,19 +235,13 @@ export async function startDev({
 
   setPhase("starting");
 
-  // Hard-coded bind contract: dev server on 0.0.0.0:3000. Frameworks that
-  // ignore PORT will cause the readiness probe to time out and land in
-  // phase=`crashed`; the error is user-actionable (fix the script) so we
-  // don't try to chase arbitrary ports.
   const env = childEnv({
     HOST: "0.0.0.0",
     PORT: String(DEV_PORT),
   });
 
-  // Wrap the real command in `script -q -c` so the child sees a PTY and its
-  // output keeps ANSI colors / progress animations that frameworks emit when
-  // they detect a TTY. Without this, `process.stdout.isTTY === false`
-  // inside the child strips formatting and preview logs look washed out.
+  // `script -q -c` gives the child a PTY so ANSI colors / progress output
+  // that frameworks gate on isTTY survive into the log ring.
   const humanCmd =
     runtime === "deno" ? `${DENO_BIN} task ${script}` : `${pm} run ${script}`;
   const child = spawn("script", ["-q", "-c", humanCmd, "/dev/null"], {
@@ -302,21 +270,12 @@ export async function startDev({
     if (dev.child === child) dev.child = null;
     dev.pid = null;
 
-    // stopDev() flow — we asked for the exit. Let stopDev set the final phase.
+    // stopDev() flow — let stopDev set the final phase.
     if (dev.stopRequested) return;
 
-    // Distinguish by intent, not by how long it ran:
-    //  - clean self-exit (code=0, no signal) → runtime voluntarily stopped,
-    //    almost always a watch-mode rebuild (Deno --unstable-hmr, Fresh,
-    //    bun --hot, vite). Respawn immediately. An edit that lands during
-    //    a cold boot is the same intent as one after 10 min of uptime —
-    //    there is nothing special about the FAST_CRASH_MS boundary here.
-    //  - non-zero exit or external signal → real failure, apply backoff.
-    //
-    // Pathological clean-exit loops (a script that exits 0 every few hundred
-    // ms, e.g. an old daemonizer that forks and returns) are caught by the
-    // rolling-window cap in scheduleAutoRespawn — not by a fixed timer on
-    // the first exit.
+    // Clean self-exit (code=0, no signal) = HMR rebuild → respawn; anything
+    // else = real failure → backoff. Pathological clean-exit loops are
+    // caught by the rolling-window cap in scheduleAutoRespawn.
     if (signal === null && code === 0) {
       setPhase("exited");
       scheduleAutoRespawn();
@@ -348,8 +307,7 @@ export async function stopDev() {
       }
       return;
     }
-    // Mark before killing so the exit handler won't mistake our SIGTERM for
-    // a runtime crash and won't fire auto-respawn.
+    // Must precede kill: exit handler uses this to skip auto-respawn.
     dev.stopRequested = true;
     killDev("SIGTERM");
     await waitForExit(5_000);

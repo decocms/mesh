@@ -1,18 +1,8 @@
 /**
- * Typed file-operation endpoints (/fs/*). Plain-JSON bodies, paths rooted at
- * `WORKDIR` and guarded against escape. Shells out to `rg` for grep/glob —
- * the binary is pre-installed in the base image.
- *
- * SECURITY: body.cwd is accepted as a convenience for relative path
- * resolution but is NEVER treated as the root. It must itself resolve under
- * WORKDIR. The root is always WORKDIR. A caller cannot read/write outside
- * WORKDIR by passing `cwd: "/"`.
- *
- * Symlinks: every path is `realpath`-resolved before the prefix check, so a
- * symlink inside WORKDIR that points outside (or a sequence of them) cannot
- * be used to escape. The resolution is tolerant of leaf-level non-existence
- * (write/create flows) — we resolve the nearest existing ancestor and then
- * append the unresolved tail.
+ * SECURITY: root is always WORKDIR. `body.cwd` is a relative-path convenience
+ * but must itself resolve under WORKDIR (e.g. `cwd: "/"` is rejected).
+ * Every path is realpath-resolved before the prefix check, defeating symlink
+ * escapes; resolution is tolerant of missing leaves for write/create flows.
  */
 
 import { spawn } from "node:child_process";
@@ -21,16 +11,10 @@ import path from "node:path";
 import { WORKDIR } from "./config.mjs";
 import { parsedBody, send } from "./http-helpers.mjs";
 
-/**
- * `realpath` an absolute path, walking up to the nearest ancestor that
- * exists when the leaf (or several leaves) don't exist yet. Returns the
- * fully-resolved canonical absolute path. Used to defeat symlink escapes.
- */
+/** Realpath tolerant of missing leaves; terminates at "/" (always exists). */
 function realpathTolerant(abs) {
   const parts = [];
   let current = abs;
-  // Walk up until we hit a directory that exists. The loop terminates at "/",
-  // which always exists, so it can't infinite-loop.
   while (true) {
     try {
       return path.join(fs.realpathSync(current), ...parts.reverse());
@@ -38,7 +22,7 @@ function realpathTolerant(abs) {
       if (err && err.code === "ENOENT") {
         const base = path.basename(current);
         const parent = path.dirname(current);
-        if (parent === current) return abs; // reached root without resolving
+        if (parent === current) return abs;
         parts.push(base);
         current = parent;
         continue;
@@ -57,23 +41,14 @@ function isUnderWorkdir(absResolved) {
   );
 }
 
-/**
- * Resolve `body.cwd` to an absolute directory under WORKDIR. Empty/missing
- * returns WORKDIR itself. Returns null if cwd escapes WORKDIR — including
- * through a symlink.
- */
+/** Returns null if cwd escapes WORKDIR (incl. via symlink). */
 function resolveCwd(cwd) {
   if (!cwd) return WORKDIR_REAL;
   const resolved = realpathTolerant(path.resolve(WORKDIR_REAL, cwd));
   return isUnderWorkdir(resolved) ? resolved : null;
 }
 
-/**
- * Resolve `p` relative to `cwd` (which must itself be under WORKDIR), then
- * verify the final path is still under WORKDIR. Returns the absolute path on
- * success, null on escape. Empty path resolves to `cwd` itself, which
- * grep/glob use as "search this directory".
- */
+/** Empty `p` resolves to `cwd` itself (used by grep/glob as search root). */
 function safePath(p, cwd) {
   const base = resolveCwd(cwd);
   if (base === null) return null;
@@ -95,8 +70,7 @@ export async function handleFsRead(req, res) {
     if (stat.isDirectory()) {
       return send(res, 400, { error: "path is a directory" });
     }
-    // Binary-detect on the first 8KB so we don't splat \0 bytes into a JSON
-    // response that callers will then render as text.
+    // Binary-detect first 8KB to avoid splatting \0 into a text-rendered JSON.
     const fd = fs.openSync(filePath, "r");
     try {
       const probe = Buffer.alloc(Math.min(8192, stat.size));
@@ -180,12 +154,7 @@ export async function handleFsEdit(req, res) {
   }
 }
 
-/**
- * `rg`-backed grep. Modes:
- *   - "files"    (default) — --files-with-matches
- *   - "content"            — --line-number with optional -C context
- *   - "count"              — --count per file
- */
+/** Modes: "files" (default, --files-with-matches), "content" (--line-number +optional -C), "count" (--count). */
 export async function handleFsGrep(req, res) {
   try {
     const body = await parsedBody(req);

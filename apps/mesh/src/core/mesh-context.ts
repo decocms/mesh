@@ -211,7 +211,6 @@ export interface RequestMetadata {
   timestamp: Date;
   userAgent?: string;
   ipAddress?: string;
-  /** Decopilot thread id, set on stream entry once the thread is resolved. */
   threadId?: string;
   /** Custom properties from x-mesh-properties header (string key-value pairs) */
   properties?: Record<string, string>;

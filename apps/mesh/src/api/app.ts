@@ -481,10 +481,8 @@ export async function createApp(options: CreateAppOptions = {}) {
     }),
   );
 
-  // Security headers middleware - prevents UI redressing / clickjacking.
-  // Skipped for the sandbox preview proxy — that endpoint intentionally
-  // serves the user's dev server *inside* the mesh UI's own iframe, so
-  // `frame-ancestors 'none'` would block the preview panel entirely.
+  // Security headers — skipped for /api/sandbox/* since that serves the
+  // user's dev server inside the mesh UI's iframe (frame-ancestors would block it).
   app.use("*", async (c, next) => {
     await next();
     if (c.req.path.startsWith("/api/sandbox/")) return;
@@ -1366,10 +1364,8 @@ export async function createApp(options: CreateAppOptions = {}) {
   });
   app.route("/api", decopilotRoutes);
 
-  // Daemon control-plane passthrough for Docker-backed sandboxes.
-  // Dev-server traffic does NOT flow through mesh — pods expose their dev
-  // server directly on their public URL. Only daemon control (bash, dev
-  // lifecycle, fs ops, SSE logs) goes through the session-authed mesh route.
+  // Daemon control-plane passthrough only — dev-server traffic bypasses
+  // mesh and hits pods' public URLs directly.
   app.route("/", createSandboxDaemonRoutes());
 
   // Stable file redirect endpoint (resolves mesh-storage: URIs to presigned URLs)
@@ -1592,13 +1588,9 @@ export async function createApp(options: CreateAppOptions = {}) {
       currentRetentionTimer = null;
     }
 
-    // Phase 2.5: Sweep sandbox containers — Docker only. Other runners
-    // produce sandboxes that outlive the mesh process by design (Freestyle
-    // bills idle VMs out of band; K8s pods are first-class cluster
-    // workloads), so a generic shutdown sweep would be actively wrong.
-    // Runs before NATS drain and DB close because the runner's state store
-    // writes during sweep. See plugin's `sweep.ts` for the
-    // single-pod-per-host caveat.
+    // Sweep sandbox containers — Docker only. Other runners' sandboxes
+    // outlive mesh by design, so a generic sweep would nuke active user VMs.
+    // Must run before NATS/DB close (sweep writes state).
     const dockerRunner = asDockerRunner(getSharedRunnerIfInit());
     if (dockerRunner) {
       const { sweepDockerOrphansOnShutdown } = await import(

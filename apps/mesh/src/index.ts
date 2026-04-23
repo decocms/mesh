@@ -75,17 +75,12 @@ function withSecurityHeaders(res: Response): Response {
   });
 }
 
-// Populated below if the local sandbox ingress is enabled; gracefulShutdown
-// closes these so the port is freed the moment this process exits instead of
-// lingering through the Hono server drain.
+// Closed early in gracefulShutdown so the port frees before the Hono drain.
 let ingressServers: import("node:net").Server[] = [];
 
-// Docker-only boot/dev wiring. Both hooks (boot sweep + local ingress) live
-// in the user-sandbox plugin because they're intimate with Docker — the
-// boot sweep talks to the local docker daemon via labels, the ingress
-// forwards to host-side container ports. Freestyle / Kubernetes runners
-// host their own VM/ingress lifecycle, so we skip the whole branch under
-// any non-docker runner kind.
+// Docker-only boot/dev wiring. Both hooks (boot sweep + local ingress) are
+// intimate with Docker-specific primitives (labels, host-port mappings);
+// other runners manage their own VM/ingress lifecycle.
 const { resolveRunnerKindFromEnv } = await import(
   "mesh-plugin-user-sandbox/runner"
 );
@@ -97,22 +92,14 @@ if (resolveRunnerKindFromEnv() === "docker") {
     "./sandbox/lifecycle"
   );
 
-  // Sweep stale sandbox containers before we start serving. Best-effort:
-  // any failure (docker CLI missing, daemon down, sweep errors) is logged
-  // but does not block startup. This is the primary cleanup mechanism in
-  // dev — SIGTERM handling races with the parent killing postgres, so
-  // the boot sweep is what actually keeps `docker ps` empty between
-  // sessions.
+  // Boot sweep (best-effort). Shutdown cleanup can't cover crashes —
+  // SIGTERM races with the parent killing postgres — so the boot sweep is
+  // what actually keeps `docker ps` empty between sessions.
   await sweepDockerOrphansOnBoot();
 
-  // Local sandbox ingress — dev-only. Opt in with
-  // MESH_LOCAL_SANDBOX_INGRESS=1 or leave enabled by default when
-  // NODE_ENV !== "production". Browsers reach preview iframes via
-  // `<handle>.sandboxes.localhost:<port>/`. macOS/Linux resolve
-  // `*.localhost` to loopback natively, so no DNS setup is required.
-  // Default port is 7070 — port 7000 conflicts with macOS AirPlay Receiver
-  // (ControlCenter binds `*:7000` on IPv4 and IPv6, so a Chrome
-  // Happy-Eyeballs race to `[::1]:7000` would hit Apple instead of us).
+  // Port 7070 default: macOS AirPlay Receiver owns `*:7000` on v4+v6, so a
+  // Chrome Happy-Eyeballs race would hit Apple. Enabled by default in dev;
+  // opt in elsewhere via MESH_LOCAL_SANDBOX_INGRESS=1.
   const ingressDevEnabled =
     settings.nodeEnv !== "production" ||
     process.env.MESH_LOCAL_SANDBOX_INGRESS === "1";
@@ -216,23 +203,21 @@ async function gracefulShutdown(signal: string) {
     // 1. Mark as shutting down — readiness returns 503 immediately
     app.markShuttingDown();
 
-    // 2. Close sandbox ingress listeners first so port 7070 is freed
-    //    immediately — the next `bun dev` shouldn't need to wait out our drain.
+    // 2. Close ingress first so port 7070 frees immediately — next `bun dev`
+    //    shouldn't have to wait out our drain.
     for (const s of ingressServers) s.close();
 
-    // 3. Give K8s time to notice the 503 and stop routing traffic before
-    //    we close connections (~2s is enough for most configurations).
-    //    Skipped in dev — there's no load balancer draining, and the 2s delay
-    //    is the usual cause of "port still in use" on rapid restart.
+    // 3. Let K8s notice the 503 before we close connections. Skipped in dev
+    //    — no LB draining, and the 2s delay causes "port still in use" on
+    //    rapid restart.
     if (settings.nodeEnv === "production") {
       await new Promise((r) => setTimeout(r, 2_000));
     }
 
-    // 4. Stop accepting new connections, force-close active ones
-    //    (SSE streams are long-lived and would block graceful drain indefinitely)
+    // 4. Force-close connections (SSE streams are long-lived and would block
+    //    graceful drain indefinitely).
     await server.stop(true);
 
-    // 5. Stop workers, flush telemetry, close DB
     await app.shutdown();
   } catch (err) {
     console.error("[shutdown] Error during shutdown:", err);
@@ -245,14 +230,12 @@ async function gracefulShutdown(signal: string) {
 
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
-// Terminal close / `bun --hot` parent death sends SIGHUP — without this handler
-// Bun keeps the process alive after the shell window closes, accumulating
-// zombies that still hold ports (port 7070 ingress, etc.).
+// Bun keeps the process alive after terminal close — without SIGHUP we
+// accumulate zombies still holding port 7070.
 process.on("SIGHUP", () => gracefulShutdown("SIGHUP"));
 
-// Belt-and-braces: in local dev, if we become orphaned (re-parented to launchd
-// after the shell exits without delivering SIGHUP), exit immediately. Guarded
-// by NODE_ENV since prod containers legitimately run with PID 1 parentage.
+// Dev-only orphan detection. Prod containers legitimately run with PID 1
+// parentage, so this must stay NODE_ENV-guarded.
 if (settings.nodeEnv !== "production") {
   const initialPpid = process.ppid;
   setInterval(() => {

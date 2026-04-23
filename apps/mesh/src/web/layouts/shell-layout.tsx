@@ -117,10 +117,8 @@ export function usePanelActions() {
   const setTasksOpen = (open: boolean) =>
     nav((prev) => ({ ...prev, tasks: open ? 1 : 0 }));
 
-  // When switching to an existing thread (`preserveBranch: false`), drop any
-  // `?branch=` carried over from the previous thread — its own `thread.branch`
-  // is the source of truth. Preserving the URL branch here is what caused the
-  // picker to lie after bouncing between threads.
+  // Existing thread (preserveBranch=false): drop the carried-over URL branch;
+  // thread.branch wins. Preserving it made the picker lie on thread bounce.
   const setTaskId = (
     id: string,
     virtualMcpId?: string,
@@ -133,9 +131,7 @@ export function usePanelActions() {
         if (virtualMcpId) next.virtualmcpid = virtualMcpId;
         else if (prev.virtualmcpid) next.virtualmcpid = prev.virtualmcpid;
         if (prev.tasks) next.tasks = prev.tasks;
-        // Fresh threads inherit the picker's current branch so the new chat
-        // lands on the same VM. Existing threads must not — their persisted
-        // `thread.branch` wins.
+        // Fresh threads inherit the picker's branch; existing threads don't.
         if (opts.preserveBranch && prev.branch) next.branch = prev.branch;
         // Preserve the main panel tab (git / preview / env / …) so that
         // switching tasks keeps the user's current view.

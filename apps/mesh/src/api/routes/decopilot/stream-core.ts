@@ -106,10 +106,7 @@ export interface StreamCoreInput {
   windowSize?: number;
   abortSignal?: AbortSignal;
   isResume?: boolean;
-  /**
-   * Git branch to pin the thread to (GitHub-linked virtualmcps only).
-   * Persisted onto the thread row on first-message thread creation.
-   */
+  /** Persisted to the thread row on first-message creation. */
   branch?: string | null;
 }
 
@@ -422,11 +419,8 @@ async function streamCoreInner(
                 { ctx, isPlanMode: modeConfig.isPlanMode },
               );
 
-        // Resolve active VM for (current user, pinned branch) — when present,
-        // VM file tools replace the QuickJS sandbox in the built-in tool set.
-        // Both docker and freestyle entries flow through the same vmMap lookup;
-        // the per-entry `runnerKind` drives transport dispatch inside
-        // `getBuiltInTools`.
+        // Resolve active VM for (user, branch). Per-entry `runnerKind` drives
+        // transport dispatch inside `getBuiltInTools`.
         const vmMetadata = virtualMcp.metadata as {
           vmMap?: Record<
             string,

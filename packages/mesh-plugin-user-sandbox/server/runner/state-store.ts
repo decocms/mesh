@@ -1,21 +1,13 @@
 import type { SandboxId } from "./types";
 
-/**
- * Record persisted per (sandboxId, runnerKind). The `state` blob is opaque —
- * each runner serialises its own private fields (tokens, ports, domains) and
- * reads them back after a mesh restart.
- */
+/** Persisted per (sandboxId, runnerKind). `state` is an opaque runner-private blob. */
 export interface RunnerStateRecord {
   handle: string;
   state: Record<string, unknown>;
   updatedAt: Date;
 }
 
-/**
- * Record returned by `getByHandle` — also carries the SandboxId so the runner
- * can rebuild its in-memory record after a mesh restart when only the handle
- * is known (e.g. mesh-proxy lookups from a URL param).
- */
+/** Like RunnerStateRecord but carries the SandboxId (handle-only lookups after restart). */
 export interface RunnerStateRecordWithId extends RunnerStateRecord {
   id: SandboxId;
 }
@@ -25,12 +17,7 @@ export interface RunnerStatePut {
   state: Record<string, unknown>;
 }
 
-/**
- * Pluggable persistence for sandbox runner state. Host apps supply a concrete
- * implementation (e.g. Kysely-backed) and inject it into runners that need
- * cross-restart recovery. Keep this interface storage-agnostic so the sandbox
- * package stays free of database dependencies.
- */
+/** Pluggable persistence; storage-agnostic so this package stays DB-free. */
 export interface RunnerStateStore {
   get(id: SandboxId, kind: string): Promise<RunnerStateRecord | null>;
   getByHandle(
@@ -41,17 +28,9 @@ export interface RunnerStateStore {
   delete(id: SandboxId, kind: string): Promise<void>;
   deleteByHandle(kind: string, handle: string): Promise<void>;
   /**
-   * Serialize concurrent `ensure()` calls for the same (id, kind) across
-   * every pod sharing this store. Implementations should take a lock keyed
-   * on `(id.userId, id.projectRef, kind)`, run `fn`, and release the lock
-   * when `fn` settles. The lock auto-releases on connection loss so a
-   * crashed pod never strands a sandbox.
-   *
-   * Optional: in-memory / test state stores can omit it. Runners check for
-   * the method and fall back to in-process-only dedupe when absent, which
-   * is correct single-pod behavior but still leaks containers under
-   * multi-pod races — so production deploys MUST use a store that
-   * implements this.
+   * Cross-pod serialization for concurrent `ensure()` on the same (id, kind).
+   * Must transactionally release on connection loss so a crashed pod never
+   * strands a sandbox. Optional in tests; prod deploys MUST implement it.
    */
   withLock?<T>(id: SandboxId, kind: string, fn: () => Promise<T>): Promise<T>;
 }

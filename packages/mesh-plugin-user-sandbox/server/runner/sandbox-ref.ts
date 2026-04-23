@@ -1,13 +1,8 @@
 /**
- * Sandbox routing key (`projectRef`) composer.
- *
- * Two encodings, both opaque to runners:
+ * Single source of truth for `projectRef`. Two opaque encodings:
  *   `agent:<orgId>:<virtualMcpId>:<branch>` — agent-thread sandboxes.
- *   `thread:<threadId>` — non-agent ad-hoc sandboxes.
- *
- * Single source of truth for the encoding so callers can't drift. Runners
- * never parse the ref; they hash it for their internal routing key
- * (`hashId` in DockerSandboxRunner, claim name suffix for Kubernetes).
+ *   `thread:<threadId>` — ad-hoc sandboxes.
+ * Runners never parse the ref; they hash it for their routing key.
  */
 
 export type AgentSandboxRefInput = {

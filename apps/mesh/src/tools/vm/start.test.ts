@@ -9,17 +9,12 @@ import type {
 } from "mesh-plugin-user-sandbox/runner";
 import { composeSandboxRef } from "mesh-plugin-user-sandbox/runner";
 
-// Pin the runner kind for deterministic test output regardless of the
-// developer's local .env (`MESH_SANDBOX_RUNNER` flips between docker /
-// freestyle in dev). VM_START reads this env at handler time.
+// Pin runner kind — the dev env flips MESH_SANDBOX_RUNNER and VM_START
+// reads it at handler time.
 process.env.MESH_SANDBOX_RUNNER = "freestyle";
 
-// ---------------------------------------------------------------------------
-// Mock the sandbox runner BEFORE importing VM_START. VM_START is now
-// runner-agnostic (calls runner.ensure/getPreviewUrl); the real freestyle SDK
-// would only be exercised by FreestyleSandboxRunner internals which are not
-// the unit under test here.
-// ---------------------------------------------------------------------------
+// Mock runner BEFORE importing VM_START — handler is runner-agnostic
+// and we don't want to pull the real freestyle SDK.
 
 const mockEnsure = mock(
   async (_id: SandboxId, _opts?: EnsureOptions): Promise<Sandbox> => ({
@@ -123,10 +118,6 @@ mock.module("@/oauth/refresh-access-token", () => ({
 }));
 
 const { VM_START } = await import("./start");
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 const BRANCH = "feat/example";
 const ORG_ID = "org_1";
@@ -240,10 +231,6 @@ function makeCtx(overrides: {
   } as unknown as MeshContext;
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
 describe("VM_START", () => {
   beforeEach(() => {
     mockEnsure.mockReset();
@@ -328,8 +315,7 @@ describe("VM_START", () => {
       previewUrl: "https://stub.preview/",
       runnerKind: "freestyle",
     });
-    // createdAt is stamped server-side at provision time; assert it's a
-    // recent epoch ms rather than a brittle exact value.
+    // Server-stamped; assert recency, not exact value.
     expect(typeof stored?.createdAt).toBe("number");
     expect(stored?.createdAt).toBeGreaterThan(Date.now() - 60_000);
   });
@@ -404,8 +390,7 @@ describe("VM_START", () => {
   });
 
   it("throws when no GitHub token is found", async () => {
-    // Cast: the original mock signature returns a token; this case overrides
-    // for a single test to exercise the missing-token branch.
+    // Override mock to exercise the missing-token branch.
     (
       mockTokenGet as unknown as {
         mockImplementation: (fn: () => Promise<null>) => void;

@@ -1,15 +1,9 @@
 /**
- * Shared VM tool schemas — single source of truth for the six file-op tools
- * the LLM sees regardless of runner (Freestyle | Docker). Each runner's
- * transport file imports from here; drift between the two runner
- * implementations becomes a type error instead of a silent behavior split.
+ * Single source of truth for the six file-op tool schemas — drift between
+ * runner implementations becomes a type error, not a silent behavior split.
  */
 
 import { z } from "zod";
-
-// ---------------------------------------------------------------------------
-// Input schemas
-// ---------------------------------------------------------------------------
 
 export const ReadInputSchema = z.object({
   path: z
@@ -85,10 +79,6 @@ export type GrepInput = z.infer<typeof GrepInputSchema>;
 export type GlobInput = z.infer<typeof GlobInputSchema>;
 export type BashInput = z.infer<typeof BashInputSchema>;
 
-// ---------------------------------------------------------------------------
-// Tool descriptions
-// ---------------------------------------------------------------------------
-
 export const READ_DESCRIPTION =
   "Read a file from the VM's project directory. Returns content with line numbers. " +
   "Use offset and limit for large files.";
@@ -113,10 +103,7 @@ export const BASH_DESCRIPTION =
   "Execute a shell command in the VM's project directory. " +
   "Working directory is the project root. Timeout default 30s, max 2min.";
 
-// ---------------------------------------------------------------------------
-// needsApproval matrix (read/grep/glob are non-mutating; write/edit/bash mutate)
-// ---------------------------------------------------------------------------
-
+// read/grep/glob are non-mutating; write/edit/bash mutate.
 export const TOOL_APPROVAL = {
   read: false,
   write: true,

@@ -1,17 +1,7 @@
 /**
- * Watches the project's .deco directory and asks subscribers to reload the
- * preview iframe whenever a block/metadata JSON changes.
- *
- * Why: Deno's --unstable-hmr only watches the module graph reachable from the
- * entry file. Deco block JSONs are data read at request time, so editing one
- * doesn't cause dev to exit — which means the /_frsh/alive WS never closes,
- * Fresh's revision never bumps, and the browser has no reason to reload.
- * Without this watcher the user has to hit refresh manually.
- *
- * Only emits while dev is "ready". If dev is mid-restart (a .tsx edit in the
- * same batch triggered an exit), Fresh's own WS-close → reconnect → reload
- * path will handle it, and the SSE-based reload would be a redundant second
- * reload a few seconds later.
+ * Deno --unstable-hmr only watches the module graph; .deco block JSONs are
+ * data read at request time, so editing one wouldn't trigger a reload. Only
+ * emits while dev is "ready" to avoid double-reload with Fresh's own WS path.
  */
 
 import fs from "node:fs";
@@ -40,8 +30,7 @@ export function startDecoWatcher() {
         clearTimeout(timer);
         timer = setTimeout(() => {
           timer = null;
-          // Dev left "ready" (exited / restarting) — let Fresh's own reload
-          // path handle it to avoid double-reloading the iframe.
+          // Let Fresh's reload path handle non-ready phases (avoid double reload).
           if (dev.phase !== "ready") return;
           emitReload("deco-files-changed");
         }, DEBOUNCE_MS);
@@ -60,8 +49,7 @@ export function startDecoWatcher() {
   };
 
   attach();
-  // .deco is created by the dev server on first boot; poll briefly if absent
-  // so we pick it up without requiring a daemon restart.
+  // .deco is created on first dev boot; poll so we pick it up without restart.
   const retryTimer = watcher
     ? null
     : setInterval(() => {

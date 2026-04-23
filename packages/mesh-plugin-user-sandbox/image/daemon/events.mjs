@@ -1,13 +1,7 @@
-/**
- * Log ring, SSE fan-out, and dev-phase transitions. Pod-per-thread → one ring
- * per daemon, one SSE stream, no per-thread filtering.
- */
-
 import { LOG_RING_CAP } from "./config.mjs";
 import { crashBackoffRemainingMs, dev } from "./dev-state.mjs";
 import { inspectWorkdir } from "./workdir.mjs";
 
-/** Set<res> — active SSE subscribers. */
 export const subscribers = new Set();
 
 export function appendLog(source, chunk) {
@@ -44,19 +38,13 @@ export function currentStatusPayload() {
     script: dev.script,
     exitCode: dev.exitCode,
     cwd: dev.cwd,
-    // Non-zero when a fast-crash streak is active. Callers that auto-poke
-    // `/dev/start` on crashed phase should skip while this is > 0; bypass
-    // with `{ restart: true }` to force a manual retry.
+    // Auto-pokers must skip while > 0; bypass with `{ restart: true }`.
     crashBackoffRemainingMs: crashBackoffRemainingMs(),
     crashCount: dev.crashCount,
   };
 }
 
-/**
- * Ask subscribed preview iframes to reload themselves. Used by the deco
- * watcher for block/metadata JSON changes — edits Deno HMR won't see, so
- * nothing else would trigger a reload.
- */
+/** Reload preview iframes — used for .deco JSON edits that HMR can't see. */
 export function emitReload(reason) {
   broadcast("reload", { reason, ts: Date.now() });
 }
@@ -64,8 +52,7 @@ export function emitReload(reason) {
 export function setPhase(next) {
   if (dev.phase === next) return;
   dev.phase = next;
-  // Success clears the crash-loop streak so the next bad start gets a full
-  // backoff budget instead of immediately hitting the cap.
+  // Reset crash streak on success so the next failure gets a full budget.
   if (next === "ready") {
     dev.crashCount = 0;
     dev.lastCrashAt = null;
@@ -79,7 +66,6 @@ export function readLogs(source) {
   return dev.logRing.filter((e) => e.source === source);
 }
 
-/** Emit initial status/scripts/processes/log tail to a new SSE subscriber. */
 export function replayTo(res) {
   res.write(
     `event: status\ndata: ${JSON.stringify(currentStatusPayload())}\n\n`,

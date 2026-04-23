@@ -1,10 +1,7 @@
 /**
- * Build an authenticated GitHub clone URL and git identity from a connection's
- * downstream OAuth token. Used by any runner (Freestyle VM, Docker sandbox)
- * that clones a user-connected repo into an execution environment.
- *
- * Falls back to generic defaults when the GitHub /user call fails so callers
- * never block on a flaky upstream.
+ * Authenticated clone URL + git identity from a connection's OAuth token.
+ * Falls back to generic defaults on /user failure so callers never block
+ * on a flaky upstream.
  */
 
 import type { Kysely } from "kysely";
@@ -41,9 +38,7 @@ export async function buildCloneInfo(
 
   let accessToken = token.accessToken;
 
-  // Proactive refresh: if the stored token is expiring soon and we have the
-  // OAuth fields needed to refresh, swap it for a fresh one before baking it
-  // into the clone URL. Mirrors GITHUB_LIST_USER_ORGS.
+  // Proactive refresh before baking into the clone URL. Mirrors GITHUB_LIST_USER_ORGS.
   if (
     canRefresh(token) &&
     tokenStorage.isExpired(token, PROACTIVE_REFRESH_BUFFER_MS)

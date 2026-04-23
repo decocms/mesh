@@ -1,10 +1,7 @@
 /**
- * Cross-tenant authorization test for the sandbox daemon passthrough.
- *
- * The daemon proxy is the only HTTP surface that lets a browser talk to the
- * sandbox runner — any leak here lets one user reach another user's
- * container. This test pins the 404 behavior when a session tries to proxy
- * to a handle owned by a different user.
+ * Cross-tenant auth test. The daemon proxy is the only surface through
+ * which a browser reaches the runner — any leak lets one user reach
+ * another's container.
  */
 
 import { describe, it, expect, mock } from "bun:test";
@@ -98,9 +95,8 @@ describe("sandbox daemon passthrough authorization", () => {
       { method: "POST" },
     );
     expect(res.status).toBe(404);
-    // Critical: we must never forward the request to the runner on an
-    // ownership mismatch. If this fails, one user can reach another's
-    // container just by knowing the handle.
+    // Must never forward on ownership mismatch — a leak here lets one user
+    // reach another's container by knowing the handle.
     expect(proxyDaemonRequest).not.toHaveBeenCalled();
   });
 

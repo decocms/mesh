@@ -950,17 +950,6 @@ export interface KVTable {
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }
 
-// ============================================================================
-// Sandbox Runner State Table Definition
-// ============================================================================
-
-/**
- * Persistent state for the sandbox runner (docker/freestyle/etc).
- *
- * Shape of `state` is opaque to the storage layer — each runner serialises
- * its own fields (tokens, ports, domain names) and reads them back on
- * ensure(). See packages/mesh-plugin-user-sandbox/server/runner/.
- */
 export interface SandboxRunnerStateTable {
   user_id: string;
   project_ref: string;
@@ -1116,6 +1105,5 @@ export interface Database {
   // Organization domain claims (for auto-join)
   organization_domains: OrganizationDomainTable;
 
-  // Sandbox runner state (docker/freestyle handle + runner-private blob)
   sandbox_runner_state: SandboxRunnerStateTable;
 }

@@ -104,27 +104,14 @@ export interface ChatTaskContextValue {
   hideTask: (taskId: string) => Promise<void>;
   renameTask: (taskId: string, title: string) => Promise<void>;
   setTaskStatus: (taskId: string, status: string) => Promise<void>;
-  /**
-   * Effective branch for the active task. Derives from the thread's persisted
-   * `branch` column, falling back to `?branch=` for fresh threads that haven't
-   * been persisted yet. The picker and VM panels consume this directly — a
-   * direct URL load / refresh doesn't need the URL mutated to render the
-   * correct selection.
-   */
+  /** Derived from thread.branch, falling back to `?branch=` for fresh threads. */
   currentBranch: string | null;
   /**
-   * True once the thread has a branch committed to its `branch` column.
-   * Consumers (the picker) should treat the selection as immutable from here
-   * on — switching branches on an existing thread would reroute its vmMap
-   * entry mid-conversation, so the user has to create a new thread to work
-   * on a different branch.
+   * Immutable once set: switching branches mid-conversation would reroute the
+   * thread's vmMap entry, so users must create a new thread for another branch.
    */
   isBranchLocked: boolean;
-  /**
-   * Persist the thread's pinned branch and sync the URL. Used by the branch
-   * picker so a branch change on thread A stays with A when the user bounces
-   * through B and comes back.
-   */
+  /** Persist pinned branch and sync URL so it survives cross-thread navigation. */
   setCurrentTaskBranch: (branch: string | null) => void;
   ownerFilter: TaskOwnerFilter;
   setOwnerFilter: (filter: TaskOwnerFilter) => void;
@@ -456,12 +443,8 @@ export function ChatContextProvider({
 
   const clearPendingMessage = () => setPendingMessage(null);
 
-  // Navigate to task with read tracking. Also atomically syncs the URL's
-  // `?branch=` to the destination thread's persisted branch — a thread's
-  // `branch` column is the source of truth for which VM it resolves to via
-  // `vmMap[userId][branch]`, so the URL has to mirror it for the preview
-  // iframe to pick the right entry on first paint (no flicker through an
-  // unset-branch intermediate render).
+  // Atomically syncs URL `?branch=` to thread.branch so the preview iframe
+  // picks the right vmMap entry on first paint (no flicker through unset-branch).
   const navigateToTask = (
     taskId: string,
     opts?: { virtualMcpOverride?: string; branch?: string | null },
@@ -476,12 +459,7 @@ export function ChatContextProvider({
     });
   };
 
-  // Effective branch for the active thread. Thread state is authoritative —
-  // the URL's `?branch=` is only a seed for fresh (not-yet-persisted) tasks,
-  // where `task.branch` is still undefined. Every branch-picker interaction
-  // persists through `setCurrentTaskBranch`, so once a thread has a branch
-  // column value, that value wins over any stale URL carried over by the
-  // tasks-panel "sticky branch" behavior when switching threads.
+  // thread.branch is authoritative; URL `?branch=` is only a seed for fresh tasks.
   const activeTask = tasks.find((t) => t.id === effectiveTaskId);
   const currentBranch = activeTask?.branch ?? urlBranch ?? null;
   const isBranchLocked = !!activeTask?.branch;
@@ -540,9 +518,8 @@ export function ChatContextProvider({
     currentBranch,
     isBranchLocked,
     setCurrentTaskBranch: (branch: string | null) => {
-      // URL first so the preview panel picks the new vmMap entry on the
-      // current render; thread persistence follows so subsequent navigations
-      // back to this thread land on the same branch.
+      // URL first so the preview panel picks up the new vmMap entry this render;
+      // thread persistence follows for subsequent navigations back to this thread.
       setBranch(branch);
       if (effectiveTaskId) {
         taskManager.setTaskBranch(effectiveTaskId, branch);

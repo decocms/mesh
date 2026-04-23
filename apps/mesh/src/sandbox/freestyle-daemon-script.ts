@@ -1,25 +1,9 @@
 /**
- * Freestyle in-VM daemon script builder.
- *
- * Generates the Node.js daemon that runs inside Freestyle VMs (lives at
- * `/opt/daemon.js`, started by systemd). The daemon handles:
- *   1. Reverse proxy on `:9000` → upstream dev server (HTML rewriting +
- *      X-Frame-Options/CSP stripping for iframe embedding).
- *   2. Process spawning: install + dev lifecycle with PTY + SSE streaming.
- *   3. Liveness probing of the upstream dev server.
- *   4. File operations: read / write / edit / grep / glob / bash endpoints
- *      under `/_decopilot_vm/*`.
- *
- * The output is a single JS string that gets baked into the VmSpec via
- * `additionalFiles` and started by a systemd service. Updates to this
- * script require recreating freestyle VMs.
+ * Freestyle in-VM daemon builder. Output is a JS string baked into the
+ * VmSpec and started by systemd — updates require recreating freestyle VMs.
  */
 
-/**
- * Package-manager → install command + run prefix for the in-VM daemon.
- * Mirrors the runtime-defaults version in `apps/mesh` but inlined here so
- * the runner package stays self-contained (no upward import into apps/mesh).
- */
+/** Inlined so the runner package stays self-contained (no upward import). */
 const PACKAGE_MANAGER_DAEMON_CONFIG: Record<
   string,
   { install: string; runPrefix: string }
@@ -42,10 +26,7 @@ interface DaemonConfig {
   bootstrapScript: string;
   gitUserName: string;
   gitUserEmail: string;
-  /**
-   * Branch to check out after clone. Required, non-empty. The daemon clones
-   * with `-b <branch>` so origin/<branch> points at the intended commit.
-   */
+  /** Required, non-empty. Daemon clones with `-b <branch>`. */
   branch: string;
 }
 
@@ -327,11 +308,8 @@ function discoverScripts() {
   log("discovered scripts:", scriptNames.join(", ") || "(none)");
   broadcastEvent("scripts", { type: "scripts", scripts: scriptNames });
 
-  // Auto-start the first well-known starter script so the preview boots
-  // without a manual click. Docker's runner fires /_daemon/dev/start from
-  // startDevServerIfNeeded; on freestyle the /dev/* path is a no-op (handled
-  // by systemd, not the daemon), so if we don't kick it here the dev server
-  // only runs after the user opens the env panel and clicks Run.
+  // Freestyle has no /_daemon/dev/start (systemd handles it), so we auto-kick
+  // the first well-known starter here to match Docker's behavior.
   const pmConfig = PM_CONFIG[PM];
   if (pmConfig) {
     const autoStart = WELL_KNOWN_STARTERS.find((s) => scriptNames.includes(s));

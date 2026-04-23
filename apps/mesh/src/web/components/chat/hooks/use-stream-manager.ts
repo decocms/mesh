@@ -23,12 +23,9 @@ export function useStreamManager(
   const { locator } = useProjectContext();
   const queryClient = useQueryClient();
 
-  // Per-mount in-flight guard. Must NOT be module-scoped: useChat creates a
-  // fresh Chat instance per mount (not shared by id), so each mount's
-  // resumeStream() populates its own chat state. In React StrictMode dev, the
-  // double-mount will fire /attach twice — that's harmless (the server treats
-  // concurrent attaches as idempotent JetStream reads) and in production
-  // StrictMode isn't applied so only one fires.
+  // Per-mount in-flight guard (NOT module-scoped — useChat is per-mount, not
+  // shared by id). StrictMode double-mount fires /attach twice; server treats
+  // concurrent attaches as idempotent JetStream reads.
   const resumeInFlightRef = useRef(false);
   const resumeFailCountRef = useRef(0);
   const prevThreadIdRef = useRef(threadId);
@@ -81,21 +78,11 @@ export function useStreamManager(
       });
   };
 
-  // Auto-resume on mount / task switch. If we land on an in-flight thread
-  // before the first SSE step arrives (e.g. the model is still inside its
-  // first completion), nothing would trigger /attach. "expired" is the virtual
-  // status for stuck in-progress runs — resuming those either picks up the
-  // orphaned run or force-fails it server-side.
-  //
-  // Trigger via useSyncExternalStore's subscribe so the resume kick-off runs
-  // post-mount. Calling chat.resumeStream() from a render-scheduled microtask
-  // can land /attach's onFinish inside the next render phase in StrictMode
-  // (when the server returns 204 fast), which trips React's "state update on
-  // a component that hasn't mounted yet" warning.
-  //
-  // The subscribe function identity must be stable per-threadId (otherwise
-  // React would re-fire the trigger every render). tryResumeStream itself is
-  // read through a ref so subscribe always sees the latest closure.
+  // Auto-resume on mount / task switch. "expired" = stuck in-progress runs.
+  // Triggered via useSyncExternalStore.subscribe so the kick-off runs post-mount,
+  // avoiding React's "state update on unmounted component" warning when /attach
+  // returns 204 fast in StrictMode. Subscribe identity is stable per-threadId;
+  // tryResumeStream is read through a ref so subscribe sees the latest closure.
   const tryResumeStreamRef = useRef(tryResumeStream);
   tryResumeStreamRef.current = tryResumeStream;
   const threadStatusRef = useRef(threadStatus);

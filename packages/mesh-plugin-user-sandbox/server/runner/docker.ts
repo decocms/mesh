@@ -41,35 +41,22 @@ export interface DockerExec {
 export interface DockerRunnerOptions {
   image?: string;
   exec?: DockerExec;
-  /**
-   * Label used to claim ownership of containers spawned by this runner.
-   * Override per mesh instance if multiple need to coexist on one host.
-   */
+  /** Ownership label; override per mesh instance when multiple share one host. */
   labelPrefix?: string;
-  /**
-   * Optional persistent store. When supplied, the runner consults it before
-   * docker-level discovery so cross-process races settle on the first row to
-   * win the (user_id, project_ref, runner_kind) PK.
-   */
+  /** Persistent store consulted before docker discovery; its PK resolves cross-pod races. */
   stateStore?: RunnerStateStore;
   /**
-   * Template for the public preview URL. `{handle}` is replaced with the
-   * sandbox handle. When omitted, falls back to
-   * `SANDBOX_ROOT_URL` (interpreted with `{handle}` substitution OR as a
-   * URL whose hostname gets prefixed) then to the local-ingress default
-   * `http://{handle}.sandboxes.localhost:<SANDBOX_INGRESS_PORT|7070>/`.
+   * Preview URL template. Resolution order: this → `SANDBOX_ROOT_URL`
+   * (substitutes `{handle}` or hostname-prefixes) → `http://{handle}.sandboxes.localhost:<SANDBOX_INGRESS_PORT|7070>/`.
    */
   previewUrlPattern?: string;
 }
 
-// DNS label cap is 63 chars (RFC 1035), so the full 64-hex Docker container id
-// can't be used as a subdomain. Slice to 32 hex (128 bits) at every Docker→runner
-// boundary — still cryptographically secret as a capability, and Docker accepts
-// any prefix ≥12 chars for inspect/stop/port, so no downstream lookups break.
+// 32 hex (128 bits) keeps it within DNS's 63-char label cap (RFC 1035) while
+// still cryptographically secret; Docker accepts any prefix ≥12 chars.
 const HANDLE_LEN = 32;
 const toHandle = (rawId: string): string => rawId.slice(0, HANDLE_LEN);
 
-/** Container-internal port the dev server is expected to bind. */
 const DEFAULT_DEV_PORT = 3000;
 
 /** Private per-handle record. Never escapes the runner. */
@@ -79,23 +66,15 @@ interface DockerRecord {
   token: string;
   workdir: string;
   id: SandboxId;
-  /** Host-side port mapped to container :<workload.devPort> (user's dev server). */
+  /** Host-side port → container dev port. */
   devPort: number;
-  /** Container-internal dev port — 3000 unless overridden by workload. */
+  /** Container-internal dev port (default 3000). */
   devContainerPort: number;
-  /** Host-side port mapped to container :9000 (daemon). */
+  /** Host-side port → container daemon port. */
   daemonPort: number;
-  /**
-   * True once we've attempted a repo bootstrap in this container. Covers both
-   * successful clones and skipped-because-workdir-was-not-empty outcomes —
-   * either way, we don't want to retry on the next ensure() call.
-   */
+  /** True once bootstrap has been attempted (success or skipped); prevents retry. */
   repoAttached: boolean;
-  /**
-   * Workload last started in this container (runtime/packageManager/devPort).
-   * Persisted so a mesh restart can resume the dev server with the same
-   * config. `null` for blank sandboxes.
-   */
+  /** Last-started workload; persisted so mesh restart resumes the same config. */
   workload: Workload | null;
 }
 
@@ -134,11 +113,8 @@ export class DockerSandboxRunner implements SandboxRunner {
     const labelId = hashId(id);
     const pending = this.inflight.get(labelId);
     if (pending) return pending;
-    // In-process dedupe wraps the outer call; the state-store's `withLock`
-    // (when available) serializes across pods. Without it we're
-    // single-pod-safe only — two pods racing the same (user, projectRef)
-    // will each provision a container and leak one. Production deploys
-    // must ship a state store that implements `withLock`.
+    // In-process dedupe + state-store `withLock` (cross-pod). Without withLock
+    // we're single-pod-safe only — prod MUST ship a store that implements it.
     const runInner = () => this.ensureInner(id, labelId, opts);
     const p =
       this.stateStore && this.stateStore.withLock
@@ -160,11 +136,8 @@ export class DockerSandboxRunner implements SandboxRunner {
   async delete(handle: string): Promise<void> {
     const rec = await this.lookupRecord(handle);
     this.byHandle.delete(handle);
-    // Best-effort graceful dev-server shutdown before the container teardown
-    // forcibly kills everything. Failures are logged but not thrown — the
-    // container stop below is the source of truth. We log (rather than
-    // silently swallow) so a systemic daemon outage surfaces in ops instead
-    // of hiding behind a successful teardown.
+    // Best-effort graceful dev-stop before the forcible container teardown;
+    // log (don't swallow) so daemon outages surface in ops.
     if (rec) {
       await proxyDaemonRequestClient(
         rec.daemonUrl,
@@ -226,11 +199,7 @@ export class DockerSandboxRunner implements SandboxRunner {
     return this.composePreviewUrl(handle);
   }
 
-  /**
-   * HTTP passthrough to the sandbox daemon's `/_daemon/*` control plane.
-   * The bearer token never leaves this class — the caller gets back a native
-   * `Response` with the body streamed from the daemon.
-   */
+  /** Passthrough to `/_daemon/*`; bearer token stays inside the class, body streams. */
   async proxyDaemonRequest(
     handle: string,
     path: string,
@@ -246,36 +215,24 @@ export class DockerSandboxRunner implements SandboxRunner {
     return proxyDaemonRequestClient(rec.daemonUrl, rec.token, path, init);
   }
 
-  /**
-   * Host-side port mapped to the sandbox's dev server. Used by the local
-   * ingress proxy in dev. NOT on `SandboxRunner` — only Docker has
-   * host-side port mappings.
-   */
+  /** Docker-only: host port → dev server. Used by local ingress; not on `SandboxRunner`. */
   async resolveDevPort(handle: string): Promise<number | null> {
     const rec = await this.lookupRecord(handle);
     return rec?.devPort ?? null;
   }
 
-  /**
-   * Host-side port mapped to the sandbox daemon. Used by the local
-   * ingress proxy in dev. NOT on `SandboxRunner` — only Docker has
-   * host-side port mappings.
-   */
+  /** Docker-only: host port → daemon. Used by local ingress; not on `SandboxRunner`. */
   async resolveDaemonPort(handle: string): Promise<number | null> {
     const rec = await this.lookupRecord(handle);
     return rec?.daemonPort ?? null;
   }
-
-  // ---------------------------------------------------------------------------
-  // internals
-  // ---------------------------------------------------------------------------
 
   private async ensureInner(
     id: SandboxId,
     labelId: string,
     opts: EnsureOptions,
   ): Promise<Sandbox> {
-    // 1. State-store lookup first (survives mesh restart + cross-process race).
+    // 1. State store → survives mesh restart + cross-process race.
     if (this.stateStore) {
       const persisted = await this.stateStore.get(id, RUNNER_KIND);
       if (persisted) {
@@ -286,13 +243,12 @@ export class DockerSandboxRunner implements SandboxRunner {
           await this.startDevServerIfNeeded(probed, opts);
           return this.toSandbox(probed);
         }
-        // Stale row — purge and fall through to docker discovery / create.
+        // Stale row — purge, fall through to discovery.
         await this.stateStore.delete(id, RUNNER_KIND);
       }
     }
 
-    // 2. Docker-level discovery (survives when state store is absent or empty,
-    //    e.g. state store wiped but docker still has the container).
+    // 2. Docker discovery → recovers when state store is empty but container lives.
     const existingHandle = await this.findExisting(labelId);
     if (existingHandle) {
       const tracked = this.byHandle.get(existingHandle);
@@ -312,9 +268,7 @@ export class DockerSandboxRunner implements SandboxRunner {
       await this.stopContainer(existingHandle);
     }
 
-    // 3. Fresh provision. Persist happens AFTER the clone so the mesh-side
-    //    state store (queried by the decopilot/preview pollers) only surfaces
-    //    this sandbox once the workdir is populated.
+    // 3. Fresh provision; persist AFTER clone so pollers only see a populated workdir.
     const rec = await this.provision(id, labelId, opts);
     this.byHandle.set(rec.handle, rec);
     try {
@@ -334,7 +288,6 @@ export class DockerSandboxRunner implements SandboxRunner {
     return this.toSandbox(rec);
   }
 
-  /** Convert internal record → public Sandbox shape. */
   private toSandbox(rec: DockerRecord): Sandbox {
     return {
       handle: rec.handle,
@@ -343,11 +296,7 @@ export class DockerSandboxRunner implements SandboxRunner {
     };
   }
 
-  /**
-   * Run repo bootstrap (git identity + idempotent clone) in the existing
-   * container. No-ops when no repo is requested or we've already attempted
-   * attach in this sandbox. Mutates `rec.repoAttached` and persists on success.
-   */
+  /** No-op if no repo or already attached. Mutates `rec.repoAttached` and persists. */
   private async attachRepoIfNeeded(
     id: SandboxId,
     rec: DockerRecord,
@@ -359,12 +308,7 @@ export class DockerSandboxRunner implements SandboxRunner {
     await this.persist(id, rec);
   }
 
-  /**
-   * Kick off the dev server for the container's workload. Fire-and-forget —
-   * VM_START returns fast and the dev server boots in the background. The
-   * daemon's `/dev/start` is idempotent; if a previous call already started
-   * the server, this is a no-op on its side.
-   */
+  /** Fire-and-forget `/dev/start` (idempotent on daemon); VM_START returns fast. */
   private async startDevServerIfNeeded(
     rec: DockerRecord,
     opts: EnsureOptions,
@@ -444,12 +388,9 @@ export class DockerSandboxRunner implements SandboxRunner {
   }
 
   /**
-   * Compose the public preview URL for a handle. Pattern resolution order:
-   *   1. Explicit `previewUrlPattern` constructor option (`{handle}` → handle).
-   *   2. `SANDBOX_ROOT_URL` env. If it contains `{handle}`, substitute;
-   *      otherwise prefix the URL hostname with `<handle>.`.
-   *   3. Local-ingress default: `http://<handle>.sandboxes.localhost:<port>/`.
-   * Reads env at call time so deploys can rewrite without a rebuild.
+   * Resolution: (1) `previewUrlPattern` option; (2) `SANDBOX_ROOT_URL` env
+   * (substitute `{handle}` or hostname-prefix); (3) local-ingress default.
+   * Env read at call time — deploys rewrite without a rebuild.
    */
   private composePreviewUrl(handle: string): string {
     const explicit = this.previewUrlPattern;
@@ -469,17 +410,13 @@ export class DockerSandboxRunner implements SandboxRunner {
       u.hostname = `${handle}.${u.hostname}`;
       return `${u.toString()}/`;
     } catch {
-      // Pattern wasn't a valid URL; fall back to local-ingress default shape.
+      // Invalid URL — fall back to local-ingress shape.
       const ingressPort = Number(process.env.SANDBOX_INGRESS_PORT ?? 7070);
       return `http://${handle}.sandboxes.localhost:${ingressPort}/`;
     }
   }
 
-  /**
-   * Find a DockerRecord for the given handle. Checks the in-memory cache
-   * first, then falls back to the state store — needed when the mesh process
-   * restarted (so `byHandle` is empty) but the container is still running.
-   */
+  /** Memory cache → state store. Fallback matters after mesh restart (empty byHandle). */
   private async lookupRecord(handle: string): Promise<DockerRecord | null> {
     const cached = this.byHandle.get(handle);
     if (cached) return cached;
@@ -506,12 +443,7 @@ export class DockerSandboxRunner implements SandboxRunner {
     return (await probeDaemonHealth(rec.daemonUrl)) ? rec : null;
   }
 
-  /**
-   * Rehydrate a DockerRecord from a persisted state-store row. Returns null
-   * on malformed rows (missing token/daemonUrl) or when re-reading the
-   * docker port mapping throws. We re-read the ephemeral port docker picked
-   * since mesh may have restarted with stale memory.
-   */
+  /** Rehydrate from state-store; re-reads ephemeral ports since mesh memory may be stale. */
   private async hydratePersisted(
     id: SandboxId,
     record: { handle: string; state: Record<string, unknown> },
@@ -582,9 +514,7 @@ export class DockerSandboxRunner implements SandboxRunner {
     if (!(await probeDaemonHealth(daemonUrl))) return null;
     const devContainerPort = opts.workload?.devPort ?? DEFAULT_DEV_PORT;
     const devPort = await this.readPort(handle, devContainerPort);
-    // Recovered via docker inspect — state store is empty so we don't know
-    // whether a repo was previously attached. Leave it false; the next
-    // ensure() will re-stamp it idempotently.
+    // Recovered via inspect; repoAttached unknown → leave false (next ensure re-stamps).
     return {
       handle,
       daemonUrl,
@@ -628,9 +558,7 @@ export class DockerSandboxRunner implements SandboxRunner {
           if (match) return Number(match[1]);
         }
       } else if (/no such container/i.test(r.stderr)) {
-        // Container exited (and `--rm` cleaned it up) before the daemon bound
-        // the port. Retrying for 3s is pointless — fail fast with the exit
-        // status and logs so the caller sees what crashed.
+        // Container exited before daemon bound the port — fail fast with diagnostics.
         const diag = await this.containerExitDiagnostics(handle);
         throw new Error(
           `sandbox container ${handle} exited before daemon started${diag}`,

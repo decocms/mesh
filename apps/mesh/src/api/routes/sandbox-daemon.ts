@@ -1,16 +1,7 @@
 /**
- * Sandbox daemon passthrough.
- *
- * `/api/sandbox/:handle/_daemon/*` → the sandbox's daemon on `/_daemon/*`
- * with the runner's per-handle credentials attached. Authorization happens
- * here: the caller's session must own the handle (checked against
- * `sandbox_runner_state`). Dev-server traffic does NOT flow through this
- * route — it goes directly to the pod via its public URL.
- *
- * Runner is resolved by the row's `runner_kind` so a multi-runner deploy
- * (e.g. local docker dev with prod-style freestyle entries) still routes
- * correctly. Token / WAF body re-encoding lives inside each runner's
- * `proxyDaemonRequest` implementation.
+ * Daemon passthrough — auth happens here (session must own the handle).
+ * Dev-server traffic bypasses this route (pods expose dev directly).
+ * Runner is dispatched on the row's `runner_kind`, not current env.
  */
 
 import { Hono } from "hono";

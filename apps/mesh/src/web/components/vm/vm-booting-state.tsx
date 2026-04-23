@@ -5,13 +5,10 @@ import { LiveTimer } from "../live-timer";
 interface VmBootingStateProps {
   /** Wall-clock ms when the boot began — feeds the elapsed timer. */
   since: number;
-  /** Whether any setup log bytes have arrived over SSE. */
   hasSetupData: boolean;
   /** npm scripts discovered in the repo (emitted after install completes). */
   scripts: string[];
-  /** Currently-running script names (e.g. "dev", "start"). */
   activeProcesses: string[];
-  /** Opens the env panel so the user can watch raw logs. */
   onViewLogs: () => void;
 }
 

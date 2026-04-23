@@ -234,9 +234,8 @@ export function ChatInput({
     tiptapDocRef.current = undefined;
   }
 
-  // Prefer the per-turn modelLimits on the last assistant message (populated
-  // by runtimes like Claude Code that only report real context window at
-  // turn end) so the ring renders even when the model catalog has null limits.
+  // Prefer per-turn modelLimits (Claude Code reports real window at turn end)
+  // so the ring renders even when catalog limits are null.
   const lastAssistantMetadata = [...messages]
     .reverse()
     .find((m) => m.role === "assistant")?.metadata;

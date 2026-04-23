@@ -1,15 +1,8 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
 
 /**
- * Standalone hook to focus the Env (VM/server) tab in the main panel.
- *
- * Drives the same `?main=<tabId>` querystring contract that
- * `useChatMainPanelState` reads, so call sites outside the agent shell
- * (preview overlays, booting/suspended states) can deep-link the user
- * into the Env tab without pulling in the full panel-state hook.
- *
- * `toggleEnv` collapses the main panel back to closed (`?main=0`) when
- * Env is already active, matching the behavior of the header tab bar.
+ * Focus the Env tab via the `?main=<tabId>` URL contract shared with
+ * useChatMainPanelState. toggleEnv collapses back to `?main=0` when already active.
  */
 const ENV_TAB_ID = "env";
 

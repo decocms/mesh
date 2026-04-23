@@ -1,9 +1,7 @@
 /**
- * Sandbox Runner State Storage
- *
- * Kysely-backed implementation of RunnerStateStore for the sandbox package.
- * The `state` jsonb is opaque — each runner (docker/freestyle) serialises its
- * own private fields. See packages/mesh-plugin-user-sandbox/server/runner/.
+ * Kysely-backed RunnerStateStore. `state` jsonb is opaque — each runner
+ * serialises its own fields. See
+ * packages/mesh-plugin-user-sandbox/server/runner/.
  */
 
 import { createHash } from "node:crypto";
@@ -19,8 +17,7 @@ import type { Database } from "./types";
 
 /**
  * Hash `(userId, projectRef, kind)` to a signed int64 for
- * `pg_advisory_xact_lock`. SHA-256 → first 8 bytes as big-endian,
- * then cast to a signed bigint so the range fits pg's `bigint`.
+ * `pg_advisory_xact_lock` — cast so the range fits pg's `bigint`.
  */
 function lockKey(id: SandboxId, kind: string): bigint {
   const h = createHash("sha256")
@@ -30,7 +27,6 @@ function lockKey(id: SandboxId, kind: string): bigint {
     .update("\x00")
     .update(kind)
     .digest();
-  // Read the first 8 bytes as a signed big-endian int64.
   return h.readBigInt64BE(0);
 }
 
@@ -113,13 +109,9 @@ export class KyselySandboxRunnerStateStore implements RunnerStateStore {
   }
 
   /**
-   * Serialize ensure() across pods with `pg_advisory_xact_lock`. The lock
-   * is transactional — postgres releases it automatically on COMMIT /
-   * ROLLBACK / connection drop, so a crashed pod never strands a sandbox.
-   *
-   * We don't expect this lock to contend in practice (a single user rarely
-   * hits VM_START from two pods simultaneously), so the transaction
-   * overhead is acceptable even for the happy path.
+   * Serialize ensure() across pods. pg_advisory_xact_lock is transactional
+   * — released on COMMIT / ROLLBACK / connection drop, so a crashed pod
+   * never strands a sandbox.
    */
   async withLock<T>(
     id: SandboxId,

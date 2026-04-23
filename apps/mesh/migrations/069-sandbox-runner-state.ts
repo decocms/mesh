@@ -1,12 +1,8 @@
 /**
- * Migration 068: Sandbox Runner State
- *
- * Persistent state for the containerised sandbox runner. Survives mesh
- * process restarts so we can recover (or terminate) live sandboxes instead
- * of orphaning them.
- *
- * The `state` jsonb is opaque to the interface — each runner serialises its
- * own shape (docker: {token, hostPort, ...}; freestyle: {token, domain, ...}).
+ * Persistent sandbox runner state — survives mesh restarts so we can
+ * recover or terminate live sandboxes. `state` jsonb is opaque: each
+ * runner serialises its own shape (docker: {token, hostPort, ...};
+ * freestyle: {token, domain, ...}).
  */
 
 import type { Kysely } from "kysely";

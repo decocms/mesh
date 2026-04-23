@@ -1,24 +1,9 @@
 /**
- * Local sandbox ingress forwarder for the Docker runner.
- *
- * Dev-only. Raw TCP proxy: parses the first HTTP request's `Host` header to
- * pick a handle + routing target (`/_daemon/*` → daemon port, else → dev
- * port), then pipes raw bytes bidirectionally. Unified path for HTTP and
- * WebSocket — avoids Bun's broken `node:http` `upgrade` event (the handed-off
- * socket reports writable but its writes never reach the client).
- *
- * Binds both `127.0.0.1` and `::1` on the same port so Chrome's Happy-Eyeballs
- * race can't miss us — macOS resolves `*.sandboxes.localhost` to both
- * families, and port 7000 is Apple's AirPlay (why default is 7070).
- *
- * No DNS setup needed: macOS/Linux resolve `*.localhost` to loopback natively
- * (RFC 6761). Handles are 32 hex chars (fits DNS's 63-char label cap).
- *
- * Lives next to `docker.ts` because it's intimate with Docker-specific port
- * mappings (`resolveDevPort` / `resolveDaemonPort`) — no other runner has
- * host-side ports to forward to. Production runs on Freestyle / Kubernetes
- * with a real Ingress / load balancer per pod on a wildcard domain — this
- * forwarder is NOT wired in those environments.
+ * Dev-only Docker ingress forwarder. Raw TCP proxy (not node:http — Bun's
+ * `upgrade` event hands off a socket whose writes never reach the client).
+ * Binds both 127.0.0.1 and ::1 for Chrome Happy-Eyeballs; default port 7070
+ * because macOS AirPlay owns 7000. `*.localhost` resolves to loopback
+ * natively (RFC 6761). Not wired in prod (Freestyle/K8s have real ingress).
  */
 
 import * as net from "node:net";
@@ -71,15 +56,8 @@ async function resolveTarget(
 }
 
 /**
- * Start the local ingress forwarder. Binds both loopback families on the
- * given port and returns the underlying `net.Server` instances so the host
- * app can close them during graceful shutdown.
- *
- * `getRunner` is invoked per-request — the Docker runner singleton is
- * lazy-init'd on first sandbox use, so the ingress can't capture an
- * instance at boot time. Returning `null` here yields a `503` to the
- * client, which is the right behaviour before any sandbox has been
- * provisioned in this process.
+ * `getRunner` is called per-request — the runner is lazy-init'd on first
+ * sandbox use. Returning null → 503 (correct before any sandbox exists).
  */
 export function startLocalSandboxIngress(
   getRunner: () => DockerSandboxRunner | null,
@@ -169,11 +147,8 @@ export function startLocalSandboxIngress(
     const MAX_RETRIES = 20; // ~10s at 500ms; covers the previous process's drain.
     let attempt = 0;
     let warnedInUse = false;
-    // Single 'listening' handler for the lifetime of this server. Passing
-    // the success callback to `listen()` instead would attach a new
-    // one-shot listener per retry; failed retries (EADDRINUSE) never fire
-    // their callback, so those listeners accumulate and trip Node's
-    // MaxListenersExceededWarning once retries hit ~10.
+    // Single persistent 'listening' handler — listen(callback) would attach
+    // one per retry and trip MaxListenersExceededWarning after ~10 EADDRINUSE.
     server.on("listening", () => {
       console.log(
         `[mesh-sandbox-ingress] forwarding *.sandboxes.localhost → ${host}:${port}`,
@@ -214,7 +189,6 @@ export function startLocalSandboxIngress(
     return server;
   };
 
-  // Bind both loopback families — macOS resolves `*.localhost` to both
-  // 127.0.0.1 and ::1, and Chrome often prefers IPv6.
+  // Bind both loopback families for Happy-Eyeballs (Chrome prefers IPv6).
   return [bind("127.0.0.1"), bind("::1")];
 }

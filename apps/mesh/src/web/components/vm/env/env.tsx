@@ -58,9 +58,7 @@ import type { PackageManager } from "@/shared/runtime-defaults";
 import { toast } from "sonner";
 
 interface VmData {
-  /** Null for blank / tool sandboxes with no dev server. VM_START always
-   * provisions a workload so this is non-null in practice today; nullable
-   * here mirrors the SDK schema and the future LLM-tool sandbox case. */
+  /** Null for blank/tool sandboxes (no dev server). Mirrors SDK schema; today VM_START always provisions one. */
   previewUrl: string | null;
   vmId: string;
   branch: string;
@@ -78,11 +76,7 @@ type ViewStatus =
 
 const WELL_KNOWN_STARTERS = ["dev", "start"];
 
-/**
- * Daemon base URL for `/_decopilot_vm/*` calls. Docker goes through the mesh
- * proxy at `/api/sandbox/<vmId>/_daemon` (bearer token stays server-side);
- * Freestyle hits the VM's own domain directly.
- */
+/** See VmEventsProvider for the docker-proxy vs freestyle-direct routing rationale. */
 function resolveDaemonBaseUrl(entry: VmMapEntry | undefined): string | null {
   if (!entry) return null;
   if (entry.runnerKind === "docker")
@@ -96,9 +90,8 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
 
-  // Check if there's already a VM for (this user, this thread's branch).
-  // `currentBranch` = URL override ?? thread.branch, so opening a thread with
-  // a persisted branch resolves to its vmMap entry even on a fresh URL.
+  // currentBranch = URL override ?? thread.branch, so a persisted thread
+  // resolves to its vmMap entry even on a fresh URL.
   const { currentBranch: urlBranch, setCurrentTaskBranch } = useChatTask();
   const userId = session?.user?.id;
   const vmMapMetadata = inset?.entity?.metadata as
@@ -109,8 +102,6 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
       ? vmMapMetadata?.vmMap?.[userId]?.[urlBranch]
       : undefined;
 
-  // Derived VM data — reflects the latest vmMap from the query cache. Any
-  // vmMap update triggers a re-render with the fresh value here.
   const vmData: VmData | null =
     existingVm && urlBranch
       ? {
@@ -185,9 +176,6 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     }
   };
 
-  // Read SSE state from the shared VmEventsProvider and register a chunk
-  // handler so log output lands in the active terminal. The provider owns
-  // the one EventSource; we just subscribe.
   const vmEvents = useVmEvents();
   useVmChunkHandler(handleChunk);
 
@@ -210,14 +198,9 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     }
   }, [derivedStatus, override]);
 
-  // Self-heal when vmMap points at a sandbox that no longer exists. The SSE
-  // probe in useVmEvents flips `notFound` on 404; VM_START purges the stale
-  // handle and writes a fresh entry into vmMap. Dedup by the dead vmId so
-  // we don't loop on repeated 404s for the same handle.
-  //
-  // Routed through the shared useVmStart mutation (same primitive used by
-  // the preview overlay) so MCP-protocol failures surface consistently
-  // instead of being swallowed by the raw client.callTool path.
+  // Self-heal stale vmMap entries: SSE probe flips notFound on 404, VM_START
+  // writes a fresh entry. Dedup by dead vmId to avoid looping on repeat 404s.
+  // Routed through useVmStart so MCP protocol errors surface (see call-vm-tool).
   const selfHealStart = useVmStart(client);
   const { mutate: triggerSelfHeal, isPending: selfHealPending } = selfHealStart;
   const virtualMcpId = inset?.entity?.id;
@@ -238,7 +221,6 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     });
   }, [deadVmId, virtualMcpId, urlBranch, selfHealPending, triggerSelfHeal]);
 
-  // When scripts are discovered, auto-open well-known starters.
   const scriptsAppliedRef = useRef(false);
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — responds to vmEvents.scripts discovery; drives one-time tab auto-open
   useEffect(() => {
@@ -332,9 +314,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
         throw new Error("Invalid VM response — missing fields");
       }
 
-      // If the server generated a branch (we didn't pass one), persist it to
-      // the thread (and URL) so subsequent renders resolve to the fresh vmMap
-      // entry via vmMap[userId][branch].
+      // Server-generated branch: persist so subsequent renders resolve via vmMap[userId][branch].
       if (!urlBranch) {
         setCurrentTaskBranch(data.branch);
       }

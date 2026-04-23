@@ -1,12 +1,3 @@
-/**
- * Single dev-server state container. Pod-per-thread — one daemon, one dev
- * process, no fanout.
- *
- * State only — the transition helpers (setPhase, currentStatusPayload) and
- * the log ring live in `events.mjs` since they broadcast over SSE on every
- * update.
- */
-
 import { MAX_BACKOFF_MS, WORKDIR } from "./config.mjs";
 
 export const dev = {
@@ -22,20 +13,13 @@ export const dev = {
   stopInFlight: null,
   /** { source, line, ts } — shared log ring across all sources. */
   logRing: [],
-  // Crash-loop backoff: consecutive fast crashes (exit < FAST_CRASH_MS after
-  // spawn) accumulate here. `/dev/start` refuses until the computed backoff
-  // window elapses, so a persistent startup failure (missing dep, bad
-  // config) doesn't turn into hundreds of respawns driven by UI polling.
+  // Consecutive fast crashes; /dev/start refuses until backoff elapses.
   // Cleared on `ready` and on `restart: true`.
   crashCount: 0,
   lastCrashAt: null,
-  // Rolling timestamps of recent auto-respawns after clean self-exits.
-  // Used to catch pathological clean-exit loops (e.g. a daemonizer script
-  // that exits 0 immediately after forking). Normal HMR-driven respawns
-  // stay well under the cap defined in config.mjs.
+  // Rolling timestamps to detect pathological clean-exit loops.
   respawnTimes: [],
-  // Set by stopDev() before sending SIGTERM so the exit handler can
-  // distinguish "we asked for it" from a crash or runtime self-exit.
+  // Set by stopDev() before SIGTERM so the exit handler skips auto-respawn.
   stopRequested: false,
 };
 

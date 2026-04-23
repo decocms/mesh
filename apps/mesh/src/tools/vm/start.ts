@@ -1,17 +1,8 @@
 /**
- * VM_START Tool
- *
- * Starts a sandbox with the connected GitHub repo, keyed by (userId, branch)
- * in the Virtual MCP's `vmMap`. App-only tool — not visible to AI models.
- *
- * Runner-agnostic: dispatches through the active `SandboxRunner` (selected
- * by `MESH_SANDBOX_RUNNER`). The runner owns image/spec selection, repo
- * clone, dev-server lifecycle, and preview-URL composition; this handler
- * stays small and deals only with `vmMap` bookkeeping.
- *
- * Branch semantics: the tool accepts an optional `branch`. When omitted it
- * generates `deco/<adjective>-<noun>`. The resolved branch is returned so
- * the client can persist it.
+ * VM_START. Keyed by (userId, branch) in the Virtual MCP's `vmMap`.
+ * Runner-agnostic — dispatches through the active `SandboxRunner`; this
+ * handler only does `vmMap` bookkeeping. Branch defaults to
+ * `deco/<adjective>-<noun>` when omitted.
  */
 
 import { z } from "zod";
@@ -147,10 +138,8 @@ async function provisionSandbox(
     ctx.vault,
   );
 
-  // Workload metadata is optional — when no package manager is selected
-  // (clone-only repo) we let the runner pick its default and skip dev-server
-  // start. Runners that need it for spec construction (Freestyle) treat the
-  // missing case as "node, no install, no dev server".
+  // Missing workload = clone-only. Freestyle treats it as "node, no install,
+  // no dev server"; Docker lets the runner pick its default.
   const workload: Workload | undefined =
     runtime && packageManager
       ? {
@@ -180,13 +169,8 @@ async function provisionSandbox(
     },
   );
 
-  // VM_START always provisions a dev-server workload, so previewUrl is
-  // non-null in practice. The vmMap schema allows null for the future
-  // LLM-tool / blank sandbox case where no dev server runs.
-  // Preserve `createdAt` across resumes (same handle as the existing entry)
-  // so the booting overlay's elapsed timer doesn't reset just because we
-  // re-ran VM_START. Only stamp a fresh `createdAt` when this is genuinely
-  // a new sandbox handle.
+  // Preserve `createdAt` across resumes so the booting overlay's elapsed
+  // timer doesn't reset on re-run.
   const isResume = !!existing && existing.vmId === sandbox.handle;
   const createdAt =
     isResume && existing?.createdAt ? existing.createdAt : Date.now();
@@ -207,9 +191,7 @@ async function provisionSandbox(
     entry,
   );
 
-  // Resume vs create: same handle as the previously-stored entry means the
-  // runner found and reused an existing sandbox; a different handle means it
-  // created a new one (stale entry / orphan recovery / state-store miss).
+  // Different handle = new sandbox (stale entry / orphan recovery / state miss).
   const isNewVm = !existing || existing.vmId !== sandbox.handle;
   return { entry, isNewVm };
 }

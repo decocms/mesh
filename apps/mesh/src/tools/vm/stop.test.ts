@@ -3,12 +3,7 @@ import type { VmMap, VmMapEntry } from "@decocms/mesh-sdk";
 import type { MeshContext } from "../../core/mesh-context";
 import type { SandboxRunner } from "mesh-plugin-user-sandbox/runner";
 
-// ---------------------------------------------------------------------------
-// Mock the per-kind runner lookup BEFORE importing VM_DELETE. VM_DELETE is
-// runner-agnostic now — it just calls runner.delete(handle) on whichever
-// runner the entry's recorded kind resolves to.
-// ---------------------------------------------------------------------------
-
+// Mock per-kind runner lookup BEFORE importing VM_DELETE.
 const mockDelete = mock(async (_handle: string): Promise<void> => {});
 const lastRequestedKind: { value: string | null } = { value: null };
 
@@ -44,10 +39,6 @@ mock.module("../../sandbox/lifecycle", () => ({
 }));
 
 const { VM_DELETE } = await import("./stop");
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 const BRANCH = "feat/example";
 
@@ -151,10 +142,6 @@ function makeCtx(overrides: {
     monitoring: null as never,
   } as unknown as MeshContext;
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe("VM_DELETE", () => {
   beforeEach(() => {

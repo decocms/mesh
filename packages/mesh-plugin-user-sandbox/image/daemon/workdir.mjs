@@ -1,8 +1,3 @@
-/**
- * Workdir inspection helpers: runtime/pm detection, config reading, script
- * listing. Pure filesystem lookups — no daemon state, no subprocess calls.
- */
-
 import fs from "node:fs";
 import path from "node:path";
 
@@ -15,12 +10,7 @@ function hasFile(workdir, f) {
   }
 }
 
-/**
- * Detect the runtime family. Caller may override via the `/dev/start` hint —
- * this is the fallback when no hint is passed. Deno wins over Node when any
- * Deno config file is present, since deco-sites and friends ship `deno.json`
- * but may also have a stray `package.json` for editor tooling.
- */
+/** Deno wins over Node when a deno config is present (deco-sites ship both). */
 export function detectRuntime(workdir) {
   if (
     hasFile(workdir, "deno.json") ||
@@ -53,11 +43,7 @@ export function readPackageJson(workdir) {
   }
 }
 
-/**
- * Minimal JSONC support: strip `//` line comments and `/* *\/` block comments,
- * and trim trailing commas. Not a full JSONC parser — good enough for the
- * `tasks` field, which is what we read.
- */
+/** Minimal JSONC — strips comments + trailing commas; enough for `tasks`. */
 function parseJsonc(raw) {
   const stripped = raw
     .replace(/\/\*[\s\S]*?\*\//g, "")
@@ -71,21 +57,15 @@ export function readDenoConfig(workdir) {
     try {
       const raw = fs.readFileSync(path.join(workdir, f), "utf8");
       return f.endsWith(".jsonc") ? parseJsonc(raw) : JSON.parse(raw);
-    } catch {
-      // try next
-    }
+    } catch {}
   }
   return null;
 }
 
 export function pickScript(runtime, pkg, denoConfig) {
-  // Prefer `dev` over `start` on both runtimes. In deco/Fresh projects the
-  // `start` task often points at `@deco/deco/daemon/main.ts`, which is a
-  // daemonizer — it forks the real server into a background child and the
-  // parent exits 0. From the sandbox-daemon's point of view that looks like
-  // a clean exit, so the self-heal loop keeps re-spawning it and each
-  // respawn orphans another port-8000 holder. `dev` is the non-forking
-  // foreground server in every convention I've seen.
+  // Prefer `dev` over `start`: deco/Fresh `start` points at a daemonizer
+  // (@deco/deco/daemon/main.ts) that forks and exits 0 — which the supervisor
+  // reads as a clean exit and respawns, orphaning port-8000 holders.
   if (runtime === "deno") {
     const tasks = (denoConfig && denoConfig.tasks) ?? {};
     if (typeof tasks.dev === "string") return "dev";
@@ -107,11 +87,7 @@ function listScripts(runtime, pkg, denoConfig) {
   return Object.keys(scripts);
 }
 
-/**
- * Sniff a workdir for runtime + available dev/start scripts + package manager.
- * Shared by the SSE replay, the /dev/scripts endpoint, and startDev so the
- * rules stay in one place.
- */
+/** Shared by SSE replay, /dev/scripts, and startDev — keeps rules in one place. */
 export function inspectWorkdir(cwd) {
   const runtime = detectRuntime(cwd);
   const pkg = readPackageJson(cwd);

@@ -1,13 +1,8 @@
-# Minimal sandbox image for mesh-plugin-user-sandbox.
 # Build: docker build -t mesh-sandbox:local packages/mesh-plugin-user-sandbox/image
 FROM node:22-bookworm-slim
 
-# Runtime deps + bun + deno. Claude Code is NOT in this image — use
-# Dockerfile.claude for the claude-enabled variant.
-# `locales` + a generated `en_US.UTF-8` are load-bearing: repos that use
-# `embedded-postgres` (decocms/studio dev server, any app running mesh
-# in-sandbox) refuse to init without it. Matches the Freestyle VM_START
-# install-ripgrep.sh so both runners have parity.
+# `locales` + generated `en_US.UTF-8` is load-bearing: repos using
+# `embedded-postgres` refuse to init without it.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
        bash \
@@ -37,9 +32,8 @@ WORKDIR /app
 COPY daemon.mjs /opt/sandbox-daemon/daemon.mjs
 COPY daemon/ /opt/sandbox-daemon/daemon/
 
-# Tell claude-code it's running in a sandbox so --permission-mode
-# bypassPermissions doesn't refuse because PID 1 is root. We ARE root in this
-# container — that's fine; the container itself is the isolation boundary.
+# Tells claude-code --permission-mode bypassPermissions to accept root PID 1;
+# the container is the isolation boundary.
 ENV IS_SANDBOX=1
 
 EXPOSE 9000

@@ -1,13 +1,11 @@
 /**
- * Focused tests for the Freestyle daemon-path translator. The mapping is
- * the only Docker-vs-Freestyle surface easy to break silently when
- * onboarding a third runner — keep it covered explicitly.
+ * Docker-vs-Freestyle path mapping is easy to break silently; covered
+ * explicitly.
  */
 
 import { describe, expect, it, mock } from "bun:test";
 
-// Avoid pulling the freestyle SDK at import time — tests target the pure
-// path translator only.
+// Avoid pulling the freestyle SDK at import time — we only test the translator.
 mock.module("freestyle-sandboxes", () => ({
   freestyle: {},
   VmSpec: class {},
