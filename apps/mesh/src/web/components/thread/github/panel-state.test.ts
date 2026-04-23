@@ -12,6 +12,7 @@ function bs(over: Partial<BranchStatus> = {}): BranchStatus {
     unpushed: 0,
     aheadOfBase: 0,
     behindBase: 0,
+    headSha: "abc123",
     ...over,
   };
 }
@@ -111,18 +112,35 @@ describe("selectHeaderButton", () => {
     expect(r?.action).toBe("reopen");
   });
 
-  test("merged PR is terminal → null (even with aheadOfBase > 0 post-squash)", () => {
+  test("merged PR, branch at merge head → null (work shipped)", () => {
     const r = selectHeaderButton({
-      branchStatus: bs({ aheadOfBase: 3 }),
+      branchStatus: bs({ aheadOfBase: 3, headSha: "abc123" }),
       pr: pr({
         state: "closed",
         merged: true,
         mergedAt: "2026-04-22T00:00:00Z",
+        headSha: "abc123",
       }),
       checks: [],
       reviews: null,
     });
     expect(r).toBeNull();
+  });
+
+  test("merged PR, branch advanced past merge head → Submit for review", () => {
+    const r = selectHeaderButton({
+      branchStatus: bs({ aheadOfBase: 4, headSha: "def456" }),
+      pr: pr({
+        state: "closed",
+        merged: true,
+        mergedAt: "2026-04-22T00:00:00Z",
+        headSha: "abc123",
+      }),
+      checks: [],
+      reviews: null,
+    });
+    expect(r?.label).toBe("Submit for review");
+    expect(r?.action).toBe("create-pr");
   });
 
   test("ahead of base + no PR → Create PR", () => {

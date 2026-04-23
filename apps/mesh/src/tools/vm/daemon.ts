@@ -208,7 +208,10 @@ function computeBranchStatus() {
       const m = lrcount.match(/^(\\d+)\\s+(\\d+)$/);
       if (m) { behindBase = Number(m[1]); aheadOfBase = Number(m[2]); }
     }
-    return { branch: branch, base: base, workingTreeDirty: dirty, unpushed: unpushed, aheadOfBase: aheadOfBase, behindBase: behindBase };
+    // Current head sha — used by the frontend to detect branch advances
+    // past a merged PR's head.
+    const headSha = exec("git rev-parse " + branchRef);
+    return { branch: branch, base: base, workingTreeDirty: dirty, unpushed: unpushed, aheadOfBase: aheadOfBase, behindBase: behindBase, headSha: headSha };
   } catch (e) {
     log("branch-status compute failed:", e && e.message ? e.message : e);
     return null;

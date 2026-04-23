@@ -24,6 +24,12 @@ export interface BranchStatus {
   unpushed: number;
   aheadOfBase: number;
   behindBase: number;
+  /**
+   * Current HEAD sha of the local branch (falls back to origin/<branch>
+   * when the remote-tracking ref exists). Empty string if the daemon
+   * couldn't compute it.
+   */
+  headSha: string;
 }
 
 export type ChunkHandler = (source: string, data: string) => void;
@@ -141,6 +147,7 @@ export function useVmEvents(
             unpushed: Number(data.unpushed ?? 0),
             aheadOfBase: Number(data.aheadOfBase ?? 0),
             behindBase: Number(data.behindBase ?? 0),
+            headSha: String(data.headSha ?? ""),
           });
         }
       } catch {
