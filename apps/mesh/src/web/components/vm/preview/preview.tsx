@@ -70,7 +70,7 @@ export function PreviewContent() {
     userId && branch ? metadata?.vmMap?.[userId]?.[branch] : undefined;
   const previewUrl = vmEntry?.previewUrl ?? null;
 
-  const vmEvents = useVmEvents(previewUrl, null);
+  const vmEvents = useVmEvents();
   const hasHtmlPreview = vmEvents.status.htmlSupport;
   const suspended = vmEvents.suspended;
 

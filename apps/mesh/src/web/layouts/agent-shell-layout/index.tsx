@@ -69,6 +69,7 @@ import { ChatMainPanelGroup } from "./chat-main-panel-group";
 import { ToggleButtons } from "./toggle-buttons";
 import { MainPanelTabsBar } from "@/web/layouts/main-panel-tabs/main-panel-tabs-bar";
 import { VirtualMcpHeaderInfo } from "../../views/virtual-mcp/header-info.tsx";
+import { VmEventsProvider } from "@/web/components/vm/hooks/vm-events-context.tsx";
 
 // ---------------------------------------------------------------------------
 // Types & Context
@@ -164,7 +165,10 @@ function AgentInsetProvider() {
   };
   const orgSlug = params.org ?? "";
 
-  const search = useSearch({ strict: false }) as { virtualmcpid?: string };
+  const search = useSearch({ strict: false }) as {
+    virtualmcpid?: string;
+    branch?: string;
+  };
   const virtualMcpId =
     search.virtualmcpid ?? getWellKnownDecopilotVirtualMCP(org.id).id;
   const isDecopilot = virtualMcpId === getDecopilotId(org.id);
@@ -219,6 +223,10 @@ function AgentInsetProvider() {
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
   const vmMap = entity?.metadata?.vmMap;
+  const vmPreviewUrl =
+    userId && urlBranch
+      ? (vmMap?.[userId]?.[urlBranch]?.previewUrl ?? null)
+      : null;
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — one-shot side effect that sets a URL search param; TanStack Router navigation has no render-time equivalent
   useEffect(() => {
     if (urlBranch) return;
@@ -340,15 +348,19 @@ function AgentInsetProvider() {
       <InsetContext value={insetContextValue}>
         <div className="flex flex-col flex-1 bg-background min-h-0">
           <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
-            <NewTaskBridge
-              onNewTaskRef={onNewTask}
-              createNewTask={layout.createNewTask}
-            />
-            <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <ActiveTaskBoundary variant={isDecopilot ? "home" : undefined} />
-            </div>
-            {mobileSidebarSheet}
+            <VmEventsProvider previewUrl={vmPreviewUrl}>
+              <NewTaskBridge
+                onNewTaskRef={onNewTask}
+                createNewTask={layout.createNewTask}
+              />
+              <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <ActiveTaskBoundary
+                  variant={isDecopilot ? "home" : undefined}
+                />
+              </div>
+              {mobileSidebarSheet}
+            </VmEventsProvider>
           </Chat.Provider>
         </div>
       </InsetContext>
@@ -378,20 +390,22 @@ function AgentInsetProvider() {
       )}
 
       <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
-        {!isDecopilot && <VirtualMcpHeaderInfo virtualMcp={entity} />}
-        <NewTaskBridge
-          onNewTaskRef={onNewTask}
-          createNewTask={layout.createNewTask}
-        />
-        <ChatMainPanelGroup
-          virtualMcpId={virtualMcpId}
-          taskId={layout.taskId}
-          chatOpen={layout.chatOpen}
-          mainOpen={layout.mainOpen}
-          chatContent={
-            <ActiveTaskBoundary variant={isDecopilot ? "home" : undefined} />
-          }
-        />
+        <VmEventsProvider previewUrl={vmPreviewUrl}>
+          {!isDecopilot && <VirtualMcpHeaderInfo virtualMcp={entity} />}
+          <NewTaskBridge
+            onNewTaskRef={onNewTask}
+            createNewTask={layout.createNewTask}
+          />
+          <ChatMainPanelGroup
+            virtualMcpId={virtualMcpId}
+            taskId={layout.taskId}
+            chatOpen={layout.chatOpen}
+            mainOpen={layout.mainOpen}
+            chatContent={
+              <ActiveTaskBoundary variant={isDecopilot ? "home" : undefined} />
+            }
+          />
+        </VmEventsProvider>
       </Chat.Provider>
     </InsetContext>
   );

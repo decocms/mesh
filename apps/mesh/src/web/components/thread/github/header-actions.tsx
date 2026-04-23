@@ -7,7 +7,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
-import { authClient } from "@/web/lib/auth-client";
 import { useChatBridge } from "../../chat/chat-context.tsx";
 import { useChatNavigation } from "../../chat/hooks/use-chat-navigation.ts";
 import { MergeSplitButton } from "./merge-split-button.tsx";
@@ -33,19 +32,13 @@ interface Props {
  */
 export function HeaderActions({ virtualMcpId }: Props) {
   const { org } = useProjectContext();
-  const { data: session } = authClient.useSession();
-  const userId = session?.user?.id ?? null;
   const vm = useVirtualMCP(virtualMcpId);
   const { branch } = useChatNavigation();
   const chat = useChatBridge();
 
   const githubRepo = vm?.metadata?.githubRepo ?? null;
 
-  const branchStatus = useBranchStatus({
-    virtualMcpId,
-    userId,
-    branch: branch ?? null,
-  });
+  const branchStatus = useBranchStatus();
 
   const prQuery = usePrByBranch({
     orgId: org.id,

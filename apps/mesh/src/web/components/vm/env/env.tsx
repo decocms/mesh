@@ -44,7 +44,7 @@ import { useChatBridge } from "@/web/components/chat/context";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { VmErrorState } from "../vm-error-state";
 import { VmSuspendedState } from "../vm-suspended-state";
-import { useVmEvents } from "../hooks/use-vm-events";
+import { useVmChunkHandler, useVmEvents } from "../hooks/use-vm-events";
 import { VmTerminal } from "./terminal";
 import type { Terminal as XTerminal } from "@xterm/xterm";
 import { EmptyState } from "../../empty-state";
@@ -174,7 +174,8 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   // Subscribe to the VM's SSE stream whenever vmData is known — covers both
   // "running" and "suspended" (which is derived from the SSE disconnect). The
   // stream auto-reconnects on URL change, so switching branches just works.
-  const vmEvents = useVmEvents(vmData?.previewUrl ?? null, handleChunk);
+  const vmEvents = useVmEvents();
+  useVmChunkHandler(handleChunk);
 
   // Final status = user-initiated override, else derived from (vmData, SSE).
   const derivedStatus: ViewStatus = vmEvents.suspended
