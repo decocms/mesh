@@ -89,6 +89,12 @@ export function resolveReviewComments(
   return `On repo \`${repoRef(ctx)}\`, read the unresolved review threads on PR #${ctx.prNumber} via the GitHub MCP tools. For each thread: understand the reviewer's ask, make the needed changes in the vm's working tree, commit, push, post a reply explaining what changed, and mark the thread resolved. If a comment is a question that doesn't need a code change, reply with the answer and resolve. ${GIT_CLI_PREAMBLE}`;
 }
 
+export function reviewPr(
+  ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber">,
+): string {
+  return `On repo \`${repoRef(ctx)}\`, review PR #${ctx.prNumber}. Read the full diff via the GitHub MCP tools, then analyze every changed file for correctness, security, code quality, and alignment with the repo's existing patterns. Post specific line-level review comments where you have concerns, then submit an overall review (approve / request changes / comment) with a concise summary. Do not modify the code — this is a read-and-comment pass.`;
+}
+
 export function reopenPr(
   ctx: Pick<TemplateContext, "owner" | "repo" | "prNumber">,
 ): string {

@@ -33,6 +33,7 @@ export function MergeSplitButton({
   const squash = () => send(tpl.mergeSquash({ owner, repo, prNumber, base }));
   const rebase = () => send(tpl.mergeRebase({ owner, repo, prNumber, base }));
   const commit = () => send(tpl.mergeCommit({ owner, repo, prNumber, base }));
+  const review = () => send(tpl.reviewPr({ owner, repo, prNumber }));
 
   return (
     <div className="inline-flex items-stretch rounded-md">
@@ -56,9 +57,9 @@ export function MergeSplitButton({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={squash}>Squash and merge</DropdownMenuItem>
           <DropdownMenuItem onClick={rebase}>Rebase and merge</DropdownMenuItem>
           <DropdownMenuItem onClick={commit}>Merge commit</DropdownMenuItem>
+          <DropdownMenuItem onClick={review}>Review PR</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
