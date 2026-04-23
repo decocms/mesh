@@ -27,7 +27,7 @@ import {
   use,
   Suspense,
 } from "react";
-import { Chat, useChatTask } from "@/web/components/chat/index";
+import { Chat } from "@/web/components/chat/index";
 import { ChatCenterPanel } from "@/web/layouts/chat-center-panel";
 import { TasksPanel } from "@/web/layouts/tasks-panel";
 import { ErrorBoundary } from "@/web/components/error-boundary";
@@ -90,31 +90,6 @@ export function useInsetContext(): InsetContextValue | null {
 // ---------------------------------------------------------------------------
 // Agent inset sub-components
 // ---------------------------------------------------------------------------
-
-function ActiveTaskBoundary({
-  children,
-  variant,
-}: {
-  children?: React.ReactNode;
-  variant?: "home" | "default";
-}) {
-  const { taskId } = useChatTask();
-  return (
-    <ErrorBoundary
-      fallback={
-        <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-          Something went wrong loading the chat. Try refreshing.
-        </div>
-      }
-    >
-      <Suspense fallback={<Chat.Skeleton />}>
-        <Chat.ActiveTaskProvider taskId={taskId}>
-          {children ?? <ChatCenterPanel variant={variant} />}
-        </Chat.ActiveTaskProvider>
-      </Suspense>
-    </ErrorBoundary>
-  );
-}
 
 function NewTaskBridge({
   onNewTaskRef,
@@ -349,26 +324,37 @@ function AgentInsetProvider() {
       <InsetContext value={insetContextValue}>
         <div className="flex flex-col flex-1 bg-background min-h-0">
           <PendingMessageProvider>
-            <Chat.Provider
-              key={chatVirtualMcpId}
-              virtualMcpId={chatVirtualMcpId}
-            >
-              <VmEventsProvider previewUrl={vmPreviewUrl}>
-                <NewTaskBridge
-                  onNewTaskRef={onNewTask}
-                  createNewTask={layout.createNewTask}
-                />
-                <MobileToolbar
-                  onOpenSidebar={() => setMobileSidebarOpen(true)}
-                />
-                <div className="flex-1 min-h-0 overflow-hidden">
-                  <ActiveTaskBoundary
-                    variant={isDecopilot ? "home" : undefined}
-                  />
+            <ErrorBoundary
+              fallback={
+                <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+                  Something went wrong loading this agent. Try refreshing.
                 </div>
-                {mobileSidebarSheet}
-              </VmEventsProvider>
-            </Chat.Provider>
+              }
+            >
+              <Suspense fallback={<Chat.Skeleton />}>
+                <Chat.Provider
+                  key={layout.taskId}
+                  virtualMcpId={chatVirtualMcpId}
+                  taskId={layout.taskId}
+                >
+                  <VmEventsProvider previewUrl={vmPreviewUrl}>
+                    <NewTaskBridge
+                      onNewTaskRef={onNewTask}
+                      createNewTask={layout.createNewTask}
+                    />
+                    <MobileToolbar
+                      onOpenSidebar={() => setMobileSidebarOpen(true)}
+                    />
+                    <div className="flex-1 min-h-0 overflow-hidden">
+                      <ChatCenterPanel
+                        variant={isDecopilot ? "home" : undefined}
+                      />
+                    </div>
+                    {mobileSidebarSheet}
+                  </VmEventsProvider>
+                </Chat.Provider>
+              </Suspense>
+            </ErrorBoundary>
           </PendingMessageProvider>
         </div>
       </InsetContext>
@@ -398,26 +384,36 @@ function AgentInsetProvider() {
       )}
 
       <PendingMessageProvider>
-        <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
-          <VmEventsProvider previewUrl={vmPreviewUrl}>
-            {!isDecopilot && <VirtualMcpHeaderInfo virtualMcp={entity} />}
-            <NewTaskBridge
-              onNewTaskRef={onNewTask}
-              createNewTask={layout.createNewTask}
-            />
-            <ChatMainPanelGroup
-              virtualMcpId={virtualMcpId}
+        <ErrorBoundary
+          fallback={
+            <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+              Something went wrong loading this agent. Try refreshing.
+            </div>
+          }
+        >
+          <Suspense fallback={<Chat.Skeleton />}>
+            <Chat.Provider
+              key={layout.taskId}
+              virtualMcpId={chatVirtualMcpId}
               taskId={layout.taskId}
-              chatOpen={layout.chatOpen}
-              mainOpen={layout.mainOpen}
-              chatContent={
-                <ActiveTaskBoundary
+            >
+              <VmEventsProvider previewUrl={vmPreviewUrl}>
+                {!isDecopilot && <VirtualMcpHeaderInfo virtualMcp={entity} />}
+                <NewTaskBridge
+                  onNewTaskRef={onNewTask}
+                  createNewTask={layout.createNewTask}
+                />
+                <ChatMainPanelGroup
+                  virtualMcpId={virtualMcpId}
+                  taskId={layout.taskId}
+                  chatOpen={layout.chatOpen}
+                  mainOpen={layout.mainOpen}
                   variant={isDecopilot ? "home" : undefined}
                 />
-              }
-            />
-          </VmEventsProvider>
-        </Chat.Provider>
+              </VmEventsProvider>
+            </Chat.Provider>
+          </Suspense>
+        </ErrorBoundary>
       </PendingMessageProvider>
     </InsetContext>
   );

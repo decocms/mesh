@@ -1,16 +1,15 @@
 /**
- * Chat Context — consumer hooks from split provider architecture.
+ * Chat Context — consumer hooks from merged provider architecture.
  *
  * Use the specific hooks for fine-grained subscriptions:
- *   useChatStream() — messages, status, streaming state (under ActiveTaskProvider)
- *   useChatTask() — tasks, navigation, virtualMcpId (under TaskProvider)
- *   useChatPrefs() — model selection, app contexts, tiptap (under TaskProvider)
- *   useChatBridge() — bridge to active task's sendMessage (under TaskProvider)
+ *   useChatStream() — messages, status, streaming state
+ *   useChatTask() — tasks, navigation, virtualMcpId
+ *   useChatPrefs() — model selection, app contexts, tiptap
+ *   useChatBridge() — DEPRECATED, use useChatStream
  */
 
 export {
-  ChatContextProvider,
-  ActiveTaskProvider,
+  ChatProvider,
   useChatTask,
   useChatStream,
   useOptionalChatStream,
