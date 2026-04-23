@@ -38,7 +38,7 @@ export function MergeSplitButton({
     <div className="inline-flex items-stretch rounded-md">
       <Button
         size="sm"
-        className="rounded-r-none border-r-0"
+        className="rounded-r-none border-r border-primary-foreground/20"
         disabled={disabled}
         onClick={squash}
       >
