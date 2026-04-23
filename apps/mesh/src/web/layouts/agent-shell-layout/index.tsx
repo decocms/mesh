@@ -27,7 +27,7 @@ import {
   use,
   Suspense,
 } from "react";
-import { Chat } from "@/web/components/chat/index";
+import { Chat, useChatTask } from "@/web/components/chat/index";
 import { ChatCenterPanel } from "@/web/layouts/chat-center-panel";
 import { TasksPanel } from "@/web/layouts/tasks-panel";
 import { ErrorBoundary } from "@/web/components/error-boundary";
@@ -51,9 +51,8 @@ import {
   useVirtualMCP,
 } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
-import { useQueryClient } from "@tanstack/react-query";
-import { invalidateVirtualMcpQueries } from "@/web/lib/query-keys";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { useVmStart } from "@/web/components/vm/hooks/use-vm-start";
 import { useStatusSounds } from "../../hooks/use-status-sounds";
 import { useChatNavigation } from "@/web/components/chat/hooks/use-chat-navigation";
 import { generateBranchName } from "@/shared/branch-name";
@@ -70,7 +69,6 @@ import { ToggleButtons } from "./toggle-buttons";
 import { MainPanelTabsBar } from "@/web/layouts/main-panel-tabs/main-panel-tabs-bar";
 import { VirtualMcpHeaderInfo } from "../../views/virtual-mcp/header-info.tsx";
 import { VmEventsProvider } from "@/web/components/vm/hooks/vm-events-context.tsx";
-import { PendingMessageProvider } from "@/web/components/chat/pending-message-context";
 
 // ---------------------------------------------------------------------------
 // Types & Context
@@ -90,6 +88,31 @@ export function useInsetContext(): InsetContextValue | null {
 // ---------------------------------------------------------------------------
 // Agent inset sub-components
 // ---------------------------------------------------------------------------
+
+function ActiveTaskBoundary({
+  children,
+  variant,
+}: {
+  children?: React.ReactNode;
+  variant?: "home" | "default";
+}) {
+  const { taskId } = useChatTask();
+  return (
+    <ErrorBoundary
+      fallback={
+        <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+          Something went wrong loading the chat. Try refreshing.
+        </div>
+      }
+    >
+      <Suspense fallback={<Chat.Skeleton />}>
+        <Chat.ActiveTaskProvider taskId={taskId}>
+          {children ?? <ChatCenterPanel variant={variant} />}
+        </Chat.ActiveTaskProvider>
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
 
 function NewTaskBridge({
   onNewTaskRef,
@@ -199,10 +222,12 @@ function AgentInsetProvider() {
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
   const vmMap = entity?.metadata?.vmMap;
-  const vmPreviewUrl =
-    userId && urlBranch
-      ? (vmMap?.[userId]?.[urlBranch]?.previewUrl ?? null)
-      : null;
+  // daemonBaseUrl routing rationale: see VmEventsProvider.
+  const vmEntry =
+    userId && urlBranch ? (vmMap?.[userId]?.[urlBranch] ?? null) : null;
+  const vmDaemonBaseUrl = vmEntry
+    ? `/api/sandbox/${vmEntry.vmId}/_daemon`
+    : null;
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — one-shot side effect that sets a URL search param; TanStack Router navigation has no render-time equivalent
   useEffect(() => {
     if (urlBranch) return;
@@ -210,20 +235,23 @@ function AgentInsetProvider() {
     if (!userId) return;
     const userBranches = vmMap?.[userId];
     const existing = userBranches ? Object.keys(userBranches)[0] : undefined;
+    // URL only — runs outside Chat.Provider (no thread-persistence helpers).
+    // createMemory writes thread.branch on the first stream request.
     setBranch(existing ?? generateBranchName());
   }, [urlBranch, hasActiveGithubRepo, setBranch, userId, vmMap]);
 
   // Auto-start the VM when the thread lands on a branch without a registered
-  // entry. Ensures every github-linked thread has a live vm and a stable
-  // preview URL, so the user never sees "No server running" and vmMap is
-  // always populated for the sticky-branch logic above.
-  const queryClient = useQueryClient();
+  // entry. Routed through useVmStart so concurrent mounts (preview, env, this
+  // layout) for the same (virtualMcpId, branch) collapse onto one in-flight
+  // upstream call instead of stacking 10–30s container-create requests.
   const autoStartClient = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
+  const autoStart = useVmStart(autoStartClient);
+  const { mutate: triggerAutoStart } = autoStart;
   const autoStartingBranchRef = useRef<string | null>(null);
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — fires VM_START when vmMap is missing an entry for (user, branch); ref guard dedupes concurrent mounts and the effect tears itself down on success via query invalidation
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — fires VM_START when vmMap is missing an entry for (user, branch); ref guard dedupes within this mount, module-level map dedupes across components
   useEffect(() => {
     if (!hasActiveGithubRepo) return;
     if (!userId) return;
@@ -231,28 +259,26 @@ function AgentInsetProvider() {
     if (vmMap?.[userId]?.[urlBranch]) return;
     if (autoStartingBranchRef.current === urlBranch) return;
     autoStartingBranchRef.current = urlBranch;
-    autoStartClient
-      .callTool({
-        name: "VM_START",
-        arguments: { virtualMcpId, branch: urlBranch },
-      })
-      .then(() => invalidateVirtualMcpQueries(queryClient))
-      .catch((err) => {
-        console.error("[auto-start-vm] failed:", err);
-      })
-      .finally(() => {
-        if (autoStartingBranchRef.current === urlBranch) {
-          autoStartingBranchRef.current = null;
-        }
-      });
+    triggerAutoStart(
+      { virtualMcpId, branch: urlBranch },
+      {
+        onError: (err) => {
+          console.error("[auto-start-vm] failed:", err);
+        },
+        onSettled: () => {
+          if (autoStartingBranchRef.current === urlBranch) {
+            autoStartingBranchRef.current = null;
+          }
+        },
+      },
+    );
   }, [
     hasActiveGithubRepo,
     userId,
     urlBranch,
     vmMap,
     virtualMcpId,
-    autoStartClient,
-    queryClient,
+    triggerAutoStart,
   ]);
 
   const chatVirtualMcpId = virtualMcpId;
@@ -323,39 +349,21 @@ function AgentInsetProvider() {
     return (
       <InsetContext value={insetContextValue}>
         <div className="flex flex-col flex-1 bg-background min-h-0">
-          <PendingMessageProvider>
-            <ErrorBoundary
-              fallback={
-                <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-                  Something went wrong loading this agent. Try refreshing.
-                </div>
-              }
-            >
-              <Suspense fallback={<Chat.Skeleton />}>
-                <Chat.Provider
-                  key={layout.taskId}
-                  virtualMcpId={chatVirtualMcpId}
-                  taskId={layout.taskId}
-                >
-                  <VmEventsProvider previewUrl={vmPreviewUrl}>
-                    <NewTaskBridge
-                      onNewTaskRef={onNewTask}
-                      createNewTask={layout.createNewTask}
-                    />
-                    <MobileToolbar
-                      onOpenSidebar={() => setMobileSidebarOpen(true)}
-                    />
-                    <div className="flex-1 min-h-0 overflow-hidden">
-                      <ChatCenterPanel
-                        variant={isDecopilot ? "home" : undefined}
-                      />
-                    </div>
-                    {mobileSidebarSheet}
-                  </VmEventsProvider>
-                </Chat.Provider>
-              </Suspense>
-            </ErrorBoundary>
-          </PendingMessageProvider>
+          <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
+            <VmEventsProvider daemonBaseUrl={vmDaemonBaseUrl}>
+              <NewTaskBridge
+                onNewTaskRef={onNewTask}
+                createNewTask={layout.createNewTask}
+              />
+              <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <ActiveTaskBoundary
+                  variant={isDecopilot ? "home" : undefined}
+                />
+              </div>
+              {mobileSidebarSheet}
+            </VmEventsProvider>
+          </Chat.Provider>
         </div>
       </InsetContext>
     );
@@ -383,38 +391,24 @@ function AgentInsetProvider() {
         </Toolbar.Tabs>
       )}
 
-      <PendingMessageProvider>
-        <ErrorBoundary
-          fallback={
-            <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-              Something went wrong loading this agent. Try refreshing.
-            </div>
-          }
-        >
-          <Suspense fallback={<Chat.Skeleton />}>
-            <Chat.Provider
-              key={layout.taskId}
-              virtualMcpId={chatVirtualMcpId}
-              taskId={layout.taskId}
-            >
-              <VmEventsProvider previewUrl={vmPreviewUrl}>
-                {!isDecopilot && <VirtualMcpHeaderInfo virtualMcp={entity} />}
-                <NewTaskBridge
-                  onNewTaskRef={onNewTask}
-                  createNewTask={layout.createNewTask}
-                />
-                <ChatMainPanelGroup
-                  virtualMcpId={virtualMcpId}
-                  taskId={layout.taskId}
-                  chatOpen={layout.chatOpen}
-                  mainOpen={layout.mainOpen}
-                  variant={isDecopilot ? "home" : undefined}
-                />
-              </VmEventsProvider>
-            </Chat.Provider>
-          </Suspense>
-        </ErrorBoundary>
-      </PendingMessageProvider>
+      <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
+        <VmEventsProvider daemonBaseUrl={vmDaemonBaseUrl}>
+          {!isDecopilot && <VirtualMcpHeaderInfo virtualMcp={entity} />}
+          <NewTaskBridge
+            onNewTaskRef={onNewTask}
+            createNewTask={layout.createNewTask}
+          />
+          <ChatMainPanelGroup
+            virtualMcpId={virtualMcpId}
+            taskId={layout.taskId}
+            chatOpen={layout.chatOpen}
+            mainOpen={layout.mainOpen}
+            chatContent={
+              <ActiveTaskBoundary variant={isDecopilot ? "home" : undefined} />
+            }
+          />
+        </VmEventsProvider>
+      </Chat.Provider>
     </InsetContext>
   );
 }

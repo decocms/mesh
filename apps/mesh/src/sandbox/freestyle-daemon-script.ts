@@ -1,17 +1,21 @@
 /**
- * In-VM Daemon Script Builder
- *
- * Generates the Node.js daemon that runs inside Freestyle VMs.
- * The daemon handles:
- *   1. Reverse proxy: strips X-Frame-Options/CSP for iframe embedding
- *   2. Process spawning: install/dev lifecycle with PTY + SSE streaming
- *   3. Liveness probing: probes upstream dev server
- *   4. File operations: read/write/edit/grep/glob/bash endpoints
+ * Freestyle in-VM daemon builder. Output is a JS string baked into the
+ * VmSpec and started by systemd — updates require recreating freestyle VMs.
  */
 
-import { PACKAGE_MANAGER_DAEMON_CONFIG } from "../../shared/runtime-defaults";
+/** Inlined so the runner package stays self-contained (no upward import). */
+const PACKAGE_MANAGER_DAEMON_CONFIG: Record<
+  string,
+  { install: string; runPrefix: string }
+> = {
+  npm: { install: "npm install", runPrefix: "npm run" },
+  pnpm: { install: "pnpm install", runPrefix: "pnpm run" },
+  yarn: { install: "yarn install", runPrefix: "yarn run" },
+  bun: { install: "bun install", runPrefix: "bun run" },
+  deno: { install: "deno install", runPrefix: "deno task" },
+};
 
-export interface DaemonConfig {
+interface DaemonConfig {
   upstreamPort: string;
   packageManager: string | null;
   pathPrefix: string;
@@ -22,11 +26,14 @@ export interface DaemonConfig {
   bootstrapScript: string;
   gitUserName: string;
   gitUserEmail: string;
-  /**
-   * Branch to check out after clone. Required, non-empty. The daemon clones
-   * with `-b <branch>` so origin/<branch> points at the intended commit.
-   */
+  /** Required, non-empty. Daemon clones with `-b <branch>`. */
   branch: string;
+  /**
+   * Bearer token required on every `/_decopilot_vm/*` request. Generated
+   * per-VM by the runner and persisted alongside state so `resume` can
+   * thread the same token on restart. Must be ≥ 32 bytes of entropy.
+   */
+  daemonToken: string;
 }
 
 export function buildDaemonScript(config: DaemonConfig): string {
@@ -42,6 +49,7 @@ export function buildDaemonScript(config: DaemonConfig): string {
     gitUserName,
     gitUserEmail,
     branch,
+    daemonToken,
   } = config;
 
   if (!/^\d+$/.test(upstreamPort)) {
@@ -50,11 +58,17 @@ export function buildDaemonScript(config: DaemonConfig): string {
   if (typeof branch !== "string" || branch.length === 0) {
     throw new Error("DaemonConfig.branch is required and must be non-empty");
   }
+  if (typeof daemonToken !== "string" || daemonToken.length < 32) {
+    throw new Error(
+      "DaemonConfig.daemonToken is required and must be ≥ 32 chars",
+    );
+  }
 
   return `const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { spawn, execSync } = require("child_process");
+const { timingSafeEqual } = require("crypto");
 const UPSTREAM = "${upstreamPort}";
 const UPSTREAM_HOST = "localhost";
 const PROXY_PORT = ${proxyPort};
@@ -68,6 +82,17 @@ const PATH_PREFIX = ${JSON.stringify(pathPrefix)};
 const GIT_USER_NAME = ${JSON.stringify(gitUserName)};
 const GIT_USER_EMAIL = ${JSON.stringify(gitUserEmail)};
 const BRANCH = ${JSON.stringify(branch)};
+const EXPECTED_AUTH = Buffer.from("Bearer " + ${JSON.stringify(daemonToken)}, "utf8");
+
+// Bearer auth for /_decopilot_vm/* — reverse-proxy path stays public (serves
+// user's dev server content). timingSafeEqual requires equal-length buffers;
+// the length itself leaks nothing useful (scheme + token length are fixed).
+function authorized(req) {
+  const header = req.headers["authorization"] || "";
+  const received = Buffer.from(header, "utf8");
+  if (received.length !== EXPECTED_AUTH.length) return false;
+  return timingSafeEqual(received, EXPECTED_AUTH);
+}
 
 const APP_ROOT = "/app";
 const DECO_UID = 1000;
@@ -306,6 +331,19 @@ function discoverScripts() {
   discoveredScripts = scriptNames;
   log("discovered scripts:", scriptNames.join(", ") || "(none)");
   broadcastEvent("scripts", { type: "scripts", scripts: scriptNames });
+
+  // Freestyle has no /_daemon/dev/start (systemd handles it), so we auto-kick
+  // the first well-known starter here to match Docker's behavior.
+  const pmConfig = PM_CONFIG[PM];
+  if (pmConfig) {
+    const autoStart = WELL_KNOWN_STARTERS.find((s) => scriptNames.includes(s));
+    if (autoStart) {
+      const cmd = PATH_PREFIX + "cd /app && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=" + PORT + " " + pmConfig.runPrefix + " " + autoStart;
+      const label = "$ " + pmConfig.runPrefix + " " + autoStart;
+      log("auto-start", autoStart);
+      runProcess(autoStart, cmd, label);
+    }
+  }
 }
 
 function runSetup() {
@@ -642,6 +680,21 @@ http.createServer(async (req, res) => {
     log("proxy", req.method, req.url);
   }
 
+  // Bearer required on every /_decopilot_vm/* route except CORS preflight.
+  // Reverse-proxy path below stays public (iframe needs unauth dev-server).
+  if (
+    req.url.startsWith("/_decopilot_vm/") &&
+    req.method !== "OPTIONS" &&
+    !authorized(req)
+  ) {
+    res.writeHead(401, {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+    });
+    res.end(JSON.stringify({ error: "unauthorized" }));
+    return;
+  }
+
   // SSE endpoint
   if (req.url === "/_decopilot_vm/events" && req.method === "GET") {
     if (sseClients.size >= MAX_SSE_CLIENTS) {
@@ -762,7 +815,7 @@ http.createServer(async (req, res) => {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST",
-      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Headers": "Content-Type, Accept, Cache-Control, Authorization",
     });
     res.end();
     return;

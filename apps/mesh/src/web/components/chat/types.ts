@@ -103,9 +103,16 @@ export interface Metadata {
     outputTokens?: number;
     totalTokens?: number;
     reasoningTokens?: number;
+    /** End-of-turn context-window fill (for the % ring). Sibling `totalTokens` is cumulative billed tokens. */
+    contextTokens?: number;
     providerMetadata?: {
       [key: string]: unknown;
     };
+  };
+  /** Runtime-reported per-turn limits (Claude Code). Takes precedence over catalog `limits`. */
+  modelLimits?: {
+    contextWindow: number;
+    maxOutputTokens: number;
   };
 }
 

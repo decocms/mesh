@@ -133,12 +133,32 @@ export type GithubRepo = z.infer<typeof GithubRepoSchema>;
 
 /**
  * A single vm entry in vmMap — the vmId plus the preview URL the UI renders.
+ *
+ * `runnerKind` lets the UI construct daemon URLs correctly:
+ *  - docker: daemon is reached via the mesh proxy at `/api/sandbox/<vmId>/_daemon/*`
+ *  - freestyle: daemon lives at `${previewUrl}/_decopilot_vm/*` on the VM domain
+ *
+ * `previewUrl` is nullable: blank / tool sandboxes (no `workload`, no dev
+ * server) have nothing to render. UI code MUST check before constructing
+ * an iframe URL.
  */
 export const VmMapEntrySchema = z.object({
-  vmId: z.string().describe("Freestyle VM id"),
+  vmId: z
+    .string()
+    .describe("Runner-specific handle (Freestyle VM id or docker handle)"),
   previewUrl: z
     .string()
-    .describe("URL where the VM's iframe-proxied UI is served"),
+    .nullable()
+    .describe(
+      "URL where the VM's iframe-proxied UI is served, or null when the sandbox has no dev server (blank / tool sandboxes).",
+    ),
+  runnerKind: z.enum(["docker", "freestyle"]).optional(),
+  createdAt: z
+    .number()
+    .optional()
+    .describe(
+      "Epoch ms the entry was first written by VM_START. Used by the booting overlay to show a stable elapsed timer that survives browser reloads. Optional for backward compatibility with entries written before this field existed.",
+    ),
 });
 
 export type VmMapEntry = z.infer<typeof VmMapEntrySchema>;

@@ -1,99 +1,29 @@
 /**
- * VM_START Tool
+ * VM_START. Keyed by (userId, branch) in the Virtual MCP's `vmMap`.
+ * Runner-agnostic — dispatches through the active `SandboxRunner`; this
+ * handler only does `vmMap` bookkeeping. Branch defaults to
+ * `deco/<adjective>-<noun>` when omitted.
  *
- * Creates a Freestyle VM with the connected GitHub repo and an in-VM daemon
- * that runs the reverse proxy + dev lifecycle. App-only tool — not visible
- * to AI models.
- *
- * Freestyle docs: /v2/vms, /v2/vms/configuration/systemd-services,
- * /v2/vms/configuration/ports-networking, /v2/vms/configuration/domains
+ * Runner flips: if the existing entry's `runnerKind` differs from the env's
+ * current runner, the stale VM is torn down under its original runner before
+ * the new one is provisioned. Old VMs are ephemeral — not preserved.
  */
 
-import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { VmMapEntry } from "@decocms/mesh-sdk";
-import { defineTool } from "../../core/define-tool";
-import { VmSpec, freestyle } from "freestyle-sandboxes";
-import { VmDeno } from "@freestyle-sh/with-deno";
-import { VmBun } from "@freestyle-sh/with-bun";
-import { VmNodeJs } from "@freestyle-sh/with-nodejs";
-import { requireVmEntry, resolveRuntimeConfig } from "./helpers";
-import { DownstreamTokenStorage } from "../../storage/downstream-token";
 import {
-  canRefresh,
-  PROACTIVE_REFRESH_BUFFER_MS,
-  RECONNECT_ERROR,
-  refreshAndStore,
-} from "@/oauth/token-refresh";
-import { buildDaemonScript } from "./daemon";
+  composeSandboxRef,
+  resolveRunnerKindFromEnv,
+  type RunnerKind,
+  type Workload,
+} from "mesh-plugin-user-sandbox/runner";
+import { defineTool } from "../../core/define-tool";
+import type { MeshContext } from "../../core/mesh-context";
+import { requireVmEntry, resolveRuntimeConfig } from "./helpers";
+import { buildCloneInfo } from "../../shared/github-clone-info";
 import { generateBranchName } from "../../shared/branch-name";
-import { removeVmMapEntry, setVmMapEntry } from "./vm-map";
-
-const PROXY_PORT = 9000;
-
-const BOOTSTRAP_SCRIPT = `<script>(function(){window.addEventListener("message",function(e){if(e.data&&e.data.type==="visual-editor::activate"&&e.data.script){try{new Function(e.data.script)()}catch(err){console.error("[visual-editor] injection failed",err)}}});})();</script>`;
-
-/**
- * Fetches the GitHub OAuth token and user profile from downstream_tokens.
- * Returns the authenticated git clone URL and the user's git identity.
- */
-async function buildCloneInfo(
-  connectionId: string,
-  owner: string,
-  name: string,
-  db: import("kysely").Kysely<import("../../storage/types").Database>,
-  vault: import("../../encryption/credential-vault").CredentialVault,
-): Promise<{ cloneUrl: string; gitUserName: string; gitUserEmail: string }> {
-  const tokenStorage = new DownstreamTokenStorage(db, vault);
-  const token = await tokenStorage.get(connectionId);
-  if (!token) {
-    throw new Error(
-      "No GitHub token found. Ensure the mcp-github connection is authenticated.",
-    );
-  }
-
-  let accessToken = token.accessToken;
-
-  // Proactive refresh: if the stored token is expiring soon and we have the
-  // OAuth fields needed to refresh, swap it for a fresh one before baking it
-  // into the daemon's clone URL. Mirrors GITHUB_LIST_USER_ORGS.
-  if (
-    canRefresh(token) &&
-    tokenStorage.isExpired(token, PROACTIVE_REFRESH_BUFFER_MS)
-  ) {
-    const refreshed = await refreshAndStore(token, tokenStorage);
-    if (!refreshed) {
-      throw new Error(RECONNECT_ERROR);
-    }
-    accessToken = refreshed;
-  }
-
-  const cloneUrl = `https://x-access-token:${accessToken}@github.com/${owner}/${name}.git`;
-
-  let gitUserName = "Deco Studio";
-  let gitUserEmail = "studio@deco.cx";
-  try {
-    const res = await fetch("https://api.github.com/user", {
-      headers: {
-        Authorization: `token ${accessToken}`,
-        Accept: "application/vnd.github+json",
-      },
-    });
-    if (res.ok) {
-      const user = (await res.json()) as {
-        name?: string | null;
-        login: string;
-        email?: string | null;
-      };
-      gitUserName = user.name || user.login;
-      gitUserEmail = user.email || `${user.login}@users.noreply.github.com`;
-    }
-  } catch {
-    // Fallback to defaults — don't block VM start
-  }
-
-  return { cloneUrl, gitUserName, gitUserEmail };
-}
+import { getRunnerByKind, getSharedRunner } from "../../sandbox/lifecycle";
+import { setVmMapEntry } from "./vm-map";
 
 type GithubRepoMeta = {
   githubRepo?: {
@@ -105,8 +35,7 @@ type GithubRepoMeta = {
 
 export const VM_START = defineTool({
   name: "VM_START",
-  description:
-    "Start a Freestyle VM with the connected GitHub repo and dev server.",
+  description: "Start a sandbox with the connected GitHub repo and dev server.",
   annotations: {
     title: "Start VM Preview",
     readOnlyHint: false,
@@ -126,172 +55,177 @@ export const VM_START = defineTool({
       ),
   }),
   outputSchema: z.object({
-    previewUrl: z.string(),
+    previewUrl: z.string().nullable(),
     vmId: z.string(),
     branch: z.string(),
     isNewVm: z.boolean(),
+    runnerKind: z.enum(["docker", "freestyle"]),
   }),
 
   handler: async (input, ctx) => {
-    try {
-      const resolvedBranch = input.branch ?? generateBranchName();
+    const resolvedBranch = input.branch ?? generateBranchName();
 
-      const {
-        metadata,
-        userId,
-        entry: existing,
-      } = await requireVmEntry(
-        { virtualMcpId: input.virtualMcpId, branch: resolvedBranch },
-        ctx,
-      );
+    const {
+      metadata,
+      userId,
+      organization,
+      entry: existing,
+    } = await requireVmEntry(
+      { virtualMcpId: input.virtualMcpId, branch: resolvedBranch },
+      ctx,
+    );
 
-      const githubRepo = (metadata as GithubRepoMeta).githubRepo;
-      if (!githubRepo) {
-        throw new Error("No GitHub repo connected");
-      }
-
-      const { owner, name } = githubRepo;
-      const { packageManager, runtime, port, runtimeBinPath } =
-        resolveRuntimeConfig(metadata);
-      const pathPrefix = runtimeBinPath
-        ? `export PATH=${runtimeBinPath}:$PATH && `
-        : "";
-
-      // Build authenticated clone URL and git identity from downstream token.
-      // githubRepo.connectionId is optional in the schema but required for VM start.
-      if (!githubRepo.connectionId) {
-        throw new Error("GitHub connection id missing on virtual MCP metadata");
-      }
-      const { cloneUrl, gitUserName, gitUserEmail } = await buildCloneInfo(
-        githubRepo.connectionId,
-        owner,
-        name,
-        ctx.db,
-        ctx.vault,
-      );
-
-      // Domain key includes branch so two vms for the same user on different
-      // branches get distinct preview domains.
-      const domainKey = createHash("md5")
-        .update(`${input.virtualMcpId}:${userId}:${resolvedBranch}`)
-        .digest("hex")
-        .slice(0, 16);
-      const previewDomain = `${domainKey}.deco.studio`;
-      const previewUrl = `https://${previewDomain}`;
-
-      const baseSpec = new VmSpec()
-        .with("node", new VmNodeJs())
-        .additionalFiles({
-          "/opt/daemon.js": {
-            content: buildDaemonScript({
-              upstreamPort: port,
-              packageManager,
-              pathPrefix,
-              port,
-              cloneUrl,
-              repoName: `${owner}/${name}`,
-              proxyPort: PROXY_PORT,
-              bootstrapScript: BOOTSTRAP_SCRIPT,
-              gitUserName,
-              gitUserEmail,
-              branch: resolvedBranch,
-            }),
-          },
-          "/opt/run-daemon.sh": {
-            content:
-              "#!/bin/bash\nsource /etc/profile.d/nvm.sh\nexec node /opt/daemon.js\n",
-          },
-          "/opt/install-ripgrep.sh": {
-            content:
-              "#!/bin/bash\napt-get update -qq && apt-get install -y -qq ripgrep locales && sed -i 's/^#\\s*en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && locale-gen\n",
-          },
-          "/opt/prepare-app-dir.sh": {
-            content:
-              "#!/bin/bash\nid -u deco &>/dev/null || useradd -m -u 1000 deco\nmkdir -p /app && chown deco:deco /app\n",
-          },
-        })
-        .systemdService({
-          name: "install-ripgrep",
-          mode: "oneshot",
-          exec: ["/bin/bash /opt/install-ripgrep.sh"],
-          wantedBy: ["multi-user.target"],
-        })
-        .systemdService({
-          name: "prepare-app-dir",
-          mode: "oneshot",
-          exec: ["/bin/bash /opt/prepare-app-dir.sh"],
-          wantedBy: ["multi-user.target"],
-        })
-        .systemdService({
-          name: "daemon",
-          mode: "service",
-          exec: ["/bin/bash /opt/run-daemon.sh"],
-          after: [
-            "install-nodejs.service",
-            "install-ripgrep.service",
-            "prepare-app-dir.service",
-          ],
-          requires: [
-            "install-nodejs.service",
-            "install-ripgrep.service",
-            "prepare-app-dir.service",
-          ],
-          wantedBy: ["multi-user.target"],
-          restartPolicy: {
-            policy: "always",
-            restartSec: 2,
-          },
-        });
-
-      const spec =
-        runtime === "deno"
-          ? baseSpec.with("deno", new VmDeno())
-          : runtime === "bun"
-            ? baseSpec.with("js", new VmBun())
-            : baseSpec;
-
-      // Resume existing VM if the (user, branch) pair has one. On stale entry
-      // (Freestyle VM missing), clear the vmMap entry and fall through to
-      // create a new one. `existing` was read during requireVmEntry above.
-      if (existing) {
-        try {
-          const vm = freestyle.vms.ref({ vmId: existing.vmId, spec });
-          await vm.start();
-          return { ...existing, branch: resolvedBranch, isNewVm: false };
-        } catch {
-          await removeVmMapEntry(
-            ctx.storage.virtualMcps,
-            input.virtualMcpId,
-            userId,
-            userId,
-            resolvedBranch,
-          );
-        }
-      }
-
-      const createResult = await freestyle.vms.create({
-        spec,
-        domains: [{ domain: previewDomain, vmPort: PROXY_PORT }],
-        recreate: true,
-        idleTimeoutSeconds: 1800,
-      });
-
-      const { vmId } = createResult;
-      const entry: VmMapEntry = { vmId, previewUrl };
-
-      await setVmMapEntry(
-        ctx.storage.virtualMcps,
-        input.virtualMcpId,
-        userId,
-        userId,
-        resolvedBranch,
-        entry,
-      );
-
-      return { ...entry, branch: resolvedBranch, isNewVm: true };
-    } catch (e) {
-      console.error("[VM_START] error", e);
-      throw e;
+    const githubRepo = (metadata as GithubRepoMeta).githubRepo;
+    if (!githubRepo) {
+      throw new Error("No GitHub repo connected");
     }
+    if (!githubRepo.connectionId) {
+      throw new Error("GitHub connection id missing on virtual MCP metadata");
+    }
+
+    const runnerKind = resolveRunnerKindFromEnv();
+
+    // Runner env flipped since the existing entry was written. We don't
+    // preserve the old VM — tear it down under its original runner and let
+    // the provisioning below spin a fresh one. The boot overlay covers the
+    // transition; `isNewVm` fires naturally because the handle changes.
+    await reapStaleRunner(ctx, existing, runnerKind);
+
+    const { entry, isNewVm } = await provisionSandbox({
+      ctx,
+      userId,
+      orgId: organization.id,
+      virtualMcpId: input.virtualMcpId,
+      branch: resolvedBranch,
+      metadata,
+      githubRepo,
+      existing,
+    });
+
+    return {
+      ...entry,
+      branch: resolvedBranch,
+      isNewVm,
+      runnerKind,
+    };
   },
 });
+
+async function reapStaleRunner(
+  ctx: MeshContext,
+  existing: VmMapEntry | null,
+  currentKind: RunnerKind,
+): Promise<void> {
+  if (!existing) return;
+  // Legacy entries (pre-runnerKind) default to freestyle, matching VM_DELETE.
+  const priorKind: RunnerKind = existing.runnerKind ?? "freestyle";
+  if (priorKind === currentKind) return;
+
+  // Freestyle idle-times out its VMs on its own, so active teardown is
+  // unnecessary — and the freestyle SDK throws on ref() when the current
+  // env has no FREESTYLE_API_KEY (typical docker-only deploy).
+  if (priorKind === "freestyle") return;
+
+  try {
+    const priorRunner = await getRunnerByKind(ctx, priorKind);
+    await priorRunner.delete(existing.vmId);
+  } catch (err) {
+    console.error(
+      `[VM_START] stale ${priorKind} ${existing.vmId}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+}
+
+type StartParams = {
+  ctx: MeshContext;
+  userId: string;
+  orgId: string;
+  virtualMcpId: string;
+  branch: string;
+  metadata: Record<string, unknown>;
+  githubRepo: { owner: string; name: string; connectionId?: string };
+  existing: VmMapEntry | null;
+};
+
+async function provisionSandbox(
+  params: StartParams,
+): Promise<{ entry: VmMapEntry; isNewVm: boolean }> {
+  const {
+    ctx,
+    userId,
+    orgId,
+    virtualMcpId,
+    branch,
+    metadata,
+    githubRepo,
+    existing,
+  } = params;
+
+  const { runtime, packageManager, port } = resolveRuntimeConfig(metadata);
+  const { cloneUrl, gitUserName, gitUserEmail } = await buildCloneInfo(
+    githubRepo.connectionId!,
+    githubRepo.owner,
+    githubRepo.name,
+    ctx.db,
+    ctx.vault,
+  );
+
+  // Missing workload = clone-only. Freestyle treats it as "node, no install,
+  // no dev server"; Docker lets the runner pick its default.
+  const workload: Workload | undefined =
+    runtime && packageManager
+      ? {
+          runtime,
+          packageManager,
+          devPort: Number(port),
+        }
+      : undefined;
+
+  const projectRef = composeSandboxRef({
+    orgId,
+    virtualMcpId,
+    branch,
+  });
+  const runner = await getSharedRunner(ctx);
+  const sandbox = await runner.ensure(
+    { userId, projectRef },
+    {
+      repo: {
+        cloneUrl,
+        userName: gitUserName,
+        userEmail: gitUserEmail,
+        branch,
+        displayName: `${githubRepo.owner}/${githubRepo.name}`,
+      },
+      workload,
+    },
+  );
+
+  // Preserve `createdAt` across resumes so the booting overlay's elapsed
+  // timer doesn't reset on re-run.
+  const isResume = !!existing && existing.vmId === sandbox.handle;
+  const createdAt =
+    isResume && existing?.createdAt ? existing.createdAt : Date.now();
+
+  const entry: VmMapEntry = {
+    vmId: sandbox.handle,
+    previewUrl: sandbox.previewUrl,
+    runnerKind: runner.kind,
+    createdAt,
+  };
+
+  await setVmMapEntry(
+    ctx.storage.virtualMcps,
+    virtualMcpId,
+    userId,
+    userId,
+    branch,
+    entry,
+  );
+
+  // Different handle = new sandbox (stale entry / orphan recovery / state miss).
+  const isNewVm = !existing || existing.vmId !== sandbox.handle;
+  return { entry, isNewVm };
+}

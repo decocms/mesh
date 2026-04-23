@@ -62,6 +62,9 @@ export interface ChatMainPanelGroupProps {
   chatOpen: boolean;
   mainOpen: boolean;
   variant?: "home" | "default";
+  /** Optional override for the chat panel content — lets the outer layout
+   * wrap ChatCenterPanel in its own Suspense/ErrorBoundary/ActiveTaskProvider. */
+  chatContent?: React.ReactNode;
 }
 
 export function ChatMainPanelGroup({
@@ -70,6 +73,7 @@ export function ChatMainPanelGroup({
   chatOpen,
   mainOpen,
   variant,
+  chatContent,
 }: ChatMainPanelGroupProps) {
   const sizes = computeChatMainSizes(chatOpen, mainOpen);
   const [storedChatPanelWidth] = useLocalStorage(
@@ -101,7 +105,7 @@ export function ChatMainPanelGroup({
       <PersistentChatPanel defaultSize={sizes.chat}>
         <div className="h-full p-0.5 pt-0.25">
           <div className="h-full bg-background rounded-[0.75rem] overflow-hidden card-shadow">
-            <ChatCenterPanel variant={variant} />
+            {chatContent ?? <ChatCenterPanel variant={variant} />}
           </div>
         </div>
       </PersistentChatPanel>

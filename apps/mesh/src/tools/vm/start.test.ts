@@ -1,91 +1,68 @@
-import { createHash } from "node:crypto";
 import { describe, it, expect, mock, beforeEach } from "bun:test";
 import type { VmMap, VmMapEntry } from "@decocms/mesh-sdk";
 import type { MeshContext } from "../../core/mesh-context";
+import type {
+  EnsureOptions,
+  Sandbox,
+  SandboxId,
+  SandboxRunner,
+} from "mesh-plugin-user-sandbox/runner";
+import { composeSandboxRef } from "mesh-plugin-user-sandbox/runner";
 
-// ---------------------------------------------------------------------------
-// Mock freestyle-sandboxes BEFORE importing VM_START (Bun requires this order)
-// ---------------------------------------------------------------------------
+// Pin runner kind — the dev env flips MESH_SANDBOX_RUNNER and VM_START
+// reads it at handler time.
+process.env.MESH_SANDBOX_RUNNER = "freestyle";
 
-const mockRoute = mock((): Promise<void> => Promise.resolve());
+// Mock runner BEFORE importing VM_START — handler is runner-agnostic
+// and we don't want to pull the real freestyle SDK.
 
-const mockVmsCreate = mock(
-  (
-    _input: unknown,
-  ): Promise<{
-    vmId: string;
-    vm: { terminal: { logs: { route: typeof mockRoute } } };
-  }> =>
-    Promise.resolve({
-      vmId: "vm_xyz",
-      vm: { terminal: { logs: { route: mockRoute } } },
-    }),
+const mockEnsure = mock(
+  async (_id: SandboxId, _opts?: EnsureOptions): Promise<Sandbox> => ({
+    handle: "vm_xyz",
+    workdir: "/app",
+    previewUrl: "https://stub.preview/",
+  }),
 );
 
-const mockVmStart = mock((): Promise<void> => Promise.resolve());
-const mockVmExec = mock((_input: unknown): Promise<void> => Promise.resolve());
+const mockFreestyleDelete = mock(async (_handle: string) => {});
+const mockDockerDelete = mock(async (_handle: string) => {});
 
-class MockVmSpec {
-  builders: Record<string, unknown> = {};
-  _files: unknown = undefined;
-  _services: Record<string, unknown>[] = [];
+const mockRunner: SandboxRunner = {
+  kind: "freestyle",
+  ensure: (id, opts) => mockEnsure(id, opts),
+  exec: async () => ({ stdout: "", stderr: "", exitCode: 0, timedOut: false }),
+  delete: (handle) => mockFreestyleDelete(handle),
+  alive: async () => true,
+  getPreviewUrl: async () => "https://stub.preview/",
+  proxyDaemonRequest: async () => new Response(null, { status: 204 }),
+};
 
-  with(key: string, builder: unknown): MockVmSpec {
-    const next = Object.assign(new MockVmSpec(), this);
-    next.builders = { ...this.builders, [key]: builder };
-    return next;
-  }
-  additionalFiles(files: unknown): MockVmSpec {
-    const next = Object.assign(new MockVmSpec(), this);
-    next._files = files;
-    return next;
-  }
-  systemdService(svc: Record<string, unknown>): MockVmSpec {
-    const next = Object.assign(new MockVmSpec(), this);
-    next._services = [...this._services, svc];
-    return next;
-  }
-}
+const mockDockerRunner: SandboxRunner = {
+  kind: "docker",
+  ensure: (id, opts) => mockEnsure(id, opts),
+  exec: async () => ({ stdout: "", stderr: "", exitCode: 0, timedOut: false }),
+  delete: (handle) => mockDockerDelete(handle),
+  alive: async () => true,
+  getPreviewUrl: async () => "https://stub.preview/",
+  proxyDaemonRequest: async () => new Response(null, { status: 204 }),
+};
 
-mock.module("freestyle-sandboxes", () => ({
-  VmSpec: MockVmSpec,
-  freestyle: {
-    vms: {
-      create: (a: unknown) => mockVmsCreate(a),
-      ref: (_input: unknown) => ({
-        start: () => mockVmStart(),
-        exec: (cmd: unknown) => mockVmExec(cmd),
-      }),
-    },
-  },
+mock.module("../../sandbox/lifecycle", () => ({
+  getSharedRunner: () => mockRunner,
+  getRunnerByKind: (_ctx: unknown, kind: "docker" | "freestyle") =>
+    kind === "docker" ? mockDockerRunner : mockRunner,
+  getSharedRunnerIfInit: () => mockRunner,
+  asDockerRunner: () => null,
 }));
 
-mock.module("@freestyle-sh/with-nodejs", () => ({
-  VmNodeJs: class VmNodeJs {},
-}));
-mock.module("@freestyle-sh/with-deno", () => ({
-  VmDeno: class VmDeno {},
-}));
-mock.module("@freestyle-sh/with-bun", () => ({
-  VmBun: class VmBun {},
-}));
+const { DownstreamTokenStorage: RealDownstreamTokenStorage } = await import(
+  "../../storage/downstream-token"
+);
+import type { DownstreamTokenData } from "../../storage/downstream-token";
+import type { DownstreamToken } from "../../storage/types";
 
 const mockTokenGet = mock(
-  async (
-    _connectionId: string,
-  ): Promise<{
-    id: string;
-    connectionId: string;
-    accessToken: string;
-    refreshToken: string | null;
-    scope: string | null;
-    expiresAt: string | null;
-    createdAt: string;
-    updatedAt: string;
-    clientId: string | null;
-    clientSecret: string | null;
-    tokenEndpoint: string | null;
-  } | null> => ({
+  async (_connectionId: string): Promise<DownstreamToken | null> => ({
     id: "dtok_1",
     connectionId: "conn_github_1",
     accessToken: "ghu_test_token_123",
@@ -99,11 +76,6 @@ const mockTokenGet = mock(
     tokenEndpoint: null,
   }),
 );
-
-const { DownstreamTokenStorage: RealDownstreamTokenStorage } = await import(
-  "../../storage/downstream-token"
-);
-import type { DownstreamTokenData } from "../../storage/downstream-token";
 
 const mockTokenUpsert = mock(async (_data: DownstreamTokenData) => {});
 const mockTokenDelete = mock(async (_connectionId: string) => {});
@@ -161,16 +133,16 @@ mock.module("@/oauth/refresh-access-token", () => ({
 
 const { VM_START } = await import("./start");
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 const BRANCH = "feat/example";
+const ORG_ID = "org_1";
+const VMCP_ID = "vmcp_1";
+const USER_ID = "user_1";
 
-const DOMAIN_KEY = createHash("md5")
-  .update(`vmcp_1:user_1:${BRANCH}`)
-  .digest("hex")
-  .slice(0, 16);
+const EXPECTED_REF = composeSandboxRef({
+  orgId: ORG_ID,
+  virtualMcpId: VMCP_ID,
+  branch: BRANCH,
+});
 
 type Metadata = {
   githubRepo: { owner: string; name: string; connectionId: string };
@@ -189,10 +161,10 @@ const BASE_METADATA: Metadata = {
 
 const CACHED_ENTRY: VmMapEntry = {
   vmId: "vm_cached",
-  previewUrl: `https://${DOMAIN_KEY}.deco.studio`,
+  previewUrl: "https://cached.preview/",
 };
 
-function makeVirtualMcp(orgId: string, metadata: Metadata, id = "vmcp_1") {
+function makeVirtualMcp(orgId: string, metadata: Metadata, id = VMCP_ID) {
   return {
     id,
     organization_id: orgId,
@@ -200,7 +172,7 @@ function makeVirtualMcp(orgId: string, metadata: Metadata, id = "vmcp_1") {
     title: "Test Virtual MCP",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    created_by: "user_1",
+    created_by: USER_ID,
   };
 }
 
@@ -211,8 +183,8 @@ function makeCtx(overrides: {
   updateSpy?: ReturnType<typeof mock>;
 }): MeshContext {
   const {
-    orgId = "org_1",
-    userId = "user_1",
+    orgId = ORG_ID,
+    userId = USER_ID,
     virtualMcp,
     updateSpy = mock(async () => {}),
   } = overrides;
@@ -273,24 +245,19 @@ function makeCtx(overrides: {
   } as unknown as MeshContext;
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
 describe("VM_START", () => {
   beforeEach(() => {
-    mockVmsCreate.mockReset();
-    mockVmStart.mockReset();
-    mockVmExec.mockReset();
-    mockRoute.mockReset();
+    mockEnsure.mockReset();
+    mockFreestyleDelete.mockReset();
+    mockDockerDelete.mockReset();
+    mockFreestyleDelete.mockImplementation(async () => {});
+    mockDockerDelete.mockImplementation(async () => {});
     mockTokenGet.mockReset();
-    mockVmsCreate.mockImplementation(async () => ({
-      vmId: "vm_xyz",
-      vm: { terminal: { logs: { route: mockRoute } } },
+    mockEnsure.mockImplementation(async () => ({
+      handle: "vm_xyz",
+      workdir: "/app",
+      previewUrl: "https://stub.preview/",
     }));
-    mockVmStart.mockImplementation(async () => {});
-    mockVmExec.mockImplementation(async () => {});
-    mockRoute.mockImplementation(async () => {});
     mockTokenGet.mockImplementation(async () => ({
       id: "dtok_1",
       connectionId: "conn_github_1",
@@ -315,155 +282,112 @@ describe("VM_START", () => {
     mockTokenDelete.mockImplementation(async () => {});
   });
 
-  it("returns cached entry when vmMap[userId][branch] is already set", async () => {
-    const metadata: Metadata = {
-      ...BASE_METADATA,
-      vmMap: { user_1: { [BRANCH]: CACHED_ENTRY } },
-    };
-    const virtualMcp = makeVirtualMcp("org_1", metadata);
-    const ctx = makeCtx({ virtualMcp });
+  it("calls runner.ensure with composed projectRef + repo + workload", async () => {
+    const virtualMcp = makeVirtualMcp(ORG_ID, BASE_METADATA);
+    const updateSpy = mock(async () => {});
+    const ctx = makeCtx({ virtualMcp, updateSpy });
 
-    const result = await VM_START.handler(
-      { virtualMcpId: "vmcp_1", branch: BRANCH },
-      ctx,
-    );
+    await VM_START.handler({ virtualMcpId: VMCP_ID, branch: BRANCH }, ctx);
 
-    expect(result).toEqual({ ...CACHED_ENTRY, branch: BRANCH, isNewVm: false });
-    expect(mockVmsCreate).not.toHaveBeenCalled();
+    expect(mockTokenGet).toHaveBeenCalledWith("conn_github_1");
+    expect(mockEnsure).toHaveBeenCalledTimes(1);
+    const [id, opts] = mockEnsure.mock.calls[0]! as [SandboxId, EnsureOptions];
+    expect(id).toEqual({ userId: USER_ID, projectRef: EXPECTED_REF });
+    expect(opts.repo?.cloneUrl).toContain("acme/app");
+    expect(opts.repo?.branch).toBe(BRANCH);
+    expect(opts.repo?.displayName).toBe("acme/app");
+    expect(opts.workload).toEqual({
+      runtime: "node",
+      packageManager: "npm",
+      devPort: 3000,
+    });
   });
 
-  it("creates a new VM and persists entry in vmMap when no existing entry", async () => {
-    const metadata: Metadata = { ...BASE_METADATA };
-    const virtualMcp = makeVirtualMcp("org_1", metadata);
+  it("persists vmMap entry with handle + previewUrl + runnerKind", async () => {
+    mockEnsure.mockImplementation(async () => ({
+      handle: "vm_xyz",
+      workdir: "/app",
+      previewUrl: "https://stub.preview/",
+    }));
+    const virtualMcp = makeVirtualMcp(ORG_ID, BASE_METADATA);
     const updateSpy = mock(async () => {});
     const ctx = makeCtx({ virtualMcp, updateSpy });
 
     const result = await VM_START.handler(
-      { virtualMcpId: "vmcp_1", branch: BRANCH },
+      { virtualMcpId: VMCP_ID, branch: BRANCH },
       ctx,
     );
 
-    expect(mockTokenGet).toHaveBeenCalledWith("conn_github_1");
-    expect(mockVmsCreate).toHaveBeenCalledTimes(1);
-
     expect(result.vmId).toBe("vm_xyz");
-    expect(result.previewUrl).toBe(`https://${DOMAIN_KEY}.deco.studio`);
+    expect(result.previewUrl).toBe("https://stub.preview/");
     expect(result.branch).toBe(BRANCH);
     expect(result.isNewVm).toBe(true);
-    // @ts-expect-error — terminalUrl is gone; assert absence at runtime
-    expect(result.terminalUrl).toBeUndefined();
+    expect(result.runnerKind).toBe("freestyle");
 
     expect(updateSpy).toHaveBeenCalledTimes(1);
     const updateCall = (updateSpy.mock.calls as unknown[][])[0]!;
     const updated = (updateCall[2] as { metadata: { vmMap: VmMap } }).metadata;
-    expect(updated.vmMap.user_1?.[BRANCH]).toEqual({
+    const stored = updated.vmMap[USER_ID]?.[BRANCH];
+    expect(stored).toMatchObject({
       vmId: "vm_xyz",
-      previewUrl: `https://${DOMAIN_KEY}.deco.studio`,
+      previewUrl: "https://stub.preview/",
+      runnerKind: "freestyle",
     });
+    // Server-stamped; assert recency, not exact value.
+    expect(typeof stored?.createdAt).toBe("number");
+    expect(stored?.createdAt).toBeGreaterThan(Date.now() - 60_000);
   });
 
-  it("generates decopilot/* branch when input.branch is omitted", async () => {
-    const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
-    const updateSpy = mock(async () => {});
-    const ctx = makeCtx({ virtualMcp, updateSpy });
-
-    const result = await VM_START.handler({ virtualMcpId: "vmcp_1" }, ctx);
-
-    expect(result.branch.startsWith("deco/")).toBe(true);
-    const updateCall = (updateSpy.mock.calls as unknown[][])[0]!;
-    const updated = (updateCall[2] as { metadata: { vmMap: VmMap } }).metadata;
-    expect(updated.vmMap.user_1?.[result.branch]).toMatchObject({
-      vmId: "vm_xyz",
-    });
-  });
-
-  it("clears stale vmMap entry and creates a new VM when vm.start() throws", async () => {
-    mockVmStart.mockRejectedValueOnce(new Error("VM not found"));
+  it("returns isNewVm=false when runner.ensure returns the same handle as the existing entry", async () => {
+    mockEnsure.mockImplementation(async () => ({
+      handle: CACHED_ENTRY.vmId,
+      workdir: "/app",
+      previewUrl: CACHED_ENTRY.previewUrl,
+    }));
     const metadata: Metadata = {
       ...BASE_METADATA,
-      vmMap: { user_1: { [BRANCH]: CACHED_ENTRY } },
+      vmMap: { [USER_ID]: { [BRANCH]: CACHED_ENTRY } },
     };
-    const virtualMcp = makeVirtualMcp("org_1", metadata);
-    const updateSpy = mock(async () => {});
-    const ctx = makeCtx({ virtualMcp, updateSpy });
+    const virtualMcp = makeVirtualMcp(ORG_ID, metadata);
+    const ctx = makeCtx({ virtualMcp });
 
     const result = await VM_START.handler(
-      { virtualMcpId: "vmcp_1", branch: BRANCH },
+      { virtualMcpId: VMCP_ID, branch: BRANCH },
       ctx,
     );
 
-    expect(mockVmsCreate).toHaveBeenCalledTimes(1);
-    expect(result.isNewVm).toBe(true);
-    expect(result.vmId).toBe("vm_xyz");
-    // updateSpy: 1 for removeVmMapEntry (stale cleanup) + 1 for setVmMapEntry (new)
-    expect(updateSpy).toHaveBeenCalledTimes(2);
+    expect(result.vmId).toBe(CACHED_ENTRY.vmId);
+    expect(result.isNewVm).toBe(false);
   });
 
-  it("only includes daemon + prep services in systemd services", async () => {
-    const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
-    const ctx = makeCtx({ virtualMcp });
+  it("generates deco/* branch when input.branch is omitted and threads it into the ref", async () => {
+    const virtualMcp = makeVirtualMcp(ORG_ID, BASE_METADATA);
+    const updateSpy = mock(async () => {});
+    const ctx = makeCtx({ virtualMcp, updateSpy });
 
-    await VM_START.handler({ virtualMcpId: "vmcp_1", branch: BRANCH }, ctx);
+    const result = await VM_START.handler({ virtualMcpId: VMCP_ID }, ctx);
 
-    const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
-      spec: MockVmSpec;
-    };
-
-    const serviceNames = createCall.spec._services.map((s) => s.name as string);
-    expect(serviceNames).toEqual([
-      "install-ripgrep",
-      "prepare-app-dir",
-      "daemon",
-    ]);
+    expect(result.branch.startsWith("deco/")).toBe(true);
+    const [id] = mockEnsure.mock.calls[0]! as [SandboxId];
+    expect(id.projectRef).toBe(
+      composeSandboxRef({
+        orgId: ORG_ID,
+        virtualMcpId: VMCP_ID,
+        branch: result.branch,
+      }),
+    );
   });
 
-  it("passes idleTimeoutSeconds: 1800 to freestyle.vms.create", async () => {
-    const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
+  it("propagates runner.ensure failures", async () => {
+    mockEnsure.mockImplementation(async () => {
+      throw new Error("runner blew up");
+    });
+    const virtualMcp = makeVirtualMcp(ORG_ID, BASE_METADATA);
     const ctx = makeCtx({ virtualMcp });
 
-    await VM_START.handler({ virtualMcpId: "vmcp_1", branch: BRANCH }, ctx);
-
-    const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
-      idleTimeoutSeconds: number;
-    };
-    expect(createCall.idleTimeoutSeconds).toBe(1800);
-  });
-
-  it("daemon script includes /_decopilot_vm/events SSE endpoint and clone with branch", async () => {
-    const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
-    const ctx = makeCtx({ virtualMcp });
-
-    await VM_START.handler({ virtualMcpId: "vmcp_1", branch: BRANCH }, ctx);
-
-    const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
-      spec: MockVmSpec;
-    };
-
-    const files = createCall.spec._files as Record<string, { content: string }>;
-    const daemonJs = files["/opt/daemon.js"];
-    expect(daemonJs).toBeDefined();
-    expect(daemonJs!.content).toContain("/_decopilot_vm/events");
-    expect(daemonJs!.content).toContain("text/event-stream");
-    expect(daemonJs!.content).toContain(`const BRANCH = "${BRANCH}"`);
-    expect(daemonJs!.content).not.toContain("randomBranch");
-  });
-
-  it("passes VmSpec integrations for bun runtime — includes node and bun runtime", async () => {
-    const metadata: Metadata = {
-      ...BASE_METADATA,
-      runtime: { selected: "bun", port: "3000" },
-    };
-    const virtualMcp = makeVirtualMcp("org_1", metadata);
-    const ctx = makeCtx({ virtualMcp });
-
-    await VM_START.handler({ virtualMcpId: "vmcp_1", branch: BRANCH }, ctx);
-
-    const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
-      spec: MockVmSpec;
-    };
-
-    expect(createCall.spec.builders.node).toBeDefined();
-    expect(createCall.spec.builders.js).toBeDefined();
+    await expect(
+      VM_START.handler({ virtualMcpId: VMCP_ID, branch: BRANCH }, ctx),
+    ).rejects.toThrow("runner blew up");
   });
 
   it("throws 'Virtual MCP not found' when findById returns null", async () => {
@@ -476,24 +400,29 @@ describe("VM_START", () => {
 
   it("throws 'Virtual MCP not found' when Virtual MCP belongs to a different org", async () => {
     const virtualMcp = makeVirtualMcp("org_other", BASE_METADATA);
-    const ctx = makeCtx({ orgId: "org_1", virtualMcp });
+    const ctx = makeCtx({ orgId: ORG_ID, virtualMcp });
 
     await expect(
-      VM_START.handler({ virtualMcpId: "vmcp_1", branch: BRANCH }, ctx),
+      VM_START.handler({ virtualMcpId: VMCP_ID, branch: BRANCH }, ctx),
     ).rejects.toThrow("Virtual MCP not found");
   });
 
   it("throws when no GitHub token is found", async () => {
-    mockTokenGet.mockImplementation(async () => null);
-    const virtualMcp = makeVirtualMcp("org_1", BASE_METADATA);
+    // Override mock to exercise the missing-token branch.
+    (
+      mockTokenGet as unknown as {
+        mockImplementation: (fn: () => Promise<null>) => void;
+      }
+    ).mockImplementation(async () => null);
+    const virtualMcp = makeVirtualMcp(ORG_ID, BASE_METADATA);
     const ctx = makeCtx({ virtualMcp });
 
     await expect(
-      VM_START.handler({ virtualMcpId: "vmcp_1", branch: BRANCH }, ctx),
+      VM_START.handler({ virtualMcpId: VMCP_ID, branch: BRANCH }, ctx),
     ).rejects.toThrow("No GitHub token found");
   });
 
-  it("refreshes an expired GitHub token before handing it to the daemon", async () => {
+  it("refreshes an expired GitHub token before handing it to the runner", async () => {
     const pastExpiry = new Date(Date.now() - 60_000).toISOString();
     mockTokenGet.mockImplementation(async () => ({
       id: "dtok_1",
@@ -528,12 +457,114 @@ describe("VM_START", () => {
     };
     expect(upsertArg.accessToken).toBe("ghu_refreshed_token");
 
-    const createCall = (mockVmsCreate.mock.calls as unknown[][])[0]![0] as {
-      spec: MockVmSpec;
+    const [, opts] = mockEnsure.mock.calls[0]! as [SandboxId, EnsureOptions];
+    expect(opts.repo?.cloneUrl).toContain("ghu_refreshed_token");
+    expect(opts.repo?.cloneUrl).not.toContain("ghu_stale_token");
+  });
+
+  it("tears down the stale VM under its prior runner when the env runner flipped", async () => {
+    const staleEntry: VmMapEntry = {
+      vmId: "vm_docker_stale",
+      previewUrl: "https://docker.preview/",
+      runnerKind: "docker",
     };
-    const files = createCall.spec._files as Record<string, { content: string }>;
-    expect(files["/opt/daemon.js"]!.content).toContain("ghu_refreshed_token");
-    expect(files["/opt/daemon.js"]!.content).not.toContain("ghu_stale_token");
+    const metadata: Metadata = {
+      ...BASE_METADATA,
+      vmMap: { [USER_ID]: { [BRANCH]: staleEntry } },
+    };
+    const virtualMcp = makeVirtualMcp(ORG_ID, metadata);
+    const ctx = makeCtx({ virtualMcp });
+
+    const result = await VM_START.handler(
+      { virtualMcpId: VMCP_ID, branch: BRANCH },
+      ctx,
+    );
+
+    expect(mockDockerDelete).toHaveBeenCalledTimes(1);
+    expect(mockDockerDelete).toHaveBeenCalledWith("vm_docker_stale");
+    expect(mockFreestyleDelete).not.toHaveBeenCalled();
+    expect(mockEnsure).toHaveBeenCalledTimes(1);
+    expect(result.runnerKind).toBe("freestyle");
+    expect(result.isNewVm).toBe(true);
+  });
+
+  it("still provisions the new VM when the stale-runner teardown throws", async () => {
+    mockDockerDelete.mockImplementation(async () => {
+      throw new Error("docker runner gone");
+    });
+    const staleEntry: VmMapEntry = {
+      vmId: "vm_docker_stale",
+      previewUrl: "https://docker.preview/",
+      runnerKind: "docker",
+    };
+    const metadata: Metadata = {
+      ...BASE_METADATA,
+      vmMap: { [USER_ID]: { [BRANCH]: staleEntry } },
+    };
+    const virtualMcp = makeVirtualMcp(ORG_ID, metadata);
+    const ctx = makeCtx({ virtualMcp });
+
+    const result = await VM_START.handler(
+      { virtualMcpId: VMCP_ID, branch: BRANCH },
+      ctx,
+    );
+
+    expect(mockDockerDelete).toHaveBeenCalledTimes(1);
+    expect(mockEnsure).toHaveBeenCalledTimes(1);
+    expect(result.vmId).toBe("vm_xyz");
+    expect(result.runnerKind).toBe("freestyle");
+    expect(result.isNewVm).toBe(true);
+  });
+
+  it("skips freestyle teardown on runner flip — freestyle idles out on its own", async () => {
+    const original = process.env.MESH_SANDBOX_RUNNER;
+    process.env.MESH_SANDBOX_RUNNER = "docker";
+    try {
+      const staleEntry: VmMapEntry = {
+        vmId: "mh3fx1hmxzdz1h1agx4m",
+        previewUrl: "https://freestyle.preview/",
+        runnerKind: "freestyle",
+      };
+      const metadata: Metadata = {
+        ...BASE_METADATA,
+        vmMap: { [USER_ID]: { [BRANCH]: staleEntry } },
+      };
+      const virtualMcp = makeVirtualMcp(ORG_ID, metadata);
+      const ctx = makeCtx({ virtualMcp });
+
+      const result = await VM_START.handler(
+        { virtualMcpId: VMCP_ID, branch: BRANCH },
+        ctx,
+      );
+
+      expect(mockFreestyleDelete).not.toHaveBeenCalled();
+      expect(mockDockerDelete).not.toHaveBeenCalled();
+      expect(mockEnsure).toHaveBeenCalledTimes(1);
+      expect(result.runnerKind).toBe("docker");
+      expect(result.isNewVm).toBe(true);
+    } finally {
+      if (original === undefined) delete process.env.MESH_SANDBOX_RUNNER;
+      else process.env.MESH_SANDBOX_RUNNER = original;
+    }
+  });
+
+  it("does not tear down anything when the existing entry is on the same runner", async () => {
+    const sameRunnerEntry: VmMapEntry = {
+      vmId: "vm_freestyle_existing",
+      previewUrl: "https://freestyle.preview/",
+      runnerKind: "freestyle",
+    };
+    const metadata: Metadata = {
+      ...BASE_METADATA,
+      vmMap: { [USER_ID]: { [BRANCH]: sameRunnerEntry } },
+    };
+    const virtualMcp = makeVirtualMcp(ORG_ID, metadata);
+    const ctx = makeCtx({ virtualMcp });
+
+    await VM_START.handler({ virtualMcpId: VMCP_ID, branch: BRANCH }, ctx);
+
+    expect(mockFreestyleDelete).not.toHaveBeenCalled();
+    expect(mockDockerDelete).not.toHaveBeenCalled();
   });
 
   it("throws RECONNECT_ERROR when refreshing an expired token fails", async () => {
@@ -565,6 +596,6 @@ describe("VM_START", () => {
       "GitHub token refresh failed — reconnect the mcp-github integration.",
     );
     expect(mockTokenDelete).toHaveBeenCalledWith("conn_github_1");
-    expect(mockVmsCreate).not.toHaveBeenCalled();
+    expect(mockEnsure).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,8 @@
 import { cn } from "@deco/ui/lib/utils.ts";
 import type { PropsWithChildren } from "react";
-import { ChatProvider, useChatStream } from "./context";
+import { ActiveTaskProvider, ChatProvider, useChatStream } from "./context";
+
+export { useChatTask } from "./context";
 import { IceBreakers } from "./ice-breakers";
 import { ChatInput } from "./input";
 import { MessagePair, useMessagePairs } from "./message/pair.tsx";
@@ -122,6 +124,7 @@ export const Chat = Object.assign(ChatRoot, {
   Footer: ChatFooter,
   Input: ChatInput,
   Provider: ChatProvider,
+  ActiveTaskProvider: ActiveTaskProvider,
   Skeleton: DecoChatSkeleton,
   IceBreakers: IceBreakers,
   NoAiProviderEmptyState: NoAiProviderEmptyState,

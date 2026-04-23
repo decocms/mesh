@@ -950,6 +950,15 @@ export interface KVTable {
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }
 
+export interface SandboxRunnerStateTable {
+  user_id: string;
+  project_ref: string;
+  runner_kind: string;
+  handle: string;
+  state: ColumnType<Record<string, unknown>, string, string>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+}
+
 // ============================================================================
 // Organization Domain Table Definition
 // ============================================================================
@@ -1095,4 +1104,6 @@ export interface Database {
 
   // Organization domain claims (for auto-join)
   organization_domains: OrganizationDomainTable;
+
+  sandbox_runner_state: SandboxRunnerStateTable;
 }

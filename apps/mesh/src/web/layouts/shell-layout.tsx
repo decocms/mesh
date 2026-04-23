@@ -117,7 +117,13 @@ export function usePanelActions() {
   const setTasksOpen = (open: boolean) =>
     nav((prev) => ({ ...prev, tasks: open ? 1 : 0 }));
 
-  const setTaskId = (id: string, virtualMcpId?: string) =>
+  // Existing thread (preserveBranch=false): drop the carried-over URL branch;
+  // thread.branch wins. Preserving it made the picker lie on thread bounce.
+  const setTaskId = (
+    id: string,
+    virtualMcpId?: string,
+    opts: { preserveBranch?: boolean } = {},
+  ) =>
     navWith(
       id,
       (prev) => {
@@ -125,10 +131,8 @@ export function usePanelActions() {
         if (virtualMcpId) next.virtualmcpid = virtualMcpId;
         else if (prev.virtualmcpid) next.virtualmcpid = prev.virtualmcpid;
         if (prev.tasks) next.tasks = prev.tasks;
-        // Preserve the branch selection across task switches / new tasks so
-        // a freshly created thread inherits the branch chosen on the
-        // previous one — matches the "sticky branch" picker UX.
-        if (prev.branch) next.branch = prev.branch;
+        // Fresh threads inherit the picker's branch; existing threads don't.
+        if (opts.preserveBranch && prev.branch) next.branch = prev.branch;
         // Preserve the main panel tab (git / preview / env / …) so that
         // switching tasks keeps the user's current view.
         if (prev.main) next.main = prev.main;
@@ -137,7 +141,8 @@ export function usePanelActions() {
       false,
     );
 
-  const createNewTask = () => setTaskId(crypto.randomUUID());
+  const createNewTask = () =>
+    setTaskId(crypto.randomUUID(), undefined, { preserveBranch: true });
 
   const openTab = (tabId: string) =>
     navWith(currentTaskId || crypto.randomUUID(), (prev) => ({

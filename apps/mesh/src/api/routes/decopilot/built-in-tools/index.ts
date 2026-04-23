@@ -14,6 +14,8 @@ import { createReadPromptTool } from "./prompts";
 import { createReadResourceTool } from "./resources";
 import { createSandboxTool, type VirtualClient } from "./sandbox";
 import { createVmTools } from "./vm-tools";
+import { getRunnerByKind } from "@/sandbox/lifecycle";
+import type { RunnerKind } from "mesh-plugin-user-sandbox/runner";
 import { createSubtaskTool } from "./subtask";
 import { userAskTool } from "./user-ask";
 import { proposePlanTool } from "./propose-plan";
@@ -21,6 +23,11 @@ import { createGenerateImageTool } from "./generate-image";
 import { createWebSearchTool } from "./web-search";
 import type { ModelsConfig } from "../types";
 import type { MeshProvider } from "@/ai-providers/types";
+
+export type ActiveVm = {
+  runnerKind: RunnerKind;
+  vmId: string;
+};
 
 export interface BuiltinToolParams {
   /** Provider — null for Claude Code (subtask tool is omitted when null) */
@@ -32,8 +39,12 @@ export interface BuiltinToolParams {
   isPlanMode?: boolean;
   toolOutputMap: Map<string, string>;
   passthroughClient: VirtualClient;
-  /** When set, VM file tools replace the sandbox tool */
-  activeVm?: { vmBaseUrl: string } | null;
+  /**
+   * When set, VM file tools replace the QuickJS sandbox tool. Provisioning
+   * already happened in `VM_START` — tools read the handle directly from
+   * the vmMap entry.
+   */
+  activeVm?: ActiveVm | null;
 }
 
 /**
@@ -41,9 +52,9 @@ export interface BuiltinToolParams {
  * (derived via ReturnType) can render historical plan parts regardless
  * of the current chat mode.
  */
-export type BuiltInToolSet = ReturnType<typeof buildAllTools>;
+export type BuiltInToolSet = Awaited<ReturnType<typeof buildAllTools>>;
 
-function buildAllTools(
+async function buildAllTools(
   writer: UIMessageStreamWriter,
   params: BuiltinToolParams,
   ctx: MeshContext,
@@ -84,21 +95,30 @@ function buildAllTools(
       toolOutputMap,
     }),
   };
-  // VM tools replace sandbox when a VM is active
+  // VM file tools — same six LLM-visible tools across runners (schemas in
+  // vm-tools/schemas.ts). Dispatch resolves through `getRunnerByKind` so
+  // the entry's recorded runnerKind drives the routing, regardless of the
+  // current MESH_SANDBOX_RUNNER env value. When no entry exists, fall back
+  // to the QuickJS `sandbox` tool — VM_START must run first for file tools.
+  const vmNeedsApproval =
+    toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false;
   if (activeVm) {
-    const vmTools = createVmTools({
-      vmBaseUrl: activeVm.vmBaseUrl,
-      toolOutputMap,
-      needsApproval:
-        toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false,
-    });
-    Object.assign(tools, vmTools);
+    const runner = await getRunnerByKind(ctx, activeVm.runnerKind);
+    const { vmId } = activeVm;
+    Object.assign(
+      tools,
+      createVmTools({
+        runner,
+        ensureHandle: () => Promise.resolve(vmId),
+        toolOutputMap,
+        needsApproval: vmNeedsApproval,
+      }),
+    );
   } else {
     tools.sandbox = createSandboxTool({
       passthroughClient,
       toolOutputMap,
-      needsApproval:
-        toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false,
+      needsApproval: vmNeedsApproval,
     });
   }
   // subtask requires a provider (LLM calls) — skip when provider is null (Claude Code)
@@ -150,12 +170,12 @@ function buildAllTools(
  * Get built-in tools as a ToolSet.
  * propose_plan is only included when chat mode is `plan`.
  */
-export function getBuiltInTools(
+export async function getBuiltInTools(
   writer: UIMessageStreamWriter,
   params: BuiltinToolParams,
   ctx: MeshContext,
 ) {
-  const tools = buildAllTools(writer, params, ctx);
+  const tools = await buildAllTools(writer, params, ctx);
 
   if (!params.isPlanMode) {
     const { propose_plan: _, ...rest } = tools;

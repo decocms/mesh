@@ -106,10 +106,7 @@ export interface StreamCoreInput {
   windowSize?: number;
   abortSignal?: AbortSignal;
   isResume?: boolean;
-  /**
-   * Git branch to pin the thread to (GitHub-linked virtualmcps only).
-   * Persisted onto the thread row on first-message thread creation.
-   */
+  /** Persisted to the thread row on first-message creation. */
   branch?: string | null;
 }
 
@@ -221,6 +218,7 @@ async function streamCoreInner(
     ]);
 
     taskId = mem.thread.id;
+    ctx.metadata.threadId = mem.thread.id;
     rootSpan.setAttribute("decopilot.thread.id", mem.thread.id);
 
     if (mem.thread.created_by !== input.userId) {
@@ -421,12 +419,19 @@ async function streamCoreInner(
                 { ctx, isPlanMode: modeConfig.isPlanMode },
               );
 
-        // Resolve active VM for (current user, pinned branch) — when present,
-        // VM file tools replace the QuickJS sandbox in the built-in tool set.
+        // Resolve active VM for (user, branch). Per-entry `runnerKind` drives
+        // transport dispatch inside `getBuiltInTools`.
         const vmMetadata = virtualMcp.metadata as {
           vmMap?: Record<
             string,
-            Record<string, { vmId: string; previewUrl: string }>
+            Record<
+              string,
+              {
+                vmId: string;
+                previewUrl: string;
+                runnerKind?: "docker" | "freestyle";
+              }
+            >
           >;
           githubRepo?: GithubRepo | null;
         };
@@ -435,7 +440,12 @@ async function streamCoreInner(
             ? vmMetadata?.vmMap?.[input.userId]?.[input.branch]
             : undefined;
         const activeVm = activeVmEntry
-          ? { vmBaseUrl: activeVmEntry.previewUrl }
+          ? {
+              runnerKind: (activeVmEntry.runnerKind ?? "freestyle") as
+                | "docker"
+                | "freestyle",
+              vmId: activeVmEntry.vmId,
+            }
           : null;
 
         const builtInTools = isCliAgent

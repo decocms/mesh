@@ -24,6 +24,7 @@ import {
 } from "../core/context-factory";
 import type { MeshContext } from "../core/mesh-context";
 import { closeDatabase, getDb, type MeshDatabase } from "../database";
+import { asDockerRunner, getSharedRunnerIfInit } from "../sandbox/lifecycle";
 import { createEventBus, type EventBus } from "../event-bus";
 import {
   flushMonitoringData,
@@ -44,6 +45,7 @@ import oauthProxyRoutes, {
 } from "./routes/oauth-proxy";
 import openaiCompatRoutes from "./routes/openai-compat";
 import proxyRoutes from "./routes/proxy";
+import { createSandboxDaemonRoutes } from "./routes/sandbox-daemon";
 import { createKVRoutes } from "./routes/kv";
 import { createTriggerCallbackRoutes } from "./routes/trigger-callback";
 import publicConfigRoutes from "./routes/public-config";
@@ -479,7 +481,6 @@ export async function createApp(options: CreateAppOptions = {}) {
     }),
   );
 
-  // Security headers middleware - prevents UI redressing / clickjacking
   app.use("*", async (c, next) => {
     await next();
     c.header("X-Frame-Options", "DENY");
@@ -1360,6 +1361,10 @@ export async function createApp(options: CreateAppOptions = {}) {
   });
   app.route("/api", decopilotRoutes);
 
+  // Daemon control-plane passthrough only — dev-server traffic bypasses
+  // mesh and hits pods' public URLs directly.
+  app.route("/", createSandboxDaemonRoutes());
+
   // Stable file redirect endpoint (resolves mesh-storage: URIs to presigned URLs)
   app.route("/api", filesRoutes);
 
@@ -1578,6 +1583,17 @@ export async function createApp(options: CreateAppOptions = {}) {
     if (currentRetentionTimer) {
       clearInterval(currentRetentionTimer);
       currentRetentionTimer = null;
+    }
+
+    // Sweep sandbox containers — Docker only. Other runners' sandboxes
+    // outlive mesh by design, so a generic sweep would nuke active user VMs.
+    // Must run before NATS/DB close (sweep writes state).
+    const dockerRunner = asDockerRunner(getSharedRunnerIfInit());
+    if (dockerRunner) {
+      const { sweepDockerOrphansOnShutdown } = await import(
+        "mesh-plugin-user-sandbox/runner"
+      );
+      await sweepDockerOrphansOnShutdown(dockerRunner);
     }
 
     // Phase 3: Drain NATS (after all consumers stopped)

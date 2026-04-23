@@ -8,6 +8,13 @@ import { join } from "path";
 
 const repoRoot = join(import.meta.dir, "..");
 
+// Hot-reload the sandbox daemon: Docker runner bind-mounts this dir over
+// `/opt/sandbox-daemon` and runs it under `node --watch`. No rebuild needed.
+const sandboxDaemonDir = join(
+  repoRoot,
+  "packages/mesh-plugin-user-sandbox/image",
+);
+
 const child = Bun.spawn(
   [
     "bun",
@@ -16,7 +23,14 @@ const child = Bun.spawn(
     "dev",
     ...process.argv.slice(2),
   ],
-  { stdio: ["inherit", "inherit", "inherit"] },
+  {
+    stdio: ["inherit", "inherit", "inherit"],
+    env: {
+      ...process.env,
+      MESH_SANDBOX_DEV_DAEMON_DIR:
+        process.env.MESH_SANDBOX_DEV_DAEMON_DIR ?? sandboxDaemonDir,
+    },
+  },
 );
 
 process.on("SIGINT", () => child.kill("SIGINT"));
