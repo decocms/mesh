@@ -111,7 +111,7 @@ describe("selectHeaderButton", () => {
     expect(r?.action).toBe("reopen");
   });
 
-  test("ahead of base + merged PR → Create PR (treat as no-PR)", () => {
+  test("merged PR is terminal → null (even with aheadOfBase > 0 post-squash)", () => {
     const r = selectHeaderButton({
       branchStatus: bs({ aheadOfBase: 3 }),
       pr: pr({
@@ -122,8 +122,7 @@ describe("selectHeaderButton", () => {
       checks: [],
       reviews: null,
     });
-    expect(r?.label).toBe("Submit for review");
-    expect(r?.action).toBe("create-pr");
+    expect(r).toBeNull();
   });
 
   test("ahead of base + no PR → Create PR", () => {

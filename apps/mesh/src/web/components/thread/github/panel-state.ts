@@ -65,11 +65,16 @@ export function selectHeaderButton(input: {
     return { label: "Save changes", action: "commit-and-push" };
   }
 
+  // Merged PR is terminal — the work shipped. Squash-merges leave the
+  // branch's pre-merge commits intact on origin/<branch>, so aheadOfBase
+  // can still be > 0; that's not a signal to open a new PR.
+  if (pr?.merged) return null;
+
   if (branchStatus.aheadOfBase > 0) {
     if (pr && pr.state === "closed" && !pr.merged) {
       return { label: "Reopen", action: "reopen" };
     }
-    if (!pr || pr.merged) {
+    if (!pr) {
       return { label: "Submit for review", action: "create-pr" };
     }
 
