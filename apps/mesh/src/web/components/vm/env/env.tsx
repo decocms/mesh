@@ -504,7 +504,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     <div className="flex flex-col w-full h-full">
       <div className="flex flex-col h-full">
         {/* Terminal tabs + action bar */}
-        <div className="flex items-center border-b border-border px-2 shrink-0">
+        <div className="flex h-10 items-center border-b border-border px-2 shrink-0">
           {allTabs.map((tab) => (
             <button
               key={tab}
