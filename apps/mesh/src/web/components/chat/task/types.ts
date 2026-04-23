@@ -22,7 +22,6 @@ export interface Task {
   status?: ThreadDisplayStatus;
   /** Virtual MCP (agent) this task was initiated with */
   virtual_mcp_id?: string;
-  branch?: string | null;
   /** True when this task was triggered by an automation */
   fromAutomation?: boolean;
   /** Git branch associated with this thread, when the vMCP is GitHub-linked. */

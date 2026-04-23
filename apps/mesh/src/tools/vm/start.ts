@@ -63,7 +63,6 @@ export const VM_START = defineTool({
   }),
 
   handler: async (input, ctx) => {
-    const t0 = Date.now();
     const resolvedBranch = input.branch ?? generateBranchName();
 
     const {
