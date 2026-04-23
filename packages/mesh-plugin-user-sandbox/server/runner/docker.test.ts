@@ -194,7 +194,11 @@ describe("DockerSandboxRunner.ensure() — fresh provision", () => {
     // handle = first 32 chars of fake id
     expect(sandbox.handle).toBe(FAKE_ID.slice(0, 32));
     expect(sandbox.workdir).toBe("/app");
-    expect(sandbox.previewUrl).toBeNull(); // no workload
+    // Preview URL is derived from the handle via local ingress; it's non-null
+    // even without a workload hint because the daemon may auto-sniff the repo.
+    expect(sandbox.previewUrl).toBe(
+      `http://${sandbox.handle}.sandboxes.localhost:7070/`,
+    );
 
     // Assert the `docker run` invocation carried the hardening flags, labels,
     // env var, and port publishes.

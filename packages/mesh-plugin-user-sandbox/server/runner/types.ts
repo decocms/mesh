@@ -13,7 +13,12 @@ export interface SandboxId {
 export interface Sandbox {
   handle: string;
   workdir: string;
-  /** Same as `runner.getPreviewUrl(handle)`, returned eagerly. Null if no workload. */
+  /**
+   * Same as `runner.getPreviewUrl(handle)`, returned eagerly. Non-null as
+   * long as the sandbox exists — the iframe may still show a connection
+   * error if the dev server inside never binds (e.g. repo has no `dev`/
+   * `start` script), which is what the UI's booting/ready state tracks.
+   */
   previewUrl: string | null;
 }
 

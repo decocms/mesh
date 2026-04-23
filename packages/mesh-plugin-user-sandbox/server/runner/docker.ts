@@ -13,6 +13,7 @@ import {
   startContainer,
   type DockerResult,
 } from "../docker-cli";
+import { ensureSandboxImage } from "../image-build";
 import type { RunnerStateStore, RunnerStateStoreOps } from "./state-store";
 import type {
   EnsureOptions,
@@ -206,7 +207,7 @@ export class DockerSandboxRunner implements SandboxRunner {
 
   async getPreviewUrl(handle: string): Promise<string | null> {
     const rec = await this.lookupRecord(handle);
-    if (!rec || !rec.workload) return null;
+    if (!rec) return null;
     return this.composePreviewUrl(handle);
   }
 
@@ -252,7 +253,7 @@ export class DockerSandboxRunner implements SandboxRunner {
         if (probed) {
           this.byHandle.set(probed.handle, probed);
           await this.attachRepoIfNeeded(id, probed, opts, store);
-          await this.startDevServerIfNeeded(probed, opts);
+          await this.startDevServer(probed, opts);
           return this.toSandbox(probed);
         }
         // Stale row — purge, fall through to discovery.
@@ -266,7 +267,7 @@ export class DockerSandboxRunner implements SandboxRunner {
       const tracked = this.byHandle.get(existingHandle);
       if (tracked) {
         await this.attachRepoIfNeeded(id, tracked, opts, store);
-        await this.startDevServerIfNeeded(tracked, opts);
+        await this.startDevServer(tracked, opts);
         return this.toSandbox(tracked);
       }
       const recovered = await this.recoverSandbox(id, existingHandle, opts);
@@ -274,7 +275,7 @@ export class DockerSandboxRunner implements SandboxRunner {
         this.byHandle.set(existingHandle, recovered);
         await this.persist(id, recovered, store);
         await this.attachRepoIfNeeded(id, recovered, opts, store);
-        await this.startDevServerIfNeeded(recovered, opts);
+        await this.startDevServer(recovered, opts);
         return this.toSandbox(recovered);
       }
       await this.stopContainer(existingHandle);
@@ -298,7 +299,7 @@ export class DockerSandboxRunner implements SandboxRunner {
       throw err;
     }
     await this.persist(id, rec, store);
-    await this.startDevServerIfNeeded(rec, opts);
+    await this.startDevServer(rec, opts);
     return this.toSandbox(rec);
   }
 
@@ -306,7 +307,13 @@ export class DockerSandboxRunner implements SandboxRunner {
     return {
       handle: rec.handle,
       workdir: rec.workdir,
-      previewUrl: rec.workload ? this.composePreviewUrl(rec.handle) : null,
+      // Docker's preview URL is derived purely from the handle via local
+      // ingress — the dev server may boot from workload hint OR from the
+      // daemon auto-sniffing package.json/deno.json, so gating on
+      // `rec.workload` (which is only set when the caller passed metadata
+      // hints) would nullify the URL for repos where detection happens on
+      // the daemon side. Matches Freestyle's unconditional URL.
+      previewUrl: this.composePreviewUrl(rec.handle),
     };
   }
 
@@ -323,14 +330,21 @@ export class DockerSandboxRunner implements SandboxRunner {
     await this.persist(id, rec, store);
   }
 
-  /** Fire-and-forget `/dev/start` (idempotent on daemon); VM_START returns fast. */
-  private async startDevServerIfNeeded(
+  /**
+   * Fire-and-forget `/dev/start` (idempotent on daemon); VM_START returns fast.
+   * Fires unconditionally — when no workload hint is available the daemon
+   * sniffs runtime/script from the workdir (package.json / deno.json) and
+   * picks `dev` or `start`. "No script found" surfaces as phase=crashed on
+   * the daemon rather than a silent no-op here.
+   */
+  private async startDevServer(
     rec: DockerRecord,
     opts: EnsureOptions,
   ): Promise<void> {
     const workload = opts.workload ?? rec.workload;
-    if (!workload) return;
-    const body = JSON.stringify({ runtime: workload.runtime });
+    const body = workload
+      ? JSON.stringify({ runtime: workload.runtime })
+      : "{}";
     proxyDaemonRequestClient(rec.daemonUrl, rec.token, "/_daemon/dev/start", {
       method: "POST",
       headers: new Headers({ "content-type": "application/json" }),
@@ -372,6 +386,10 @@ export class DockerSandboxRunner implements SandboxRunner {
       WORKDIR: workdir,
       ...(opts.env ?? {}),
     };
+
+    // Shared singleton: if the CLI already kicked off a background build,
+    // this awaits that same promise instead of starting a second one.
+    await ensureSandboxImage({ image, exec: this.exec_ });
 
     // Hardening: drop all caps (daemon + dev server don't need any), block
     // privilege escalation, cap processes/memory/cpu so a runaway user

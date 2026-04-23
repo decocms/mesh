@@ -6,9 +6,15 @@
  * rapid mounts on navigation can't stack 10–30s container-create calls.
  */
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useIsMutating,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { invalidateVirtualMcpQueries } from "@/web/lib/query-keys";
 import { callVmTool } from "./call-vm-tool";
+
+const VM_START_MUTATION_KEY = ["VM_START"] as const;
 
 interface MinimalMcpClient {
   callTool: (params: {
@@ -38,6 +44,7 @@ const startKey = (args: VmStartArgs) =>
 export function useVmStart(client: MinimalMcpClient) {
   const queryClient = useQueryClient();
   return useMutation<VmStartResult, Error, VmStartArgs>({
+    mutationKey: VM_START_MUTATION_KEY,
     mutationFn: async (args) => {
       const key = startKey(args);
       const existing = inflightStarts.get(key);
@@ -62,4 +69,29 @@ export function useVmStart(client: MinimalMcpClient) {
       invalidateVirtualMcpQueries(queryClient);
     },
   });
+}
+
+/**
+ * Cross-component inflight signal for VM_START on a specific (vmcp, branch).
+ * Each `useVmStart()` caller owns its own `useMutation` instance, so a
+ * component's local `isPending` only reflects mutations it initiated. The
+ * layout auto-starts the VM while other surfaces (preview, env) render in
+ * parallel — those surfaces need to know the auto-start is in flight so they
+ * don't fall through to the idle/empty state. `useIsMutating` observes the
+ * whole QueryClient; the predicate scopes by the mutation's variables.
+ */
+export function useIsVmStartPending(
+  virtualMcpId: string | undefined,
+  branch: string | undefined,
+): boolean {
+  const count = useIsMutating({
+    mutationKey: VM_START_MUTATION_KEY,
+    predicate: (mutation) => {
+      if (!virtualMcpId) return false;
+      const vars = mutation.state.variables as VmStartArgs | undefined;
+      if (!vars || vars.virtualMcpId !== virtualMcpId) return false;
+      return (vars.branch ?? "") === (branch ?? "");
+    },
+  });
+  return count > 0;
 }

@@ -21,6 +21,8 @@ export type {
 export { sandboxIdKey } from "./types";
 export { DockerSandboxRunner } from "./docker";
 export type { DockerExec, DockerRunnerOptions, ExecResult } from "./docker";
+export { ensureSandboxImage } from "../image-build";
+export type { EnsureImageOptions } from "../image-build";
 export { startLocalSandboxIngress } from "./local-ingress";
 export {
   sweepDockerOrphansOnBoot,

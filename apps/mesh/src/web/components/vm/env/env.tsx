@@ -46,7 +46,7 @@ import { usePanelActions } from "@/web/layouts/shell-layout";
 import { VmErrorState } from "../vm-error-state";
 import { VmSuspendedState } from "../vm-suspended-state";
 import { useVmChunkHandler, useVmEvents } from "../hooks/use-vm-events";
-import { useVmStart } from "../hooks/use-vm-start";
+import { useIsVmStartPending, useVmStart } from "../hooks/use-vm-start";
 import { VmTerminal } from "./terminal";
 import type { Terminal as XTerminal } from "@xterm/xterm";
 import { EmptyState } from "../../empty-state";
@@ -182,12 +182,25 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const vmEvents = useVmEvents();
   useVmChunkHandler(handleChunk);
 
-  // Final status = user-initiated override, else derived from (vmData, SSE).
+  // Cross-component inflight signal — the layout/preview may have fired
+  // VM_START for this (vmcp, branch); our local `useMutation` instances only
+  // see self-initiated mutations, so without this the tab falls through to
+  // the idle/runtime-picker UI and flickers to the terminal once vmMap
+  // catches up.
+  const vmStartPending = useIsVmStartPending(
+    inset?.entity?.id,
+    urlBranch ?? undefined,
+  );
+
+  // Final status = user-initiated override, else derived from (vmData, SSE,
+  // inflight VM_START).
   const derivedStatus: ViewStatus = vmEvents.suspended
     ? "suspended"
     : vmData
       ? "running"
-      : "idle";
+      : vmStartPending
+        ? "creating"
+        : "idle";
   const status: ViewStatus = override ?? derivedStatus;
 
   // Clear the override when the derived state catches up.
