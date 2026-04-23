@@ -65,9 +65,6 @@ export const VM_START = defineTool({
   handler: async (input, ctx) => {
     const t0 = Date.now();
     const resolvedBranch = input.branch ?? generateBranchName();
-    console.log(
-      `[VM_START] begin virtualMcpId=${input.virtualMcpId} branch=${resolvedBranch} generated=${!input.branch}`,
-    );
 
     const {
       metadata,
@@ -77,13 +74,6 @@ export const VM_START = defineTool({
     } = await requireVmEntry(
       { virtualMcpId: input.virtualMcpId, branch: resolvedBranch },
       ctx,
-    );
-    console.log(
-      `[VM_START] requireVmEntry userId=${userId} orgId=${organization.id} existing=${
-        existing
-          ? `{vmId=${existing.vmId}, runnerKind=${existing.runnerKind ?? "legacy"}}`
-          : "null"
-      }`,
     );
 
     const githubRepo = (metadata as GithubRepoMeta).githubRepo;
@@ -95,7 +85,6 @@ export const VM_START = defineTool({
     }
 
     const runnerKind = resolveRunnerKindFromEnv();
-    console.log(`[VM_START] runnerKind=${runnerKind}`);
 
     // Runner env flipped since the existing entry was written. We don't
     // preserve the old VM — tear it down under its original runner and let
@@ -113,9 +102,6 @@ export const VM_START = defineTool({
       githubRepo,
       existing,
     });
-    console.log(
-      `[VM_START] provisioned vmId=${entry.vmId} isNewVm=${isNewVm} previewUrl=${entry.previewUrl ?? "null"} elapsedMs=${Date.now() - t0}`,
-    );
 
     return {
       ...entry,
