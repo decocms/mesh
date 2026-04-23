@@ -3,57 +3,76 @@
  * so they're trivially unit-testable and editable without touching the UI.
  *
  * The agent's system prompt (buildRepoEnvironmentPrompt) already carries:
- * - Which repo/branch is active (owner/name in prompt, branch from VM cwd)
+ * - Which repo is active (owner/name)
  * - The git-CLI-vs-GitHub-tools split
- * - The "button click is authenticated intent — don't ask, just execute"
- *   override of the default <safety> rule
+ * - The global "button click is authenticated intent" override
  *
- * So these templates are intentionally terse: imperative verbs, no env
- * boilerplate, no "please consider" hedging.
+ * Templates add the specific PR number / branch name where it saves the
+ * agent a discovery round-trip, plus a per-prompt reinforcement of the
+ * "don't ask, execute" posture.
  */
 
 export interface TemplateContext {
+  branch?: string;
+  prNumber?: number;
   failingChecks?: string[];
   checkName?: string;
 }
 
-export function commitAndPush(): string {
-  return `Commit every pending change in the working tree with a concise conventional-commit message summarizing the diff, then push. If local commits are ahead of the remote, push those in the same invocation.`;
+/**
+ * Suffix appended to every template. Belt-and-suspenders reinforcement on
+ * top of the <repo-environment> override in the system prompt: reminds the
+ * agent that the user triggered this by clicking a UI button, so user_ask
+ * is not needed unless a real blocker shows up.
+ */
+const BUTTON_CONFIRMED =
+  "The user clicked this action deliberately — execute directly. Do not call user_ask unless you hit an actual problem outside the scope of this intent (missing auth, unresolvable conflict, a check with multiple plausible fixes).";
+
+export function commitAndPush(ctx: Pick<TemplateContext, "branch">): string {
+  return `Commit every pending change in the working tree with a concise conventional-commit message summarizing the diff, then push to \`origin/${ctx.branch}\`. If local commits are ahead of the remote, push those in the same invocation. ${BUTTON_CONFIRMED}`;
 }
 
-export function createPr(): string {
-  return `Open a pull request for the current branch against its base. Write a clear title and a summary of the changes so far.`;
+export function createPr(ctx: Pick<TemplateContext, "branch">): string {
+  return `Open a pull request for \`${ctx.branch}\` against its base. Write a clear title and a summary of the changes so far. ${BUTTON_CONFIRMED}`;
 }
 
-export function reopenPr(): string {
-  return `Reopen the pull request.`;
+export function reopenPr(ctx: Pick<TemplateContext, "prNumber">): string {
+  return `Reopen PR #${ctx.prNumber}. ${BUTTON_CONFIRMED}`;
 }
 
-export function rebaseOnBase(): string {
-  return `Rebase the current branch on the latest base and force-push with --force-with-lease.`;
+export function rebaseOnBase(ctx: Pick<TemplateContext, "branch">): string {
+  return `Rebase \`${ctx.branch}\` on the latest base and force-push with --force-with-lease. ${BUTTON_CONFIRMED}`;
 }
 
-export function rerunCheck(ctx: Pick<TemplateContext, "checkName">): string {
-  return `Re-run the \`${ctx.checkName}\` check. If an empty commit is needed to retrigger CI, create and push one.`;
+export function rerunCheck(
+  ctx: Pick<TemplateContext, "prNumber" | "checkName">,
+): string {
+  return `Re-run the \`${ctx.checkName}\` check on PR #${ctx.prNumber}. If an empty commit is needed to retrigger CI, create and push one. ${BUTTON_CONFIRMED}`;
 }
 
-export function fixChecks(ctx: Pick<TemplateContext, "failingChecks">): string {
+export function fixChecks(
+  ctx: Pick<TemplateContext, "prNumber" | "failingChecks">,
+): string {
   const list = (ctx.failingChecks ?? []).map((n) => `\`${n}\``).join(", ");
-  return `Failing checks: ${list}. For each: read the logs, diagnose the root cause, apply the smallest fix that makes it pass, commit, and push.`;
+  return `PR #${ctx.prNumber} has failing checks: ${list}. For each: read the logs, diagnose the root cause, apply the smallest fix that makes it pass, commit, and push. ${BUTTON_CONFIRMED}`;
 }
 
-export function markReadyForReview(): string {
-  return `Mark the pull request ready for review.`;
+export function markReadyForReview(
+  ctx: Pick<TemplateContext, "prNumber">,
+): string {
+  return `Mark PR #${ctx.prNumber} ready for review. ${BUTTON_CONFIRMED}`;
 }
 
-export function resolveReviewComments(): string {
-  return `Read the unresolved review threads on the pull request. For each thread: understand the reviewer's ask, apply the needed changes, commit, push, reply explaining what changed, and resolve the thread. If a comment is a question that doesn't need a code change, reply with the answer and resolve.`;
+export function resolveReviewComments(
+  ctx: Pick<TemplateContext, "prNumber">,
+): string {
+  return `Read the unresolved review threads on PR #${ctx.prNumber}. For each thread: understand the reviewer's ask, apply the needed changes, commit, push, reply explaining what changed, and resolve the thread. If a comment is a question that doesn't need a code change, reply with the answer and resolve. ${BUTTON_CONFIRMED}`;
 }
 
-export function reviewPr(): string {
-  return `Review the pull request. Read the full diff, analyze every changed file for correctness, security, code quality, and alignment with the repo's patterns. Post specific line-level review comments on concerns, then submit an overall review (approve / request changes / comment) with a concise summary. Do not modify the code — this is a read-and-comment pass.`;
+export function reviewPr(ctx: Pick<TemplateContext, "prNumber">): string {
+  return `Review PR #${ctx.prNumber}. Read the full diff, analyze every changed file for correctness, security, code quality, and alignment with the repo's patterns. Post specific line-level review comments on concerns, then submit an overall review (approve / request changes / comment) with a concise summary. Do not modify the code — this is a read-and-comment pass. ${BUTTON_CONFIRMED}`;
 }
 
-export function mergeSquash(): string {
-  return `Squash-merge the pull request into its base.`;
+export function mergeSquash(ctx: Pick<TemplateContext, "prNumber">): string {
+  return `Squash-merge PR #${ctx.prNumber} into its base. ${BUTTON_CONFIRMED}`;
 }

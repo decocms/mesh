@@ -92,30 +92,31 @@ export function HeaderActions({ virtualMcpId }: Props) {
     if (isStreaming) return;
     switch (action) {
       case "commit-and-push":
-        void send(tpl.commitAndPush());
+        void send(tpl.commitAndPush({ branch }));
         return;
       case "create-pr":
-        void send(tpl.createPr());
+        void send(tpl.createPr({ branch }));
         return;
       case "reopen":
-        if (pr) void send(tpl.reopenPr());
+        if (pr) void send(tpl.reopenPr({ prNumber: pr.number }));
         return;
       case "rebase":
-        void send(tpl.rebaseOnBase());
+        void send(tpl.rebaseOnBase({ branch }));
         return;
       case "fix-checks":
         if (pr)
           void send(
             tpl.fixChecks({
+              prNumber: pr.number,
               failingChecks: button.meta?.failingChecks ?? [],
             }),
           );
         return;
       case "mark-ready":
-        if (pr) void send(tpl.markReadyForReview());
+        if (pr) void send(tpl.markReadyForReview({ prNumber: pr.number }));
         return;
       case "resolve-comments":
-        if (pr) void send(tpl.resolveReviewComments());
+        if (pr) void send(tpl.resolveReviewComments({ prNumber: pr.number }));
         return;
       case "merge-split":
         // MergeSplitButton handles its own click wiring.
@@ -154,7 +155,11 @@ function HeaderButtonRenderer(props: {
   if (button.action === "merge-split" && props.prNumber != null) {
     return (
       <WithTooltip label={tooltipLabel}>
-        <MergeSplitButton disabled={disabled} send={props.send} />
+        <MergeSplitButton
+          prNumber={props.prNumber}
+          disabled={disabled}
+          send={props.send}
+        />
       </WithTooltip>
     );
   }

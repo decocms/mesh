@@ -9,6 +9,7 @@ import { ChevronDown } from "@untitledui/icons";
 import * as tpl from "./message-templates.ts";
 
 interface Props {
+  prNumber: number;
   disabled: boolean;
   send: (text: string) => Promise<void> | void;
 }
@@ -18,9 +19,9 @@ interface Props {
  * merge); clicking the chevron opens a dropdown with Review. Each choice
  * sends a templated chat message.
  */
-export function MergeSplitButton({ disabled, send }: Props) {
-  const squash = () => send(tpl.mergeSquash());
-  const review = () => send(tpl.reviewPr());
+export function MergeSplitButton({ prNumber, disabled, send }: Props) {
+  const squash = () => send(tpl.mergeSquash({ prNumber }));
+  const review = () => send(tpl.reviewPr({ prNumber }));
 
   return (
     <div className="inline-flex items-stretch rounded-md">
