@@ -41,7 +41,6 @@ mock.module("../../sandbox/lifecycle", () => ({
   },
   getSharedRunnerIfInit: () => null,
   asDockerRunner: () => null,
-  asFreestyleRunner: () => null,
 }));
 
 const { VM_DELETE } = await import("./stop");

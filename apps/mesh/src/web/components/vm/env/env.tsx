@@ -57,7 +57,10 @@ import type { PackageManager } from "@/shared/runtime-defaults";
 import { toast } from "sonner";
 
 interface VmData {
-  previewUrl: string;
+  /** Null for blank / tool sandboxes with no dev server. VM_START always
+   * provisions a workload so this is non-null in practice today; nullable
+   * here mirrors the SDK schema and the future LLM-tool sandbox case. */
+  previewUrl: string | null;
   vmId: string;
   branch: string;
   isNewVm: boolean;

@@ -180,14 +180,12 @@ async function provisionSandbox(
     },
   );
 
-  // Empty preview URL means "no dev server requested" (blank/tool sandbox).
-  // For VM_START we always have a workload + dev server, so previewUrl
-  // should be non-null in practice, but the schema allows null for the
-  // future LLM-tool sandbox case.
-  const previewUrl = sandbox.previewUrl ?? "";
+  // VM_START always provisions a dev-server workload, so previewUrl is
+  // non-null in practice. The vmMap schema allows null for the future
+  // LLM-tool / blank sandbox case where no dev server runs.
   const entry: VmMapEntry = {
     vmId: sandbox.handle,
-    previewUrl,
+    previewUrl: sandbox.previewUrl,
     runnerKind: runner.kind,
   };
 

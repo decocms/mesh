@@ -564,8 +564,11 @@ export class FreestyleSandboxRunner implements SandboxRunner {
  * Translate Docker's `/_daemon/*` path scheme to freestyle's `/_decopilot_vm/*`.
  * Returns `null` for paths that have no freestyle analogue (caller should
  * 204 / no-op).
+ *
+ * Exported for unit testing. The mapping is the only Docker-vs-Freestyle
+ * surface that's easy to break silently when adding a third runner.
  */
-function translateDaemonPath(path: string): string | null {
+export function translateDaemonPath(path: string): string | null {
   const stripped = path.replace(/^\/_daemon(?=\/|$)/, "") || "/";
   // dev lifecycle is systemd-managed inside freestyle VMs; no HTTP equivalent.
   if (stripped === "/dev" || stripped.startsWith("/dev/")) return null;

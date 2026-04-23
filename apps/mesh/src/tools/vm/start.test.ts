@@ -44,7 +44,6 @@ mock.module("../../sandbox/lifecycle", () => ({
   getRunnerByKind: () => mockRunner,
   getSharedRunnerIfInit: () => mockRunner,
   asDockerRunner: () => null,
-  asFreestyleRunner: () => null,
 }));
 
 const mockTokenGet = mock(async (_connectionId: string) => ({
