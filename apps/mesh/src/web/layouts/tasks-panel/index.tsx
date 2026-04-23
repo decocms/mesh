@@ -23,10 +23,13 @@ import { useTasksAutoRefresh } from "@/web/hooks/use-tasks-auto-refresh";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { KEYS } from "@/web/lib/query-keys";
 import { toast } from "sonner";
+import { authClient } from "@/web/lib/auth-client";
 import { TasksSection } from "./tasks-section";
 
 function TasksPanelContent() {
   useTasksAutoRefresh();
+  const { data: session } = authClient.useSession();
+  const currentUserId = session?.user?.id;
   const { tasks: myTasks } = useTasks({
     owner: "me",
     status: "open",
@@ -87,6 +90,7 @@ function TasksPanelContent() {
         onArchive={handleArchive}
         onNew={createNewTask}
         showNewButton
+        currentUserId={currentUserId}
       />
     </div>
   );

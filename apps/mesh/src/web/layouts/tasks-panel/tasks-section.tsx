@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Edit05, FilterLines } from "@untitledui/icons";
+import { Edit05, FilterLines, User02, Users03 } from "@untitledui/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,11 +12,17 @@ import type { Task } from "@/web/components/chat/task/types";
 import { TaskRow } from "./task-row";
 
 type FilterOption = "all" | "manual" | "automation";
+type MemberFilter = "all" | "mine";
 
 const FILTER_LABELS: Record<FilterOption, string> = {
   all: "All tasks",
-  manual: "Manual",
+  manual: "Chats",
   automation: "Automation",
+};
+
+const MEMBER_FILTER_LABELS: Record<MemberFilter, string> = {
+  all: "All members",
+  mine: "Mine only",
 };
 
 export function TasksSection({
@@ -29,6 +35,7 @@ export function TasksSection({
   showNewButton,
   showAutomationBadge,
   emptyLabel,
+  currentUserId,
 }: {
   title: string;
   tasks: Task[];
@@ -39,21 +46,57 @@ export function TasksSection({
   showNewButton?: boolean;
   showAutomationBadge?: boolean;
   emptyLabel?: string;
+  currentUserId?: string;
 }) {
   const [filter, setFilter] = useState<FilterOption>("all");
+  const [memberFilter, setMemberFilter] = useState<MemberFilter>("mine");
+
+  const memberFiltered =
+    memberFilter === "mine" && currentUserId
+      ? tasks.filter((t) => t.created_by === currentUserId)
+      : tasks;
 
   const visibleTasks =
     filter === "automation"
-      ? tasks.filter((t) => t.fromAutomation)
+      ? memberFiltered.filter((t) => t.fromAutomation)
       : filter === "manual"
-        ? tasks.filter((t) => !t.fromAutomation)
-        : tasks;
+        ? memberFiltered.filter((t) => !t.fromAutomation)
+        : memberFiltered;
 
   return (
-    <div className="flex flex-col gap-0.5">
-      <div className="px-2 h-7 flex items-center justify-between text-xs font-medium text-muted-foreground mb-1">
+    <div className="flex flex-col gap-0.5 mt-1">
+      <div className="pl-2 pr-1.5 h-7 flex items-center justify-between text-xs font-medium text-muted-foreground mb-1">
         <span>{title}</span>
         <div className="flex items-center gap-0.5">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label="Filter by member"
+                className="flex size-8 items-center justify-center rounded-md hover:bg-muted hover:text-foreground"
+              >
+                {memberFilter === "mine" ? (
+                  <User02 size={16} />
+                ) : (
+                  <Users03 size={16} />
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuRadioGroup
+                value={memberFilter}
+                onValueChange={(v) => setMemberFilter(v as MemberFilter)}
+              >
+                {(Object.keys(MEMBER_FILTER_LABELS) as MemberFilter[]).map(
+                  (opt) => (
+                    <DropdownMenuRadioItem key={opt} value={opt}>
+                      {MEMBER_FILTER_LABELS[opt]}
+                    </DropdownMenuRadioItem>
+                  ),
+                )}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -61,7 +104,7 @@ export function TasksSection({
                 aria-label="Filter tasks"
                 className={cn(
                   "flex size-8 items-center justify-center rounded-md hover:bg-muted hover:text-foreground",
-                  filter !== "all" && "text-foreground",
+                  filter !== "all" && "text-purple-500",
                 )}
               >
                 <FilterLines size={16} />
