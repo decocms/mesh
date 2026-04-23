@@ -4,8 +4,6 @@ import { authClient } from "@/web/lib/auth-client";
 import { useToggleEnvPanel } from "@/web/hooks/use-toggle-env-panel";
 import { useChatTask } from "@/web/components/chat/context";
 import { useMCPClient, SELF_MCP_ALIAS_ID } from "@decocms/mesh-sdk";
-import { useQueryClient } from "@tanstack/react-query";
-import { invalidateVirtualMcpQueries } from "@/web/lib/query-keys";
 
 import type { VmMapEntry } from "@decocms/mesh-sdk";
 import {
@@ -32,8 +30,10 @@ import {
 } from "./visual-editor-script";
 import { VisualEditorPrompt } from "./visual-editor-prompt";
 import { useVmEvents, useVmReloadHandler } from "../hooks/use-vm-events";
+import { useVmStart, type VmStartArgs } from "../hooks/use-vm-start";
 import { VmSuspendedState } from "../vm-suspended-state";
 import { VmBootingState } from "../vm-booting-state";
+import { VmErrorState } from "../vm-error-state";
 
 type PreviewViewMode = "preview" | "visual";
 
@@ -91,113 +91,127 @@ export function PreviewContent() {
   // booting / installing / waiting for the dev server to bind. Once the
   // upstream has ever reported ready for this previewUrl, keep the iframe
   // mounted — brief HMR hiccups shouldn't re-show the boot screen.
+  //
+  // `at` anchors the booting overlay's elapsed timer. We prefer the
+  // server-stamped `vmEntry.createdAt` (persisted in vmMap) so the timer
+  // survives browser reloads and tab remounts; only fall back to the
+  // client-observed mount moment for legacy entries written before the
+  // field existed.
   const bootTrackedRef = useRef<{ url: string; at: number; ready: boolean }>({
     url: "",
     at: 0,
     ready: false,
   });
   if (previewUrl && bootTrackedRef.current.url !== previewUrl) {
-    bootTrackedRef.current = { url: previewUrl, at: Date.now(), ready: false };
+    bootTrackedRef.current = {
+      url: previewUrl,
+      at: vmEntry?.createdAt ?? Date.now(),
+      ready: false,
+    };
   }
   if (previewUrl && vmEvents.status.ready && !bootTrackedRef.current.ready) {
     bootTrackedRef.current.ready = true;
   }
   const booting = !!previewUrl && !bootTrackedRef.current.ready && !suspended;
 
-  // Auto-start for github-linked threads when no vmEntry exists. Passes the
-  // URL branch if present; otherwise VM_START generates one and we persist
-  // it back to the URL.
+  // VM_START routing. One mutation, two triggers (auto-start, self-heal),
+  // plus a manual retry button. The mutation owns the in-flight + error
+  // state, so we no longer need to ping-pong an error string through the
+  // SSE provider just to share it across triggers within this component.
+  //
+  // Dedup is split by trigger because the *meaning* of "already tried"
+  // differs:
+  //   - auto-start: once per taskId (fresh task → fresh attempt)
+  //   - self-heal: once per dead vmId (don't loop on repeated 404s for the
+  //     same handle; a brand-new vmId after a successful reprovision is
+  //     fair game).
+  // Putting both in the same ref would conflate them.
   const virtualMcpId = inset?.entity?.id ?? null;
   const mcpClient = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: inset?.entity?.organization_id ?? "",
   });
-  const queryClient = useQueryClient();
+  const startVm = useVmStart(mcpClient);
+  const lastStartError = startVm.error?.message ?? null;
   const autoStartedForTaskRef = useRef<string | null>(null);
-  const [autoStartFailed, setAutoStartFailed] = useState(false);
+  const reprovisionedForVmIdRef = useRef<string | null>(null);
+
+  // The trigger function captures `branch`, `virtualMcpId`, the mutation,
+  // and `setCurrentTaskBranch` — all of which churn on unrelated renders.
+  // We funnel it through a ref-latest so the auto-start / self-heal
+  // effects below can have honest, minimal dep arrays (only the upstream
+  // *signals* that should cause a fire, not the closure inputs the
+  // function happens to read). This mirrors the pattern already used by
+  // useVmChunkHandler / useVmReloadHandler in this directory.
+  const triggerStart = (reason: "auto-start" | "self-heal") => {
+    if (!virtualMcpId) return;
+    const args: VmStartArgs = { virtualMcpId };
+    if (branch) args.branch = branch;
+    startVm.mutate(args, {
+      onSuccess: (data) => {
+        // VM_START generates a branch when none was passed; persist it to
+        // the URL so subsequent renders resolve via vmMap[userId][branch].
+        if (data?.branch && !branch) setCurrentTaskBranch(data.branch);
+      },
+      onError: (err) => {
+        console.error(`[preview] ${reason} VM_START failed`, err);
+      },
+    });
+  };
+  const triggerStartRef = useRef(triggerStart);
+  triggerStartRef.current = triggerStart;
+
+  // Auto-start for github-linked threads when no vmEntry exists. Semantics:
+  // *if you arrive at a task with no VM, provision one* — NOT *ensure a VM
+  // always exists*. Once we've ever seen a vmEntry for this taskId, the
+  // user owns its lifecycle, and an explicit stop must NOT re-trigger
+  // auto-start (otherwise it races with the user's next manual Start in
+  // the env panel and two VM_STARTs fight over the vmMap slot, which
+  // typically lands the iframe on a half-booted sandbox stuck on
+  // "Starting dev server").
+  //
+  // Mark the ref the moment we observe an existing entry, *before*
+  // evaluating shouldAutoStart, so a transient null between user stop and
+  // user start can't sneak through.
+  if (taskId && vmEntry && autoStartedForTaskRef.current !== taskId) {
+    autoStartedForTaskRef.current = taskId;
+  }
   const shouldAutoStart =
     !!taskId &&
     !!virtualMcpId &&
     !!userId &&
     !vmEntry &&
-    !autoStartFailed &&
+    !lastStartError &&
+    !startVm.isPending &&
     autoStartedForTaskRef.current !== taskId;
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — 500ms debounced side-effect; no React 19 alternative
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — bridges external state (vmEntry derived from query cache, taskId from router) into a one-shot mutation; no render-time equivalent
   useEffect(() => {
-    if (!shouldAutoStart || !taskId || !virtualMcpId) return;
-    const targetTaskId = taskId;
-    const timer = setTimeout(() => {
-      autoStartedForTaskRef.current = targetTaskId;
-      setAutoStartFailed(false);
-      const args: { virtualMcpId: string; branch?: string } = { virtualMcpId };
-      if (branch) args.branch = branch;
-      mcpClient
-        .callTool({ name: "VM_START", arguments: args })
-        .then((result) => {
-          const data = (result as { structuredContent?: { branch?: string } })
-            .structuredContent;
-          if (data?.branch && !branch) setCurrentTaskBranch(data.branch);
-        })
-        .catch((err) => {
-          console.error("[preview] auto-start VM_START failed", err);
-          setAutoStartFailed(true);
-        });
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [
-    shouldAutoStart,
-    taskId,
-    virtualMcpId,
-    mcpClient,
-    branch,
-    setCurrentTaskBranch,
-  ]);
-  // Reset the failure flag when navigating to a different thread.
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — per-task state reset
-  useEffect(() => {
-    setAutoStartFailed(false);
-  }, [taskId]);
+    if (!shouldAutoStart || !taskId) return;
+    autoStartedForTaskRef.current = taskId;
+    triggerStartRef.current("auto-start");
+  }, [shouldAutoStart, taskId]);
 
   // Self-heal when vmMap points at a sandbox that no longer exists. The SSE
   // probe in useVmEvents flips `notFound` on 404; VM_START purges the stale
   // handle and writes a fresh entry into vmMap (Docker: via runner.ensure;
   // Freestyle: via the stale-entry fallback). Dedup by the dead vmId so we
   // don't loop on repeated 404s for the same handle.
-  const reprovisionedForVmIdRef = useRef<string | null>(null);
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — one-shot reprovision trigger gated on notFound signal from SSE probe
+  const deadVmId = vmEvents.notFound ? (vmEntry?.vmId ?? null) : null;
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — one-shot reprovision trigger gated on the notFound→deadVmId derivation
   useEffect(() => {
-    if (!vmEvents.notFound) return;
-    if (!vmEntry || !virtualMcpId) return;
-    const deadVmId = vmEntry.vmId;
+    if (!deadVmId || !virtualMcpId) return;
+    if (lastStartError || startVm.isPending) return;
     if (reprovisionedForVmIdRef.current === deadVmId) return;
     reprovisionedForVmIdRef.current = deadVmId;
+    triggerStartRef.current("self-heal");
+  }, [deadVmId, virtualMcpId, lastStartError, startVm.isPending]);
 
-    const args: { virtualMcpId: string; branch?: string } = { virtualMcpId };
-    if (branch) args.branch = branch;
-    mcpClient
-      .callTool({ name: "VM_START", arguments: args })
-      .then(() => invalidateVirtualMcpQueries(queryClient))
-      .catch((err) => {
-        console.error("[preview] reprovision VM_START failed", err);
-      });
-  }, [
-    vmEvents.notFound,
-    vmEntry,
-    virtualMcpId,
-    branch,
-    mcpClient,
-    queryClient,
-  ]);
-
-  // Auto-open the env panel the first time a thread has a running sandbox.
-  const envAutoOpenedForTaskRef = useRef<string | null>(null);
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — one-shot per (taskId, first previewUrl)
-  useEffect(() => {
-    if (!taskId || !previewUrl) return;
-    if (envAutoOpenedForTaskRef.current === taskId) return;
-    envAutoOpenedForTaskRef.current = taskId;
-    openEnv();
-  }, [taskId, previewUrl, openEnv]);
+  const retryAutoStart = () => {
+    autoStartedForTaskRef.current = null;
+    reprovisionedForVmIdRef.current = null;
+    startVm.reset();
+    triggerStartRef.current("auto-start");
+  };
 
   // Visual-editor postMessage listener.
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — DOM event subscription
@@ -323,13 +337,19 @@ export function PreviewContent() {
           </div>
         )}
 
-        {suspended && (
+        {lastStartError && (
+          <div className="absolute inset-0 z-40 flex items-center justify-center bg-background">
+            <VmErrorState errorMsg={lastStartError} onRetry={retryAutoStart} />
+          </div>
+        )}
+
+        {!lastStartError && suspended && (
           <div className="absolute inset-0 z-30 bg-background/80 backdrop-blur-sm">
             <VmSuspendedState onResume={openEnv} />
           </div>
         )}
 
-        {booting && (
+        {!lastStartError && booting && (
           <div className="absolute inset-0 z-30 flex items-center justify-center bg-background">
             <VmBootingState
               since={bootTrackedRef.current.at}

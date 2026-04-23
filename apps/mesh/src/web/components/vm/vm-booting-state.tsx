@@ -20,13 +20,10 @@ function derivePhase(
   scripts: string[],
   activeProcesses: string[],
 ): { title: string; subtitle: string } {
-  const runningDev =
-    activeProcesses.find((p) => p === "dev" || p === "start") ??
-    activeProcesses[0];
-  if (runningDev) {
+  if (activeProcesses.length > 0) {
     return {
       title: "Starting dev server",
-      subtitle: `Running ${runningDev}…`,
+      subtitle: "Waiting for the process to bind a port…",
     };
   }
   if (scripts.length > 0) {

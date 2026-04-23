@@ -46,6 +46,7 @@ import { usePanelActions } from "@/web/layouts/shell-layout";
 import { VmErrorState } from "../vm-error-state";
 import { VmSuspendedState } from "../vm-suspended-state";
 import { useVmChunkHandler, useVmEvents } from "../hooks/use-vm-events";
+import { useVmStart } from "../hooks/use-vm-start";
 import { VmTerminal } from "./terminal";
 import type { Terminal as XTerminal } from "@xterm/xterm";
 import { EmptyState } from "../../empty-state";
@@ -213,33 +214,29 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   // probe in useVmEvents flips `notFound` on 404; VM_START purges the stale
   // handle and writes a fresh entry into vmMap. Dedup by the dead vmId so
   // we don't loop on repeated 404s for the same handle.
+  //
+  // Routed through the shared useVmStart mutation (same primitive used by
+  // the preview overlay) so MCP-protocol failures surface consistently
+  // instead of being swallowed by the raw client.callTool path.
+  const selfHealStart = useVmStart(client);
+  const { mutate: triggerSelfHeal, isPending: selfHealPending } = selfHealStart;
+  const virtualMcpId = inset?.entity?.id;
+  const deadVmId = vmEvents.notFound ? (existingVm?.vmId ?? null) : null;
   const reprovisionedForVmIdRef = useRef<string | null>(null);
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — one-shot reprovision trigger gated on notFound signal from SSE probe
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — one-shot reprovision trigger gated on the notFound→deadVmId derivation
   useEffect(() => {
-    if (!vmEvents.notFound) return;
-    if (!existingVm || !inset?.entity?.id) return;
-    const deadVmId = existingVm.vmId;
+    if (!deadVmId || !virtualMcpId) return;
+    if (selfHealPending) return;
     if (reprovisionedForVmIdRef.current === deadVmId) return;
     reprovisionedForVmIdRef.current = deadVmId;
-
-    const args: { virtualMcpId: string; branch?: string } = {
-      virtualMcpId: inset.entity.id,
-    };
+    const args: { virtualMcpId: string; branch?: string } = { virtualMcpId };
     if (urlBranch) args.branch = urlBranch;
-    client
-      .callTool({ name: "VM_START", arguments: args })
-      .then(() => invalidateVirtualMcpQueries(queryClient))
-      .catch((err) => {
+    triggerSelfHeal(args, {
+      onError: (err) => {
         console.error("[env] reprovision VM_START failed", err);
-      });
-  }, [
-    vmEvents.notFound,
-    existingVm,
-    inset?.entity?.id,
-    urlBranch,
-    client,
-    queryClient,
-  ]);
+      },
+    });
+  }, [deadVmId, virtualMcpId, urlBranch, selfHealPending, triggerSelfHeal]);
 
   // When scripts are discovered, auto-open well-known starters.
   const scriptsAppliedRef = useRef(false);

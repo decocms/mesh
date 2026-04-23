@@ -322,11 +322,16 @@ describe("VM_START", () => {
     expect(updateSpy).toHaveBeenCalledTimes(1);
     const updateCall = (updateSpy.mock.calls as unknown[][])[0]!;
     const updated = (updateCall[2] as { metadata: { vmMap: VmMap } }).metadata;
-    expect(updated.vmMap[USER_ID]?.[BRANCH]).toEqual({
+    const stored = updated.vmMap[USER_ID]?.[BRANCH];
+    expect(stored).toMatchObject({
       vmId: "vm_xyz",
       previewUrl: "https://stub.preview/",
       runnerKind: "freestyle",
     });
+    // createdAt is stamped server-side at provision time; assert it's a
+    // recent epoch ms rather than a brittle exact value.
+    expect(typeof stored?.createdAt).toBe("number");
+    expect(stored?.createdAt).toBeGreaterThan(Date.now() - 60_000);
   });
 
   it("returns isNewVm=false when runner.ensure returns the same handle as the existing entry", async () => {

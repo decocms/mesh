@@ -153,6 +153,12 @@ export const VmMapEntrySchema = z.object({
       "URL where the VM's iframe-proxied UI is served, or null when the sandbox has no dev server (blank / tool sandboxes).",
     ),
   runnerKind: z.enum(["docker", "freestyle"]).optional(),
+  createdAt: z
+    .number()
+    .optional()
+    .describe(
+      "Epoch ms the entry was first written by VM_START. Used by the booting overlay to show a stable elapsed timer that survives browser reloads. Optional for backward compatibility with entries written before this field existed.",
+    ),
 });
 
 export type VmMapEntry = z.infer<typeof VmMapEntrySchema>;

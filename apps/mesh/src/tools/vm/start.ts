@@ -183,10 +183,19 @@ async function provisionSandbox(
   // VM_START always provisions a dev-server workload, so previewUrl is
   // non-null in practice. The vmMap schema allows null for the future
   // LLM-tool / blank sandbox case where no dev server runs.
+  // Preserve `createdAt` across resumes (same handle as the existing entry)
+  // so the booting overlay's elapsed timer doesn't reset just because we
+  // re-ran VM_START. Only stamp a fresh `createdAt` when this is genuinely
+  // a new sandbox handle.
+  const isResume = !!existing && existing.vmId === sandbox.handle;
+  const createdAt =
+    isResume && existing?.createdAt ? existing.createdAt : Date.now();
+
   const entry: VmMapEntry = {
     vmId: sandbox.handle,
     previewUrl: sandbox.previewUrl,
     runnerKind: runner.kind,
+    createdAt,
   };
 
   await setVmMapEntry(
