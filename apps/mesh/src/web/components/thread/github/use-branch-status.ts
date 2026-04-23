@@ -1,4 +1,3 @@
-import { useVirtualMCP } from "@decocms/mesh-sdk";
 import {
   useVmEvents,
   type BranchStatus,
@@ -6,29 +5,12 @@ import {
 
 /**
  * useBranchStatus — returns the VM daemon's latest branch-status snapshot
- * for a given (virtualMcpId, userId, branch), or null if the VM is unknown
- * or not yet connected.
+ * as tracked by the shared VmEventsProvider. Returns null when the VM is
+ * not connected.
  *
- * Resolves previewUrl from the vMCP's vmMap metadata, then subscribes to
- * the VM daemon SSE. Passes a null chunk handler since this hook doesn't
- * consume PTY logs.
+ * The previous version opened its own EventSource per call; the provider
+ * model means consumers share one connection.
  */
-export function useBranchStatus({
-  virtualMcpId,
-  userId,
-  branch,
-}: {
-  virtualMcpId: string;
-  userId: string | null;
-  branch: string | null;
-}): BranchStatus | null {
-  const vm = useVirtualMCP(virtualMcpId);
-  const vmMap = vm?.metadata?.vmMap as
-    | Record<string, Record<string, { previewUrl?: string | null }>>
-    | undefined;
-  const previewUrl =
-    userId && branch ? (vmMap?.[userId]?.[branch]?.previewUrl ?? null) : null;
-
-  const { branchStatus } = useVmEvents(previewUrl, null);
-  return branchStatus;
+export function useBranchStatus(): BranchStatus | null {
+  return useVmEvents().branchStatus;
 }

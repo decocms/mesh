@@ -31,7 +31,7 @@ import {
   type VisualEditorPayload,
 } from "./visual-editor-script";
 import { VisualEditorPrompt } from "./visual-editor-prompt";
-import { useVmEvents } from "../hooks/use-vm-events";
+import { useVmEvents, useVmReloadHandler } from "../hooks/use-vm-events";
 import { VmSuspendedState } from "../vm-suspended-state";
 import { VmBootingState } from "../vm-booting-state";
 
@@ -48,18 +48,6 @@ const VIEW_MODE_OPTIONS: [
     tooltip: "Visual Editor",
   },
 ];
-
-/**
- * Daemon base URL for `/_decopilot_vm/*` calls. Docker goes through the mesh
- * proxy at `/api/sandbox/<vmId>/_daemon` (bearer token stays server-side);
- * Freestyle hits the VM's own domain directly.
- */
-function resolveDaemonBaseUrl(entry: VmMapEntry | undefined): string | null {
-  if (!entry) return null;
-  if (entry.runnerKind === "docker")
-    return `/api/sandbox/${entry.vmId}/_daemon`;
-  return entry.previewUrl;
-}
 
 export function PreviewContent() {
   const inset = useInsetContext();
@@ -83,14 +71,14 @@ export function PreviewContent() {
     userId && branch ? metadata?.vmMap?.[userId]?.[branch] : undefined;
   const previewUrl = vmEntry?.previewUrl ?? null;
 
-  // SSE events for suspension detection + HMR-adjacent iframe reload.
-  const daemonBase = resolveDaemonBaseUrl(vmEntry);
-  const sseUrl = daemonBase ? `${daemonBase}/_decopilot_vm/events` : null;
-  const vmEvents = useVmEvents(sseUrl, null, () => {
+  // Read SSE state from the shared VmEventsProvider. Subscribe to the
+  // daemon's "reload" event for iframe refresh on config edits that
+  // framework HMR doesn't watch (.ts/.tsx edits go through the framework's
+  // own reload path).
+  const vmEvents = useVmEvents();
+  useVmReloadHandler(() => {
     const iframe = previewIframeRef.current;
     if (!iframe) return;
-    // Reload the preview — used for config edits that framework HMR doesn't
-    // watch. For .ts/.tsx edits the framework's own reload path handles it.
     // biome-ignore lint/correctness/noSelfAssign: reloads the iframe
     // oxlint-disable-next-line no-self-assign
     iframe.src = iframe.src;

@@ -65,11 +65,28 @@ export function selectHeaderButton(input: {
     return { label: "Save changes", action: "commit-and-push" };
   }
 
+  // Merged PR is terminal UNLESS the branch has advanced past the PR's
+  // head (i.e. new commits were pushed after the merge). Squash-merges
+  // leave the branch's pre-merge commits intact on origin/<branch> with
+  // their original SHAs, so aheadOfBase alone can't distinguish
+  // "work shipped, nothing new" from "new work since the merge". Compare
+  // the branch's HEAD sha to the PR's head sha to decide.
+  if (pr?.merged) {
+    const branchAdvanced =
+      !!branchStatus.headSha &&
+      !!pr.headSha &&
+      branchStatus.headSha !== pr.headSha;
+    if (branchAdvanced) {
+      return { label: "Submit for review", action: "create-pr" };
+    }
+    return null;
+  }
+
   if (branchStatus.aheadOfBase > 0) {
     if (pr && pr.state === "closed" && !pr.merged) {
       return { label: "Reopen", action: "reopen" };
     }
-    if (!pr || pr.merged) {
+    if (!pr) {
       return { label: "Submit for review", action: "create-pr" };
     }
 

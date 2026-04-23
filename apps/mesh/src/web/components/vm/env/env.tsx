@@ -45,7 +45,7 @@ import { useChatBridge, useChatTask } from "@/web/components/chat/context";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { VmErrorState } from "../vm-error-state";
 import { VmSuspendedState } from "../vm-suspended-state";
-import { useVmEvents } from "../hooks/use-vm-events";
+import { useVmChunkHandler, useVmEvents } from "../hooks/use-vm-events";
 import { VmTerminal } from "./terminal";
 import type { Terminal as XTerminal } from "@xterm/xterm";
 import { EmptyState } from "../../empty-state";
@@ -184,12 +184,11 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     }
   };
 
-  // Subscribe to the VM's SSE stream whenever vmData is known. The stream
-  // auto-reconnects on URL change, so switching branches just works. Docker
-  // routes through the mesh proxy; freestyle hits the VM domain directly.
-  const daemonBase = resolveDaemonBaseUrl(existingVm);
-  const sseUrl = daemonBase ? `${daemonBase}/_decopilot_vm/events` : null;
-  const vmEvents = useVmEvents(sseUrl, handleChunk);
+  // Read SSE state from the shared VmEventsProvider and register a chunk
+  // handler so log output lands in the active terminal. The provider owns
+  // the one EventSource; we just subscribe.
+  const vmEvents = useVmEvents();
+  useVmChunkHandler(handleChunk);
 
   // Final status = user-initiated override, else derived from (vmData, SSE).
   const derivedStatus: ViewStatus = vmEvents.suspended
