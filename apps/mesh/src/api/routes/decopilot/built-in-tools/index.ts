@@ -16,7 +16,6 @@ import { createSandboxTool, type VirtualClient } from "./sandbox";
 import { createVmTools } from "./vm-tools";
 import { getRunnerByKind } from "@/sandbox/lifecycle";
 import type { RunnerKind } from "mesh-plugin-user-sandbox/runner";
-import { createOpenInAgentTool } from "./open-in-agent";
 import { createSubtaskTool } from "./subtask";
 import { userAskTool } from "./user-ask";
 import { proposePlanTool } from "./propose-plan";
@@ -35,7 +34,6 @@ export interface BuiltinToolParams {
   provider: MeshProvider | null;
   organization: OrganizationScope;
   models: ModelsConfig;
-  userId: string;
   toolApprovalLevel?: ToolApprovalLevel;
   /** When true (chat mode `plan`), include `propose_plan` and plan-style approvals */
   isPlanMode?: boolean;
@@ -65,7 +63,6 @@ async function buildAllTools(
     provider,
     organization,
     models,
-    userId,
     toolApprovalLevel = "auto",
     isPlanMode = false,
     toolOutputMap,
@@ -97,16 +94,6 @@ async function buildAllTools(
       passthroughClient,
       toolOutputMap,
     }),
-    open_in_agent: createOpenInAgentTool(
-      writer,
-      {
-        organization,
-        userId,
-        needsApproval:
-          toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false,
-      },
-      ctx,
-    ),
   };
   // VM file tools — same six LLM-visible tools across runners (schemas in
   // vm-tools/schemas.ts). Dispatch resolves through `getRunnerByKind` so
@@ -174,7 +161,6 @@ async function buildAllTools(
     sandbox: ReturnType<typeof createSandboxTool>;
     read_resource: ReturnType<typeof createReadResourceTool>;
     read_prompt: ReturnType<typeof createReadPromptTool>;
-    open_in_agent: ReturnType<typeof createOpenInAgentTool>;
     generate_image: ReturnType<typeof createGenerateImageTool>;
     web_search: ReturnType<typeof createWebSearchTool>;
   };
