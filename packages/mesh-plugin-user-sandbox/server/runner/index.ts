@@ -85,10 +85,10 @@ function isDockerInstalled(): boolean {
  * Rules:
  *   1. `MESH_SANDBOX_RUNNER=docker|freestyle` — honored.
  *   2. No explicit value, `FREESTYLE_API_KEY` set — pick freestyle.
- *   3. Production w/o explicit value and no freestyle key — throw.
- *   4. Dev w/o explicit value — docker if CLI present, else throw.
+ *   3. Production w/o explicit value and no freestyle key — null.
+ *   4. Dev w/o explicit value — docker if CLI present, else null.
  */
-export function resolveRunnerKindFromEnv(): RunnerKind {
+export function tryResolveRunnerKindFromEnv(): RunnerKind | null {
   const raw = process.env.MESH_SANDBOX_RUNNER;
   if (raw === "docker" || raw === "freestyle") return raw;
   if (raw && raw.length > 0) {
@@ -97,13 +97,20 @@ export function resolveRunnerKindFromEnv(): RunnerKind {
     );
   }
   if (process.env.FREESTYLE_API_KEY) return "freestyle";
+  if (process.env.NODE_ENV === "production") return null;
+  return isDockerInstalled() ? "docker" : null;
+}
+
+/** Strict variant: throws with remediation hints when no runner is resolvable. */
+export function resolveRunnerKindFromEnv(): RunnerKind {
+  const kind = tryResolveRunnerKindFromEnv();
+  if (kind) return kind;
   if (process.env.NODE_ENV === "production") {
     throw new Error(
       `MESH_SANDBOX_RUNNER must be set explicitly in production — ` +
         `choose "docker" or "freestyle" (or set FREESTYLE_API_KEY).`,
     );
   }
-  if (isDockerInstalled()) return "docker";
   throw new Error(
     `No sandbox runner available: Docker CLI not found on PATH. ` +
       `Install Docker for local dev, or set MESH_SANDBOX_RUNNER explicitly.`,

@@ -10,6 +10,7 @@ import type { MeshContext } from "@/core/mesh-context";
 import {
   DockerSandboxRunner,
   resolveRunnerKindFromEnv,
+  tryResolveRunnerKindFromEnv,
   type RunnerKind,
   type SandboxRunner,
 } from "mesh-plugin-user-sandbox/runner";
@@ -60,12 +61,8 @@ export async function getRunnerByKind(
  * Returns null if env is unresolved.
  */
 export function getSharedRunnerIfInit(): SandboxRunner | null {
-  let kind: RunnerKind;
-  try {
-    kind = resolveRunnerKindFromEnv();
-  } catch {
-    return null;
-  }
+  const kind = tryResolveRunnerKindFromEnv();
+  if (!kind) return null;
   return runners[kind] ?? null;
 }
 
