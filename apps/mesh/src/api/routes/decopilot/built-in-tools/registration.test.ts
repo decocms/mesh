@@ -14,7 +14,6 @@ const mockParams: BuiltinToolParams = {
     connectionId: "conn_test",
     thinking: { id: "model_test" },
   } as never,
-  userId: "user_test",
   toolOutputMap: new Map(),
   passthroughClient: {
     listTools: () => Promise.resolve({ tools: [] }),
@@ -84,5 +83,11 @@ describe("getBuiltInTools", () => {
     const userAskTool = tools.user_ask;
     expect(userAskTool).toHaveProperty("description");
     expect(typeof userAskTool?.description).toBe("string");
+  });
+
+  test("does not include open_in_agent tool", () => {
+    const tools = getTools();
+
+    expect(Object.keys(tools)).not.toContain("open_in_agent");
   });
 });

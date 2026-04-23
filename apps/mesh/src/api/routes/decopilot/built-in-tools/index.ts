@@ -14,7 +14,6 @@ import { createReadPromptTool } from "./prompts";
 import { createReadResourceTool } from "./resources";
 import { createSandboxTool, type VirtualClient } from "./sandbox";
 import { createVmTools } from "./vm-tools";
-import { createOpenInAgentTool } from "./open-in-agent";
 import { createSubtaskTool } from "./subtask";
 import { userAskTool } from "./user-ask";
 import { proposePlanTool } from "./propose-plan";
@@ -28,7 +27,6 @@ export interface BuiltinToolParams {
   provider: MeshProvider | null;
   organization: OrganizationScope;
   models: ModelsConfig;
-  userId: string;
   toolApprovalLevel?: ToolApprovalLevel;
   /** When true (chat mode `plan`), include `propose_plan` and plan-style approvals */
   isPlanMode?: boolean;
@@ -54,7 +52,6 @@ function buildAllTools(
     provider,
     organization,
     models,
-    userId,
     toolApprovalLevel = "auto",
     isPlanMode = false,
     toolOutputMap,
@@ -86,16 +83,6 @@ function buildAllTools(
       passthroughClient,
       toolOutputMap,
     }),
-    open_in_agent: createOpenInAgentTool(
-      writer,
-      {
-        organization,
-        userId,
-        needsApproval:
-          toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false,
-      },
-      ctx,
-    ),
   };
   // VM tools replace sandbox when a VM is active
   if (activeVm) {
@@ -154,7 +141,6 @@ function buildAllTools(
     sandbox: ReturnType<typeof createSandboxTool>;
     read_resource: ReturnType<typeof createReadResourceTool>;
     read_prompt: ReturnType<typeof createReadPromptTool>;
-    open_in_agent: ReturnType<typeof createOpenInAgentTool>;
     generate_image: ReturnType<typeof createGenerateImageTool>;
     web_search: ReturnType<typeof createWebSearchTool>;
   };
