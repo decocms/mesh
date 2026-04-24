@@ -1162,11 +1162,10 @@ function SimpleModeModelRow({
     ? allKeys.find((k) => k.id === activeKeyId)
     : null;
 
-  const { models: activeModels } = useAiProviderModels(
-    filterModels ? (activeKeyId ?? undefined) : undefined,
-  );
+  const { models: activeModels, isLoading: isLoadingModels } =
+    useAiProviderModels(filterModels ? (activeKeyId ?? undefined) : undefined);
   const hasFilteredModels = filterModels
-    ? activeModels.some(filterModels)
+    ? isLoadingModels || activeModels.some(filterModels)
     : true;
 
   const resolvedModel: AiProviderModel | null = slot
@@ -1358,7 +1357,11 @@ function SimpleModeSection() {
       !clearedImage ||
       !clearedWebResearch;
 
-    if (!needsFill && clearedChat === draft.chat) return;
+    const chatUnchanged =
+      clearedChat.fast === draft.chat.fast &&
+      clearedChat.smart === draft.chat.smart &&
+      clearedChat.thinking === draft.chat.thinking;
+    if (!needsFill && chatUnchanged) return;
 
     const defaults = pickSimpleModeDefaults(allKeys, modelsByKeyId);
     setDraft((d) => ({
