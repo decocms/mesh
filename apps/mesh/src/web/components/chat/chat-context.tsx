@@ -38,6 +38,7 @@ import { toast } from "sonner";
 import {
   useAiProviderKeys,
   useAiProviderModels,
+  type AiProviderKey,
   type AiProviderModel,
 } from "../../hooks/collections/use-ai-providers";
 import { useContext as useContextHook } from "../../hooks/use-context";
@@ -172,6 +173,47 @@ export interface ChatBridgeValue {
 }
 
 // ============================================================================
+// Model resolution helpers (shared across chat / image / deep-research paths)
+// ============================================================================
+
+type ModelRef = { keyId: string; modelId: string };
+type SimpleTier = "fast" | "smart" | "thinking";
+
+/**
+ * Resolve a stored ModelRef against the currently available keys and models.
+ * Returns null when the ref points to a key or model that no longer exists.
+ */
+function findModel(
+  ref: ModelRef | null,
+  allKeys: AiProviderKey[],
+  allModels: AiProviderModel[],
+): AiProviderModel | null {
+  if (!ref) return null;
+  if (!allKeys.some((k) => k.id === ref.keyId)) return null;
+  return (
+    allModels.find((m) => m.keyId === ref.keyId && m.modelId === ref.modelId) ??
+    null
+  );
+}
+
+/**
+ * Pick the active Simple Mode tier, validated against the current config.
+ * Handles the case where the stored tier is orphaned (slot unset or Simple
+ * Mode changed server-side). Falls through to the first configured tier.
+ */
+function resolveActiveTier(
+  stored: SimpleTier | null,
+  simpleMode: { chat: Record<SimpleTier, unknown> },
+): SimpleTier {
+  const configured = (["fast", "smart", "thinking"] as const).filter(
+    (t) => simpleMode.chat[t] != null,
+  );
+  if (stored && configured.includes(stored)) return stored;
+  if (configured.includes("smart")) return "smart";
+  return configured[0] ?? "smart";
+}
+
+// ============================================================================
 // Constants
 // ============================================================================
 
@@ -251,46 +293,49 @@ export function ChatContextProvider({
   const [preferences] = usePreferences();
   const { markTaskRead } = useTaskReadState();
 
-  // Model selection (localStorage-backed)
-  const [storedModel, setStoredModel] = useLocalStorage<AiProviderModel | null>(
+  // Model selection (localStorage-backed, identifier refs only — metadata
+  // is re-resolved from the live models list every render to avoid staleness).
+  const [storedChatRef, setStoredChatRef] = useLocalStorage<ModelRef | null>(
     LOCALSTORAGE_KEYS.chatSelectedModel(locator),
     null,
   );
-  const [storedCredentialId, setStoredCredentialId] = useLocalStorage<
-    string | null
-  >(LOCALSTORAGE_KEYS.chatSelectedKeyId(locator), null);
-
-  // Image model selection (localStorage-backed).
-  // null = auto-detect from available models, model = user-chosen model.
-  const [storedImageModel, setStoredImageModel] =
-    useLocalStorage<AiProviderModel | null>(
-      LOCALSTORAGE_KEYS.chatSelectedImageModel(locator),
-      null,
-    );
-
-  // Deep research model selection (localStorage-backed).
-  const [storedDeepResearchModel, setStoredDeepResearchModel] =
-    useLocalStorage<AiProviderModel | null>(
+  const [storedImageRef, setStoredImageRef] = useLocalStorage<ModelRef | null>(
+    LOCALSTORAGE_KEYS.chatSelectedImageModel(locator),
+    null,
+  );
+  const [storedDeepResearchRef, setStoredDeepResearchRef] =
+    useLocalStorage<ModelRef | null>(
       LOCALSTORAGE_KEYS.chatSelectedDeepResearchModel(locator),
       null,
     );
 
+  // Session-only credential override. Lets the picker browse models for a
+  // different credential before the user commits via setModel. Resets on
+  // reload — not persisted.
+  const [sessionCredentialId, setSessionCredentialId] = useState<string | null>(
+    null,
+  );
+
   const [chatMode, setChatMode] = useState<ChatMode>("default");
   chatModeForTransportRef.current = chatMode;
 
-  // Simple Model Mode — org-level config
+  // Simple Model Mode — org-level config.
   const simpleMode = useSimpleMode();
-  const [simpleModeTier, setSimpleModeTier] = useLocalStorage<
-    "fast" | "smart" | "thinking"
-  >(LOCALSTORAGE_KEYS.chatSimpleModeTier(locator), "smart");
+  const [storedTier, setStoredTier] = useLocalStorage<SimpleTier | null>(
+    LOCALSTORAGE_KEYS.chatSimpleModeTier(locator),
+    null,
+  );
+  const activeTier = resolveActiveTier(storedTier, simpleMode);
 
-  // AI provider keys and models
+  // AI provider keys and models.
   const keys = useAiProviderKeys();
-  const effectiveKeyId = keys.some((k) => k.id === storedCredentialId)
-    ? storedCredentialId
-    : (keys[0]?.id ?? null);
+  const effectiveKeyId =
+    sessionCredentialId && keys.some((k) => k.id === sessionCredentialId)
+      ? sessionCredentialId
+      : storedChatRef && keys.some((k) => k.id === storedChatRef.keyId)
+        ? storedChatRef.keyId
+        : (keys[0]?.id ?? null);
   // Always fetch models — React Query (staleTime 60s) caches across consumers.
-  // Needed for both default model selection and image model auto-detection.
   const { models: allKeyModels, isLoading: isModelsQueryLoading } =
     useAiProviderModels(effectiveKeyId ?? undefined);
   const effectiveProviderId =
@@ -301,98 +346,60 @@ export function ChatContextProvider({
     effectiveKeyId ?? undefined,
   );
 
-  // In Simple Mode, derive selectedModel from the active tier slot.
-  // When a slot is null (no model configured for that tier) fall back to
-  // the normal storedModel / defaultModel path.
-  const simpleTierSlot = simpleMode.enabled
-    ? simpleMode.chat[simpleModeTier]
-    : null;
-  const simpleModeModel: AiProviderModel | null = simpleTierSlot
-    ? ({
-        modelId: simpleTierSlot.modelId,
-        title: simpleTierSlot.title ?? simpleTierSlot.modelId,
-        keyId: simpleTierSlot.keyId,
-        providerId: "deco",
-        description: null,
-        logo: null,
-        capabilities: [],
-        limits: null,
-        costs: null,
-      } as AiProviderModel)
-    : null;
+  // Validate the stored chat ref and clear it if stale. Side effect runs
+  // at most once per ref-gone-stale event.
+  const validatedStoredChat = findModel(storedChatRef, keys, allKeyModels);
+  if (storedChatRef && !validatedStoredChat && !isModelsQueryLoading) {
+    setStoredChatRef(null);
+  }
 
-  const selectedModel = simpleModeModel ?? storedModel ?? defaultModel;
-  const isModelsLoading = !storedModel && isModelsQueryLoading;
+  // Resolve the chat model: Simple Mode and regular paths are mutually
+  // exclusive — no silent shadowing.
+  const selectedModel: AiProviderModel | null = simpleMode.enabled
+    ? findModel(
+        simpleMode.chat[activeTier] as ModelRef | null,
+        keys,
+        allKeyModels,
+      )
+    : (validatedStoredChat ?? defaultModel);
+  const isModelsLoading = !storedChatRef && isModelsQueryLoading;
 
-  // Image model auto-detection: always resolve to an available model.
-  // The image tool is enabled whenever an image model exists.
-  // Validate stored selection against current credential's models to avoid
-  // sending a stale model when the user switches keys.
+  // Image model — same split.
   const imageModels = allKeyModels.filter((m) =>
     m.capabilities?.includes("image"),
   );
-  const storedModelIsAvailable =
-    storedImageModel &&
-    imageModels.some((m) => m.modelId === storedImageModel.modelId);
+  const validatedStoredImage = findModel(storedImageRef, keys, imageModels);
+  if (storedImageRef && !validatedStoredImage && !isModelsQueryLoading) {
+    setStoredImageRef(null);
+  }
+  const resolvedImageModel: AiProviderModel | null = simpleMode.enabled
+    ? findModel(simpleMode.image as ModelRef | null, keys, allKeyModels)
+    : (validatedStoredImage ?? imageModels[0] ?? null);
 
-  // In Simple Mode, prefer the org-configured image model.
-  const simpleModeImageModel: AiProviderModel | null =
-    simpleMode.enabled && simpleMode.image
-      ? ({
-          modelId: simpleMode.image.modelId,
-          title: simpleMode.image.title ?? simpleMode.image.modelId,
-          keyId: simpleMode.image.keyId,
-          providerId: "deco",
-          description: null,
-          logo: null,
-          capabilities: ["image"] as AiProviderModel["capabilities"],
-          limits: null,
-          costs: null,
-        } as AiProviderModel)
-      : null;
-
-  const resolvedImageModel: AiProviderModel | null =
-    simpleModeImageModel ??
-    (storedModelIsAvailable ? storedImageModel : null) ??
-    imageModels[0] ??
-    null;
-
-  // Deep research model auto-detection + user override.
-  // Validates stored selection against current credential's models.
+  // Deep research model — same split.
   const deepResearchModels = allKeyModels.filter((m) => {
     const n = m.modelId.toLowerCase().replace(/[^a-z0-9]/g, "");
     return n.includes("sonar") || n.includes("deepresearch");
   });
-  const storedDeepResearchIsAvailable =
-    storedDeepResearchModel &&
-    deepResearchModels.some(
-      (m) => m.modelId === storedDeepResearchModel.modelId,
-    );
+  const validatedStoredDeepResearch = findModel(
+    storedDeepResearchRef,
+    keys,
+    deepResearchModels,
+  );
+  if (
+    storedDeepResearchRef &&
+    !validatedStoredDeepResearch &&
+    !isModelsQueryLoading
+  ) {
+    setStoredDeepResearchRef(null);
+  }
   const defaultDeepResearchModel =
     deepResearchModels.find((m) => m.modelId === "perplexity/sonar") ??
     deepResearchModels[0] ??
     null;
-
-  // In Simple Mode, prefer the org-configured web research model.
-  const simpleModeDeepResearchModel: AiProviderModel | null =
-    simpleMode.enabled && simpleMode.webResearch
-      ? ({
-          modelId: simpleMode.webResearch.modelId,
-          title: simpleMode.webResearch.title ?? simpleMode.webResearch.modelId,
-          keyId: simpleMode.webResearch.keyId,
-          providerId: "deco",
-          description: null,
-          logo: null,
-          capabilities: [] as AiProviderModel["capabilities"],
-          limits: null,
-          costs: null,
-        } as AiProviderModel)
-      : null;
-
-  const resolvedDeepResearchModel: AiProviderModel | null =
-    simpleModeDeepResearchModel ??
-    (storedDeepResearchIsAvailable ? storedDeepResearchModel : null) ??
-    defaultDeepResearchModel;
+  const resolvedDeepResearchModel: AiProviderModel | null = simpleMode.enabled
+    ? findModel(simpleMode.webResearch as ModelRef | null, keys, allKeyModels)
+    : (validatedStoredDeepResearch ?? defaultDeepResearchModel);
 
   // Task management (scoped by URL virtualMcpId — task list doesn't change on override)
   const taskManager = useTaskManager(virtualMcpId);
@@ -610,21 +617,27 @@ export function ChatContextProvider({
   const prefsValue: ChatPrefsContextValue = {
     selectedModel,
     setModel: (model: AiProviderModel) => {
-      setStoredModel(model);
-      if (model.keyId) setStoredCredentialId(model.keyId);
+      if (!model.keyId) return;
+      setStoredChatRef({ keyId: model.keyId, modelId: model.modelId });
+      // Clear session override — the new model's keyId is the new source of truth.
+      setSessionCredentialId(null);
     },
     credentialId: effectiveKeyId,
-    setCredentialId: setStoredCredentialId,
+    setCredentialId: setSessionCredentialId,
     allModelsConnections: keys,
     isModelsLoading,
     selectedVirtualMcp,
     imageModel: resolvedImageModel,
     setImageModel: (model: AiProviderModel | null) => {
-      setStoredImageModel(model);
+      setStoredImageRef(
+        model?.keyId ? { keyId: model.keyId, modelId: model.modelId } : null,
+      );
     },
     deepResearchModel: resolvedDeepResearchModel,
     setDeepResearchModel: (model: AiProviderModel | null) => {
-      setStoredDeepResearchModel(model);
+      setStoredDeepResearchRef(
+        model?.keyId ? { keyId: model.keyId, modelId: model.modelId } : null,
+      );
     },
     chatMode,
     setChatMode,
@@ -637,8 +650,8 @@ export function ChatContextProvider({
     setVirtualMcpId: setVirtualMcpOverride,
     resetInteraction: () => {},
     simpleModeEnabled: simpleMode.enabled,
-    simpleModeTier,
-    setSimpleModeTier,
+    simpleModeTier: activeTier,
+    setSimpleModeTier: setStoredTier,
   };
 
   const internals: TaskProviderInternals = {
