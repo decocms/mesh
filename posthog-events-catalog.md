@@ -46,6 +46,7 @@ Every caveat is repeated inline in the relevant row below so you don't have to r
 | Event | Surface | Trigger (file:line) | Props |
 |---|---|---|---|
 | `user_signed_up` | S | `auth/index.ts:442` Better Auth `databaseHooks.user.create.after` hook | `email`, `email_domain`, `email_verified`, `has_name` — **means**: user row created. Does NOT mean the email was verified (see `email_verified` prop), nor that the user ever returned. |
+| `signed_out` | F | `account-popover.tsx` Sign Out menu item AND `settings-layout.tsx` sidebar Sign Out button | `source` — `account_popover` or `settings_sidebar`. Fires **before** `authClient.signOut()` so the event still carries the user's distinct_id. PostHog `reset()` runs right after, clearing identity for the next session. |
 | `organization_created` | S | `auth/index.ts:524` default-org path AND `api/routes/auth.ts:563` domain-setup path | `organization_id`, `organization_slug`, `email_domain`, `brand_extracted`, `created_via` (`signup_default` on default-org path only) — **means**: org row created. Does NOT mean it has additional members or any activity. |
 | `organization_domain_joined` | S | `api/routes/auth.ts:341` domain-join handler | `organization_id`, `slug`, `email_domain` — fires when a matching-email user auto-joins an existing domain-claimed org. |
 | `organization_settings_updated` | F | `organization-form.tsx:81` on mutation success | `organization_id`, `fields` (top-level dirty fields, e.g. `name`, `slug`, `logo`) — fires once per successful save. NOT fired on failed saves. |

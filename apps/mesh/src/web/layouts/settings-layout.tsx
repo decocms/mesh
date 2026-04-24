@@ -242,7 +242,10 @@ export function SettingsSidebar() {
             <SidebarMenu className="gap-0.5">
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  onClick={() => authClient.signOut()}
+                  onClick={() => {
+                    track("signed_out", { source: "settings_sidebar" });
+                    authClient.signOut();
+                  }}
                   className="flex items-center gap-2.5 text-sm"
                 >
                   <span className="shrink-0">
