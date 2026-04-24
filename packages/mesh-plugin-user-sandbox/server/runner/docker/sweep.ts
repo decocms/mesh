@@ -4,7 +4,7 @@
  * lives on `DockerSandboxRunner`, not on the `SandboxRunner` interface.
  */
 
-import { DockerSandboxRunner, type DockerRunnerOptions } from "./docker";
+import { DockerSandboxRunner, type DockerRunnerOptions } from "./runner";
 
 const BOOT_SWEEP_KEY = Symbol.for("mesh.sandbox.bootSweepDone");
 

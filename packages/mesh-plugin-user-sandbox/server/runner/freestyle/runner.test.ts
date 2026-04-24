@@ -14,7 +14,7 @@ mock.module("@freestyle-sh/with-deno", () => ({ VmDeno: class {} }));
 mock.module("@freestyle-sh/with-bun", () => ({ VmBun: class {} }));
 mock.module("@freestyle-sh/with-nodejs", () => ({ VmNodeJs: class {} }));
 
-const { translateDaemonPath } = await import("./freestyle-runner");
+const { translateDaemonPath } = await import("./runner");
 
 describe("translateDaemonPath", () => {
   it("maps /_daemon/fs/<op> to /_decopilot_vm/<op>", () => {

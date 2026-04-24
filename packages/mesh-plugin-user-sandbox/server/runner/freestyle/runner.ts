@@ -1,40 +1,49 @@
 /**
- * Freestyle sandbox runner. One VM per (user, projectRef). Persistent
- * state in `sandbox_runner_state` lets a mesh restart resume via
- * `freestyle.vms.ref({ vmId, spec }).start()` — lose the ref and every
- * restart would churn a new VM with a new public URL.
- * Payloads to `/_decopilot_vm/*` are base64-encoded to dodge the
- * Cloudflare WAF in front of freestyle domains.
+ * Freestyle sandbox runner — hosted.
+ *
+ * One VM per (user, projectRef). Freestyle owns the runtime; mesh calls
+ * `freestyle.vms.{create, ref({vmId, spec}).start, stop, delete}`. The VM
+ * bakes in a clone + daemon systemd service (built via `daemon-script.ts`),
+ * so there's no in-package bootstrap path and no port-forward — the
+ * preview URL is a Freestyle-provided HTTPS domain.
+ *
+ * Daemon traffic at `/_decopilot_vm/*` is base64-encoded body-wise to dodge
+ * Freestyle's Cloudflare WAF.
  */
 
 import { createHash, randomBytes } from "node:crypto";
-import { freestyle, VmSpec } from "freestyle-sandboxes";
-import { VmDeno } from "@freestyle-sh/with-deno";
 import { VmBun } from "@freestyle-sh/with-bun";
+import { VmDeno } from "@freestyle-sh/with-deno";
 import { VmNodeJs } from "@freestyle-sh/with-nodejs";
-import { IFRAME_BOOTSTRAP_SCRIPT } from "mesh-plugin-user-sandbox/shared";
+import { freestyle, VmSpec } from "freestyle-sandboxes";
+import { IFRAME_BOOTSTRAP_SCRIPT } from "../../../shared";
+import { Inflight, withSandboxLock } from "../shared";
+import type { RunnerStateStore, RunnerStateStoreOps } from "../state-store";
 import {
   sandboxIdKey,
   type EnsureOptions,
   type ExecInput,
   type ExecOutput,
   type ProxyRequestInit,
-  type RunnerStateStore,
-  type RunnerStateStoreOps,
   type Sandbox,
   type SandboxId,
   type SandboxRunner,
   type Workload,
-} from "mesh-plugin-user-sandbox/runner";
-import { buildDaemonScript } from "./freestyle-daemon-script";
+} from "../types";
+import { buildDaemonScript } from "./daemon-script";
 
 const RUNNER_KIND = "freestyle" as const;
+const LOG_LABEL = "FreestyleSandboxRunner";
 const PROXY_PORT = 9000;
 const APP_WORKDIR = "/app";
+const DAEMON_TOKEN_BYTES = 32;
+const ALIVE_PROBE_TIMEOUT_MS = 2_000;
+const EXEC_DEFAULT_TIMEOUT_MS = 30_000;
+const DISPOSE_TIMEOUT_MS = 10_000;
 /** Stop running VMs after this much idle time. Freestyle bills per active second. */
 const DEFAULT_IDLE_TIMEOUT_SECONDS = 1800;
 
-interface FreestyleRunnerOptions {
+export interface FreestyleRunnerOptions {
   stateStore?: RunnerStateStore;
   /** Override when the freestyle account uses a custom apex. Default: `deco.studio`. */
   previewRootDomain?: string;
@@ -43,11 +52,11 @@ interface FreestyleRunnerOptions {
 }
 
 interface FreestyleRecord {
+  id: SandboxId;
   handle: string;
   vmId: string;
   previewDomain: string;
   workdir: string;
-  id: SandboxId;
   workload: Workload | null;
   /** Persisted so VmSpec can be rebuilt deterministically on resume. */
   repo: NonNullable<EnsureOptions["repo"]>;
@@ -68,11 +77,12 @@ interface PersistedFreestyleState {
 
 export class FreestyleSandboxRunner implements SandboxRunner {
   readonly kind = RUNNER_KIND;
+
+  private readonly records = new Map<string, FreestyleRecord>();
+  private readonly inflight = new Inflight<string, Sandbox>();
   private readonly stateStore: RunnerStateStore | null;
   private readonly previewRootDomain: string;
   private readonly idleTimeoutSeconds: number;
-  private readonly byHandle = new Map<string, FreestyleRecord>();
-  private readonly inflight = new Map<string, Promise<Sandbox>>();
 
   constructor(opts: FreestyleRunnerOptions = {}) {
     this.stateStore = opts.stateStore ?? null;
@@ -81,28 +91,25 @@ export class FreestyleSandboxRunner implements SandboxRunner {
       opts.idleTimeoutSeconds ?? DEFAULT_IDLE_TIMEOUT_SECONDS;
   }
 
+  // ---- SandboxRunner surface ------------------------------------------------
+
   async ensure(id: SandboxId, opts: EnsureOptions = {}): Promise<Sandbox> {
+    if (!opts.repo) {
+      throw new Error(
+        `[${LOG_LABEL}] requires opts.repo — bake-in clone is part of the VmSpec; blank sandboxes aren't supported.`,
+      );
+    }
+    if (!opts.repo.branch) {
+      throw new Error(
+        `[${LOG_LABEL}] requires opts.repo.branch — the daemon clones with -b and the branch is part of the spec.`,
+      );
+    }
     const key = sandboxIdKey(id);
-    const pending = this.inflight.get(key);
-    if (pending) {
-      return pending;
-    }
-    // See DockerSandboxRunner.ensure — state-store lock serializes across
-    // pods; in-memory inflight dedupes within this process. The scoped
-    // store reuses the lock connection so nested reads/writes don't starve
-    // the main pg pool during long provisioning.
-    const p =
-      this.stateStore && this.stateStore.withLock
-        ? this.stateStore.withLock(id, RUNNER_KIND, (scoped) => {
-            return this.ensureInner(id, opts, scoped);
-          })
-        : this.ensureInner(id, opts, this.stateStore);
-    this.inflight.set(key, p);
-    try {
-      return await p;
-    } finally {
-      this.inflight.delete(key);
-    }
+    return this.inflight.run(key, () =>
+      withSandboxLock(this.stateStore, id, RUNNER_KIND, (ops) =>
+        this.ensureLocked(id, opts, ops),
+      ),
+    );
   }
 
   /** Routes through the daemon transport so CORS/bearer match file-ops. */
@@ -110,16 +117,14 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     const rec = await this.requireRecord(handle);
     const res = await this.postDaemon(rec, "/_decopilot_vm/bash", {
       command: input.command,
-      timeout: input.timeoutMs ?? 30_000,
+      timeout: input.timeoutMs ?? EXEC_DEFAULT_TIMEOUT_MS,
       cwd: input.cwd,
       env: input.env,
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       throw new Error(
-        `freestyle daemon /_decopilot_vm/bash returned ${res.status}${
-          body ? `: ${body}` : ""
-        }`,
+        `freestyle daemon /_decopilot_vm/bash returned ${res.status}${body ? `: ${body}` : ""}`,
       );
     }
     const json = (await res.json()) as {
@@ -137,50 +142,26 @@ export class FreestyleSandboxRunner implements SandboxRunner {
   }
 
   async delete(handle: string): Promise<void> {
-    const rec = await this.lookupRecord(handle);
-    this.byHandle.delete(handle);
+    const rec = await this.getRecord(handle);
+    this.records.delete(handle);
     if (rec) {
-      await this.disposeVm(rec.vmId, "delete");
-      if (this.stateStore) {
-        await this.stateStore.delete(rec.id, RUNNER_KIND);
-      }
+      await disposeVm(rec.vmId, "delete");
+      if (this.stateStore) await this.stateStore.delete(rec.id, RUNNER_KIND);
     } else if (this.stateStore) {
       await this.stateStore.deleteByHandle(RUNNER_KIND, handle);
     }
   }
 
-  /** stop() + delete() a VM; timebound + errors are logged, not thrown. */
-  private async disposeVm(vmId: string, reason: string): Promise<void> {
-    try {
-      const vm = freestyle.vms.ref({ vmId });
-      await Promise.race([
-        vm.stop().then(() => vm.delete()),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error("freestyle vm.delete() timed out")),
-            10_000,
-          ),
-        ),
-      ]);
-    } catch (err) {
-      console.error(
-        `[FreestyleSandboxRunner] dispose vm ${vmId} (${reason}) failed: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    }
-  }
-
   /** Freestyle SDK has no cheap status check; small GET is our best signal. */
   async alive(handle: string): Promise<boolean> {
-    const rec = await this.lookupRecord(handle);
+    const rec = await this.getRecord(handle);
     if (!rec) return false;
     try {
       const res = await fetch(
         `https://${rec.previewDomain}/_decopilot_vm/scripts`,
         {
           headers: { authorization: `Bearer ${rec.daemonToken}` },
-          signal: AbortSignal.timeout(2_000),
+          signal: AbortSignal.timeout(ALIVE_PROBE_TIMEOUT_MS),
         },
       );
       return res.ok;
@@ -190,9 +171,8 @@ export class FreestyleSandboxRunner implements SandboxRunner {
   }
 
   async getPreviewUrl(handle: string): Promise<string | null> {
-    const rec = await this.lookupRecord(handle);
-    if (!rec) return null;
-    return `https://${rec.previewDomain}`;
+    const rec = await this.getRecord(handle);
+    return rec ? `https://${rec.previewDomain}` : null;
   }
 
   /**
@@ -208,7 +188,7 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     path: string,
     init: ProxyRequestInit,
   ): Promise<Response> {
-    const rec = await this.lookupRecord(handle);
+    const rec = await this.getRecord(handle);
     if (!rec) {
       return new Response(JSON.stringify({ error: "sandbox not found" }), {
         status: 404,
@@ -222,9 +202,7 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     }
     const target = `https://${rec.previewDomain}${translated}`;
     const headers = new Headers(init.headers);
-    // Strip cookies + hop-by-hop, then set our own bearer. Any Authorization
-    // that arrived from the browser (there shouldn't be one — mesh session
-    // auth ran upstream) is overwritten with the VM's per-sandbox token.
+    // Strip cookies + hop-by-hop, then set our own bearer.
     for (const h of [
       "cookie",
       "host",
@@ -266,48 +244,73 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     });
   }
 
-  private async ensureInner(
+  // ---- Ensure flow ----------------------------------------------------------
+
+  private async ensureLocked(
     id: SandboxId,
     opts: EnsureOptions,
-    store: RunnerStateStoreOps | null,
+    ops: RunnerStateStoreOps | null,
   ): Promise<Sandbox> {
-    if (!opts.repo) {
-      throw new Error(
-        "FreestyleSandboxRunner requires `opts.repo` — bake-in clone is part of the VmSpec; blank/freestyle sandboxes aren't supported.",
-      );
-    }
-    if (!opts.repo.branch) {
-      throw new Error(
-        "FreestyleSandboxRunner requires `opts.repo.branch` — the daemon clones with -b and the branch is part of the spec.",
-      );
-    }
     // 1. State-store resume.
-    if (store) {
-      const persisted = await store.get(id, RUNNER_KIND);
+    if (ops) {
+      const persisted = await ops.get(id, RUNNER_KIND);
       if (persisted) {
-        const probed = await this.resume(id, persisted, opts);
-        if (probed) {
-          this.byHandle.set(probed.handle, probed);
-          return this.toSandbox(probed);
+        const rec = await this.resume(id, persisted, opts);
+        if (rec) {
+          this.records.set(rec.handle, rec);
+          return this.toSandbox(rec);
         }
-        await store.delete(id, RUNNER_KIND);
+        await ops.delete(id, RUNNER_KIND);
       }
     }
-    // 2. Fresh provision.
+    // 2. Fresh provision. No adopt path: freestyle has no tag-side lookup.
     const rec = await this.provision(id, opts);
-    this.byHandle.set(rec.handle, rec);
-    await this.persist(id, rec, store);
+    this.records.set(rec.handle, rec);
+    await this.persist(ops, rec);
     return this.toSandbox(rec);
   }
 
-  private toSandbox(rec: FreestyleRecord): Sandbox {
+  private async provision(
+    id: SandboxId,
+    opts: EnsureOptions,
+  ): Promise<FreestyleRecord> {
+    const repo = opts.repo!;
+    const workload = opts.workload ?? null;
+    const previewDomain = `${this.computeDomainKey(id)}.${this.previewRootDomain}`;
+    const daemonToken = randomBytes(DAEMON_TOKEN_BYTES).toString("hex");
+    const spec = this.buildSpec({ repo, workload, daemonToken });
+    let result: { vmId: string };
+    try {
+      result = await freestyle.vms.create({
+        spec,
+        domains: [{ domain: previewDomain, vmPort: PROXY_PORT }],
+        recreate: true,
+        idleTimeoutSeconds: this.idleTimeoutSeconds,
+      });
+    } catch (err) {
+      throw new Error(
+        `[${LOG_LABEL}] vms.create failed for domain=${previewDomain} user=${id.userId} projectRef=${id.projectRef}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
     return {
-      handle: rec.handle,
-      workdir: rec.workdir,
-      previewUrl: `https://${rec.previewDomain}`,
+      id,
+      handle: result.vmId,
+      vmId: result.vmId,
+      previewDomain,
+      workdir: APP_WORKDIR,
+      workload,
+      repo,
+      daemonToken,
     };
   }
 
+  /**
+   * Resume a persisted record: validate the blob, bail on spec divergence,
+   * then boot the VM via `freestyle.vms.ref({vmId, spec}).start()`. Returns
+   * null to trigger purge-and-reprovision in the caller.
+   */
   private async resume(
     id: SandboxId,
     persisted: { handle: string; state: Record<string, unknown> },
@@ -316,28 +319,24 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     const state = persisted.state as Partial<PersistedFreestyleState>;
     if (!state.vmId || !state.previewDomain || !state.repo) return null;
     // Rows persisted before bearer auth landed have no daemonToken. The
-    // running VM's daemon script also predates auth, so issuing a new token
-    // wouldn't match. Dispose the old VM explicitly — relying on idle-timeout
-    // orphans one VM per stale row, which stacks up and is billed.
+    // running VM's daemon script also predates auth, so a new token wouldn't
+    // match. Dispose the old VM explicitly — idle-timeout would orphan one
+    // VM per stale row, which stacks up and is billed.
     if (!state.daemonToken) {
-      await this.disposeVm(state.vmId, "resume:no-daemon-token");
+      await disposeVm(state.vmId, "resume:no-daemon-token");
       return null;
     }
-    // Workload (runtime / packageManager / devPort) is baked into the
-    // daemon script at VM create time — see buildSpec's additionalFiles.
-    // `freestyle.vms.ref({ vmId, spec }).start()` boots the existing VM
-    // with the already-written /opt/daemon.js; the rebuilt spec is
-    // effectively ignored. When the caller's workload has diverged from
-    // what was baked, resume would silently keep running the old PM. Bail
-    // so ensureInner deletes the stale state row and provisions fresh.
+    // Workload (runtime / packageManager / devPort) is baked into the daemon
+    // script at VM create time — see buildSpec.additionalFiles. When the
+    // caller's workload has diverged, resume would silently keep running the
+    // old PM. Bail so ensure deletes the stale state row and provisions fresh.
     if (!workloadEquals(opts.workload ?? null, state.workload ?? null)) {
       console.warn(
-        `[FreestyleSandboxRunner] resume vm ${state.vmId} skipped: workload changed (persisted=${JSON.stringify(state.workload)} current=${JSON.stringify(opts.workload ?? null)}); will recreate`,
+        `[${LOG_LABEL}] resume vm ${state.vmId} skipped: workload changed (persisted=${JSON.stringify(state.workload)} current=${JSON.stringify(opts.workload ?? null)}); will recreate`,
       );
       return null;
     }
     const workload = opts.workload ?? state.workload ?? null;
-    // VmSpec is a pure builder — deterministic rebuild matches create-time spec.
     const spec = this.buildSpec({
       repo: state.repo,
       workload,
@@ -350,60 +349,81 @@ export class FreestyleSandboxRunner implements SandboxRunner {
       return null;
     }
     return {
+      id,
       handle: state.vmId,
       vmId: state.vmId,
       previewDomain: state.previewDomain,
       workdir: state.workdir ?? APP_WORKDIR,
-      id,
       workload,
       repo: state.repo,
       daemonToken: state.daemonToken,
     };
   }
 
-  private async provision(
-    id: SandboxId,
-    opts: EnsureOptions,
-  ): Promise<FreestyleRecord> {
-    const repo = opts.repo!;
-    const workload = opts.workload ?? null;
-    const previewDomain = `${this.computeDomainKey(id)}.${this.previewRootDomain}`;
-    // 32 bytes (256 bits) of entropy; daemon requires ≥ 32 chars.
-    const daemonToken = randomBytes(32).toString("hex");
-    const spec = this.buildSpec({ repo, workload, daemonToken });
-    let result: { vmId: string };
-    try {
-      result = await freestyle.vms.create({
-        spec,
-        domains: [{ domain: previewDomain, vmPort: PROXY_PORT }],
-        recreate: true,
-        idleTimeoutSeconds: this.idleTimeoutSeconds,
-      });
-    } catch (err) {
-      // Freestyle wraps failures as InternalErrorError — name the call site.
-      throw new Error(
-        `[FreestyleSandboxRunner] vms.create failed for domain=${previewDomain} user=${id.userId} projectRef=${id.projectRef}: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    }
-    const handle = result.vmId;
+  // ---- Handle resolution (post-restart) -------------------------------------
+
+  private async getRecord(handle: string): Promise<FreestyleRecord | null> {
+    const cached = this.records.get(handle);
+    if (cached) return cached;
+    if (!this.stateStore) return null;
+    const persisted = await this.stateStore.getByHandle(RUNNER_KIND, handle);
+    if (!persisted) return null;
+    const state = persisted.state as Partial<PersistedFreestyleState>;
+    if (!state.vmId || !state.previewDomain || !state.repo) return null;
+    // Pre-auth row (no token) — caller can't talk to the daemon.
+    if (!state.daemonToken) return null;
+    const rec: FreestyleRecord = {
+      id: persisted.id,
+      handle: persisted.handle,
+      vmId: state.vmId,
+      previewDomain: state.previewDomain,
+      workdir: state.workdir ?? APP_WORKDIR,
+      workload: state.workload ?? null,
+      repo: state.repo,
+      daemonToken: state.daemonToken,
+    };
+    this.records.set(handle, rec);
+    return rec;
+  }
+
+  private async requireRecord(handle: string): Promise<FreestyleRecord> {
+    const rec = await this.getRecord(handle);
+    if (!rec) throw new Error(`unknown freestyle sandbox handle ${handle}`);
+    return rec;
+  }
+
+  // ---- Persistence ----------------------------------------------------------
+
+  private async persist(
+    ops: RunnerStateStoreOps | null,
+    rec: FreestyleRecord,
+  ): Promise<void> {
+    if (!ops) return;
+    const state: PersistedFreestyleState = {
+      vmId: rec.vmId,
+      previewDomain: rec.previewDomain,
+      workdir: rec.workdir,
+      workload: rec.workload,
+      repo: rec.repo,
+      daemonToken: rec.daemonToken,
+    };
+    await ops.put(rec.id, RUNNER_KIND, { handle: rec.handle, state });
+  }
+
+  // ---- Helpers --------------------------------------------------------------
+
+  private toSandbox(rec: FreestyleRecord): Sandbox {
     return {
-      handle,
-      vmId: result.vmId,
-      previewDomain,
-      workdir: APP_WORKDIR,
-      id,
-      workload,
-      repo,
-      daemonToken,
+      handle: rec.handle,
+      workdir: rec.workdir,
+      previewUrl: `https://${rec.previewDomain}`,
     };
   }
 
   /**
-   * Stable per-(userId, projectRef) domain key. 16 hex (64 bits) is
-   * enough collision resistance for a per-user routing key; old VMs idle
-   * out via `idleTimeoutSeconds`.
+   * Stable per-(userId, projectRef) domain key. 16 hex (64 bits) is enough
+   * collision resistance for a per-user routing key; old VMs idle out via
+   * `idleTimeoutSeconds`.
    */
   private computeDomainKey(id: SandboxId): string {
     return createHash("sha256")
@@ -503,55 +523,6 @@ export class FreestyleSandboxRunner implements SandboxRunner {
         : baseSpec;
   }
 
-  private async lookupRecord(handle: string): Promise<FreestyleRecord | null> {
-    const cached = this.byHandle.get(handle);
-    if (cached) return cached;
-    if (!this.stateStore) return null;
-    const persisted = await this.stateStore.getByHandle(RUNNER_KIND, handle);
-    if (!persisted) return null;
-    const state = persisted.state as Partial<PersistedFreestyleState>;
-    if (!state.vmId || !state.previewDomain || !state.repo) return null;
-    // Pre-auth row (no token) — caller can't talk to the daemon. Resume will
-    // return null on a fresh ensure; here we surface null too so proxy paths
-    // 404 instead of calling with a missing token.
-    if (!state.daemonToken) return null;
-    const rec: FreestyleRecord = {
-      handle: persisted.handle,
-      vmId: state.vmId,
-      previewDomain: state.previewDomain,
-      workdir: state.workdir ?? APP_WORKDIR,
-      id: persisted.id,
-      workload: state.workload ?? null,
-      repo: state.repo,
-      daemonToken: state.daemonToken,
-    };
-    this.byHandle.set(handle, rec);
-    return rec;
-  }
-
-  private async requireRecord(handle: string): Promise<FreestyleRecord> {
-    const rec = await this.lookupRecord(handle);
-    if (!rec) throw new Error(`unknown freestyle sandbox handle ${handle}`);
-    return rec;
-  }
-
-  private async persist(
-    id: SandboxId,
-    rec: FreestyleRecord,
-    store: RunnerStateStoreOps | null,
-  ): Promise<void> {
-    if (!store) return;
-    const state: PersistedFreestyleState = {
-      vmId: rec.vmId,
-      previewDomain: rec.previewDomain,
-      workdir: rec.workdir,
-      workload: rec.workload,
-      repo: rec.repo,
-      daemonToken: rec.daemonToken,
-    };
-    await store.put(id, RUNNER_KIND, { handle: rec.handle, state });
-  }
-
   /** Same base64 scheme as `proxyDaemonRequest` — parity with exec path. */
   private async postDaemon(
     rec: FreestyleRecord,
@@ -571,10 +542,34 @@ export class FreestyleSandboxRunner implements SandboxRunner {
   }
 }
 
+// ---- Helpers ----------------------------------------------------------------
+
+/** stop() + delete() a VM; timebound + errors logged, not thrown. */
+async function disposeVm(vmId: string, reason: string): Promise<void> {
+  try {
+    const vm = freestyle.vms.ref({ vmId });
+    await Promise.race([
+      vm.stop().then(() => vm.delete()),
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("freestyle vm.delete() timed out")),
+          DISPOSE_TIMEOUT_MS,
+        ),
+      ),
+    ]);
+  } catch (err) {
+    console.error(
+      `[${LOG_LABEL}] dispose vm ${vmId} (${reason}) failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+}
+
 /**
- * Docker `/_daemon/*` → freestyle `/_decopilot_vm/*`. Returns null for
- * paths with no freestyle analogue (caller 204s). Exported for tests —
- * easiest Docker-vs-Freestyle surface to break silently.
+ * Docker `/_daemon/*` → freestyle `/_decopilot_vm/*`. Returns null for paths
+ * with no freestyle analogue (caller 204s). Exported for tests — easiest
+ * Docker-vs-Freestyle surface to break silently.
  */
 export function translateDaemonPath(path: string): string | null {
   const stripped = path.replace(/^\/_daemon(?=\/|$)/, "") || "/";
@@ -609,7 +604,7 @@ function deriveRepoLabel(cloneUrl: string): string {
   }
 }
 
-/** Mirrors the decode path in `freestyle-daemon-script.ts`'s `parseJsonBody`. */
+/** Mirrors the decode path in `daemon-script.ts`'s `parseJsonBody`. */
 function encodeBase64Utf8(text: string): string {
   return btoa(
     encodeURIComponent(text).replace(/%([0-9A-F]{2})/g, (_, p1) =>
