@@ -29,31 +29,26 @@ export function HeaderTabButton({
   onClick: () => void;
 }) {
   return (
-    <Tooltip delayDuration={700}>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={onClick}
-          aria-pressed={active}
-          aria-label={title}
-          className={cn(
-            "shrink-0 flex items-center gap-1.5 h-8 rounded-md px-2",
-            "[transition:background-color_180ms_ease,color_180ms_ease]",
-            active
-              ? "bg-sidebar-accent text-sidebar-foreground"
-              : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-          )}
-        >
-          <span className="flex size-5 items-center justify-center shrink-0">
-            <Icon icon={icon} />
-          </span>
-          <span className="whitespace-nowrap text-sm font-medium leading-none">
-            {title}
-          </span>
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="bottom">{title}</TooltipContent>
-    </Tooltip>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      aria-label={title}
+      className={cn(
+        "shrink-0 flex items-center gap-1.5 h-8 rounded-md px-2",
+        "[transition:background-color_180ms_ease,color_180ms_ease]",
+        active
+          ? "bg-sidebar-accent text-sidebar-foreground"
+          : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+      )}
+    >
+      <span className="flex size-5 items-center justify-center shrink-0">
+        <Icon icon={icon} />
+      </span>
+      <span className="whitespace-nowrap text-sm font-medium leading-none">
+        {title}
+      </span>
+    </button>
   );
 }
 

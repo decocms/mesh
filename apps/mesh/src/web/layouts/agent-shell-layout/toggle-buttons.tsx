@@ -18,6 +18,11 @@ import {
   Menu02,
   MessageCircle01,
 } from "@untitledui/icons";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.js";
 import { useTasksPanelState } from "@/web/hooks/use-tasks-panel-state";
 
@@ -50,41 +55,56 @@ export function ToggleButtons({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={toggleTasks}
-        aria-pressed={tasksOpen}
-        className={cn(TOGGLE_BASE, tasksOpen ? TOGGLE_ACTIVE : TOGGLE_INACTIVE)}
-        title="Toggle tasks"
-      >
-        <Menu02 size={16} />
-      </button>
+      <Tooltip delayDuration={300}>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={toggleTasks}
+            aria-pressed={tasksOpen}
+            className={cn(
+              TOGGLE_BASE,
+              tasksOpen ? TOGGLE_ACTIVE : TOGGLE_INACTIVE,
+            )}
+          >
+            <Menu02 size={16} />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Tasks</TooltipContent>
+      </Tooltip>
       {isDecopilot ? (
-        <button
-          type="button"
-          onClick={toggleMain}
-          aria-pressed={mainOpen}
-          className={cn(
-            TOGGLE_BASE,
-            mainOpen ? TOGGLE_ACTIVE : TOGGLE_INACTIVE,
-          )}
-          title="Toggle main view"
-        >
-          <LayoutRight size={16} />
-        </button>
+        <Tooltip delayDuration={300}>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={toggleMain}
+              aria-pressed={mainOpen}
+              className={cn(
+                TOGGLE_BASE,
+                mainOpen ? TOGGLE_ACTIVE : TOGGLE_INACTIVE,
+              )}
+            >
+              <LayoutRight size={16} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Main view</TooltipContent>
+        </Tooltip>
       ) : (
-        <button
-          type="button"
-          onClick={toggleChat}
-          aria-pressed={chatOpen}
-          className={cn(
-            TOGGLE_BASE,
-            chatOpen ? TOGGLE_ACTIVE : TOGGLE_INACTIVE,
-          )}
-          title="Toggle chat"
-        >
-          <MessageCircle01 size={16} />
-        </button>
+        <Tooltip delayDuration={300}>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={toggleChat}
+              aria-pressed={chatOpen}
+              className={cn(
+                TOGGLE_BASE,
+                chatOpen ? TOGGLE_ACTIVE : TOGGLE_INACTIVE,
+              )}
+            >
+              <MessageCircle01 size={16} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Chat</TooltipContent>
+        </Tooltip>
       )}
       <div
         className={cn(
@@ -93,24 +113,28 @@ export function ToggleButtons({
         )}
       >
         <div className="overflow-hidden">
-          <button
-            type="button"
-            onClick={onNewTask}
-            disabled={!showNewTask}
-            tabIndex={showNewTask ? 0 : -1}
-            aria-hidden={!showNewTask}
-            className={cn(
-              TOGGLE_BASE,
-              TOGGLE_INACTIVE,
-              "transition-[transform,opacity] duration-200 ease-[var(--ease-out-quart)] will-change-transform",
-              showNewTask
-                ? "translate-x-0 opacity-100"
-                : "-translate-x-2 opacity-0",
-            )}
-            title="New task"
-          >
-            <Edit05 size={16} />
-          </button>
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onNewTask}
+                disabled={!showNewTask}
+                tabIndex={showNewTask ? 0 : -1}
+                aria-hidden={!showNewTask}
+                className={cn(
+                  TOGGLE_BASE,
+                  TOGGLE_INACTIVE,
+                  "transition-[transform,opacity] duration-200 ease-[var(--ease-out-quart)] will-change-transform",
+                  showNewTask
+                    ? "translate-x-0 opacity-100"
+                    : "-translate-x-2 opacity-0",
+                )}
+              >
+                <Edit05 size={16} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">New task</TooltipContent>
+          </Tooltip>
         </div>
       </div>
     </>
