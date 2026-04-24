@@ -296,18 +296,11 @@ export const KEYS = {
   aiProviderCredits: (orgId: string, keyId: string) =>
     ["ai-provider-credits", orgId, keyId] as const,
 
-  // Simple Model Mode config (scoped by org)
-  aiSimpleMode: (orgId: string) => ["ai-simple-mode", orgId] as const,
-
   // Organization SSO
   orgSsoConfig: (organizationId: string) =>
     ["org-sso-config", organizationId] as const,
   orgSsoStatus: (organizationId: string) =>
     ["org-sso-status", organizationId] as const,
-
-  // Registry config (scoped by organization)
-  registryConfig: (organizationId: string) =>
-    ["registry-config", organizationId] as const,
 
   // Store discovery (per-registry infinite query)
   storeDiscovery: (orgId: string, registryId: string) =>
