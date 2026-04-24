@@ -1495,12 +1495,15 @@ Define step-by-step how the agent should handle requests.
                 variant="outline"
                 size="sm"
                 className="shrink-0"
-                onClick={() =>
+                onClick={() => {
+                  track("agent_connect_modal_opened", {
+                    agent_id: virtualMcp.id,
+                  });
                   dispatch({
                     type: "SET_SHARE_DIALOG_OPEN",
                     payload: true,
-                  })
-                }
+                  });
+                }}
               >
                 <span className="flex items-center -space-x-1.5 mr-0.5">
                   <span className="inline-flex items-center justify-center size-4 rounded-full bg-black ring-1 ring-white/20 shrink-0">
