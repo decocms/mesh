@@ -1184,9 +1184,9 @@ function SimpleModeModelRow({
     : null;
 
   return (
-    <div className="flex items-center justify-between gap-4 py-3 border-b border-border/50 last:border-0">
+    <div className="flex items-center justify-between gap-4 py-2">
       <div className="min-w-0 flex-1">
-        <p className="text-sm text-foreground">{label}</p>
+        <p className="text-sm font-medium text-foreground">{label}</p>
         {description && (
           <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
         )}
@@ -1384,7 +1384,7 @@ function SimpleModeSection() {
 
   return (
     <Card className="p-6">
-      <CardHeader className="p-0 pb-4">
+      <CardHeader className="p-0">
         <div className="flex items-center justify-between gap-4">
           <div>
             <CardTitle className="text-sm">Simple model mode</CardTitle>
@@ -1403,9 +1403,9 @@ function SimpleModeSection() {
       </CardHeader>
 
       {effectiveEnabled && (
-        <CardContent className="flex flex-col p-0 border-t border-border/50">
-          <div className="pt-1">
-            <p className="text-xs text-muted-foreground pt-3 pb-1">
+        <CardContent className="flex flex-col p-0 mt-6">
+          <div className="flex flex-col gap-1 pb-6">
+            <p className="text-xs font-medium text-muted-foreground mb-1">
               Chat models
             </p>
             {(["fast", "smart", "thinking"] as TierKey[]).map((tier) => (
@@ -1424,8 +1424,8 @@ function SimpleModeSection() {
               />
             ))}
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground pt-3 pb-1">
+          <div className="flex flex-col gap-1 pt-6 border-t border-border/50">
+            <p className="text-xs font-medium text-muted-foreground mb-1">
               Other models
             </p>
             <SimpleModeModelRow
@@ -1448,7 +1448,7 @@ function SimpleModeSection() {
         </CardContent>
       )}
 
-      {isDirty && (
+      {isDirty && hasProvider && (
         <CardFooter className="p-0 pt-4 justify-end">
           <Button size="sm" onClick={handleSave} disabled={isPending}>
             {isPending ? "Saving..." : "Save changes"}
