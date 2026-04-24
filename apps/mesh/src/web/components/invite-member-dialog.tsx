@@ -151,7 +151,12 @@ export function InviteMemberDialog({ trigger }: InviteMemberDialogProps) {
       });
       setOpen(false);
     },
-    onError: (error) => {
+    onError: (error, { emails, role }) => {
+      track("member_invite_failed", {
+        count: emails.length,
+        role,
+        error: error instanceof Error ? error.message : String(error),
+      });
       toast.error(
         error instanceof Error ? error.message : "Failed to invite members",
       );
