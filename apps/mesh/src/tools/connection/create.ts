@@ -142,6 +142,7 @@ export const COLLECTION_CONNECTIONS_CREATE = defineTool({
       properties: {
         connection_id: connection.id,
         connection_type: connection.connection_type,
+        app_name: connection.app_name ?? null,
         organization_id: organization.id,
         tools_count: tools?.length ?? 0,
       },

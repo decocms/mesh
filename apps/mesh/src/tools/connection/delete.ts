@@ -122,6 +122,7 @@ export const COLLECTION_CONNECTIONS_DELETE = defineTool({
         properties: {
           connection_id: connection.id,
           connection_type: connection.connection_type,
+          app_name: connection.app_name ?? null,
           organization_id: organization.id,
           forced: input.force ?? false,
         },

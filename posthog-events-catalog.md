@@ -288,8 +288,8 @@ Every caveat is repeated inline in the relevant row below so you don't have to r
 
 | Event | Surface | Trigger | Props |
 |---|---|---|---|
-| `connection_created` | S | `tools/connection/create.ts:140` `COLLECTION_CONNECTIONS_CREATE` — fires for EVERY creation path (agent dialog, connections settings page, recruit modals, deco import, registry inline connect, API-direct callers) | `connection_id`, `connection_type`, `organization_id`, `tools_count` — **means**: the connection row was created. An OAuth-requiring connection at this moment is NOT yet authenticated; pair with `connection_oauth_succeeded` to know if it's usable. `app_name` is NOT in props today (gap — hard to break down by provider). |
-| `connection_deleted` | S | `tools/connection/delete.ts:120` `COLLECTION_CONNECTIONS_DELETE` | `connection_id`, `connection_type`, `organization_id`, `forced` — `forced=true` means the caller bypassed in-use checks. |
+| `connection_created` | S | `tools/connection/create.ts:140` `COLLECTION_CONNECTIONS_CREATE` — fires for EVERY creation path (agent dialog, connections settings page, recruit modals, deco import, registry inline connect, API-direct callers) | `connection_id`, `connection_type`, `app_name` (nullable), `organization_id`, `tools_count` — **means**: the connection row was created. An OAuth-requiring connection at this moment is NOT yet authenticated; pair with `connection_oauth_succeeded` to know if it's usable. `app_name` lets you break down adoption by provider (e.g. Linear vs Slack). Will be `null` for STDIO/HTTP connections without a registry app. |
+| `connection_deleted` | S | `tools/connection/delete.ts:120` `COLLECTION_CONNECTIONS_DELETE` | `connection_id`, `connection_type`, `app_name` (nullable), `organization_id`, `forced` — `forced=true` means the caller bypassed in-use checks. |
 
 ---
 
