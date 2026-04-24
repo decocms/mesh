@@ -346,12 +346,11 @@ export function ChatContextProvider({
     effectiveKeyId ?? undefined,
   );
 
-  // Validate the stored chat ref and clear it if stale. Side effect runs
-  // at most once per ref-gone-stale event.
+  // Validate stored refs against the live models list. When validation fails
+  // we fall through to defaults; the stale ref stays on disk harmlessly and
+  // gets overwritten the next time the user picks a model. (We intentionally
+  // do NOT write to localStorage during render.)
   const validatedStoredChat = findModel(storedChatRef, keys, allKeyModels);
-  if (storedChatRef && !validatedStoredChat && !isModelsQueryLoading) {
-    setStoredChatRef(null);
-  }
 
   // Resolve the chat model: Simple Mode and regular paths are mutually
   // exclusive — no silent shadowing.
@@ -369,9 +368,6 @@ export function ChatContextProvider({
     m.capabilities?.includes("image"),
   );
   const validatedStoredImage = findModel(storedImageRef, keys, imageModels);
-  if (storedImageRef && !validatedStoredImage && !isModelsQueryLoading) {
-    setStoredImageRef(null);
-  }
   const resolvedImageModel: AiProviderModel | null = simpleMode.enabled
     ? findModel(simpleMode.image as ModelRef | null, keys, allKeyModels)
     : (validatedStoredImage ?? imageModels[0] ?? null);
@@ -386,13 +382,6 @@ export function ChatContextProvider({
     keys,
     deepResearchModels,
   );
-  if (
-    storedDeepResearchRef &&
-    !validatedStoredDeepResearch &&
-    !isModelsQueryLoading
-  ) {
-    setStoredDeepResearchRef(null);
-  }
   const defaultDeepResearchModel =
     deepResearchModels.find((m) => m.modelId === "perplexity/sonar") ??
     deepResearchModels[0] ??
