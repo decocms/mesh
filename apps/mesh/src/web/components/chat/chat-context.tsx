@@ -72,7 +72,7 @@ import type {
 import { useLocalStorage } from "../../hooks/use-local-storage";
 import { chatModeForTransportRef } from "../../lib/chat-mode-sync";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
-import { useSimpleMode } from "../../hooks/collections/use-ai-simple-mode";
+import { useSimpleMode } from "../../hooks/use-organization-settings";
 
 // ============================================================================
 // Context Types

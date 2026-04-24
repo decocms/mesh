@@ -69,7 +69,7 @@ import {
   useSimpleMode,
   useUpdateSimpleMode,
   type SimpleModeConfig,
-} from "@/web/hooks/collections/use-ai-simple-mode";
+} from "@/web/hooks/use-organization-settings";
 import { ModelSelector } from "@/web/components/chat/select-model";
 
 function ErrorFallback({ error }: { error: Error }) {

@@ -8,6 +8,7 @@ import {
   useQuery,
   useQueryClient,
   useSuspenseQuery,
+  type MutateOptions,
   type UseMutationResult,
   type UseQueryResult,
 } from "@tanstack/react-query";
@@ -217,14 +218,22 @@ export function useSimpleMode(): SimpleModeConfig {
   return data ?? EMPTY_SIMPLE_MODE;
 }
 
+type OrgSettingsMutateOptions = MutateOptions<
+  OrganizationSettings,
+  Error,
+  OrgSettingsUpdateInput
+>;
+
 export function useUpdateSimpleMode() {
   const mutation = useUpdateOrganizationSettings();
   return {
     ...mutation,
-    mutate: (config: SimpleModeConfig) =>
-      mutation.mutate({ simple_mode: config }),
-    mutateAsync: (config: SimpleModeConfig) =>
-      mutation.mutateAsync({ simple_mode: config }),
+    mutate: (config: SimpleModeConfig, options?: OrgSettingsMutateOptions) =>
+      mutation.mutate({ simple_mode: config }, options),
+    mutateAsync: (
+      config: SimpleModeConfig,
+      options?: OrgSettingsMutateOptions,
+    ) => mutation.mutateAsync({ simple_mode: config }, options),
   };
 }
 
@@ -237,10 +246,10 @@ export function useUpdateRegistryConfig() {
   const mutation = useUpdateOrganizationSettings();
   return {
     ...mutation,
-    mutate: (config: RegistryConfig) =>
-      mutation.mutate({ registry_config: config }),
-    mutateAsync: (config: RegistryConfig) =>
-      mutation.mutateAsync({ registry_config: config }),
+    mutate: (config: RegistryConfig, options?: OrgSettingsMutateOptions) =>
+      mutation.mutate({ registry_config: config }, options),
+    mutateAsync: (config: RegistryConfig, options?: OrgSettingsMutateOptions) =>
+      mutation.mutateAsync({ registry_config: config }, options),
   };
 }
 
