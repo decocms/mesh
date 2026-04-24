@@ -2,6 +2,7 @@ import {
   SELF_MCP_ALIAS_ID,
   useMCPClient,
   useProjectContext,
+  WellKnownOrgMCPId,
 } from "@decocms/mesh-sdk";
 import {
   useMutation,
@@ -256,4 +257,22 @@ export function useUpdateRegistryConfig() {
 export function useEnabledPlugins(): string[] | null {
   const { data } = useOrganizationSettings((s) => s.enabled_plugins);
   return data ?? null;
+}
+
+/**
+ * Returns a predicate that tells whether a given connectionId is an enabled
+ * registry. Falls back to "Deco Store is the default" when no registry_config
+ * is set.
+ */
+export function useIsRegistryEnabled(): (connectionId: string) => boolean {
+  const { org } = useProjectContext();
+  const registryConfig = useRegistryConfig();
+  const decoStoreId = WellKnownOrgMCPId.REGISTRY(org.id);
+
+  return (connectionId: string): boolean => {
+    if (!registryConfig) return connectionId === decoStoreId;
+    const entry = registryConfig.registries[connectionId];
+    if (!entry) return connectionId === decoStoreId;
+    return entry.enabled;
+  };
 }
