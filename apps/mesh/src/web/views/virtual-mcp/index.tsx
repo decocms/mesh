@@ -1773,6 +1773,7 @@ Define step-by-step how the agent should handle requests.
         onOpenChange={(open) =>
           dispatch({ type: "SET_ADD_DIALOG_OPEN", payload: open })
         }
+        agentId={virtualMcp.id}
         addedConnectionIds={addedConnectionIds}
         onAdd={handleAddConnection}
       />

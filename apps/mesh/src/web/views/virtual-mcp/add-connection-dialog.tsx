@@ -60,6 +60,8 @@ import { track } from "@/web/lib/posthog-client";
 
 type ConnectionDialogMode = "add" | "browse";
 
+type AttachMode = "existing" | "clone" | "new" | "custom";
+
 type ConnectionDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -68,11 +70,14 @@ type ConnectionDialogProps = {
 } & (
   | {
       mode?: "add";
+      /** Agent ID for `agent_connection_attached` tracking. */
+      agentId: string;
       addedConnectionIds: Set<string>;
       onAdd: (connectionId: string) => void;
     }
   | {
       mode: "browse";
+      agentId?: undefined;
       addedConnectionIds?: undefined;
       onAdd?: undefined;
     }
@@ -86,6 +91,7 @@ type ConnectionTab = "all" | "connected";
 
 function ConnectionDialogContent({
   mode = "add",
+  agentId,
   addedConnectionIds,
   onAdd,
   onCloneAndAdd,
@@ -97,6 +103,7 @@ function ConnectionDialogContent({
   defaultTab = "connected",
 }: {
   mode?: ConnectionDialogMode;
+  agentId?: string;
   addedConnectionIds: Set<string>;
   onAdd: (connectionId: string) => void;
   onCloneAndAdd: (base: ConnectionEntity) => void;
@@ -327,6 +334,14 @@ function ConnectionDialogContent({
                     app_name: firstInstance.app_name ?? null,
                     connection_id: availableInstance.id,
                   });
+                  if (agentId) {
+                    track("agent_connection_attached", {
+                      agent_id: agentId,
+                      connection_id: availableInstance.id,
+                      app_name: firstInstance.app_name ?? null,
+                      mode: "existing",
+                    });
+                  }
                   onAdd(availableInstance.id);
                 } else {
                   track("connection_add_clicked", {
@@ -546,12 +561,27 @@ export function AddConnectionDialog({
   ...rest
 }: ConnectionDialogProps) {
   const mode: ConnectionDialogMode = rest.mode ?? "add";
+  const agentId = "agentId" in rest ? rest.agentId : undefined;
   const addedConnectionIds =
     "addedConnectionIds" in rest
       ? (rest.addedConnectionIds ?? new Set<string>())
       : new Set<string>();
   const onAdd =
     "onAdd" in rest && rest.onAdd ? rest.onAdd : (_id: string) => {};
+
+  const trackAttach = (
+    id: string,
+    appName: string | null,
+    attachMode: AttachMode,
+  ) => {
+    if (!agentId) return;
+    track("agent_connection_attached", {
+      agent_id: agentId,
+      connection_id: id,
+      app_name: appName,
+      mode: attachMode,
+    });
+  };
 
   const [connectingItemId, setConnectingItemId] = useState<string | null>(null);
   const [search, setSearch] = useState(initialSearch);
@@ -658,6 +688,7 @@ export function AddConnectionDialog({
         });
       }
 
+      trackAttach(id, base.app_name ?? null, "clone");
       onAdd(id);
     } catch (err) {
       console.error("Failed to add connection:", err);
@@ -717,6 +748,7 @@ export function AddConnectionDialog({
             error: error ?? "no_token",
           });
           toast.error(`Authentication failed: ${error ?? "no token received"}`);
+          trackAttach(id, connectionData.app_name ?? null, "new");
           onAdd(id);
           return;
         }
@@ -770,6 +802,7 @@ export function AddConnectionDialog({
         toast.success("Connected");
       }
 
+      trackAttach(id, connectionData.app_name ?? null, "new");
       onAdd(id);
     } catch (err) {
       console.error("Failed to connect:", err);
@@ -808,6 +841,7 @@ export function AddConnectionDialog({
         >
           <ConnectionDialogContent
             mode={mode}
+            agentId={agentId}
             addedConnectionIds={addedConnectionIds}
             onAdd={onAdd}
             onCloneAndAdd={handleCloneAndAdd}
@@ -902,6 +936,9 @@ export function AddConnectionDialog({
             });
           }
 
+          // app_name unknown for custom-create; record null and let the
+          // server-side connection_created backfill the breakdown.
+          trackAttach(id, null, "custom");
           onAdd(id);
           onOpenChange(false);
         }}
