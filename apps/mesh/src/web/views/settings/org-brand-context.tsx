@@ -910,10 +910,14 @@ export function OrgBrandContextPage() {
       invalidate();
       toast.success("Brand extracted successfully");
     },
-    onError: (err) =>
+    onError: (err) => {
+      track("brand_extract_failed", {
+        error: err instanceof Error ? err.message : "unknown",
+      });
       toast.error(
         err instanceof Error ? err.message : "Failed to extract brand",
-      ),
+      );
+    },
   });
 
   return (

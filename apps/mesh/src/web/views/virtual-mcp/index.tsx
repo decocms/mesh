@@ -1388,6 +1388,10 @@ Define step-by-step how the agent should handle requests.
   const handleDelete = async () => {
     try {
       await actions.delete.mutateAsync(virtualMcp.id);
+      track("agent_deleted", {
+        agent_id: virtualMcp.id,
+        source: "agent_detail",
+      });
       toast.success(`Deleted "${virtualMcp.title}"`);
       navigate({ to: "/$org", params: { org: org.slug } });
     } catch {

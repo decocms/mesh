@@ -599,6 +599,10 @@ function ProviderCard({
     // Timeout after 2 minutes
     const timeoutId = setTimeout(() => {
       if (isOAuthPending) {
+        track("ai_provider_oauth_failed", {
+          provider_id: provider.id,
+          error: "timeout",
+        });
         setIsOAuthPending(false);
         setOauthStateToken(null);
         toast.error("Connection timed out");
@@ -609,7 +613,7 @@ function ProviderCard({
       window.removeEventListener("message", handleMessage);
       clearTimeout(timeoutId);
     };
-  }, [isOAuthPending, oauthStateToken, exchangeOAuth]);
+  }, [isOAuthPending, oauthStateToken, exchangeOAuth, provider.id]);
 
   const supportsProvision = !!provider.supportsProvision;
   const supportsOAuth = provider.supportedMethods.includes("oauth-pkce");
