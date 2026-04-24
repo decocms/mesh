@@ -1648,6 +1648,25 @@ Define step-by-step how the agent should handle requests.
 
             {/* Layout section */}
             <LayoutTabContent virtualMcpId={virtualMcp.id} />
+
+            {/* Danger zone */}
+            <section className="flex items-center justify-between border-t border-border pt-6">
+              <div>
+                <p className="text-sm font-medium">Delete agent</p>
+                <p className="text-sm text-muted-foreground">
+                  Permanently delete this agent and all its data.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive shrink-0"
+                onClick={() => setDeleteDialogOpen(true)}
+              >
+                <Trash01 size={14} />
+                Delete agent
+              </Button>
+            </section>
           </div>
         </Page.Body>
       </Page.Content>
