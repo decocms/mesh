@@ -139,24 +139,22 @@ export function useMainPanelTabs(ctx: {
           tabs: layoutTabs.map((t) => ({ id: t.id })),
         }
       : null,
-    hasActiveGithubRepo,
   });
 
   const automationTabParsed = parseAutomationTabId(activeTab);
 
-  // Tabs for GitHub-linked vMCPs vs plain ones. The "git" tab (branch/PR
-  // panel) replaces Instructions and lives at the end, after Preview.
-  const systemTabs: Array<{ id: string; title: string }> = hasActiveGithubRepo
-    ? []
-    : [{ id: "instructions", title: "Instructions" }];
-  systemTabs.push({ id: "connections", title: "Connections" });
-  systemTabs.push({ id: "automations", title: "Automations" });
-  systemTabs.push({ id: "layout", title: "Layout" });
+  // Unified "settings" tab bundles instructions, connections, and layout
+  // into a single detail view. On GitHub-linked vMCPs the contextual
+  // work tabs (Preview, Terminal, git) come first so they're closest
+  // to the panel; Settings + Automations stay anchored at the right.
+  const systemTabs: Array<{ id: string; title: string }> = [];
   if (hasActiveGithubRepo) {
-    systemTabs.push({ id: "env", title: "Terminal" });
     systemTabs.push({ id: "preview", title: "Preview" });
+    systemTabs.push({ id: "env", title: "Terminal" });
     systemTabs.push({ id: "git", title: search.branch ?? "git" });
   }
+  systemTabs.push({ id: "settings", title: "Settings" });
+  systemTabs.push({ id: "automations", title: "Automations" });
 
   // Merge pinned views + per-task expanded tools into a single list keyed
   // by the pinned-view tab id. Pinned views win on dedupe so the
@@ -193,16 +191,6 @@ export function useMainPanelTabs(ctx: {
   }
 
   const tabs: Tab[] = [
-    ...systemTabs.map((t) => ({
-      id: t.id,
-      title: t.title,
-      kind: "system" as const,
-      icon: resolveTabIcon({
-        tabId: t.id,
-        kind: "system",
-        connections,
-      }),
-    })),
     ...layoutTabs.map((t) => ({
       id: t.id,
       title: t.title,
@@ -223,6 +211,16 @@ export function useMainPanelTabs(ctx: {
         kind: "expanded",
         appId: t.appId,
         iconUrl: t.iconUrl,
+        connections,
+      }),
+    })),
+    ...systemTabs.map((t) => ({
+      id: t.id,
+      title: t.title,
+      kind: "system" as const,
+      icon: resolveTabIcon({
+        tabId: t.id,
+        kind: "system",
         connections,
       }),
     })),

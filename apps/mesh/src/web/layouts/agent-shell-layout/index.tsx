@@ -61,7 +61,10 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "@/web/components/empty-state";
 import { useChatMainPanelState } from "@/web/hooks/use-layout-state";
 import { getActiveGithubRepo } from "@/web/lib/github-repo";
-import { TasksPanelStateProvider } from "@/web/hooks/use-tasks-panel-state";
+import {
+  TasksPanelStateProvider,
+  useOptionalTasksPanelState,
+} from "@/web/hooks/use-tasks-panel-state";
 import { Toolbar } from "./toolbar";
 import { TasksPanelColumn } from "./tasks-panel-column";
 import { ChatMainPanelGroup } from "./chat-main-panel-group";
@@ -154,6 +157,7 @@ function AgentInsetProvider() {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const { org } = useProjectContext();
+  const tasksOpen = useOptionalTasksPanelState()?.tasksOpen ?? false;
 
   useStatusSounds(org.id);
 
@@ -186,15 +190,11 @@ function AgentInsetProvider() {
 
   const hasActiveGithubRepo = !!(entity && getActiveGithubRepo(entity));
 
-  const layout = useChatMainPanelState(
-    entityMetadata,
-    {
-      virtualMcpId,
-      orgSlug,
-      isAgentRoute,
-    },
-    hasActiveGithubRepo,
-  );
+  const layout = useChatMainPanelState(entityMetadata, {
+    virtualMcpId,
+    orgSlug,
+    isAgentRoute,
+  });
 
   const { setOpenMobile, openMobile: mobileSidebarOpen } = useSidebar();
   const setMobileSidebarOpen = setOpenMobile;
@@ -380,9 +380,8 @@ function AgentInsetProvider() {
         <ToggleButtons
           isDecopilot={isDecopilot}
           chatOpen={layout.chatOpen}
-          mainOpen={layout.mainOpen}
           toggleChat={layout.toggleChat}
-          toggleMain={layout.toggleMain}
+          onNewTask={tasksOpen ? undefined : layout.createNewTask}
         />
       </Toolbar.Toggles>
 

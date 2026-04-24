@@ -2,18 +2,17 @@
  * Pure helpers for the `?main=<tabId>|0` URL model.
  *
  * Tab id grammar:
- *   - Fixed system: "instructions" | "connections" | "layout" | "env" | "preview" | "git"
+ *   - Fixed system: "settings" | "automations" | "env" | "preview" | "git"
+ *   - Legacy fixed system (redirected to "settings"): "instructions" | "connections" | "layout"
  *   - Agent-declared: <agentTab.id> (from virtualMcp.metadata.ui.layout.tabs)
  *   - Expanded-from-chat: <toolName> (from task.metadata.expanded_tools)
  *   - Pinned view: "app:<connectionId>:<toolName>" (from metadata.ui.pinnedViews)
  *   - Ephemeral automation: "automation:<id>"
  *   - "0" = closed sentinel (not an actual tab id)
  *
- * GitHub-linked Virtual MCPs hide the "Instructions" tab and replace it
- * with a "git" tab in the header. Resolution helpers accept an optional
- * `hasActiveGithubRepo` flag so "instructions" fallbacks (and an explicit
- * `?main=instructions` in the URL) are coerced to "git", keeping the
- * panel body and the tab bar in sync.
+ * The "settings" tab bundles what used to be separate instructions,
+ * connections, and layout tabs. GitHub-linked Virtual MCPs expose an
+ * additional "git" tab (branch/PR panel) alongside settings.
  */
 
 export interface EntityLayoutMetadata {
@@ -69,10 +68,8 @@ export function parsePinnedViewTabId(
 }
 
 export const FIXED_SYSTEM_TABS = [
-  "instructions",
-  "connections",
+  "settings",
   "automations",
-  "layout",
   "env",
   "preview",
   "git",
@@ -81,30 +78,32 @@ export const FIXED_SYSTEM_TABS = [
 const FIXED_SYSTEM_TAB_SET = new Set<string>(FIXED_SYSTEM_TABS);
 
 /**
- * Coerce "instructions" → "git" when the entity is linked to a GitHub
- * repo. The header tab bar replaces the Instructions tab with a Git tab
- * in that mode; this keeps the panel body in sync regardless of where
- * the "instructions" id originates (URL, defaultMainView, fallback).
+ * Legacy tab ids that were merged into the unified "settings" tab. Kept
+ * here so saved defaults / URL state migrate cleanly.
  */
-function coerceForGithub(tabId: string, hasActiveGithubRepo: boolean): string {
-  if (hasActiveGithubRepo && tabId === "instructions") return "git";
-  return tabId;
+const LEGACY_SETTINGS_TABS = new Set<string>([
+  "instructions",
+  "connections",
+  "layout",
+  "settings",
+]);
+
+export function isLegacySettingsTab(tabId: string | undefined): boolean {
+  return !!tabId && LEGACY_SETTINGS_TABS.has(tabId);
 }
 
 export function resolveDefaultTabId(
   metadata: EntityLayoutMetadata | null,
-  hasActiveGithubRepo = false,
 ): string {
   const def = metadata?.defaultMainView ?? null;
-  if (!def) return coerceForGithub("instructions", hasActiveGithubRepo);
+  if (!def) return "settings";
+
+  // Legacy tab ids (instructions/connections/layout) now live inside the
+  // unified "settings" tab.
+  if (LEGACY_SETTINGS_TABS.has(def.type)) return "settings";
 
   // Direct mapping for any fixed system tab id.
-  if (FIXED_SYSTEM_TAB_SET.has(def.type))
-    return coerceForGithub(def.type, hasActiveGithubRepo);
-
-  // Legacy: "settings" used to be its own tab; the settings card now
-  // lives inside the Layout tab.
-  if (def.type === "settings") return "layout";
+  if (FIXED_SYSTEM_TAB_SET.has(def.type)) return def.type;
 
   if (def.type === "ext-app" || def.type === "ext-apps") {
     // Pinned view default: { type: "ext-apps", id: connectionId, toolName }.
@@ -114,27 +113,18 @@ export function resolveDefaultTabId(
       return formatPinnedViewTabId(def.id, def.toolName);
     }
     const declaredTabIds = metadata?.tabs?.map((t) => t.id) ?? [];
-    if (def.id && declaredTabIds.includes(def.id))
-      return coerceForGithub(def.id, hasActiveGithubRepo);
-    return coerceForGithub(
-      declaredTabIds[0] ?? "instructions",
-      hasActiveGithubRepo,
-    );
+    if (def.id && declaredTabIds.includes(def.id)) return def.id;
+    return declaredTabIds[0] ?? "settings";
   }
 
-  return coerceForGithub(
-    metadata?.tabs?.[0]?.id ?? "instructions",
-    hasActiveGithubRepo,
-  );
+  return metadata?.tabs?.[0]?.id ?? "settings";
 }
 
 export function resolveActiveTabAndOpen(ctx: {
   mainParam: string | undefined;
   metadata: EntityLayoutMetadata | null;
-  hasActiveGithubRepo?: boolean;
 }): { mainOpen: boolean; activeTab: string } {
-  const hasActiveGithubRepo = ctx.hasActiveGithubRepo ?? false;
-  const def = resolveDefaultTabId(ctx.metadata, hasActiveGithubRepo);
+  const def = resolveDefaultTabId(ctx.metadata);
 
   if (ctx.mainParam === "0") {
     return { mainOpen: false, activeTab: def };
@@ -147,12 +137,11 @@ export function resolveActiveTabAndOpen(ctx: {
     const defaultIsChat = view == null || view.type === "chat";
     return { mainOpen: !defaultIsChat, activeTab: def };
   }
-  // Coerce an explicit ?main=instructions to "git" in GitHub mode so
-  // bookmarked URLs don't desync from the header tab bar.
-  return {
-    mainOpen: true,
-    activeTab: coerceForGithub(ctx.mainParam, hasActiveGithubRepo),
-  };
+  // Legacy ids coming from URL state migrate to the unified settings tab.
+  if (LEGACY_SETTINGS_TABS.has(ctx.mainParam)) {
+    return { mainOpen: true, activeTab: "settings" };
+  }
+  return { mainOpen: true, activeTab: ctx.mainParam };
 }
 
 /**

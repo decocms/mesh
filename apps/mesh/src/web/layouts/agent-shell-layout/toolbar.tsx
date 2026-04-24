@@ -62,7 +62,7 @@ export function Toolbar({ children }: { children?: ReactNode }) {
 
 function ToolbarHeader({ children }: { children?: ReactNode }) {
   return (
-    <div className="shrink-0 grid grid-cols-3 items-center pl-1 pr-2 pt-0.25 h-10">
+    <div className="shrink-0 grid grid-cols-3 items-center pl-1 pr-2 pt-0.25 h-12">
       {children}
     </div>
   );
