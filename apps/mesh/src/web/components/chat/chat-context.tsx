@@ -362,6 +362,22 @@ export function ChatContextProvider({
     effectiveKeyId ?? undefined,
   );
 
+  // Simple Mode slots can reference any credential, not just effectiveKeyId.
+  // Fetch models for each slot's keyId directly so findModel returns real
+  // AiProviderModel objects with full capabilities (file upload, etc).
+  // Each useAiProviderModels call is a separate, cached React Query — no
+  // duplicate requests when a keyId is reused across slots.
+  const activeChatSlot = simpleMode.chat[activeTier];
+  const { models: simpleChatModels } = useAiProviderModels(
+    activeChatSlot?.keyId,
+  );
+  const { models: simpleImageModels } = useAiProviderModels(
+    simpleMode.image?.keyId,
+  );
+  const { models: simpleWebResearchModels } = useAiProviderModels(
+    simpleMode.webResearch?.keyId,
+  );
+
   // Validate stored refs against the live models list. When validation fails
   // we fall through to defaults; the stale ref stays on disk harmlessly and
   // gets overwritten the next time the user picks a model. (We intentionally
@@ -370,9 +386,8 @@ export function ChatContextProvider({
 
   // Resolve the chat model: Simple Mode and regular paths are mutually
   // exclusive — no silent shadowing.
-  const activeChatSlot = simpleMode.chat[activeTier];
   const selectedModel: AiProviderModel | null = simpleMode.enabled
-    ? findModel(activeChatSlot, keys, allKeyModels, activeChatSlot?.title)
+    ? findModel(activeChatSlot, keys, simpleChatModels, activeChatSlot?.title)
     : (validatedStoredChat ?? defaultModel);
   const isModelsLoading = !storedChatRef && isModelsQueryLoading;
 
@@ -382,7 +397,12 @@ export function ChatContextProvider({
   );
   const validatedStoredImage = findModel(storedImageRef, keys, imageModels);
   const resolvedImageModel: AiProviderModel | null = simpleMode.enabled
-    ? findModel(simpleMode.image, keys, allKeyModels, simpleMode.image?.title)
+    ? findModel(
+        simpleMode.image,
+        keys,
+        simpleImageModels,
+        simpleMode.image?.title,
+      )
     : (validatedStoredImage ?? imageModels[0] ?? null);
 
   // Deep research model — same split.
@@ -403,7 +423,7 @@ export function ChatContextProvider({
     ? findModel(
         simpleMode.webResearch,
         keys,
-        allKeyModels,
+        simpleWebResearchModels,
         simpleMode.webResearch?.title,
       )
     : (validatedStoredDeepResearch ?? defaultDeepResearchModel);
