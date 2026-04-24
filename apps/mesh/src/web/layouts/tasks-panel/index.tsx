@@ -35,13 +35,15 @@ function TasksPanelContent() {
   const [typeFilter, setTypeFilter] = useState<FilterOption>("all");
   const [, startFilterTransition] = useTransition();
 
+  const taskOwner = memberFilter === "mine" ? "me" : "all";
+
   const { tasks: myTasks } = useTasks({
-    owner: "me",
+    owner: taskOwner,
     status: "open",
     hasTrigger: false,
   });
   const { tasks: automationTasks } = useTasks({
-    owner: memberFilter === "mine" ? "me" : "all",
+    owner: taskOwner,
     status: "open",
     hasTrigger: true,
   });
