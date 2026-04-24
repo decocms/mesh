@@ -7,7 +7,7 @@
  */
 
 import * as net from "node:net";
-import type { DockerSandboxRunner } from "./docker";
+import type { DockerSandboxRunner } from "./runner";
 
 const HOST_RE = /^([^.]+)\.sandboxes\.localhost(?::\d+)?$/i;
 const MAX_HEADER_BYTES = 16 * 1024;

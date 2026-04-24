@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import * as net from "node:net";
 import type { AddressInfo } from "node:net";
-import type { DockerSandboxRunner } from "./docker";
+import type { DockerSandboxRunner } from "./runner";
 import { startLocalSandboxIngress } from "./local-ingress";
 
 // local-ingress is a raw TCP proxy (not fetch-based). Testing it end-to-end

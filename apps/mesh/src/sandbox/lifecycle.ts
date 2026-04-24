@@ -29,7 +29,9 @@ async function instantiate(
     case "freestyle": {
       // Dynamic import — freestyle SDK is an optionalDependency so
       // docker-only deploys don't need it installed.
-      const { FreestyleSandboxRunner } = await import("./freestyle-runner");
+      const { FreestyleSandboxRunner } = await import(
+        "mesh-plugin-user-sandbox/runner/freestyle"
+      );
       return new FreestyleSandboxRunner({ stateStore });
     }
     default: {

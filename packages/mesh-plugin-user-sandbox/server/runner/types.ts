@@ -71,12 +71,14 @@ export interface ProxyRequestInit {
   signal?: AbortSignal;
 }
 
+/**
+ * Persisted on `vmMap` and `sandbox_runner_state.runner_kind`. When widening,
+ * keep `VmMapEntry.runnerKind` in sync.
+ */
+export type RunnerKind = "docker" | "freestyle";
+
 export interface SandboxRunner {
-  /**
-   * Persisted on `vmMap` and `sandbox_runner_state.runner_kind`. When
-   * widening, keep `VmMapEntry.runnerKind` + `RunnerKind` (runner/index.ts) in sync.
-   */
-  readonly kind: "docker" | "freestyle";
+  readonly kind: RunnerKind;
 
   ensure(id: SandboxId, opts?: EnsureOptions): Promise<Sandbox>;
   exec(handle: string, input: ExecInput): Promise<ExecOutput>;

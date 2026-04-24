@@ -1,18 +1,20 @@
 /**
- * Public surface. Ships `DockerSandboxRunner` only — runners with heavy SDKs
- * (Freestyle, K8s) live in apps/mesh and slot into `getRunnerByKind`.
+ * Public surface. Ships `DockerSandboxRunner` only via the default entry;
+ * Freestyle sits behind its own subpath export (./runner/freestyle) because
+ * its SDK is heavy and not every deploy needs it.
  */
 
 import { spawnSync } from "node:child_process";
 import { DockerSandboxRunner, type DockerRunnerOptions } from "./docker";
 import type { RunnerStateStore } from "./state-store";
-import type { SandboxRunner } from "./types";
+import type { RunnerKind, SandboxRunner } from "./types";
 
 export type {
   EnsureOptions,
   ExecInput,
   ExecOutput,
   ProxyRequestInit,
+  RunnerKind,
   Sandbox,
   SandboxId,
   SandboxRunner,
@@ -23,12 +25,12 @@ export { DockerSandboxRunner } from "./docker";
 export type { DockerExec, DockerRunnerOptions, ExecResult } from "./docker";
 export { ensureSandboxImage } from "../image-build";
 export type { EnsureImageOptions } from "../image-build";
-export { startLocalSandboxIngress } from "./local-ingress";
+export { startLocalSandboxIngress } from "./docker";
 export {
   sweepDockerOrphansOnBoot,
   sweepDockerOrphansOnShutdown,
-} from "./sweep";
-export type { SweepDockerOrphansOnBootOptions } from "./sweep";
+} from "./docker";
+export type { SweepDockerOrphansOnBootOptions } from "./docker";
 export type {
   RunnerStateRecord,
   RunnerStateRecordWithId,
@@ -42,12 +44,6 @@ export {
   type SandboxRefInput,
   type ThreadSandboxRefInput,
 } from "./sandbox-ref";
-
-/**
- * Discriminator used on `SandboxRunner.kind`, `sandbox_runner_state.runner_kind`,
- * and `vmMap` entries. Keep in sync with each runner's `readonly kind`.
- */
-export type RunnerKind = "docker" | "freestyle";
 
 export interface CreateDockerRunnerOptions {
   stateStore?: RunnerStateStore;

@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
-import type { DockerExecFn, DockerResult } from "../docker-cli";
-import { DockerSandboxRunner } from "./docker";
+import type { DockerExecFn, DockerResult } from "../../docker-cli";
+import { DockerSandboxRunner } from "./runner";
 import type {
   RunnerStateRecord,
   RunnerStateRecordWithId,
   RunnerStatePut,
   RunnerStateStore,
-} from "./state-store";
-import type { SandboxId } from "./types";
+} from "../state-store";
+import type { SandboxId } from "../types";
 
 // -----------------------------------------------------------------------------
 // Exec mock: matches on args[0] + sub-arg patterns and returns canned results.
