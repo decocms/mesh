@@ -236,12 +236,19 @@ async function getOrCreateTeamServiceAccount(
     email,
   );
 
-  // 2. Create profile
-  await supabasePost<{ id: number }>(supabaseUrl, serviceKey, "profiles", {
-    user_id: authUserId,
-    email,
-    name: `Mesh Service Account (team ${teamId})`,
-  });
+  // 2. Create profile (skip if a DB trigger already created one)
+  const autoProfile = await supabaseGet<{ user_id: string }>(
+    supabaseUrl,
+    serviceKey,
+    `profiles?user_id=eq.${encodeURIComponent(authUserId)}&select=user_id&limit=1`,
+  );
+  if (!autoProfile[0]) {
+    await supabasePost<{ id: number }>(supabaseUrl, serviceKey, "profiles", {
+      user_id: authUserId,
+      email,
+      name: `Mesh Service Account (team ${teamId})`,
+    });
+  }
 
   // 3. Create team membership (admin: true)
   const member = await supabasePost<{ id: number }>(
