@@ -11,6 +11,7 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
+  CheckCircle,
   RefreshCw01,
 } from "@untitledui/icons";
 import { Page } from "@/web/components/page";
@@ -18,7 +19,6 @@ import { Button } from "@deco/ui/components/button.tsx";
 import {
   Card,
   CardContent,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@deco/ui/components/card.tsx";
@@ -1268,6 +1268,32 @@ function SimpleModeModelRow({
   );
 }
 
+function AutosaveStatus({
+  isPending,
+  showSaved,
+}: {
+  isPending: boolean;
+  showSaved: boolean;
+}) {
+  if (isPending) {
+    return (
+      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+        <RefreshCw01 size={12} className="animate-spin" />
+        Saving…
+      </span>
+    );
+  }
+  if (showSaved) {
+    return (
+      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+        <CheckCircle size={12} />
+        Saved
+      </span>
+    );
+  }
+  return null;
+}
+
 function SimpleModeSection() {
   const allKeys = useAiProviderKeys();
   const simpleMode = useSimpleMode();
@@ -1279,19 +1305,33 @@ function SimpleModeSection() {
     mode: "onChange",
   });
 
-  const { mutate: updateSimpleMode, isPending } = useUpdateSimpleMode();
+  const {
+    mutate: updateSimpleMode,
+    isPending,
+    isSuccess,
+  } = useUpdateSimpleMode();
 
-  const handleSave = form.handleSubmit((values) => {
-    updateSimpleMode(values, {
-      onSuccess: () => {
-        toast.success("Simple Model Mode updated");
-        form.reset(values, { keepValues: true });
-      },
-      onError: (err) => {
-        toast.error(`Failed to save: ${err.message}`);
-      },
-    });
-  });
+  // Autosave: watch form state; 250ms after the last dirty change, persist.
+  // The debounce coalesces multi-field writes from handleToggle and Effect 2
+  // into a single mutation. The save callback is inlined so the effect's
+  // deps only reference library-stable values (updateSimpleMode/form) and
+  // query-stable ones (simpleMode).
+  const watched = form.watch();
+  const isDirty = form.formState.isDirty;
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — autosave subscribes to derived form state over time
+  useEffect(() => {
+    if (!isDirty) return;
+    const id = setTimeout(() => {
+      updateSimpleMode(watched, {
+        onSuccess: () => form.reset(watched, { keepValues: true }),
+        onError: (err) => {
+          form.reset(simpleMode);
+          toast.error(`Failed to save: ${err.message}`);
+        },
+      });
+    }, 250);
+    return () => clearTimeout(id);
+  }, [watched, isDirty, updateSimpleMode, form, simpleMode]);
 
   // Lazily load models for the first 3 keys so we can pre-fill defaults.
   // Hooks can't run in loops; capping at 3 is sufficient for defaults —
@@ -1400,14 +1440,19 @@ function SimpleModeSection() {
 
   const enabled = form.watch("enabled");
   const effectiveEnabled = enabled && hasProvider;
-  const isDirty = form.formState.isDirty;
 
   return (
     <Card className="p-6">
       <CardHeader className="p-0">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <CardTitle className="text-sm">Simple model mode</CardTitle>
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-sm">Simple model mode</CardTitle>
+              <AutosaveStatus
+                isPending={isPending}
+                showSaved={isSuccess && !isDirty}
+              />
+            </div>
             <p className="text-xs text-muted-foreground mt-0.5">
               {hasProvider
                 ? "Replace the model picker with a Fast / Smart / Thinking toggle for all members of this org."
@@ -1477,14 +1522,6 @@ function SimpleModeSection() {
             />
           </div>
         </CardContent>
-      )}
-
-      {isDirty && hasProvider && (
-        <CardFooter className="p-0 pt-4 justify-end">
-          <Button size="sm" onClick={handleSave} disabled={isPending}>
-            {isPending ? "Saving..." : "Save changes"}
-          </Button>
-        </CardFooter>
       )}
     </Card>
   );
