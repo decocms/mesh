@@ -35,6 +35,11 @@ export class OrganizationSettingsStorage
           ? JSON.parse(record.registry_config)
           : record.registry_config
         : null,
+      simple_mode: record.simple_mode
+        ? typeof record.simple_mode === "string"
+          ? JSON.parse(record.simple_mode)
+          : record.simple_mode
+        : null,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
     };
@@ -45,7 +50,7 @@ export class OrganizationSettingsStorage
     data?: Partial<
       Pick<
         OrganizationSettings,
-        "sidebar_items" | "enabled_plugins" | "registry_config"
+        "sidebar_items" | "enabled_plugins" | "registry_config" | "simple_mode"
       >
     >,
   ): Promise<OrganizationSettings> {
@@ -59,6 +64,9 @@ export class OrganizationSettingsStorage
     const registryConfigJson = data?.registry_config
       ? JSON.stringify(data.registry_config)
       : null;
+    const simpleModeJson = data?.simple_mode
+      ? JSON.stringify(data.simple_mode)
+      : null;
 
     await this.db
       .insertInto("organization_settings")
@@ -67,6 +75,7 @@ export class OrganizationSettingsStorage
         sidebar_items: sidebarItemsJson,
         enabled_plugins: enabledPluginsJson,
         registry_config: registryConfigJson,
+        simple_mode: simpleModeJson,
         createdAt: now,
         updatedAt: now,
       })
@@ -75,6 +84,7 @@ export class OrganizationSettingsStorage
           sidebar_items: sidebarItemsJson ? sidebarItemsJson : undefined,
           enabled_plugins: enabledPluginsJson ? enabledPluginsJson : undefined,
           registry_config: registryConfigJson ? registryConfigJson : undefined,
+          simple_mode: simpleModeJson ? simpleModeJson : undefined,
           updatedAt: now,
         }),
       )
@@ -88,6 +98,7 @@ export class OrganizationSettingsStorage
         sidebar_items: data?.sidebar_items ?? null,
         enabled_plugins: data?.enabled_plugins ?? null,
         registry_config: data?.registry_config ?? null,
+        simple_mode: data?.simple_mode ?? null,
         createdAt: now,
         updatedAt: now,
       };

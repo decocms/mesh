@@ -66,6 +66,7 @@ import type {
 import { useLocalStorage } from "../../hooks/use-local-storage";
 import { chatModeForTransportRef } from "../../lib/chat-mode-sync";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
+import { useSimpleMode } from "../../hooks/collections/use-ai-simple-mode";
 
 // ============================================================================
 // Context Types
@@ -143,6 +144,11 @@ export interface ChatPrefsContextValue {
   setVirtualMcpId: (id: string | null) => void;
   /** @deprecated No-op */
   resetInteraction: () => void;
+  /** Whether Simple Model Mode is enabled for the org */
+  simpleModeEnabled: boolean;
+  /** The currently selected tier in Simple Model Mode */
+  simpleModeTier: "fast" | "smart" | "thinking";
+  setSimpleModeTier: (tier: "fast" | "smart" | "thinking") => void;
 }
 
 export interface ChatBridgeValue {
@@ -245,6 +251,12 @@ export function ChatContextProvider({
   const [chatMode, setChatMode] = useState<ChatMode>("default");
   chatModeForTransportRef.current = chatMode;
 
+  // Simple Model Mode — org-level config
+  const simpleMode = useSimpleMode();
+  const [simpleModeTier, setSimpleModeTier] = useLocalStorage<
+    "fast" | "smart" | "thinking"
+  >(LOCALSTORAGE_KEYS.chatSimpleModeTier(locator), "smart");
+
   // AI provider keys and models
   const keys = useAiProviderKeys();
   const effectiveKeyId = keys.some((k) => k.id === storedCredentialId)
@@ -261,7 +273,28 @@ export function ChatContextProvider({
     effectiveProviderId,
     effectiveKeyId ?? undefined,
   );
-  const selectedModel = storedModel ?? defaultModel;
+
+  // In Simple Mode, derive selectedModel from the active tier slot.
+  // When a slot is null (no model configured for that tier) fall back to
+  // the normal storedModel / defaultModel path.
+  const simpleTierSlot = simpleMode.enabled
+    ? simpleMode.chat[simpleModeTier]
+    : null;
+  const simpleModeModel: AiProviderModel | null = simpleTierSlot
+    ? ({
+        modelId: simpleTierSlot.modelId,
+        title: simpleTierSlot.title ?? simpleTierSlot.modelId,
+        keyId: simpleTierSlot.keyId,
+        providerId: "deco",
+        description: null,
+        logo: null,
+        capabilities: [],
+        limits: null,
+        costs: null,
+      } as AiProviderModel)
+    : null;
+
+  const selectedModel = simpleModeModel ?? storedModel ?? defaultModel;
   const isModelsLoading = !storedModel && isModelsQueryLoading;
 
   // Image model auto-detection: always resolve to an available model.
@@ -274,7 +307,25 @@ export function ChatContextProvider({
   const storedModelIsAvailable =
     storedImageModel &&
     imageModels.some((m) => m.modelId === storedImageModel.modelId);
+
+  // In Simple Mode, prefer the org-configured image model.
+  const simpleModeImageModel: AiProviderModel | null =
+    simpleMode.enabled && simpleMode.image
+      ? ({
+          modelId: simpleMode.image.modelId,
+          title: simpleMode.image.title ?? simpleMode.image.modelId,
+          keyId: simpleMode.image.keyId,
+          providerId: "deco",
+          description: null,
+          logo: null,
+          capabilities: ["image"] as AiProviderModel["capabilities"],
+          limits: null,
+          costs: null,
+        } as AiProviderModel)
+      : null;
+
   const resolvedImageModel: AiProviderModel | null =
+    simpleModeImageModel ??
     (storedModelIsAvailable ? storedImageModel : null) ??
     imageModels[0] ??
     null;
@@ -294,7 +345,25 @@ export function ChatContextProvider({
     deepResearchModels.find((m) => m.modelId === "perplexity/sonar") ??
     deepResearchModels[0] ??
     null;
+
+  // In Simple Mode, prefer the org-configured web research model.
+  const simpleModeDeepResearchModel: AiProviderModel | null =
+    simpleMode.enabled && simpleMode.webResearch
+      ? ({
+          modelId: simpleMode.webResearch.modelId,
+          title: simpleMode.webResearch.title ?? simpleMode.webResearch.modelId,
+          keyId: simpleMode.webResearch.keyId,
+          providerId: "deco",
+          description: null,
+          logo: null,
+          capabilities: [] as AiProviderModel["capabilities"],
+          limits: null,
+          costs: null,
+        } as AiProviderModel)
+      : null;
+
   const resolvedDeepResearchModel: AiProviderModel | null =
+    simpleModeDeepResearchModel ??
     (storedDeepResearchIsAvailable ? storedDeepResearchModel : null) ??
     defaultDeepResearchModel;
 
@@ -518,6 +587,9 @@ export function ChatContextProvider({
     tiptapDocRef,
     setVirtualMcpId: setVirtualMcpOverride,
     resetInteraction: () => {},
+    simpleModeEnabled: simpleMode.enabled,
+    simpleModeTier,
+    setSimpleModeTier,
   };
 
   const internals: TaskProviderInternals = {

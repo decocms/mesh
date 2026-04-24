@@ -294,6 +294,9 @@ export const KEYS = {
   aiProviderCredits: (orgId: string, keyId: string) =>
     ["ai-provider-credits", orgId, keyId] as const,
 
+  // Simple Model Mode config (scoped by org)
+  aiSimpleMode: (orgId: string) => ["ai-simple-mode", orgId] as const,
+
   // Organization SSO
   orgSsoConfig: (organizationId: string) =>
     ["org-sso-config", organizationId] as const,
