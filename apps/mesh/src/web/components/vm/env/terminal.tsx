@@ -106,7 +106,7 @@ export function VmTerminal({
     <div
       ref={containerRef}
       className={cn(
-        "overflow-hidden bg-transparent px-4 py-3 [&_.xterm]:h-full [&_.xterm-screen]:min-h-full [&_.xterm-viewport]:overscroll-contain",
+        "overflow-hidden bg-sidebar px-4 py-3 [&_.xterm]:h-full [&_.xterm-screen]:min-h-full [&_.xterm-viewport]:overscroll-contain",
         className,
       )}
     />
