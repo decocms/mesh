@@ -181,10 +181,12 @@ type SimpleTier = "fast" | "smart" | "thinking";
 
 /**
  * Resolve a stored ModelRef against the currently available keys and models.
- * Returns null when the ref's key no longer exists. When the key exists but
- * the model isn't in the provided models list (e.g. the list only covers a
- * different credential), synthesizes a minimal AiProviderModel from the ref
- * — callers still get a routable `{ keyId, modelId }` object.
+ * Returns null when the ref's key no longer exists. Match is by `modelId`
+ * only within `allModels` — the API-returned model objects don't carry
+ * `keyId` (it's a client-side-only field), so we attach it ourselves.
+ * When the model isn't in the provided list (list still loading, or list
+ * scoped to a different credential), synthesize a minimal AiProviderModel
+ * from the ref so callers always get a routable `{ keyId, modelId }`.
  */
 function findModel(
   ref: ModelRef | null,
@@ -195,10 +197,8 @@ function findModel(
   if (!ref) return null;
   const key = allKeys.find((k) => k.id === ref.keyId);
   if (!key) return null;
-  const hit = allModels.find(
-    (m) => m.keyId === ref.keyId && m.modelId === ref.modelId,
-  );
-  if (hit) return hit;
+  const hit = allModels.find((m) => m.modelId === ref.modelId);
+  if (hit) return { ...hit, keyId: ref.keyId };
   return {
     modelId: ref.modelId,
     title: title ?? ref.modelId,
