@@ -62,6 +62,7 @@ import {
   pickSimpleModeDefaults,
 } from "@decocms/mesh-sdk";
 import { KEYS } from "@/web/lib/query-keys";
+import { track } from "@/web/lib/posthog-client";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import {
@@ -241,7 +242,7 @@ function ConnectApiKeyForm({
             type={showKey ? "text" : "password"}
             placeholder="sk-..."
             {...register("apiKey")}
-            className="h-8 text-sm pr-8"
+            className="ph-no-capture h-8 text-sm pr-8"
           />
           <button
             type="button"
@@ -376,7 +377,7 @@ function ConnectOpenAICompatibleForm({
             type={showKey ? "text" : "password"}
             placeholder="sk-..."
             {...register("apiKey")}
-            className="h-8 text-sm pr-8"
+            className="ph-no-capture h-8 text-sm pr-8"
           />
           <button
             type="button"
@@ -483,6 +484,7 @@ function ProviderCard({
       }
     },
     onSuccess: () => {
+      track("ai_provider_oauth_succeeded", { provider_id: provider.id });
       queryClient.invalidateQueries({ queryKey: KEYS.aiProviderKeys(org.id) });
       queryClient.invalidateQueries({ queryKey: KEYS.aiProviders(org.id) });
       toast.success(`${provider.name} connected successfully`);
@@ -490,6 +492,10 @@ function ProviderCard({
       setOauthStateToken(null);
     },
     onError: (err) => {
+      track("ai_provider_oauth_failed", {
+        provider_id: provider.id,
+        error: err.message,
+      });
       toast.error(`OAuth connection failed: ${err.message}`);
       setIsOAuthPending(false);
       setOauthStateToken(null);
@@ -513,9 +519,14 @@ function ProviderCard({
     },
     onSuccess: (data) => {
       if (!data?.activated) {
+        track("ai_provider_cli_activate_failed", {
+          provider_id: provider.id,
+          error: data?.error ?? "unknown",
+        });
         toast.error(data?.error ?? "CLI activation failed");
         return;
       }
+      track("ai_provider_cli_activated", { provider_id: provider.id });
       queryClient.invalidateQueries({
         queryKey: KEYS.aiProviderKeys(org.id),
       });
@@ -524,7 +535,13 @@ function ProviderCard({
       });
       toast.success(`${provider.name} activated`);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => {
+      track("ai_provider_cli_activate_failed", {
+        provider_id: provider.id,
+        error: err.message,
+      });
+      toast.error(err.message);
+    },
   });
 
   const { mutate: provisionKey, isPending: isProvisioning } = useMutation({
@@ -542,11 +559,18 @@ function ProviderCard({
       }
     },
     onSuccess: () => {
+      track("ai_provider_provision_succeeded", {
+        provider_id: provider.id,
+      });
       queryClient.invalidateQueries({ queryKey: KEYS.aiProviderKeys(org.id) });
       queryClient.invalidateQueries({ queryKey: KEYS.aiProviders(org.id) });
       toast.success(`${provider.name} connected successfully`);
     },
     onError: (err) => {
+      track("ai_provider_provision_failed", {
+        provider_id: provider.id,
+        error: err.message,
+      });
       toast.error(`Failed to connect ${provider.name}: ${err.message}`);
     },
   });
@@ -555,11 +579,19 @@ function ProviderCard({
   useEffect(() => {
     if (!isOAuthPending || !oauthStateToken) return;
 
+    // Local flag — once the popup posts back and exchangeOAuth starts, the
+    // exchange has its own onSuccess/onError handlers. Without this, a slow
+    // exchange (>2min) would race the timeout and fire a false-positive
+    // ai_provider_oauth_failed{error:"timeout"} alongside the eventual
+    // ai_provider_oauth_succeeded.
+    let exchangeStarted = false;
+
     const handleMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
       if (event.data?.type === "AI_PROVIDER_OAUTH_CALLBACK") {
         const { code, stateToken } = event.data;
         if (stateToken === oauthStateToken) {
+          exchangeStarted = true;
           exchangeOAuth({ code, stateToken });
         } else {
           console.error("State token mismatch");
@@ -572,20 +604,22 @@ function ProviderCard({
 
     window.addEventListener("message", handleMessage);
 
-    // Timeout after 2 minutes
+    // 2-minute popup-wait timeout. Distinct from exchange-failure: this means
+    // the user never came back from the OAuth popup. Tracked as a separate
+    // event so funnel math stays clean.
     const timeoutId = setTimeout(() => {
-      if (isOAuthPending) {
-        setIsOAuthPending(false);
-        setOauthStateToken(null);
-        toast.error("Connection timed out");
-      }
+      if (exchangeStarted) return;
+      track("ai_provider_oauth_timeout", { provider_id: provider.id });
+      setIsOAuthPending(false);
+      setOauthStateToken(null);
+      toast.error("Connection timed out");
     }, 120000);
 
     return () => {
       window.removeEventListener("message", handleMessage);
       clearTimeout(timeoutId);
     };
-  }, [isOAuthPending, oauthStateToken, exchangeOAuth]);
+  }, [isOAuthPending, oauthStateToken, exchangeOAuth, provider.id]);
 
   const supportsProvision = !!provider.supportsProvision;
   const supportsOAuth = provider.supportedMethods.includes("oauth-pkce");
@@ -595,14 +629,32 @@ function ProviderCard({
     if (isConnectFormOpen || isOAuthPending || isActivating || isProvisioning)
       return;
     if (isCliActivate) {
-      if (!isActive) activateCli();
+      if (!isActive) {
+        track("ai_provider_connect_clicked", {
+          provider_id: provider.id,
+          method: "cli-activate",
+        });
+        activateCli();
+      }
       return;
     }
     if (supportsProvision) {
+      track("ai_provider_connect_clicked", {
+        provider_id: provider.id,
+        method: "provision",
+      });
       provisionKey();
     } else if (supportsOAuth) {
+      track("ai_provider_connect_clicked", {
+        provider_id: provider.id,
+        method: "oauth-pkce",
+      });
       handleConnectOAuth();
     } else if (supportsApiKey) {
+      track("ai_provider_connect_clicked", {
+        provider_id: provider.id,
+        method: "api-key",
+      });
       setIsConnectFormOpen(true);
     }
   };

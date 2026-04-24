@@ -19,6 +19,7 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.js";
 import { useTasksPanelState } from "@/web/hooks/use-tasks-panel-state";
+import { track } from "@/web/lib/posthog-client";
 
 export interface ToggleButtonsProps {
   isDecopilot: boolean;
@@ -49,7 +50,13 @@ export function ToggleButtons({
         <TooltipTrigger asChild>
           <button
             type="button"
-            onClick={toggleTasks}
+            onClick={() => {
+              track("agent_toolbar_toggled", {
+                button: "tasks",
+                next_state: !tasksOpen ? "open" : "closed",
+              });
+              toggleTasks();
+            }}
             aria-pressed={tasksOpen}
             className={cn(
               TOGGLE_BASE,
@@ -66,7 +73,13 @@ export function ToggleButtons({
           <TooltipTrigger asChild>
             <button
               type="button"
-              onClick={toggleChat}
+              onClick={() => {
+                track("agent_toolbar_toggled", {
+                  button: "chat",
+                  next_state: !chatOpen ? "open" : "closed",
+                });
+                toggleChat();
+              }}
               aria-pressed={chatOpen}
               className={cn(
                 TOGGLE_BASE,

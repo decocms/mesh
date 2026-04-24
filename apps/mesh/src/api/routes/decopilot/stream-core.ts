@@ -7,6 +7,7 @@
  */
 
 import type { MeshContext } from "@/core/mesh-context";
+import { posthog } from "@/posthog";
 import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 import { monitorLlmCall } from "@/monitoring/emit-llm-call";
 import { recordLlmCallMetrics } from "@/monitoring/record-llm-call-metrics";
@@ -66,6 +67,44 @@ import {
 import { getInternalUrl } from "@/core/server-constants";
 import { traced, tracer } from "@/observability";
 import { getPodId } from "@/core/pod-identity";
+
+/**
+ * Classify a stream error into a small, stable taxonomy for analytics.
+ * Consumers (dashboards) can rely on these values being consistent across
+ * providers — the raw error message stays in the separate `error_message`
+ * prop for debugging.
+ */
+function classifyStreamError(
+  error: unknown,
+):
+  | "aborted"
+  | "insufficient_funds"
+  | "rate_limit"
+  | "timeout"
+  | "auth"
+  | "model_error"
+  | "tool_error"
+  | "unknown" {
+  if (error instanceof Error && error.name === "AbortError") return "aborted";
+  const msg = (
+    error instanceof Error ? error.message : String(error)
+  ).toLowerCase();
+  if (
+    /insufficient|no credits|out of credits|balance|payment|quota exceeded|402/i.test(
+      msg,
+    )
+  ) {
+    return "insufficient_funds";
+  }
+  if (/rate.?limit|too many requests|429/i.test(msg)) return "rate_limit";
+  if (/timeout|timed out|deadline/i.test(msg)) return "timeout";
+  if (/unauthor|forbidden|401|403|invalid.*(key|token)/i.test(msg))
+    return "auth";
+  if (/tool|mcp|connection/i.test(msg)) return "tool_error";
+  if (/model|provider|anthropic|openai|gemini|claude/i.test(msg))
+    return "model_error";
+  return "unknown";
+}
 
 /**
  * Creates a language model from the provider, enabling reasoning when the
@@ -384,6 +423,12 @@ async function streamCoreInner(
 
     const toolOutputMap = new Map<string, string>();
     const organization = ctx.organization!;
+    const streamStartAt = Date.now();
+    let aggregatedUsage: {
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+    } = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
     let titleHandle: ReturnType<typeof genTitle> | null = null;
 
     const uiStream = createUIMessageStream({
@@ -803,6 +848,14 @@ async function streamCoreInner(
                 inputTokens: totalUsage.inputTokens,
                 outputTokens: totalUsage.outputTokens,
               });
+              aggregatedUsage = {
+                inputTokens:
+                  aggregatedUsage.inputTokens + (totalUsage.inputTokens ?? 0),
+                outputTokens:
+                  aggregatedUsage.outputTokens + (totalUsage.outputTokens ?? 0),
+                totalTokens:
+                  aggregatedUsage.totalTokens + (totalUsage.totalTokens ?? 0),
+              };
               monitorLlmCall({
                 ctx,
                 organizationId: input.organizationId,
@@ -1020,6 +1073,27 @@ async function streamCoreInner(
           taskId: mem.thread.id,
           threadStatus,
         });
+
+        posthog.capture({
+          distinctId: input.userId,
+          event: "chat_message_completed",
+          groups: { organization: input.organizationId },
+          properties: {
+            organization_id: input.organizationId,
+            thread_id: mem.thread.id,
+            agent_id: input.agent.id,
+            model_id: input.models.thinking.id,
+            model_title: input.models.thinking.title,
+            mode: input.mode,
+            duration_ms: Date.now() - streamStartAt,
+            finish_reason: finishReason,
+            thread_status: threadStatus,
+            input_tokens: aggregatedUsage.inputTokens,
+            output_tokens: aggregatedUsage.outputTokens,
+            total_tokens: aggregatedUsage.totalTokens,
+            is_resume: input.isResume ?? false,
+          },
+        });
       },
       onStepFinish: ({ responseMessage }) => {
         const transitions = runRegistry.dispatch({
@@ -1049,9 +1123,44 @@ async function streamCoreInner(
         closeClients?.();
         titleHandle?.finish();
         if (registrySignal.aborted) {
+          // User cancelled (frontend stop button), tab closed mid-stream, or
+          // run was force-failed. Frontend chat_message_stopped covers the
+          // first case; this server event also covers the other two.
+          posthog.capture({
+            distinctId: input.userId,
+            event: "chat_message_aborted",
+            groups: { organization: input.organizationId },
+            properties: {
+              organization_id: input.organizationId,
+              thread_id: mem.thread.id,
+              agent_id: input.agent.id,
+              model_id: input.models.thinking.id,
+              mode: input.mode,
+              duration_ms: Date.now() - streamStartAt,
+              is_resume: input.isResume ?? false,
+            },
+          });
           return sanitizeStreamError(error);
         }
         console.error("[decopilot] stream error:", error);
+
+        posthog.capture({
+          distinctId: input.userId,
+          event: "chat_message_failed",
+          groups: { organization: input.organizationId },
+          properties: {
+            organization_id: input.organizationId,
+            thread_id: mem.thread.id,
+            agent_id: input.agent.id,
+            model_id: input.models.thinking.id,
+            mode: input.mode,
+            duration_ms: Date.now() - streamStartAt,
+            error_category: classifyStreamError(error),
+            error_message:
+              error instanceof Error ? error.message : String(error),
+            is_resume: input.isResume ?? false,
+          },
+        });
 
         runRegistry
           .execute({

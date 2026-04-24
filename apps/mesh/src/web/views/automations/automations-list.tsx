@@ -11,6 +11,7 @@ import {
   useAutomations,
 } from "@/web/hooks/use-automations";
 import { AutomationListRow } from "./automation-list-row";
+import { track } from "@/web/lib/posthog-client";
 
 export function AutomationsList({ virtualMcpId }: { virtualMcpId: string }) {
   const navigate = useNavigate();
@@ -35,6 +36,10 @@ export function AutomationsList({ virtualMcpId }: { virtualMcpId: string }) {
 
   const handleNew = async () => {
     if (create.isPending) return;
+    track("automation_new_clicked", {
+      virtual_mcp_id: virtualMcpId,
+      existing_count: automations.length,
+    });
     const created = await create.mutateAsync(
       buildDefaultAutomationInput(virtualMcpId),
     );
