@@ -103,7 +103,13 @@ export function UnifiedAuthForm({
       return result;
     },
     onSuccess: () => {
+      track("password_reset_requested");
       setResetEmailSent(true);
+    },
+    onError: (error) => {
+      track("password_reset_request_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     },
   });
 
@@ -119,7 +125,13 @@ export function UnifiedAuthForm({
       return result;
     },
     onSuccess: () => {
+      track("email_otp_sent");
       setOtpSent(true);
+    },
+    onError: (error) => {
+      track("email_otp_send_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     },
   });
 
@@ -137,6 +149,11 @@ export function UnifiedAuthForm({
     onSuccess: () => {
       globalThis.localStorage?.setItem("hasLoggedIn", "true");
       window.location.href = redirectUrl ?? callbackUrl;
+    },
+    onError: (error) => {
+      track("email_otp_verify_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     },
   });
 
