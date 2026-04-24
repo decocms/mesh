@@ -437,6 +437,13 @@ export const auth = betterAuth({
           // Top-of-funnel signup event. Fires once per new user account,
           // before any org is created. Use this (not organization_created)
           // to measure raw signup volume.
+          posthog.identify({
+            distinctId: user.id,
+            properties: {
+              email: user.email,
+              name: user.name ?? null,
+            },
+          });
           posthog.capture({
             distinctId: user.id,
             event: "user_signed_up",

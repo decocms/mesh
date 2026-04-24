@@ -372,7 +372,12 @@ app.post("/domain-setup", async (c) => {
   const session = (await auth.api.getSession({
     headers: c.req.raw.headers,
   })) as {
-    user?: { id: string; email: string; emailVerified: boolean };
+    user?: {
+      id: string;
+      email: string;
+      emailVerified: boolean;
+      name?: string | null;
+    };
   } | null;
   if (!session?.user) {
     return c.json({ success: false, error: "Authentication required" }, 401);
@@ -541,7 +546,8 @@ app.post("/domain-setup", async (c) => {
       distinctId: session.user.id,
       properties: {
         email: session.user.email,
-        $set: { email: session.user.email },
+        name: session.user.name ?? null,
+        $set: { email: session.user.email, name: session.user.name ?? null },
         $set_once: { first_organization_created_at: new Date().toISOString() },
       },
     });
