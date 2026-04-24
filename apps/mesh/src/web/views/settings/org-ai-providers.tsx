@@ -1,6 +1,6 @@
 import { Suspense, useState, useEffect } from "react";
 import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -70,6 +70,7 @@ import {
   useUpdateSimpleMode,
   type SimpleModeConfig,
 } from "@/web/hooks/use-organization-settings";
+import { SimpleModeConfigSchema } from "@/tools/organization/schema";
 import { ModelSelector } from "@/web/components/chat/select-model";
 
 function ErrorFallback({ error }: { error: Error }) {
@@ -1270,45 +1271,31 @@ function SimpleModeModelRow({
 function SimpleModeSection() {
   const allKeys = useAiProviderKeys();
   const simpleMode = useSimpleMode();
+  const hasProvider = allKeys.length > 0;
+
+  const form = useForm<SimpleModeConfig>({
+    resolver: zodResolver(SimpleModeConfigSchema),
+    values: simpleMode,
+    mode: "onChange",
+  });
+
   const { mutate: updateSimpleMode, isPending } = useUpdateSimpleMode();
 
-  const [draft, setDraft] = useState<SimpleModeConfig>(() => ({
-    enabled: simpleMode.enabled,
-    chat: {
-      fast: simpleMode.chat.fast,
-      smart: simpleMode.chat.smart,
-      thinking: simpleMode.chat.thinking,
-    },
-    image: simpleMode.image,
-    webResearch: simpleMode.webResearch,
-  }));
-
-  // Sync remote state into draft when it changes (e.g. after save)
-  const [synced, setSynced] = useState(false);
-  if (
-    !synced &&
-    (simpleMode.enabled ||
-      simpleMode.chat.fast ||
-      simpleMode.chat.smart ||
-      simpleMode.chat.thinking)
-  ) {
-    setSynced(true);
-    setDraft({
-      enabled: simpleMode.enabled,
-      chat: {
-        fast: simpleMode.chat.fast,
-        smart: simpleMode.chat.smart,
-        thinking: simpleMode.chat.thinking,
+  const handleSave = form.handleSubmit((values) => {
+    updateSimpleMode(values, {
+      onSuccess: () => {
+        toast.success("Simple Model Mode updated");
+        form.reset(values, { keepValues: true });
       },
-      image: simpleMode.image,
-      webResearch: simpleMode.webResearch,
+      onError: (err) => {
+        toast.error(`Failed to save: ${err.message}`);
+      },
     });
-  }
+  });
 
-  // Lazily load models for all keys so we can pre-fill defaults.
-  // We call the hook for each key separately and collect results.
-  // Since hooks can't be called in a loop, we cap at the first 3 keys
-  // (sufficient for defaults — the user can always change manually).
+  // Lazily load models for the first 3 keys so we can pre-fill defaults.
+  // Hooks can't run in loops; capping at 3 is sufficient for defaults —
+  // the user can always pick manually.
   const key0 = allKeys[0];
   const key1 = allKeys[1];
   const key2 = allKeys[2];
@@ -1317,71 +1304,51 @@ function SimpleModeSection() {
   const { models: models2 } = useAiProviderModels(key2?.id);
 
   const handleToggle = (enabled: boolean) => {
+    const currentChat = form.getValues("chat");
     if (
       enabled &&
-      !draft.chat.fast &&
-      !draft.chat.smart &&
-      !draft.chat.thinking
+      !currentChat.fast &&
+      !currentChat.smart &&
+      !currentChat.thinking
     ) {
       const modelsByKeyId: Record<string, AiProviderModel[]> = {};
       if (key0?.id) modelsByKeyId[key0.id] = models0;
       if (key1?.id) modelsByKeyId[key1.id] = models1;
       if (key2?.id) modelsByKeyId[key2.id] = models2;
       const defaults = pickSimpleModeDefaults(allKeys, modelsByKeyId);
-      setDraft({
-        enabled: true,
-        chat: defaults.chat,
-        image: defaults.image,
-        webResearch: defaults.webResearch,
-      });
+      form.reset(
+        {
+          enabled: true,
+          chat: defaults.chat,
+          image: defaults.image,
+          webResearch: defaults.webResearch,
+        },
+        { keepDirty: true },
+      );
     } else {
-      setDraft((d) => ({ ...d, enabled }));
+      form.setValue("enabled", enabled, { shouldDirty: true });
     }
   };
 
-  const handleSave = () => {
-    updateSimpleMode(draft, {
-      onSuccess: () => {
-        toast.success("Simple Model Mode updated");
-        setSynced(false);
-      },
-      onError: (err) => {
-        toast.error(`Failed to save: ${err.message}`);
-      },
-    });
-  };
-
-  const isDirty =
-    draft.enabled !== simpleMode.enabled ||
-    JSON.stringify(draft.chat) !== JSON.stringify(simpleMode.chat) ||
-    JSON.stringify(draft.image) !== JSON.stringify(simpleMode.image) ||
-    JSON.stringify(draft.webResearch) !==
-      JSON.stringify(simpleMode.webResearch);
-
-  const hasProvider = allKeys.length > 0;
-  const effectiveEnabled = draft.enabled && hasProvider;
-
-  // When all providers are removed, clear the draft so stale model
-  // selections don't carry over when a different provider is connected.
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  // Effect 1: Clear form when all providers are removed.
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — reacts to async provider list changes
   useEffect(() => {
     if (!hasProvider) {
-      setDraft({
+      form.reset({
         enabled: false,
         chat: { fast: null, smart: null, thinking: null },
         image: null,
         webResearch: null,
       });
-      setSynced(false);
     }
-  }, [hasProvider]);
+  }, [hasProvider, form]);
 
-  // When models finish loading (async), fill any null slots that are still
-  // empty — handles the race where handleToggle ran before models were ready.
-  // Also clears slots whose keyId no longer exists in allKeys (stale provider).
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  // Effect 2: Fill null slots with defaults once models finish loading,
+  // and clear slots whose keyId no longer exists in allKeys (stale provider).
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — reacts to async model list loading
   useEffect(() => {
-    if (!draft.enabled) return;
+    const current = form.getValues();
+    if (!current.enabled) return;
 
     const validKeyIds = new Set(allKeys.map((k) => k.id));
     const modelsByKeyId: Record<string, AiProviderModel[]> = {};
@@ -1393,14 +1360,14 @@ function SimpleModeSection() {
       slot != null && !validKeyIds.has(slot.keyId);
 
     const clearedChat = {
-      fast: isStale(draft.chat.fast) ? null : draft.chat.fast,
-      smart: isStale(draft.chat.smart) ? null : draft.chat.smart,
-      thinking: isStale(draft.chat.thinking) ? null : draft.chat.thinking,
+      fast: isStale(current.chat.fast) ? null : current.chat.fast,
+      smart: isStale(current.chat.smart) ? null : current.chat.smart,
+      thinking: isStale(current.chat.thinking) ? null : current.chat.thinking,
     };
-    const clearedImage = isStale(draft.image) ? null : draft.image;
-    const clearedWebResearch = isStale(draft.webResearch)
+    const clearedImage = isStale(current.image) ? null : current.image;
+    const clearedWebResearch = isStale(current.webResearch)
       ? null
-      : draft.webResearch;
+      : current.webResearch;
 
     const needsFill =
       !clearedChat.fast ||
@@ -1410,32 +1377,30 @@ function SimpleModeSection() {
       !clearedWebResearch;
 
     const chatUnchanged =
-      clearedChat.fast === draft.chat.fast &&
-      clearedChat.smart === draft.chat.smart &&
-      clearedChat.thinking === draft.chat.thinking;
+      clearedChat.fast === current.chat.fast &&
+      clearedChat.smart === current.chat.smart &&
+      clearedChat.thinking === current.chat.thinking;
     if (!needsFill && chatUnchanged) return;
 
     const defaults = pickSimpleModeDefaults(allKeys, modelsByKeyId);
-    setDraft((d) => ({
-      ...d,
-      chat: {
-        fast: clearedChat.fast ?? defaults.chat.fast,
-        smart: clearedChat.smart ?? defaults.chat.smart,
-        thinking: clearedChat.thinking ?? defaults.chat.thinking,
+    form.reset(
+      {
+        ...current,
+        chat: {
+          fast: clearedChat.fast ?? defaults.chat.fast,
+          smart: clearedChat.smart ?? defaults.chat.smart,
+          thinking: clearedChat.thinking ?? defaults.chat.thinking,
+        },
+        image: clearedImage ?? defaults.image,
+        webResearch: clearedWebResearch ?? defaults.webResearch,
       },
-      image: clearedImage ?? defaults.image,
-      webResearch: clearedWebResearch ?? defaults.webResearch,
-    }));
-  }, [
-    draft.enabled,
-    allKeys,
-    models0,
-    models1,
-    models2,
-    key0?.id,
-    key1?.id,
-    key2?.id,
-  ]); // eslint-disable-line
+      { keepDirty: true },
+    );
+  }, [form, allKeys, models0, models1, models2, key0?.id, key1?.id, key2?.id]);
+
+  const enabled = form.watch("enabled");
+  const effectiveEnabled = enabled && hasProvider;
+  const isDirty = form.formState.isDirty;
 
   return (
     <Card className="p-6">
@@ -1464,18 +1429,19 @@ function SimpleModeSection() {
               Chat models
             </p>
             {(["fast", "smart", "thinking"] as TierKey[]).map((tier) => (
-              <SimpleModeModelRow
+              <Controller
                 key={tier}
-                label={TIER_LABELS[tier]}
-                description={TIER_DESCRIPTIONS[tier]}
-                slot={draft.chat[tier]}
-                defaultKeyId={allKeys[0]?.id ?? null}
-                onSlotChange={(slot) =>
-                  setDraft((d) => ({
-                    ...d,
-                    chat: { ...d.chat, [tier]: slot },
-                  }))
-                }
+                control={form.control}
+                name={`chat.${tier}` as const}
+                render={({ field }) => (
+                  <SimpleModeModelRow
+                    label={TIER_LABELS[tier]}
+                    description={TIER_DESCRIPTIONS[tier]}
+                    slot={field.value}
+                    defaultKeyId={allKeys[0]?.id ?? null}
+                    onSlotChange={(slot) => field.onChange(slot)}
+                  />
+                )}
               />
             ))}
           </div>
@@ -1483,21 +1449,31 @@ function SimpleModeSection() {
             <p className="text-xs font-medium text-muted-foreground mb-1">
               Other models
             </p>
-            <SimpleModeModelRow
-              label="Image"
-              slot={draft.image}
-              defaultKeyId={allKeys[0]?.id ?? null}
-              filterModels={filterImageModels}
-              onSlotChange={(slot) => setDraft((d) => ({ ...d, image: slot }))}
+            <Controller
+              control={form.control}
+              name="image"
+              render={({ field }) => (
+                <SimpleModeModelRow
+                  label="Image"
+                  slot={field.value}
+                  defaultKeyId={allKeys[0]?.id ?? null}
+                  filterModels={filterImageModels}
+                  onSlotChange={(slot) => field.onChange(slot)}
+                />
+              )}
             />
-            <SimpleModeModelRow
-              label="Web research"
-              slot={draft.webResearch}
-              defaultKeyId={allKeys[0]?.id ?? null}
-              filterModels={filterWebResearchModels}
-              onSlotChange={(slot) =>
-                setDraft((d) => ({ ...d, webResearch: slot }))
-              }
+            <Controller
+              control={form.control}
+              name="webResearch"
+              render={({ field }) => (
+                <SimpleModeModelRow
+                  label="Web research"
+                  slot={field.value}
+                  defaultKeyId={allKeys[0]?.id ?? null}
+                  filterModels={filterWebResearchModels}
+                  onSlotChange={(slot) => field.onChange(slot)}
+                />
+              )}
             />
           </div>
         </CardContent>
