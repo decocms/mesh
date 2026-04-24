@@ -11,15 +11,38 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { buildDaemonScript } from "./daemon-script";
 
 const DAEMON_TOKEN = "t".repeat(32);
+
+// Ripgrep isn't always installed on bare CI runners or dev machines; skip
+// the rg-dependent test when it's missing so the rest of the suite still
+// runs. CI installs rg in the workflow so this guard stays false there.
+const hasRipgrep = spawnSync("which", ["rg"]).status === 0;
 
 function authHeaders(
   extra: Record<string, string> = {},
 ): Record<string, string> {
   return { Authorization: `Bearer ${DAEMON_TOKEN}`, ...extra };
+}
+
+/**
+ * Rewrite the generated daemon script for out-of-VM execution:
+ *   - strip uid/gid=1000 from spawn options (we're not root in tests)
+ *   - retarget APP_ROOT to a per-test temp dir
+ *   - drop the auto-boot runSetup() call so tests drive setup explicitly;
+ *     otherwise the boot clone to invalid.example.com leaves setupRunning
+ *     flapping and races the exec/setup tests
+ */
+function patchForTest(script: string, appRootDir: string): string {
+  return script
+    .replaceAll(/,\s*uid:\s*DECO_UID\s*,\s*gid:\s*DECO_GID/g, "")
+    .replace(/const APP_ROOT = "\/app";/, `const APP_ROOT = "${appRootDir}";`)
+    .replace(
+      /log\("starting setup: cloning " \+ REPO_NAME\);\s*runSetup\(\);/,
+      "",
+    );
 }
 
 let daemonProc: ChildProcess | null = null;
@@ -53,26 +76,23 @@ function freePort(): number {
 async function startDaemon() {
   appDir = mkdtempSync(join(tmpdir(), "daemon-e2e-"));
   daemonPort = freePort();
-  const script = buildDaemonScript({
-    upstreamPort: "3000",
-    packageManager: null,
-    pathPrefix: "",
-    port: "3000",
-    cloneUrl: "https://invalid.example.com/no-op.git",
-    repoName: "test/repo",
-    proxyPort: daemonPort,
-    bootstrapScript: "<!--bs-->",
-    gitUserName: "test",
-    gitUserEmail: "t@e",
-    branch: "main",
-    daemonToken: DAEMON_TOKEN,
-  })
-    // Strip uid/gid so spawn works outside the VM (we're not root here).
-    // Match the full pair including the leading comma so we don't leave
-    // dangling commas or lone gid when uid/gid appear right before `}`.
-    .replaceAll(/,\s*uid:\s*DECO_UID\s*,\s*gid:\s*DECO_GID/g, "")
-    // Use our temp dir for APP_ROOT
-    .replace(/const APP_ROOT = "\/app";/, `const APP_ROOT = "${appDir}";`);
+  const script = patchForTest(
+    buildDaemonScript({
+      upstreamPort: "3000",
+      packageManager: null,
+      pathPrefix: "",
+      port: "3000",
+      cloneUrl: "https://invalid.example.com/no-op.git",
+      repoName: "test/repo",
+      proxyPort: daemonPort,
+      bootstrapScript: "<!--bs-->",
+      gitUserName: "test",
+      gitUserEmail: "t@e",
+      branch: "main",
+      daemonToken: DAEMON_TOKEN,
+    }),
+    appDir,
+  );
 
   const scriptPath = join(appDir, "daemon.js");
   writeFileSync(scriptPath, script);
@@ -221,7 +241,8 @@ describe("daemon e2e (runs generated script under Bun)", () => {
     ctrl.abort();
   });
 
-  it("POST /_decopilot_vm/exec/setup triggers re-setup and returns { ok: true }", async () => {
+  it("POST /_decopilot_vm/exec/setup returns { ok: true } when idle", async () => {
+    // Boot autostart is stripped by patchForTest so the daemon is idle here.
     const res = await fetch(
       `http://localhost:${daemonPort}/_decopilot_vm/exec/setup`,
       { method: "POST", headers: authHeaders() },
@@ -231,12 +252,9 @@ describe("daemon e2e (runs generated script under Bun)", () => {
     expect(body.ok).toBe(true);
   });
 
-  it("POST /_decopilot_vm/exec/setup returns 409 when setup is already running", async () => {
-    // The daemon auto-triggers setup on boot; by the time this test runs
-    // the boot setup is typically still in-flight (clone fails fast against
-    // invalid.example.com but leaves a blocked setupRunning window around
-    // spawn events). Fire two POSTs back-to-back and expect exactly one
-    // 200 and one 409 — the re-entry guard rejects the concurrent call.
+  it("POST /_decopilot_vm/exec/setup concurrent calls return [200, 409]", async () => {
+    // Handler is sync through setupRunning=true, so the Bun.serve event loop
+    // serializes: first request wins, second hits the re-entry guard.
     const first = fetch(
       `http://localhost:${daemonPort}/_decopilot_vm/exec/setup`,
       { method: "POST", headers: authHeaders() },
@@ -270,38 +288,41 @@ describe("daemon e2e (runs generated script under Bun)", () => {
     expect(body.error).toContain("not running");
   });
 
-  it("POST /_decopilot_vm/grep and /_decopilot_vm/glob succeed (confirms uid/gid stripped from spawn)", async () => {
-    // Create a file in appDir to search
-    const sampleFile = join(appDir, "needle.txt");
-    writeFileSync(sampleFile, "hello world\n");
+  it.skipIf(!hasRipgrep)(
+    "POST /_decopilot_vm/grep and /_decopilot_vm/glob succeed (confirms uid/gid stripped from spawn)",
+    async () => {
+      // Create a file in appDir to search
+      const sampleFile = join(appDir, "needle.txt");
+      writeFileSync(sampleFile, "hello world\n");
 
-    const toBody = (obj: unknown) =>
-      Buffer.from(JSON.stringify(obj), "utf-8").toString("base64");
+      const toBody = (obj: unknown) =>
+        Buffer.from(JSON.stringify(obj), "utf-8").toString("base64");
 
-    const grepRes = await fetch(
-      `http://localhost:${daemonPort}/_decopilot_vm/grep`,
-      {
-        method: "POST",
-        headers: authHeaders({ "Content-Type": "application/json" }),
-        body: toBody({ pattern: "hello", output_mode: "content" }),
-      },
-    );
-    expect(grepRes.status).toBe(200);
-    const grepBody = (await grepRes.json()) as { results: string };
-    expect(grepBody.results).toContain("hello world");
+      const grepRes = await fetch(
+        `http://localhost:${daemonPort}/_decopilot_vm/grep`,
+        {
+          method: "POST",
+          headers: authHeaders({ "Content-Type": "application/json" }),
+          body: toBody({ pattern: "hello", output_mode: "content" }),
+        },
+      );
+      expect(grepRes.status).toBe(200);
+      const grepBody = (await grepRes.json()) as { results: string };
+      expect(grepBody.results).toContain("hello world");
 
-    const globRes = await fetch(
-      `http://localhost:${daemonPort}/_decopilot_vm/glob`,
-      {
-        method: "POST",
-        headers: authHeaders({ "Content-Type": "application/json" }),
-        body: toBody({ pattern: "*.txt" }),
-      },
-    );
-    expect(globRes.status).toBe(200);
-    const globBody = (await globRes.json()) as { files: string[] };
-    expect(globBody.files).toContain("needle.txt");
-  });
+      const globRes = await fetch(
+        `http://localhost:${daemonPort}/_decopilot_vm/glob`,
+        {
+          method: "POST",
+          headers: authHeaders({ "Content-Type": "application/json" }),
+          body: toBody({ pattern: "*.txt" }),
+        },
+      );
+      expect(globRes.status).toBe(200);
+      const globBody = (await globRes.json()) as { files: string[] };
+      expect(globBody.files).toContain("needle.txt");
+    },
+  );
 
   it("POST /_decopilot_vm/read returns file contents with line numbers", async () => {
     const sampleFile = join(appDir, "greet.txt");
@@ -470,22 +491,23 @@ describe("daemon e2e (reverse proxy)", () => {
     upstreamPort = upstreamServer.port as number;
     appDir = mkdtempSync(join(tmpdir(), "daemon-e2e-"));
     daemonPort = freePort();
-    const script = buildDaemonScript({
-      upstreamPort: String(upstreamPort),
-      packageManager: null,
-      pathPrefix: "",
-      port: String(upstreamPort),
-      cloneUrl: "https://invalid.example.com/no-op.git",
-      repoName: "test/repo",
-      proxyPort: daemonPort,
-      bootstrapScript: "<!--BOOTSTRAP-->",
-      gitUserName: "test",
-      gitUserEmail: "t@e",
-      branch: "main",
-      daemonToken: DAEMON_TOKEN,
-    })
-      .replaceAll(/,\s*uid:\s*DECO_UID\s*,\s*gid:\s*DECO_GID/g, "")
-      .replace(/const APP_ROOT = "\/app";/, `const APP_ROOT = "${appDir}";`);
+    const script = patchForTest(
+      buildDaemonScript({
+        upstreamPort: String(upstreamPort),
+        packageManager: null,
+        pathPrefix: "",
+        port: String(upstreamPort),
+        cloneUrl: "https://invalid.example.com/no-op.git",
+        repoName: "test/repo",
+        proxyPort: daemonPort,
+        bootstrapScript: "<!--BOOTSTRAP-->",
+        gitUserName: "test",
+        gitUserEmail: "t@e",
+        branch: "main",
+        daemonToken: DAEMON_TOKEN,
+      }),
+      appDir,
+    );
     const scriptPath = join(appDir, "daemon.js");
     writeFileSync(scriptPath, script);
     daemonProc = spawn("bun", [scriptPath], {
@@ -506,22 +528,23 @@ describe("daemon e2e (reverse proxy)", () => {
     upstreamPort = freePort();
     appDir = mkdtempSync(join(tmpdir(), "daemon-e2e-"));
     daemonPort = freePort();
-    const script = buildDaemonScript({
-      upstreamPort: String(upstreamPort),
-      packageManager: null,
-      pathPrefix: "",
-      port: String(upstreamPort),
-      cloneUrl: "https://invalid.example.com/no-op.git",
-      repoName: "test/repo",
-      proxyPort: daemonPort,
-      bootstrapScript: "<!--BOOTSTRAP-->",
-      gitUserName: "test",
-      gitUserEmail: "t@e",
-      branch: "main",
-      daemonToken: DAEMON_TOKEN,
-    })
-      .replaceAll(/,\s*uid:\s*DECO_UID\s*,\s*gid:\s*DECO_GID/g, "")
-      .replace(/const APP_ROOT = "\/app";/, `const APP_ROOT = "${appDir}";`);
+    const script = patchForTest(
+      buildDaemonScript({
+        upstreamPort: String(upstreamPort),
+        packageManager: null,
+        pathPrefix: "",
+        port: String(upstreamPort),
+        cloneUrl: "https://invalid.example.com/no-op.git",
+        repoName: "test/repo",
+        proxyPort: daemonPort,
+        bootstrapScript: "<!--BOOTSTRAP-->",
+        gitUserName: "test",
+        gitUserEmail: "t@e",
+        branch: "main",
+        daemonToken: DAEMON_TOKEN,
+      }),
+      appDir,
+    );
     const scriptPath = join(appDir, "daemon.js");
     writeFileSync(scriptPath, script);
     daemonProc = spawn("bun", [scriptPath], {
