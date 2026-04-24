@@ -21,9 +21,12 @@ import { defineTool } from "../../core/define-tool";
 import type { MeshContext } from "../../core/mesh-context";
 import { requireVmEntry, resolveRuntimeConfig } from "./helpers";
 import { buildCloneInfo } from "../../shared/github-clone-info";
+import { detectRepoRuntime } from "../../shared/github-runtime-detect";
 import { generateBranchName } from "../../shared/branch-name";
+import { PACKAGE_MANAGER_CONFIG } from "../../shared/runtime-defaults";
 import { getRunnerByKind, getSharedRunner } from "../../sandbox/lifecycle";
 import { setVmMapEntry } from "./vm-map";
+import type { VirtualMCPUpdateData } from "../virtual/schema";
 
 type GithubRepoMeta = {
   githubRepo?: {
@@ -64,7 +67,6 @@ export const VM_START = defineTool({
 
   handler: async (input, ctx) => {
     const resolvedBranch = input.branch ?? generateBranchName();
-
     const {
       metadata,
       userId,
@@ -101,7 +103,6 @@ export const VM_START = defineTool({
       githubRepo,
       existing,
     });
-
     return {
       ...entry,
       branch: resolvedBranch,
@@ -163,7 +164,7 @@ async function provisionSandbox(
     existing,
   } = params;
 
-  const { runtime, packageManager, port } = resolveRuntimeConfig(metadata);
+  let { runtime, packageManager, port } = resolveRuntimeConfig(metadata);
   const { cloneUrl, gitUserName, gitUserEmail } = await buildCloneInfo(
     githubRepo.connectionId!,
     githubRepo.owner,
@@ -171,6 +172,35 @@ async function provisionSandbox(
     ctx.db,
     ctx.vault,
   );
+
+  // Lockfile probe only when metadata has no PM. Used to be client-side in
+  // the repo picker, but that introduced a race — VM_START fired from the
+  // auto-start paths before `runtime` landed in metadata, and the daemon
+  // got baked clone-only (no install, no dev server, UI stuck on setup).
+  // Running it here piggybacks on the same request so the baked workload
+  // always matches the detected PM; the result is persisted so subsequent
+  // starts skip the probe.
+  if (!packageManager) {
+    const detected = await detectRepoRuntime(
+      githubRepo.connectionId!,
+      githubRepo.owner,
+      githubRepo.name,
+      ctx.db,
+      ctx.vault,
+    );
+    if (detected) {
+      packageManager = detected.packageManager;
+      runtime = PACKAGE_MANAGER_CONFIG[detected.packageManager].runtime;
+      port = detected.devPort ?? port;
+      await persistDetectedRuntime(
+        ctx,
+        virtualMcpId,
+        userId,
+        detected.packageManager,
+        detected.devPort,
+      );
+    }
+  }
 
   // Missing workload = clone-only. Freestyle treats it as "node, no install,
   // no dev server"; Docker lets the runner pick its default.
@@ -228,4 +258,28 @@ async function provisionSandbox(
   // Different handle = new sandbox (stale entry / orphan recovery / state miss).
   const isNewVm = !existing || existing.vmId !== sandbox.handle;
   return { entry, isNewVm };
+}
+
+/**
+ * Writes back the detected runtime so subsequent VM_STARTs for this virtual
+ * MCP skip the GitHub probe and the client surfaces the resolved PM. Shape
+ * matches what the picker previously wrote (`{ selected, port }`), so
+ * readers (resolveRuntimeConfig, any client inspectors) keep working.
+ */
+async function persistDetectedRuntime(
+  ctx: MeshContext,
+  virtualMcpId: string,
+  actingUserId: string,
+  packageManager: string,
+  devPort: string | null,
+): Promise<void> {
+  const virtualMcp = await ctx.storage.virtualMcps.findById(virtualMcpId);
+  if (!virtualMcp) return;
+  const meta = (virtualMcp.metadata ?? {}) as Record<string, unknown>;
+  await ctx.storage.virtualMcps.update(virtualMcpId, actingUserId, {
+    metadata: {
+      ...meta,
+      runtime: { selected: packageManager, port: devPort },
+    } as VirtualMCPUpdateData["metadata"],
+  });
 }

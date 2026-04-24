@@ -191,90 +191,28 @@ function PickerContent({
     }
   };
 
+  // Runtime detection moved server-side into VM_START (see
+  // github-runtime-detect.ts). Here we only pull AGENTS.md / CLAUDE.md so the
+  // agent has instructions ready even before the first VM boots.
   const detectRepoFiles = (virtualMcpId: string, repo: Repo) => {
-    const allPaths = [
-      "AGENTS.md",
-      "CLAUDE.md",
-      "deno.json",
-      "deno.jsonc",
-      "bun.lock",
-      "bunfig.toml",
-      "pnpm-lock.yaml",
-      "yarn.lock",
-      "package-lock.json",
-      "package.json",
-    ];
-
-    Promise.all(
-      allPaths.map(async (p) => [p, await getFileContent(repo, p)] as const),
-    )
-      .then(async (entries) => {
-        const files = new Map(entries);
-
-        const instructions =
-          files.get("AGENTS.md") ?? files.get("CLAUDE.md") ?? null;
-
-        const runtimeFiles: Array<{ file: string; pm: string }> = [
-          { file: "deno.json", pm: "deno" },
-          { file: "deno.jsonc", pm: "deno" },
-          { file: "bun.lock", pm: "bun" },
-          { file: "bunfig.toml", pm: "bun" },
-          { file: "pnpm-lock.yaml", pm: "pnpm" },
-          { file: "yarn.lock", pm: "yarn" },
-          { file: "package-lock.json", pm: "npm" },
-          { file: "package.json", pm: "npm" },
-        ];
-        let detected: string | null = null;
-        for (const { file, pm } of runtimeFiles) {
-          if (files.get(file) !== null) {
-            detected = pm;
-            break;
-          }
-        }
-
-        let devPort = "";
-        if (detected) {
-          const extractPort = (content: string | null) => {
-            if (!content) return "";
-            try {
-              const parsed = JSON.parse(content) as {
-                tasks?: Record<string, string>;
-                scripts?: Record<string, string>;
-              };
-              const cmds = parsed.tasks ?? parsed.scripts ?? {};
-              const devCmd = cmds.dev ?? cmds.start ?? "";
-              const portMatch = devCmd.match(/(?:--port|PORT=|:)(\d{4,5})/);
-              return portMatch?.[1] ?? "";
-            } catch {
-              return "";
-            }
-          };
-          if (detected === "deno") {
-            devPort =
-              extractPort(files.get("deno.json") ?? null) ||
-              extractPort(files.get("deno.jsonc") ?? null);
-          } else {
-            devPort = extractPort(files.get("package.json") ?? null);
-          }
-        }
-
+    Promise.all([
+      getFileContent(repo, "AGENTS.md"),
+      getFileContent(repo, "CLAUDE.md"),
+    ])
+      .then(async ([agents, claude]) => {
+        const instructions = agents ?? claude ?? null;
+        if (!instructions) return;
         await selfClient.callTool({
           name: "COLLECTION_VIRTUAL_MCP_UPDATE",
           arguments: {
             id: virtualMcpId,
-            data: {
-              metadata: {
-                instructions,
-                runtime: { selected: detected, port: devPort || null },
-              },
-            },
+            data: { metadata: { instructions } },
           },
         });
-
         invalidateVirtualMcpQueries(queryClient, org.id);
       })
       .catch((err) => {
-        console.error("GitHub repo file detection failed:", err);
+        console.error("GitHub instructions fetch failed:", err);
       });
   };
 
@@ -303,7 +241,9 @@ function PickerContent({
                 connectionId,
               },
               instructions: null,
-              runtime: null,
+              // runtime is resolved server-side inside VM_START's lockfile
+              // probe (github-runtime-detect.ts). Writing a client-side
+              // sentinel here only re-created the race the probe fixed.
               ui: {
                 pinnedViews: null,
                 layout: {

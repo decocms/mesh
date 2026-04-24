@@ -84,16 +84,18 @@ export class FreestyleSandboxRunner implements SandboxRunner {
   async ensure(id: SandboxId, opts: EnsureOptions = {}): Promise<Sandbox> {
     const key = sandboxIdKey(id);
     const pending = this.inflight.get(key);
-    if (pending) return pending;
+    if (pending) {
+      return pending;
+    }
     // See DockerSandboxRunner.ensure — state-store lock serializes across
     // pods; in-memory inflight dedupes within this process. The scoped
     // store reuses the lock connection so nested reads/writes don't starve
     // the main pg pool during long provisioning.
     const p =
       this.stateStore && this.stateStore.withLock
-        ? this.stateStore.withLock(id, RUNNER_KIND, (scoped) =>
-            this.ensureInner(id, opts, scoped),
-          )
+        ? this.stateStore.withLock(id, RUNNER_KIND, (scoped) => {
+            return this.ensureInner(id, opts, scoped);
+          })
         : this.ensureInner(id, opts, this.stateStore);
     this.inflight.set(key, p);
     try {
@@ -344,12 +346,7 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     try {
       const vm = freestyle.vms.ref({ vmId: state.vmId, spec });
       await vm.start();
-    } catch (err) {
-      console.warn(
-        `[FreestyleSandboxRunner] resume vm ${state.vmId} failed (will recreate): ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
+    } catch {
       return null;
     }
     return {
