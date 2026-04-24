@@ -38,6 +38,41 @@ export const RegistryConfigSchema = z.object({
 export type RegistryConfig = z.infer<typeof RegistryConfigSchema>;
 
 /**
+ * Model slot schema — a concrete model selection (provider key + model).
+ * Matches SimpleModeModelSlot interface from storage/types.ts.
+ */
+export const ModelSlotSchema = z
+  .object({
+    keyId: z.string(),
+    modelId: z.string(),
+    title: z.string().optional(),
+  })
+  .nullable();
+
+export type ModelSlot = z.infer<typeof ModelSlotSchema>;
+
+/**
+ * Simple Model Mode configuration schema.
+ * Matches SimpleModeConfig interface from storage/types.ts.
+ *
+ * When the org enables Simple Mode, members see a Fast/Smart/Thinking
+ * toggle instead of the full model picker, and image/webResearch default
+ * to the models picked here.
+ */
+export const SimpleModeConfigSchema = z.object({
+  enabled: z.boolean(),
+  chat: z.object({
+    fast: ModelSlotSchema,
+    smart: ModelSlotSchema,
+    thinking: ModelSlotSchema,
+  }),
+  image: ModelSlotSchema,
+  webResearch: ModelSlotSchema,
+});
+
+export type SimpleModeConfig = z.infer<typeof SimpleModeConfigSchema>;
+
+/**
  * Brand context schema - org-scoped company profile
  */
 export const BrandContextSchema = z.object({
