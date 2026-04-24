@@ -4,7 +4,7 @@
  * Automation-triggered tasks are distinguished by a badge on their avatar.
  */
 
-import { Suspense } from "react";
+import { Suspense, useState, useTransition } from "react";
 import { useParams } from "@tanstack/react-router";
 import {
   useMCPClient,
@@ -23,20 +23,25 @@ import { useTasksAutoRefresh } from "@/web/hooks/use-tasks-auto-refresh";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { KEYS } from "@/web/lib/query-keys";
 import { toast } from "sonner";
-import { authClient } from "@/web/lib/auth-client";
-import { TasksSection } from "./tasks-section";
+import {
+  TasksSection,
+  type FilterOption,
+  type MemberFilter,
+} from "./tasks-section";
 
 function TasksPanelContent() {
   useTasksAutoRefresh();
-  const { data: session } = authClient.useSession();
-  const currentUserId = session?.user?.id;
+  const [memberFilter, setMemberFilter] = useState<MemberFilter>("mine");
+  const [typeFilter, setTypeFilter] = useState<FilterOption>("all");
+  const [, startFilterTransition] = useTransition();
+
   const { tasks: myTasks } = useTasks({
     owner: "me",
     status: "open",
     hasTrigger: false,
   });
   const { tasks: automationTasks } = useTasks({
-    owner: "all",
+    owner: memberFilter === "mine" ? "me" : "all",
     status: "open",
     hasTrigger: true,
   });
@@ -51,10 +56,20 @@ function TasksPanelContent() {
 
   const activeTaskId = params.taskId ?? null;
 
+  const taggedAutomationTasks = automationTasks.map((t) => ({
+    ...t,
+    fromAutomation: true as const,
+  }));
+
   const allTasks = [
-    ...myTasks,
-    ...automationTasks.map((t) => ({ ...t, fromAutomation: true as const })),
+    ...(typeFilter !== "automation" ? myTasks : []),
+    ...(typeFilter !== "manual" ? taggedAutomationTasks : []),
   ].sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""));
+
+  const handleSetMemberFilter = (v: MemberFilter) =>
+    startFilterTransition(() => setMemberFilter(v));
+  const handleSetTypeFilter = (v: FilterOption) =>
+    startFilterTransition(() => setTypeFilter(v));
 
   const handleArchive = async (task: Task) => {
     try {
@@ -90,7 +105,10 @@ function TasksPanelContent() {
         onArchive={handleArchive}
         onNew={createNewTask}
         showNewButton
-        currentUserId={currentUserId}
+        filter={typeFilter}
+        setFilter={handleSetTypeFilter}
+        memberFilter={memberFilter}
+        setMemberFilter={handleSetMemberFilter}
       />
     </div>
   );

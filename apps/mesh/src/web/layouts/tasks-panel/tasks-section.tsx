@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Edit05, FilterLines, User02, Users03 } from "@untitledui/icons";
 import {
   DropdownMenu,
@@ -11,8 +10,8 @@ import { cn } from "@deco/ui/lib/utils.js";
 import type { Task } from "@/web/components/chat/task/types";
 import { TaskRow } from "./task-row";
 
-type FilterOption = "all" | "manual" | "automation";
-type MemberFilter = "all" | "mine";
+export type FilterOption = "all" | "manual" | "automation";
+export type MemberFilter = "all" | "mine";
 
 const FILTER_LABELS: Record<FilterOption, string> = {
   all: "All tasks",
@@ -35,7 +34,10 @@ export function TasksSection({
   showNewButton,
   showAutomationBadge,
   emptyLabel,
-  currentUserId,
+  filter,
+  setFilter,
+  memberFilter,
+  setMemberFilter,
 }: {
   title: string;
   tasks: Task[];
@@ -46,22 +48,12 @@ export function TasksSection({
   showNewButton?: boolean;
   showAutomationBadge?: boolean;
   emptyLabel?: string;
-  currentUserId?: string;
+  filter: FilterOption;
+  setFilter: (v: FilterOption) => void;
+  memberFilter: MemberFilter;
+  setMemberFilter: (v: MemberFilter) => void;
 }) {
-  const [filter, setFilter] = useState<FilterOption>("all");
-  const [memberFilter, setMemberFilter] = useState<MemberFilter>("mine");
-
-  const memberFiltered =
-    memberFilter === "mine" && currentUserId
-      ? tasks.filter((t) => t.created_by === currentUserId)
-      : tasks;
-
-  const visibleTasks =
-    filter === "automation"
-      ? memberFiltered.filter((t) => t.fromAutomation)
-      : filter === "manual"
-        ? memberFiltered.filter((t) => !t.fromAutomation)
-        : memberFiltered;
+  const visibleTasks = tasks;
 
   return (
     <div className="flex flex-col gap-0.5 mt-1">

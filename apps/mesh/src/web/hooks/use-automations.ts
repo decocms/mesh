@@ -153,7 +153,10 @@ export interface AutomationDetail {
 
 type AutomationListOutput = { automations: AutomationListItem[] };
 
-export function useAutomations(virtualMcpId?: string | null) {
+export function useAutomations(
+  virtualMcpId?: string | null,
+  search?: string | null,
+) {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -161,12 +164,13 @@ export function useAutomations(virtualMcpId?: string | null) {
   });
 
   return useQuery({
-    queryKey: KEYS.automations(org.id, virtualMcpId),
+    queryKey: KEYS.automations(org.id, virtualMcpId, search),
     queryFn: async () => {
       const args: Record<string, unknown> =
         virtualMcpId !== undefined && virtualMcpId !== null
           ? { virtual_mcp_id: virtualMcpId }
           : {};
+      if (search) args.search = search;
       const result = (await client.callTool({
         name: "AUTOMATION_LIST",
         arguments: args,
