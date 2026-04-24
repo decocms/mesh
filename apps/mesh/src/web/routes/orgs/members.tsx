@@ -529,6 +529,9 @@ function OrgMembersContent() {
       setMemberToRemove(null);
     },
     onError: (error) => {
+      track("member_remove_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       toast.error(
         error instanceof Error ? error.message : "Failed to remove member",
       );
@@ -556,7 +559,11 @@ function OrgMembersContent() {
       queryClient.invalidateQueries({ queryKey: KEYS.members(locator) });
       toast.success("Member's role has been updated");
     },
-    onError: (error) => {
+    onError: (error, vars) => {
+      track("member_role_update_failed", {
+        new_role: vars.role,
+        error: error instanceof Error ? error.message : String(error),
+      });
       toast.error(
         error instanceof Error ? error.message : "Failed to update role",
       );
@@ -595,7 +602,11 @@ function OrgMembersContent() {
       queryClient.invalidateQueries({ queryKey: KEYS.invitations(locator) });
       toast.success("Invitation role has been updated");
     },
-    onError: (error) => {
+    onError: (error, vars) => {
+      track("invitation_role_update_failed", {
+        new_role: vars.role,
+        error: error instanceof Error ? error.message : String(error),
+      });
       toast.error(
         error instanceof Error
           ? error.message

@@ -96,6 +96,11 @@ export function OrganizationForm() {
       }
     },
     onError: (error) => {
+      track("organization_settings_update_failed", {
+        organization_id: org.id,
+        fields: Object.keys(form.formState.dirtyFields),
+        error: error instanceof Error ? error.message : String(error),
+      });
       toast.error(
         error instanceof Error
           ? error.message

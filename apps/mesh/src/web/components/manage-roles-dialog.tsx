@@ -1544,7 +1544,21 @@ export function ManageRolesDialog({
       }
       onSuccess?.();
     },
-    onError: (error) => {
+    onError: (error, variables) => {
+      const isNew = !variables.role.id && !variables.role.slug;
+      const isBuiltinRole = variables.role.slug && !variables.role.id;
+      track(
+        isBuiltinRole
+          ? "role_members_update_failed"
+          : isNew
+            ? "role_create_failed"
+            : "role_update_failed",
+        {
+          role_slug: variables.role.slug ?? null,
+          member_count: variables.memberIds.length,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      );
       toast.error(
         error instanceof Error ? error.message : "Failed to save role",
       );
@@ -1589,7 +1603,11 @@ export function ManageRolesDialog({
         }
       }
     },
-    onError: (error) => {
+    onError: (error, roleId) => {
+      track("role_delete_failed", {
+        role_id: roleId,
+        error: error instanceof Error ? error.message : String(error),
+      });
       toast.error(
         error instanceof Error ? error.message : "Failed to delete role",
       );

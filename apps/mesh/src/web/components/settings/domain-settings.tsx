@@ -73,6 +73,11 @@ export function DomainSettings() {
       toast.success("Domain claimed");
     },
     onError: (err) => {
+      track("organization_domain_claim_failed", {
+        organization_id: org.id,
+        email_domain: userDomain,
+        error: err instanceof Error ? err.message : String(err),
+      });
       toast.error(
         err instanceof Error ? err.message : "Failed to claim domain",
       );
@@ -96,6 +101,11 @@ export function DomainSettings() {
       toast.success("Domain removed");
     },
     onError: (err) => {
+      track("organization_domain_clear_failed", {
+        organization_id: org.id,
+        email_domain: currentDomain,
+        error: err instanceof Error ? err.message : String(err),
+      });
       toast.error(
         err instanceof Error ? err.message : "Failed to remove domain",
       );
@@ -120,6 +130,10 @@ export function DomainSettings() {
       toast.success("Auto-join setting updated");
     },
     onError: (err) => {
+      track("organization_auto_join_toggle_failed", {
+        organization_id: org.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
       toast.error(
         err instanceof Error ? err.message : "Failed to update auto-join",
       );
