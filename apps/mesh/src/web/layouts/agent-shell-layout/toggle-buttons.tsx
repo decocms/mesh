@@ -23,9 +23,7 @@ import { useTasksPanelState } from "@/web/hooks/use-tasks-panel-state";
 export interface ToggleButtonsProps {
   isDecopilot: boolean;
   chatOpen: boolean;
-  mainOpen: boolean;
   toggleChat: () => void;
-  toggleMain: () => void;
   /** When set, reveals an animated "new task" button next to the chat toggle. */
   onNewTask?: () => void;
 }
@@ -39,9 +37,7 @@ const TOGGLE_INACTIVE =
 export function ToggleButtons({
   isDecopilot,
   chatOpen,
-  mainOpen,
   toggleChat,
-  toggleMain,
   onNewTask,
 }: ToggleButtonsProps) {
   const { tasksOpen, toggleTasks } = useTasksPanelState();

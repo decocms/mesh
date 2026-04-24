@@ -9,11 +9,6 @@
  */
 
 import { Package } from "@untitledui/icons";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import type { TabIcon } from "./resolve-tab-icon";
 

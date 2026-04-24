@@ -376,9 +376,7 @@ function AgentInsetProvider() {
         <ToggleButtons
           isDecopilot={isDecopilot}
           chatOpen={layout.chatOpen}
-          mainOpen={layout.mainOpen}
           toggleChat={layout.toggleChat}
-          toggleMain={layout.toggleMain}
           onNewTask={tasksOpen ? undefined : layout.createNewTask}
         />
       </Toolbar.Toggles>
