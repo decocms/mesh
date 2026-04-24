@@ -1711,7 +1711,7 @@ Define step-by-step how the agent should handle requests.
         open={instructionsFullscreen}
         onOpenChange={setInstructionsFullscreen}
       >
-        <DialogContent className="max-w-4xl w-[90vw] h-[85vh] flex flex-col p-0 gap-0">
+        <DialogContent className="max-w-6xl w-[90vw] h-[85vh] flex flex-col p-0 gap-0">
           <DialogHeader className="px-6 pt-6 pb-3 border-b border-border shrink-0">
             <DialogTitle>Instructions</DialogTitle>
           </DialogHeader>
