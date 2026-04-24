@@ -3,7 +3,11 @@ FROM node:22-bookworm-slim
 
 # Bun/Deno versions pinned so a bun.sh / deno.land rebuild can't silently
 # swap what we ship. Bump intentionally, not by latest-tag drift.
-ARG BUN_VERSION=bun-v1.1.42
+# Bun must be >= 1.2 to read the text-format bun.lock (lockfileVersion: 1,
+# configVersion: 1) that mesh and other modern monorepos ship. 1.1.x errors
+# "Unknown lockfile version" and falls back to lockfile-free resolution,
+# which silently skips optional platform binaries and some workspace links.
+ARG BUN_VERSION=bun-v1.3.11
 ARG DENO_VERSION=v1.46.3
 
 # `locales` + generated `en_US.UTF-8` is load-bearing: repos using

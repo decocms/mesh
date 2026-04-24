@@ -34,7 +34,7 @@ export interface VmStartResult {
   vmId: string;
   branch: string;
   isNewVm: boolean;
-  runnerKind?: "docker" | "freestyle";
+  runnerKind?: "docker" | "freestyle" | "kubernetes";
 }
 
 const inflightStarts = new Map<string, Promise<VmStartResult>>();

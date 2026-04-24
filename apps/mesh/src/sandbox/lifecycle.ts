@@ -34,6 +34,15 @@ async function instantiate(
       );
       return new FreestyleSandboxRunner({ stateStore });
     }
+    case "kubernetes": {
+      // Dynamic import — @kubernetes/client-node is heavy and only needed
+      // when MESH_SANDBOX_RUNNER=kubernetes. Docker/Freestyle deploys never
+      // load it.
+      const { KubernetesSandboxRunner } = await import(
+        "mesh-plugin-user-sandbox/runner/k8s"
+      );
+      return new KubernetesSandboxRunner({ stateStore });
+    }
     default: {
       const exhaustive: never = kind;
       throw new Error(`Unknown runner kind: ${String(exhaustive)}`);

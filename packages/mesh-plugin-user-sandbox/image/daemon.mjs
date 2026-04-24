@@ -6,7 +6,14 @@
  */
 
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import http from "node:http";
+
+// Regenerated per container boot. Mesh persists the last-seen value and
+// flips `repoAttached` back to false when it changes — that's how an
+// OOMKill/crash restart (which wipes /app under the ephemeral image layer)
+// triggers re-bootstrap instead of stranding a live pod with empty workdir.
+const BOOT_ID = randomUUID();
 import { authorized } from "./daemon/auth.mjs";
 import {
   LOG_RING_CAP,
@@ -115,7 +122,7 @@ async function rejectsThreadId(req, res, url) {
 const server = http.createServer(async (req, res) => {
   // Unauthenticated: runner probes health before token exists.
   if (req.method === "GET" && req.url === "/health") {
-    send(res, 200, { ok: true });
+    send(res, 200, { ok: true, bootId: BOOT_ID });
     return;
   }
 

@@ -63,7 +63,7 @@ interface VmData {
   vmId: string;
   branch: string;
   isNewVm: boolean;
-  runnerKind?: "docker" | "freestyle";
+  runnerKind?: "docker" | "freestyle" | "kubernetes";
 }
 
 type ViewStatus =

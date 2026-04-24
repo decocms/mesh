@@ -10,7 +10,11 @@
   "exports": {
     "./shared": "./shared.ts",
     "./runner": "./server/runner/index.ts",
+    "./runner/k8s": "./server/runner/k8s/index.ts",
     "./runner/freestyle": "./server/runner/freestyle/index.ts"
+  },
+  "dependencies": {
+    "@kubernetes/client-node": "^1.4.0"
   },
   "optionalDependencies": {
     "@freestyle-sh/with-bun": "^0.2.12",

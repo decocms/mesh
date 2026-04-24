@@ -23,6 +23,27 @@ export async function probeDaemonHealth(daemonUrl: string): Promise<boolean> {
   }
 }
 
+/**
+ * Reads the daemon's per-boot UUID. Different value between calls means the
+ * container was restarted (OOMKill, crash, kubelet eviction) and any ephemeral
+ * workdir state is gone — callers should re-bootstrap. Returns null if the
+ * daemon is unreachable or predates the bootId field (graceful for rollouts).
+ */
+export async function readDaemonBootId(
+  daemonUrl: string,
+): Promise<string | null> {
+  try {
+    const res = await fetch(`${daemonUrl}/health`, {
+      signal: AbortSignal.timeout(HEALTH_PROBE_TIMEOUT_MS),
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { bootId?: unknown };
+    return typeof body.bootId === "string" ? body.bootId : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Polls /health; throws on timeout. Does not stop the container. */
 export async function waitForDaemonReady(daemonUrl: string): Promise<void> {
   for (let i = 0; i < READY_ATTEMPTS; i++) {

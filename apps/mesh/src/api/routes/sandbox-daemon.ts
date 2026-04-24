@@ -16,6 +16,7 @@ import { getRunnerByKind } from "@/sandbox/lifecycle";
 const SUPPORTED_KINDS: ReadonlySet<RunnerKind> = new Set([
   "docker",
   "freestyle",
+  "kubernetes",
 ]);
 
 async function authorizeSandbox(

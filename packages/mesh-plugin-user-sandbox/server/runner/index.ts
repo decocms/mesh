@@ -1,7 +1,8 @@
 /**
  * Public surface. Ships `DockerSandboxRunner` only via the default entry;
- * Freestyle sits behind its own subpath export (./runner/freestyle) because
- * its SDK is heavy and not every deploy needs it.
+ * Freestyle and Kubernetes sit behind their own subpath exports (./runner/
+ * freestyle, ./runner/k8s) because their SDKs are heavy and not every deploy
+ * needs them.
  */
 
 import { spawnSync } from "node:child_process";
@@ -79,17 +80,22 @@ function isDockerInstalled(): boolean {
 
 /**
  * Rules:
- *   1. `MESH_SANDBOX_RUNNER=docker|freestyle` — honored.
+ *   1. `MESH_SANDBOX_RUNNER=docker|freestyle|kubernetes` — honored.
  *   2. No explicit value, `FREESTYLE_API_KEY` set — pick freestyle.
  *   3. Production w/o explicit value and no freestyle key — null.
  *   4. Dev w/o explicit value — docker if CLI present, else null.
+ *
+ * Kubernetes is explicit-only: never auto-selected — callers must opt in
+ * with `MESH_SANDBOX_RUNNER=kubernetes` so docker-only dev stays the default.
  */
 export function tryResolveRunnerKindFromEnv(): RunnerKind | null {
   const raw = process.env.MESH_SANDBOX_RUNNER;
-  if (raw === "docker" || raw === "freestyle") return raw;
+  if (raw === "docker" || raw === "freestyle" || raw === "kubernetes") {
+    return raw;
+  }
   if (raw && raw.length > 0) {
     throw new Error(
-      `Unknown MESH_SANDBOX_RUNNER="${raw}" — expected "docker" or "freestyle".`,
+      `Unknown MESH_SANDBOX_RUNNER="${raw}" — expected "docker", "freestyle", or "kubernetes".`,
     );
   }
   if (process.env.FREESTYLE_API_KEY) return "freestyle";
@@ -104,7 +110,7 @@ export function resolveRunnerKindFromEnv(): RunnerKind {
   if (process.env.NODE_ENV === "production") {
     throw new Error(
       `MESH_SANDBOX_RUNNER must be set explicitly in production — ` +
-        `choose "docker" or "freestyle" (or set FREESTYLE_API_KEY).`,
+        `choose "docker", "freestyle", or "kubernetes" (or set FREESTYLE_API_KEY).`,
     );
   }
   throw new Error(
