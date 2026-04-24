@@ -30,7 +30,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
 import {
@@ -369,37 +368,6 @@ export function PreviewContent() {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleCopyUrl}>
                   Copy Current URL
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() =>
-                    previewIframeRef.current?.contentWindow?.history.go(
-                      -(
-                        previewIframeRef.current?.contentWindow?.history
-                          .length ?? 0
-                      ),
-                    )
-                  }
-                >
-                  Clear Browsing History
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() =>
-                    fetch(`${previewUrl}/_decopilot_vm/clear-cookies`, {
-                      method: "POST",
-                    })
-                  }
-                >
-                  Clear Cookies
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() =>
-                    fetch(`${previewUrl}/_decopilot_vm/clear-cache`, {
-                      method: "POST",
-                    })
-                  }
-                >
-                  Clear Cache
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

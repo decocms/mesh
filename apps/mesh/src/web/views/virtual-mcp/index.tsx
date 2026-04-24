@@ -2,7 +2,6 @@ import { generatePrefixedId } from "@/shared/utils/generate-id";
 import type { VirtualMCPEntity } from "@/tools/virtual/schema";
 import { getUIResourceUri } from "@/mcp-apps/types.ts";
 import { useChatPrefs, useChatTask } from "@/web/components/chat/context";
-import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
@@ -26,8 +25,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@deco/ui/components/dialog.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Card, CardContent, CardHeader } from "@deco/ui/components/card.tsx";
+import { Card, CardContent } from "@deco/ui/components/card.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
 import {
@@ -63,6 +68,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Settings02,
   Settings04,
+  Maximize01,
   Play,
   Plus,
   Stars01,
@@ -516,7 +522,6 @@ interface ConnectionWithTools {
 
 function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   const { org } = useProjectContext();
-  const navigate = useNavigate();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
@@ -855,195 +860,185 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
     });
   }
 
+  const hasPinnedContent =
+    connectionsData.length > 0 || noConnections || noInteractiveTools;
+
   return (
-    <div className="flex flex-col gap-6">
-      <Page.Title>Layout</Page.Title>
-      <div className="space-y-3">
-        {/* Default view card */}
-        <Card className="hover:bg-card p-6 gap-6">
-          <CardContent className="p-0 space-y-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-0.5">
-                <Label className="font-normal text-foreground">Main view</Label>
-                <p className="text-xs text-muted-foreground">
-                  Configure what users see when they first open this agent.
-                </p>
-              </div>
-              <Select
-                value={defaultMainView}
-                onValueChange={handleDefaultMainViewChange}
-              >
-                <SelectTrigger className="w-44 h-8 text-sm capitalize">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {defaultMainOptions.map((opt) => (
-                    <SelectItem
-                      key={opt.value}
-                      value={opt.value}
-                      className="capitalize"
-                    >
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-0.5">
-                <Label className="font-normal text-foreground">Show chat</Label>
-                <p className="text-xs text-muted-foreground">
-                  Display the chat panel alongside the main view
-                </p>
-              </div>
-              <Tooltip delayDuration={0}>
-                <TooltipTrigger asChild>
-                  <span>
-                    <Switch
-                      checked={
-                        defaultMainView === "chat" ? true : chatDefaultOpen
-                      }
-                      disabled={defaultMainView === "chat" || isSaving}
-                      onCheckedChange={(checked) => {
-                        setChatDefaultOpen(checked);
-                        saveLayout(pinnedViews, defaultMainView, checked);
-                      }}
-                    />
-                  </span>
-                </TooltipTrigger>
-                {defaultMainView === "chat" && (
-                  <TooltipContent side="top">
-                    Chat is always shown when it is the default view
-                  </TooltipContent>
-                )}
-              </Tooltip>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Pinned views card */}
-        <Card className="hover:bg-card p-6 gap-4">
-          <CardHeader className="p-0">
-            <span className="text-sm font-normal">Pinned views</span>
-          </CardHeader>
-          <CardContent className="p-0">
-            {noConnections && (
-              <p className="text-sm text-muted-foreground">
-                No connections yet. Add connections in the Connections tab to
-                configure pinned views.
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-medium text-foreground">Layout</h2>
+      </div>
+      <Card className="p-6 gap-5">
+        <CardContent className="p-0 space-y-5">
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-0.5 min-w-0">
+              <Label className="font-normal text-foreground">Main view</Label>
+              <p className="text-xs text-muted-foreground">
+                What users see when they first open this agent.
               </p>
-            )}
-            {noInteractiveTools && !noConnections && (
-              <p className="text-sm text-muted-foreground">
-                None of the connected servers have interactive tools available.
+            </div>
+            <Select
+              value={defaultMainView}
+              onValueChange={handleDefaultMainViewChange}
+            >
+              <SelectTrigger className="w-44 h-8 text-sm capitalize shrink-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {defaultMainOptions.map((opt) => (
+                  <SelectItem
+                    key={opt.value}
+                    value={opt.value}
+                    className="capitalize"
+                  >
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-0.5 min-w-0">
+              <Label className="font-normal text-foreground">Show chat</Label>
+              <p className="text-xs text-muted-foreground">
+                Display the chat panel alongside the main view.
               </p>
-            )}
-            {connectionsData.length > 0 && (
-              <div className="space-y-4">
-                {connectionsData.map((conn, connIdx) => (
-                  <div key={conn.id}>
-                    {connIdx > 0 && (
-                      <div className="border-t border-border -mx-6 mb-4" />
-                    )}
-                    <div className="flex items-center gap-2 mb-3">
-                      <IntegrationIcon
-                        icon={conn.icon}
-                        name={conn.title}
-                        size="xs"
-                        className="shrink-0"
-                      />
-                      <span className="text-sm font-medium text-muted-foreground">
-                        {conn.title}
-                      </span>
-                    </div>
-                    <div className="space-y-2">
-                      {conn.uiTools.map((tool) => {
-                        const pinned = pinnedViews.some(
-                          (v) =>
-                            v.connectionId === conn.id &&
-                            v.toolName === tool.name,
-                        );
-                        const pinnedView = pinnedViews.find(
-                          (v) =>
-                            v.connectionId === conn.id &&
-                            v.toolName === tool.name,
-                        );
-                        return (
-                          <div
-                            key={tool.name}
-                            className={cn(
-                              "flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-border transition-colors",
-                              pinned ? "bg-accent/30" : "bg-muted/20",
-                            )}
-                          >
-                            <div className="min-w-0 flex-1 flex items-center gap-2">
-                              <SimpleIconPicker
-                                value={pinnedView?.icon ?? null}
-                                onChange={(icon) =>
-                                  handleIconChange(conn.id, tool.name, icon)
+            </div>
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <span className="shrink-0">
+                  <Switch
+                    checked={
+                      defaultMainView === "chat" ? true : chatDefaultOpen
+                    }
+                    disabled={defaultMainView === "chat" || isSaving}
+                    onCheckedChange={(checked) => {
+                      setChatDefaultOpen(checked);
+                      saveLayout(pinnedViews, defaultMainView, checked);
+                    }}
+                  />
+                </span>
+              </TooltipTrigger>
+              {defaultMainView === "chat" && (
+                <TooltipContent side="top">
+                  Chat is always shown when it is the default view
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </div>
+        </CardContent>
+
+        {hasPinnedContent && (
+          <>
+            <div className="border-t border-border -mx-6" />
+            <CardContent className="p-0 space-y-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5 min-w-0">
+                  <Label className="font-normal text-foreground">
+                    Pinned views
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Surface interactive tools as top-level tabs in the agent.
+                  </p>
+                </div>
+              </div>
+              {noConnections && (
+                <p className="text-xs text-muted-foreground">
+                  Add a connection above to configure pinned views.
+                </p>
+              )}
+              {noInteractiveTools && !noConnections && (
+                <p className="text-xs text-muted-foreground">
+                  None of the connected servers expose interactive tools.
+                </p>
+              )}
+              {connectionsData.length > 0 && (
+                <div className="space-y-4 pt-1">
+                  {connectionsData.map((conn, connIdx) => (
+                    <div key={conn.id}>
+                      {connIdx > 0 && (
+                        <div className="border-t border-border -mx-6 mb-4" />
+                      )}
+                      <div className="flex items-center gap-2 mb-2.5">
+                        <IntegrationIcon
+                          icon={conn.icon}
+                          name={conn.title}
+                          size="xs"
+                          className="shrink-0"
+                        />
+                        <span className="text-xs font-medium text-muted-foreground">
+                          {conn.title}
+                        </span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {conn.uiTools.map((tool) => {
+                          const pinned = pinnedViews.some(
+                            (v) =>
+                              v.connectionId === conn.id &&
+                              v.toolName === tool.name,
+                          );
+                          const pinnedView = pinnedViews.find(
+                            (v) =>
+                              v.connectionId === conn.id &&
+                              v.toolName === tool.name,
+                          );
+                          return (
+                            <div
+                              key={tool.name}
+                              className={cn(
+                                "flex items-center justify-between gap-3 px-3 py-2 rounded-lg border transition-colors",
+                                pinned
+                                  ? "bg-accent/40 border-border"
+                                  : "bg-transparent border-border",
+                              )}
+                            >
+                              <div className="min-w-0 flex-1 flex items-center gap-2">
+                                <SimpleIconPicker
+                                  value={pinnedView?.icon ?? null}
+                                  onChange={(icon) =>
+                                    handleIconChange(conn.id, tool.name, icon)
+                                  }
+                                  disabled={!pinned || isSaving}
+                                />
+                                <Input
+                                  value={
+                                    pinned && pinnedView
+                                      ? pinnedView.label
+                                      : tool.name.replace(/_/g, " ")
+                                  }
+                                  onChange={(e) =>
+                                    handleLabelChange(
+                                      conn.id,
+                                      tool.name,
+                                      e.target.value,
+                                    )
+                                  }
+                                  onBlur={handleLabelBlur}
+                                  className="h-7 text-sm w-40 capitalize"
+                                  disabled={!pinned || isSaving}
+                                  readOnly={!pinned}
+                                />
+                              </div>
+                              <Switch
+                                checked={pinned}
+                                onCheckedChange={() =>
+                                  handleTogglePin(conn.id, tool.name)
                                 }
-                                disabled={!pinned || isSaving}
-                              />
-                              <Input
-                                value={
-                                  pinned && pinnedView
-                                    ? pinnedView.label
-                                    : tool.name.replace(/_/g, " ")
-                                }
-                                onChange={(e) =>
-                                  handleLabelChange(
-                                    conn.id,
-                                    tool.name,
-                                    e.target.value,
-                                  )
-                                }
-                                onBlur={handleLabelBlur}
-                                className="h-7 text-sm w-40 capitalize"
-                                disabled={!pinned || isSaving}
-                                readOnly={!pinned}
+                                disabled={isSaving}
                               />
                             </div>
-                            <Switch
-                              checked={pinned}
-                              onCheckedChange={() =>
-                                handleTogglePin(conn.id, tool.name)
-                              }
-                              disabled={isSaving}
-                            />
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <div className="flex justify-end">
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={() => {
-                  navigate({
-                    to: "/$org/$taskId",
-                    params: {
-                      org: org.slug,
-                      taskId: crypto.randomUUID(),
-                    },
-                    search: { virtualmcpid: virtualMcpId },
-                  });
-                }}
-              >
-                Test layout
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">Test agent page layout</TooltipContent>
-          </Tooltip>
-        </div>
-      </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </>
+        )}
+      </Card>
     </div>
   );
 }
@@ -1055,13 +1050,9 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
 
 function VirtualMcpDetailViewWithData({
   virtualMcp,
-  forceTab,
-  hideOwnTabBar,
   hideOwnTitle,
 }: {
   virtualMcp: VirtualMCPEntity;
-  forceTab?: "instructions" | "connections" | "layout";
-  hideOwnTabBar?: boolean;
   hideOwnTitle?: boolean;
 }) {
   const { org } = useProjectContext();
@@ -1093,19 +1084,7 @@ function VirtualMcpDetailViewWithData({
     settingsConnectionId: null,
   });
 
-  // Tab state — internal unless forced externally (e.g. by MainPanelContent)
-  const validTabIds = ["instructions", "connections", "layout"];
-  const [internalTab, setInternalTab] = useState(() => {
-    const stored = localStorage.getItem("agent-detail-tab") || "instructions";
-    // Migrate old "sidebar" tab to "layout"
-    const effective = stored === "sidebar" ? "layout" : stored;
-    return validTabIds.includes(effective) ? effective : "instructions";
-  });
-  const activeTab = forceTab ?? internalTab;
-  const setActiveTab = (id: string) => {
-    if (forceTab) return;
-    setInternalTab(id);
-  };
+  const [instructionsFullscreen, setInstructionsFullscreen] = useState(false);
   const { createTaskWithMessage } = useChatTask();
   const { setChatMode } = useChatPrefs();
   const { createNewTask } = usePanelActions();
@@ -1411,25 +1390,11 @@ Define step-by-step how the agent should handle requests.
     }
   };
 
-  // Variant-specific tabs
-  const tabs = [
-    {
-      id: "instructions",
-      label: "Instructions",
-    },
-    {
-      id: "connections",
-      label: "Connections",
-      count: connections.length || undefined,
-    },
-    { id: "layout", label: "Layout" },
-  ];
-
   return (
     <Page>
       <Page.Content>
         <Page.Body>
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-10">
             {!hideOwnTitle && (
               <Page.Title
                 actions={
@@ -1457,134 +1422,172 @@ Define step-by-step how the agent should handle requests.
               </Page.Title>
             )}
 
-            {/* Tabs */}
-            {!hideOwnTabBar && (
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <CollectionTabs
-                  tabs={tabs}
-                  activeTab={activeTab}
-                  onTabChange={(id) => {
-                    setActiveTab(id);
-                    localStorage.setItem("agent-detail-tab", id);
-                  }}
+            {/* Agent identity header */}
+            <div className="flex items-center gap-3">
+              <Controller
+                name="icon"
+                control={form.control}
+                render={({ field }) => (
+                  <IconPicker
+                    value={field.value ?? null}
+                    onChange={(icon) => {
+                      field.onChange(icon);
+                      saveForm();
+                    }}
+                    onColorChange={(color) => {
+                      form.setValue("metadata.ui.themeColor", color, {
+                        shouldDirty: true,
+                      });
+                      saveForm();
+                    }}
+                    name={form.watch("title") || "Agent"}
+                    size="md"
+                    className="shrink-0"
+                    avatarClassName="[&_svg]:w-1/2 [&_svg]:h-1/2"
+                    disabled={hasGithubRepo}
+                  />
+                )}
+              />
+              <div className="flex flex-col flex-1 min-w-0">
+                <Controller
+                  name="title"
+                  control={form.control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      type="text"
+                      value={field.value ?? ""}
+                      onBlur={() => {
+                        field.onBlur();
+                        saveForm();
+                      }}
+                      disabled={hasGithubRepo}
+                      placeholder="Agent name"
+                      className="text-lg font-medium leading-tight text-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate disabled:hover:bg-transparent disabled:focus:bg-transparent disabled:opacity-50"
+                    />
+                  )}
                 />
-                {activeTab === "connections" && (
+                <Controller
+                  name="description"
+                  control={form.control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      type="text"
+                      value={field.value ?? ""}
+                      onBlur={() => {
+                        field.onBlur();
+                        saveForm();
+                      }}
+                      disabled={hasGithubRepo}
+                      placeholder="Add a description..."
+                      className="text-sm text-muted-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate disabled:hover:bg-transparent disabled:focus:bg-transparent disabled:opacity-50"
+                    />
+                  )}
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() =>
+                  dispatch({
+                    type: "SET_SHARE_DIALOG_OPEN",
+                    payload: true,
+                  })
+                }
+              >
+                <span className="flex items-center -space-x-1.5 mr-0.5">
+                  <span className="inline-flex items-center justify-center size-4 rounded-full bg-black ring-1 ring-white/20 shrink-0">
+                    <img
+                      src="/logos/cursor.svg"
+                      alt="Cursor"
+                      className="size-2.5 brightness-0 invert"
+                    />
+                  </span>
+                  <span
+                    className="relative z-10 inline-flex items-center justify-center size-4 rounded-full ring-1 ring-background shrink-0"
+                    style={{ backgroundColor: "#D97757" }}
+                  >
+                    <img
+                      src="/logos/Claude Code.svg"
+                      alt="Claude"
+                      className="size-2.5 brightness-0 invert"
+                    />
+                  </span>
+                </span>
+                Connect
+              </Button>
+            </div>
+
+            {/* Connections section */}
+            <section className="flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-sm font-medium text-foreground">
+                  Connections
+                </h2>
+                {connections.length > 0 && (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={handleOpenAddDialog}
                   >
-                    <Plus size={13} />
-                    Add
+                    <Plus size={14} />
+                    Add connection
                   </Button>
                 )}
               </div>
-            )}
-
-            {/* Tab content */}
-            {activeTab === "instructions" && (
-              <>
-                <div className="flex items-center gap-3">
-                  <Controller
-                    name="icon"
-                    control={form.control}
-                    render={({ field }) => (
-                      <IconPicker
-                        value={field.value ?? null}
-                        onChange={(icon) => {
-                          field.onChange(icon);
-                          saveForm();
-                        }}
-                        onColorChange={(color) => {
-                          form.setValue("metadata.ui.themeColor", color, {
-                            shouldDirty: true,
-                          });
-                          saveForm();
-                        }}
-                        name={form.watch("title") || "Agent"}
-                        size="md"
-                        className="shrink-0"
-                        avatarClassName="[&_svg]:w-1/2 [&_svg]:h-1/2"
-                        disabled={hasGithubRepo}
-                      />
-                    )}
-                  />
-                  <div className="flex flex-col flex-1 min-w-0">
-                    <Controller
-                      name="title"
-                      control={form.control}
-                      render={({ field }) => (
-                        <input
-                          {...field}
-                          type="text"
-                          value={field.value ?? ""}
-                          onBlur={() => {
-                            field.onBlur();
-                            saveForm();
-                          }}
-                          disabled={hasGithubRepo}
-                          placeholder="Agent name"
-                          className="text-lg font-medium leading-tight text-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate disabled:hover:bg-transparent disabled:focus:bg-transparent disabled:opacity-50"
-                        />
-                      )}
-                    />
-                    <Controller
-                      name="description"
-                      control={form.control}
-                      render={({ field }) => (
-                        <input
-                          {...field}
-                          type="text"
-                          value={field.value ?? ""}
-                          onBlur={() => {
-                            field.onBlur();
-                            saveForm();
-                          }}
-                          disabled={hasGithubRepo}
-                          placeholder="Add a description..."
-                          className="text-sm text-muted-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate disabled:hover:bg-transparent disabled:focus:bg-transparent disabled:opacity-50"
-                        />
-                      )}
-                    />
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0"
-                    onClick={() =>
-                      dispatch({
-                        type: "SET_SHARE_DIALOG_OPEN",
-                        payload: true,
-                      })
-                    }
+              <div className="flex flex-col gap-2">
+                {connections.length === 0 ? (
+                  <button
+                    type="button"
+                    onClick={handleOpenAddDialog}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-dashed border-border hover:bg-accent/50 transition-colors w-full text-left cursor-pointer"
                   >
-                    <span className="flex items-center -space-x-1.5 mr-0.5">
-                      {/* Cursor — behind */}
-                      <span className="inline-flex items-center justify-center size-4 rounded-full bg-black ring-1 ring-white/20 shrink-0">
-                        <img
-                          src="/logos/cursor.svg"
-                          alt="Cursor"
-                          className="size-2.5 brightness-0 invert"
-                        />
-                      </span>
-                      {/* Claude — on top */}
-                      <span
-                        className="relative z-10 inline-flex items-center justify-center size-4 rounded-full ring-1 ring-background shrink-0"
-                        style={{ backgroundColor: "#D97757" }}
-                      >
-                        <img
-                          src="/logos/Claude Code.svg"
-                          alt="Claude"
-                          className="size-2.5 brightness-0 invert"
-                        />
-                      </span>
+                    <div className="flex items-center justify-center size-8 rounded-md text-muted-foreground/75 border border-dashed border-border shrink-0">
+                      <Plus size={16} />
+                    </div>
+                    <span className="text-sm text-muted-foreground">
+                      No connections yet. Add one to get started.
                     </span>
-                    Connect
-                  </Button>
-                </div>
+                  </button>
+                ) : (
+                  connections.map((conn) => (
+                    <ErrorBoundary
+                      key={conn.connection_id}
+                      fallback={() => null}
+                    >
+                      <Suspense fallback={<ConnectionItemSkeleton />}>
+                        <ConnectionItem
+                          connection_id={conn.connection_id}
+                          usedConnectionIds={addedConnectionIds}
+                          onOpenSettings={() =>
+                            handleOpenSettings(conn.connection_id)
+                          }
+                          onRemove={() =>
+                            handleRemoveConnection(conn.connection_id)
+                          }
+                          onAuthenticate={handleAuthenticate}
+                          onSwitchInstance={handleSwitchInstance}
+                          onNewInstance={() =>
+                            handleNewInstance(conn.connection_id)
+                          }
+                        />
+                      </Suspense>
+                    </ErrorBoundary>
+                  ))
+                )}
+              </div>
+            </section>
 
+            {/* Instructions section */}
+            <section className="flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-sm font-medium text-foreground">
+                  Instructions
+                </h2>
                 {!hasGithubRepo && (
-                  <div className="flex items-center justify-end gap-2">
+                  <div className="flex items-center gap-2">
                     {!form.watch("metadata.instructions")?.trim() && (
                       <Button
                         variant="outline"
@@ -1605,11 +1608,12 @@ Define step-by-step how the agent should handle requests.
                     </Button>
                   </div>
                 )}
-
-                <Controller
-                  name="metadata.instructions"
-                  control={form.control}
-                  render={({ field }) => (
+              </div>
+              <Controller
+                name="metadata.instructions"
+                control={form.control}
+                render={({ field }) => (
+                  <div className="relative rounded-xl card-shadow bg-card focus-within:ring-1 focus-within:ring-ring">
                     <Textarea
                       {...field}
                       value={field.value ?? ""}
@@ -1619,75 +1623,31 @@ Define step-by-step how the agent should handle requests.
                       }}
                       disabled={hasGithubRepo}
                       placeholder="Define how this agent should behave, what tone to use, any constraints or guidelines..."
-                      className="min-h-[300px] flex-1 resize-none text-base text-muted-foreground placeholder:text-muted-foreground/40 leading-relaxed border-0 rounded-none shadow-none px-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-0 bg-transparent"
+                      className="min-h-[200px] max-h-[360px] overflow-auto resize-none text-base text-muted-foreground placeholder:text-muted-foreground/40 leading-relaxed border-0 shadow-none px-4 py-3 pr-11 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
                       style={{ boxShadow: "none" }}
                     />
-                  )}
-                />
-              </>
-            )}
+                    <Tooltip delayDuration={0}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute top-2 right-2 h-7 w-7 text-muted-foreground"
+                          onClick={() => setInstructionsFullscreen(true)}
+                          aria-label="Open fullscreen editor"
+                        >
+                          <Maximize01 size={14} />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left">Fullscreen</TooltipContent>
+                    </Tooltip>
+                  </div>
+                )}
+              />
+            </section>
 
-            {activeTab === "connections" && (
-              <div className="flex flex-col gap-6">
-                <Page.Title
-                  actions={
-                    connections.length > 0 ? (
-                      <Button size="sm" onClick={handleOpenAddDialog}>
-                        <Plus size={14} />
-                        Add connection
-                      </Button>
-                    ) : undefined
-                  }
-                >
-                  Connections
-                </Page.Title>
-                <div className="flex flex-col gap-2">
-                  {connections.length === 0 ? (
-                    <button
-                      type="button"
-                      onClick={handleOpenAddDialog}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-dashed border-border hover:bg-accent/50 transition-colors w-full text-left cursor-pointer"
-                    >
-                      <div className="flex items-center justify-center size-8 rounded-md text-muted-foreground/75 border border-dashed border-border shrink-0">
-                        <Plus size={16} />
-                      </div>
-                      <span className="text-sm text-muted-foreground">
-                        No connections yet. Add one to get started.
-                      </span>
-                    </button>
-                  ) : (
-                    connections.map((conn) => (
-                      <ErrorBoundary
-                        key={conn.connection_id}
-                        fallback={() => null}
-                      >
-                        <Suspense fallback={<ConnectionItemSkeleton />}>
-                          <ConnectionItem
-                            connection_id={conn.connection_id}
-                            usedConnectionIds={addedConnectionIds}
-                            onOpenSettings={() =>
-                              handleOpenSettings(conn.connection_id)
-                            }
-                            onRemove={() =>
-                              handleRemoveConnection(conn.connection_id)
-                            }
-                            onAuthenticate={handleAuthenticate}
-                            onSwitchInstance={handleSwitchInstance}
-                            onNewInstance={() =>
-                              handleNewInstance(conn.connection_id)
-                            }
-                          />
-                        </Suspense>
-                      </ErrorBoundary>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-
-            {activeTab === "layout" && (
-              <LayoutTabContent virtualMcpId={virtualMcp.id} />
-            )}
+            {/* Layout section */}
+            <LayoutTabContent virtualMcpId={virtualMcp.id} />
           </div>
         </Page.Body>
       </Page.Content>
@@ -1746,6 +1706,37 @@ Define step-by-step how the agent should handle requests.
         }
         virtualMcp={virtualMcp}
       />
+
+      <Dialog
+        open={instructionsFullscreen}
+        onOpenChange={setInstructionsFullscreen}
+      >
+        <DialogContent className="max-w-4xl w-[90vw] h-[85vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-6 pt-6 pb-3 border-b border-border shrink-0">
+            <DialogTitle>Instructions</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 p-6">
+            <Controller
+              name="metadata.instructions"
+              control={form.control}
+              render={({ field }) => (
+                <Textarea
+                  {...field}
+                  value={field.value ?? ""}
+                  onBlur={() => {
+                    field.onBlur();
+                    saveForm();
+                  }}
+                  disabled={hasGithubRepo}
+                  placeholder="Define how this agent should behave, what tone to use, any constraints or guidelines..."
+                  className="w-full h-full resize-none text-base text-muted-foreground placeholder:text-muted-foreground/40 leading-relaxed rounded-xl card-shadow px-4 py-3 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 bg-card border-0"
+                  style={{ boxShadow: "none" }}
+                />
+              )}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </Page>
   );
 }
@@ -1756,13 +1747,9 @@ Define step-by-step how the agent should handle requests.
 
 export function VirtualMcpDetailView({
   virtualMcpId,
-  forceTab,
-  hideOwnTabBar,
   hideOwnTitle,
 }: {
   virtualMcpId: string;
-  forceTab?: "instructions" | "connections" | "layout";
-  hideOwnTabBar?: boolean;
   hideOwnTitle?: boolean;
 }) {
   const navigate = useNavigate();
@@ -1797,8 +1784,6 @@ export function VirtualMcpDetailView({
     <VirtualMcpDetailViewWithData
       key={getActiveGithubRepo(virtualMcp)?.connectionId ?? ""}
       virtualMcp={virtualMcp}
-      forceTab={forceTab}
-      hideOwnTabBar={hideOwnTabBar}
       hideOwnTitle={hideOwnTitle}
     />
   );

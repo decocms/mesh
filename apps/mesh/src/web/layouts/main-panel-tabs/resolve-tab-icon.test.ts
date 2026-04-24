@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { Lightning01, Sliders01 } from "@untitledui/icons";
+import { LayoutAlt04, Lightning01 } from "@untitledui/icons";
 import { resolveTabIcon, SYSTEM_TAB_ICONS } from "./resolve-tab-icon";
 
 type TestConn = { id: string; icon: string | null };
 
 describe("SYSTEM_TAB_ICONS", () => {
   test("covers every fixed system tab", () => {
-    expect(SYSTEM_TAB_ICONS.settings).toBe(Sliders01);
+    expect(SYSTEM_TAB_ICONS.settings).toBe(LayoutAlt04);
     expect(SYSTEM_TAB_ICONS.automations).toBe(Lightning01);
     expect(SYSTEM_TAB_ICONS.env).toBeDefined();
     expect(SYSTEM_TAB_ICONS.preview).toBeDefined();
@@ -27,7 +27,7 @@ describe("resolveTabIcon", () => {
         kind: "system",
         connections: conns,
       }),
-    ).toEqual({ kind: "component", Component: Sliders01 });
+    ).toEqual({ kind: "component", Component: LayoutAlt04 });
   });
 
   test("agent ext-app with connection icon URL → url kind", () => {

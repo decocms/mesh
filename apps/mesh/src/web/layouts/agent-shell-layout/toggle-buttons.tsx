@@ -6,9 +6,18 @@
  *     via the header tab bar).
  *   - Decopilot: tasks + main-view toggles (no tab bar; the main toggle
  *     replaces it).
+ *
+ * When the tasks panel is closed, an additional "new task" button slides
+ * in via a grid-cols animation so the shortcut is always reachable
+ * without stealing visual weight when tasks are already visible.
  */
 
-import { LayoutRight, Menu02, MessageCircle01 } from "@untitledui/icons";
+import {
+  Edit05,
+  LayoutRight,
+  Menu02,
+  MessageCircle01,
+} from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.js";
 import { useTasksPanelState } from "@/web/hooks/use-tasks-panel-state";
 
@@ -18,6 +27,8 @@ export interface ToggleButtonsProps {
   mainOpen: boolean;
   toggleChat: () => void;
   toggleMain: () => void;
+  /** When set, reveals an animated "new task" button next to the chat toggle. */
+  onNewTask?: () => void;
 }
 
 const TOGGLE_BASE =
@@ -32,8 +43,10 @@ export function ToggleButtons({
   mainOpen,
   toggleChat,
   toggleMain,
+  onNewTask,
 }: ToggleButtonsProps) {
   const { tasksOpen, toggleTasks } = useTasksPanelState();
+  const showNewTask = !!onNewTask;
 
   return (
     <>
@@ -73,6 +86,33 @@ export function ToggleButtons({
           <MessageCircle01 size={16} />
         </button>
       )}
+      <div
+        className={cn(
+          "grid transition-[grid-template-columns] duration-200 ease-[var(--ease-out-quart)]",
+          showNewTask ? "grid-cols-[1fr]" : "grid-cols-[0fr]",
+        )}
+      >
+        <div className="overflow-hidden">
+          <button
+            type="button"
+            onClick={onNewTask}
+            disabled={!showNewTask}
+            tabIndex={showNewTask ? 0 : -1}
+            aria-hidden={!showNewTask}
+            className={cn(
+              TOGGLE_BASE,
+              TOGGLE_INACTIVE,
+              "transition-[transform,opacity] duration-200 ease-[var(--ease-out-quart)] will-change-transform",
+              showNewTask
+                ? "translate-x-0 opacity-100"
+                : "-translate-x-2 opacity-0",
+            )}
+            title="New task"
+          >
+            <Edit05 size={16} />
+          </button>
+        </div>
+      </div>
     </>
   );
 }

@@ -144,17 +144,17 @@ export function useMainPanelTabs(ctx: {
   const automationTabParsed = parseAutomationTabId(activeTab);
 
   // Unified "settings" tab bundles instructions, connections, and layout
-  // into a single detail view. GitHub-linked vMCPs get env/preview/git
-  // appended at the end; plain vMCPs just show settings + automations.
-  const systemTabs: Array<{ id: string; title: string }> = [
-    { id: "settings", title: "Settings" },
-    { id: "automations", title: "Automations" },
-  ];
+  // into a single detail view. On GitHub-linked vMCPs the contextual
+  // work tabs (Preview, Terminal, git) come first so they're closest
+  // to the panel; Settings + Automations stay anchored at the right.
+  const systemTabs: Array<{ id: string; title: string }> = [];
   if (hasActiveGithubRepo) {
-    systemTabs.push({ id: "env", title: "Terminal" });
     systemTabs.push({ id: "preview", title: "Preview" });
+    systemTabs.push({ id: "env", title: "Terminal" });
     systemTabs.push({ id: "git", title: search.branch ?? "git" });
   }
+  systemTabs.push({ id: "settings", title: "Settings" });
+  systemTabs.push({ id: "automations", title: "Automations" });
 
   // Merge pinned views + per-task expanded tools into a single list keyed
   // by the pinned-view tab id. Pinned views win on dedupe so the
