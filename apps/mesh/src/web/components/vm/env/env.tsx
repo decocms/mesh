@@ -326,7 +326,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
       if (urlBranch) args.branch = urlBranch;
       const data = (await callTool("VM_START", args)) as VmData;
 
-      if (!data.previewUrl || !data.vmId || !data.branch) {
+      if (!data.vmId || !data.branch) {
         throw new Error("Invalid VM response — missing fields");
       }
 
