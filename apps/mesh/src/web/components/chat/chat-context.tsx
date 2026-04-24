@@ -105,6 +105,15 @@ export interface ChatTaskContextValue {
   hideTask: (taskId: string) => Promise<void>;
   renameTask: (taskId: string, title: string) => Promise<void>;
   setTaskStatus: (taskId: string, status: string) => Promise<void>;
+  /** Derived from thread.branch, falling back to `?branch=` for fresh threads. */
+  currentBranch: string | null;
+  /**
+   * Immutable once set: switching branches mid-conversation would reroute the
+   * thread's vmMap entry, so users must create a new thread for another branch.
+   */
+  isBranchLocked: boolean;
+  /** Persist pinned branch and sync URL so it survives cross-thread navigation. */
+  setCurrentTaskBranch: (branch: string | null) => void;
   ownerFilter: TaskOwnerFilter;
   setOwnerFilter: (filter: TaskOwnerFilter) => void;
   isFilterChangePending: boolean;
@@ -153,6 +162,7 @@ export interface ChatPrefsContextValue {
 
 export interface ChatBridgeValue {
   sendMessage: (params: SendMessageParams) => Promise<void>;
+  isStreaming: boolean;
 }
 
 // ============================================================================
@@ -169,6 +179,7 @@ const BRIDGE_NOOP: ChatBridgeValue = {
       "[ChatBridge] sendMessage called but ActiveTaskProvider not mounted",
     );
   },
+  isStreaming: false,
 };
 
 /** Internal-only type for cross-provider communication */
@@ -195,7 +206,15 @@ interface TaskProviderInternals {
 const ChatStreamCtx = createContext<ChatStreamContextValue | null>(null);
 const ChatTaskCtx = createContext<ChatTaskContextValue | null>(null);
 const ChatPrefsCtx = createContext<ChatPrefsContextValue | null>(null);
-const ChatBridgeCtx = createContext<ChatBridgeValue>(BRIDGE_NOOP);
+/**
+ * ChatBridgeCtx holds a RefObject (not a value) so consumers outside
+ * ActiveTaskProvider always read the latest sendMessage/isStreaming via
+ * `.current` at call time — avoids stale closures when ActiveTaskProvider
+ * mutates the ref after initial render.
+ */
+const ChatBridgeCtx = createContext<React.RefObject<ChatBridgeValue>>({
+  current: BRIDGE_NOOP,
+});
 
 /** Internal context for passing TaskProvider internals to ActiveTaskProvider */
 const TaskInternalsCtx = createContext<TaskProviderInternals | null>(null);
@@ -216,8 +235,10 @@ export function ChatContextProvider({
   const {
     taskId: urlTaskId,
     virtualMcpOverride,
+    branch: urlBranch,
     navigateToTask: rawNavigateToTask,
     setVirtualMcpOverride,
+    setBranch,
   } = useChatNavigation();
 
   // Preferences
@@ -491,14 +512,26 @@ export function ChatContextProvider({
 
   const clearPendingMessage = () => setPendingMessage(null);
 
-  // Navigate to task with read tracking
+  // Atomically syncs URL `?branch=` to thread.branch so the preview iframe
+  // picks the right vmMap entry on first paint (no flicker through unset-branch).
   const navigateToTask = (
     taskId: string,
-    opts?: { virtualMcpOverride?: string },
+    opts?: { virtualMcpOverride?: string; branch?: string | null },
   ) => {
     markTaskRead(taskId);
-    rawNavigateToTask(taskId, opts);
+    const task = tasks.find((t) => t.id === taskId);
+    const resolvedBranch =
+      opts?.branch !== undefined ? opts.branch : (task?.branch ?? null);
+    rawNavigateToTask(taskId, {
+      virtualMcpOverride: opts?.virtualMcpOverride,
+      branch: resolvedBranch,
+    });
   };
+
+  // thread.branch is authoritative; URL `?branch=` is only a seed for fresh tasks.
+  const activeTask = tasks.find((t) => t.id === effectiveTaskId);
+  const currentBranch = activeTask?.branch ?? urlBranch ?? null;
+  const isBranchLocked = !!activeTask?.branch;
 
   // Create task (optimistic + navigate), returns new task ID
   const createTask = (): string => {
@@ -551,6 +584,16 @@ export function ChatContextProvider({
     hideTask,
     renameTask: taskManager.renameTask,
     setTaskStatus: taskManager.setTaskStatus,
+    currentBranch,
+    isBranchLocked,
+    setCurrentTaskBranch: (branch: string | null) => {
+      // URL first so the preview panel picks up the new vmMap entry this render;
+      // thread persistence follows for subsequent navigations back to this thread.
+      setBranch(branch);
+      if (effectiveTaskId) {
+        taskManager.setTaskBranch(effectiveTaskId, branch);
+      }
+    },
     ownerFilter: taskManager.ownerFilter,
     setOwnerFilter: taskManager.setOwnerFilter,
     isFilterChangePending: taskManager.isFilterChangePending ?? false,
@@ -609,7 +652,7 @@ export function ChatContextProvider({
   return (
     <ChatTaskCtx.Provider value={taskValue}>
       <ChatPrefsCtx.Provider value={prefsValue}>
-        <ChatBridgeCtx.Provider value={bridgeRef.current}>
+        <ChatBridgeCtx.Provider value={bridgeRef}>
           <TaskInternalsCtx.Provider value={internals}>
             {children}
           </TaskInternalsCtx.Provider>
@@ -627,8 +670,13 @@ export function ActiveTaskProvider({
   taskId,
   children,
 }: PropsWithChildren<{ taskId: string }>) {
-  const { virtualMcpId, tasks, pendingMessage, clearPendingMessage } =
-    useChatTask();
+  const {
+    virtualMcpId,
+    tasks,
+    pendingMessage,
+    clearPendingMessage,
+    currentBranch,
+  } = useChatTask();
   const {
     selectedModel,
     imageModel,
@@ -737,7 +785,7 @@ export function ActiveTaskProvider({
     messages.length > 0;
 
   // Stream manager (SSE + resume) — task-scoped
-  useStreamManager(taskId, org.id, chat);
+  useStreamManager(taskId, org.id, chat, thread?.status);
 
   // sendMessage — captures context at call time
   async function sendMessageInternal(params: SendMessageParams): Promise<void> {
@@ -764,6 +812,7 @@ export function ActiveTaskProvider({
       created_at: new Date().toISOString(),
       thread_id: capturedTaskId,
       agent: { id: capturedVirtualMcpId },
+      ...(currentBranch ? { branch: currentBranch } : {}),
       user: {
         avatar: user?.image ?? undefined,
         name: user?.name ?? "you",
@@ -860,7 +909,10 @@ export function ActiveTaskProvider({
   };
 
   // Register sendMessage on the bridge so TaskProvider-level code can call it
-  bridgeRef.current = { sendMessage: sendMessageInternal };
+  bridgeRef.current = {
+    sendMessage: sendMessageInternal,
+    isStreaming: chat.status === "submitted" || chat.status === "streaming",
+  };
 
   // Consume pending message when this task is the target
   const pendingConsumedRef = useRef<string | null>(null);
@@ -943,5 +995,15 @@ export function useOptionalChatPrefs(): ChatPrefsContextValue | null {
 }
 
 export function useChatBridge(): ChatBridgeValue {
-  return useContext(ChatBridgeCtx);
+  const ref = useContext(ChatBridgeCtx);
+  // Return wrappers that read .current at call time. Destructuring
+  // `{ sendMessage }` still sees the latest implementation even when the
+  // ref is mutated after this hook call (which is the case when
+  // ActiveTaskProvider registers sendMessage after the consumer mounts).
+  return {
+    sendMessage: (params) => ref.current.sendMessage(params),
+    get isStreaming() {
+      return ref.current.isStreaming;
+    },
+  };
 }

@@ -2,12 +2,18 @@
  * Pure helpers for the `?main=<tabId>|0` URL model.
  *
  * Tab id grammar:
- *   - Fixed system: "instructions" | "connections" | "layout" | "env" | "preview"
+ *   - Fixed system: "instructions" | "connections" | "layout" | "env" | "preview" | "git"
  *   - Agent-declared: <agentTab.id> (from virtualMcp.metadata.ui.layout.tabs)
  *   - Expanded-from-chat: <toolName> (from task.metadata.expanded_tools)
  *   - Pinned view: "app:<connectionId>:<toolName>" (from metadata.ui.pinnedViews)
  *   - Ephemeral automation: "automation:<id>"
  *   - "0" = closed sentinel (not an actual tab id)
+ *
+ * GitHub-linked Virtual MCPs hide the "Instructions" tab and replace it
+ * with a "git" tab in the header. Resolution helpers accept an optional
+ * `hasActiveGithubRepo` flag so "instructions" fallbacks (and an explicit
+ * `?main=instructions` in the URL) are coerced to "git", keeping the
+ * panel body and the tab bar in sync.
  */
 
 export interface EntityLayoutMetadata {
@@ -69,18 +75,32 @@ export const FIXED_SYSTEM_TABS = [
   "layout",
   "env",
   "preview",
+  "git",
 ] as const;
 
 const FIXED_SYSTEM_TAB_SET = new Set<string>(FIXED_SYSTEM_TABS);
 
+/**
+ * Coerce "instructions" → "git" when the entity is linked to a GitHub
+ * repo. The header tab bar replaces the Instructions tab with a Git tab
+ * in that mode; this keeps the panel body in sync regardless of where
+ * the "instructions" id originates (URL, defaultMainView, fallback).
+ */
+function coerceForGithub(tabId: string, hasActiveGithubRepo: boolean): string {
+  if (hasActiveGithubRepo && tabId === "instructions") return "git";
+  return tabId;
+}
+
 export function resolveDefaultTabId(
   metadata: EntityLayoutMetadata | null,
+  hasActiveGithubRepo = false,
 ): string {
   const def = metadata?.defaultMainView ?? null;
-  if (!def) return "instructions";
+  if (!def) return coerceForGithub("instructions", hasActiveGithubRepo);
 
   // Direct mapping for any fixed system tab id.
-  if (FIXED_SYSTEM_TAB_SET.has(def.type)) return def.type;
+  if (FIXED_SYSTEM_TAB_SET.has(def.type))
+    return coerceForGithub(def.type, hasActiveGithubRepo);
 
   // Legacy: "settings" used to be its own tab; the settings card now
   // lives inside the Layout tab.
@@ -94,18 +114,27 @@ export function resolveDefaultTabId(
       return formatPinnedViewTabId(def.id, def.toolName);
     }
     const declaredTabIds = metadata?.tabs?.map((t) => t.id) ?? [];
-    if (def.id && declaredTabIds.includes(def.id)) return def.id;
-    return declaredTabIds[0] ?? "instructions";
+    if (def.id && declaredTabIds.includes(def.id))
+      return coerceForGithub(def.id, hasActiveGithubRepo);
+    return coerceForGithub(
+      declaredTabIds[0] ?? "instructions",
+      hasActiveGithubRepo,
+    );
   }
 
-  return metadata?.tabs?.[0]?.id ?? "instructions";
+  return coerceForGithub(
+    metadata?.tabs?.[0]?.id ?? "instructions",
+    hasActiveGithubRepo,
+  );
 }
 
 export function resolveActiveTabAndOpen(ctx: {
   mainParam: string | undefined;
   metadata: EntityLayoutMetadata | null;
+  hasActiveGithubRepo?: boolean;
 }): { mainOpen: boolean; activeTab: string } {
-  const def = resolveDefaultTabId(ctx.metadata);
+  const hasActiveGithubRepo = ctx.hasActiveGithubRepo ?? false;
+  const def = resolveDefaultTabId(ctx.metadata, hasActiveGithubRepo);
 
   if (ctx.mainParam === "0") {
     return { mainOpen: false, activeTab: def };
@@ -118,7 +147,12 @@ export function resolveActiveTabAndOpen(ctx: {
     const defaultIsChat = view == null || view.type === "chat";
     return { mainOpen: !defaultIsChat, activeTab: def };
   }
-  return { mainOpen: true, activeTab: ctx.mainParam };
+  // Coerce an explicit ?main=instructions to "git" in GitHub mode so
+  // bookmarked URLs don't desync from the header tab bar.
+  return {
+    mainOpen: true,
+    activeTab: coerceForGithub(ctx.mainParam, hasActiveGithubRepo),
+  };
 }
 
 /**

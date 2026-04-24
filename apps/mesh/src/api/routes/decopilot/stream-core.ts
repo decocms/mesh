@@ -10,7 +10,11 @@ import type { MeshContext } from "@/core/mesh-context";
 import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 import { monitorLlmCall } from "@/monitoring/emit-llm-call";
 import { recordLlmCallMetrics } from "@/monitoring/record-llm-call-metrics";
-import { isDecopilot, sanitizeProviderMetadata } from "@decocms/mesh-sdk";
+import {
+  type GithubRepo,
+  isDecopilot,
+  sanitizeProviderMetadata,
+} from "@decocms/mesh-sdk";
 import { SpanStatusCode } from "@opentelemetry/api";
 import {
   type ToolSet,
@@ -23,6 +27,7 @@ import { createEnableToolsTool } from "./built-in-tools/enable-tools";
 import {
   buildBasePlatformPrompt,
   buildDecopilotAgentPrompt,
+  buildRepoEnvironmentPrompt,
   DEFAULT_MAX_TOKENS,
   DEFAULT_THREAD_TITLE,
   DEFAULT_WINDOW_SIZE,
@@ -101,6 +106,8 @@ export interface StreamCoreInput {
   windowSize?: number;
   abortSignal?: AbortSignal;
   isResume?: boolean;
+  /** Persisted to the thread row on first-message creation. */
+  branch?: string | null;
 }
 
 export interface StreamCoreDeps {
@@ -206,10 +213,12 @@ async function streamCoreInner(
         defaultWindowSize: windowSize,
         triggerId: input.triggerId,
         virtualMcpId: input.agent.id,
+        branch: input.branch ?? null,
       }),
     ]);
 
     taskId = mem.thread.id;
+    ctx.metadata.threadId = mem.thread.id;
     rootSpan.setAttribute("decopilot.thread.id", mem.thread.id);
 
     if (mem.thread.created_by !== input.userId) {
@@ -410,15 +419,33 @@ async function streamCoreInner(
                 { ctx, isPlanMode: modeConfig.isPlanMode },
               );
 
-        // Resolve active VM for the current user — when present, VM file tools
-        // replace the QuickJS sandbox in the built-in tool set.
-        const activeVmEntry = (
-          virtualMcp.metadata as {
-            activeVms?: Record<string, { previewUrl: string }>;
-          }
-        )?.activeVms?.[input.userId];
+        // Resolve active VM for (user, branch). Per-entry `runnerKind` drives
+        // transport dispatch inside `getBuiltInTools`.
+        const vmMetadata = virtualMcp.metadata as {
+          vmMap?: Record<
+            string,
+            Record<
+              string,
+              {
+                vmId: string;
+                previewUrl: string;
+                runnerKind?: "docker" | "freestyle";
+              }
+            >
+          >;
+          githubRepo?: GithubRepo | null;
+        };
+        const activeVmEntry =
+          input.branch && input.userId
+            ? vmMetadata?.vmMap?.[input.userId]?.[input.branch]
+            : undefined;
         const activeVm = activeVmEntry
-          ? { vmBaseUrl: activeVmEntry.previewUrl }
+          ? {
+              runnerKind: (activeVmEntry.runnerKind ?? "freestyle") as
+                | "docker"
+                | "freestyle",
+              vmId: activeVmEntry.vmId,
+            }
           : null;
 
         const builtInTools = isCliAgent
@@ -429,7 +456,6 @@ async function streamCoreInner(
                 provider,
                 organization,
                 models: input.models,
-                userId: input.userId,
                 toolApprovalLevel: input.toolApprovalLevel,
                 isPlanMode: modeConfig.isPlanMode,
                 toolOutputMap,
@@ -499,10 +525,15 @@ async function streamCoreInner(
             ? modeConfig.webSearchInstructionPrompt
             : null;
 
+        const repoEnvironmentPrompt = vmMetadata?.githubRepo
+          ? buildRepoEnvironmentPrompt(vmMetadata.githubRepo)
+          : null;
+
         const systemPrompts = [
           basePrompt,
           planModePrompt,
           webSearchPrompt,
+          repoEnvironmentPrompt,
           toolCatalog,
           promptCatalog,
           agentPrompt,

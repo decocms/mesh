@@ -382,6 +382,29 @@ async function copyRootReadme() {
   }
 }
 
+// QuickJS's emscripten loader resolves `new URL("emscripten-module.wasm",
+// import.meta.url)` — on Linux bun in production this can resolve relative
+// to the bundle output (dist/server/) rather than the externalized package,
+// causing ENOENT. Copy the WASM alongside the bundles as a safety net so the
+// file exists at whichever location bun looks.
+async function copyQuickjsWasm() {
+  console.log("📄 Copying QuickJS WASM...");
+
+  const wasmSource = join(
+    OUTPUT_DIR,
+    "node_modules/@jitl/quickjs-wasmfile-release-sync/dist/emscripten-module.wasm",
+  );
+  const wasmDest = join(OUTPUT_DIR, "emscripten-module.wasm");
+
+  if (!existsSync(wasmSource)) {
+    console.warn(`⚠️  QuickJS WASM not found at ${wasmSource}, skipping...`);
+    return;
+  }
+
+  await cp(wasmSource, wasmDest);
+  console.log(`✅ QuickJS WASM copied to ${wasmDest}`);
+}
+
 async function main() {
   // Prune node_modules to only include required dependencies for both scripts
   const packagesToExternalize = await pruneNodeModules();
@@ -394,11 +417,15 @@ async function main() {
   // Copy root README.md to dist folder
   await copyRootReadme();
 
+  // Copy QuickJS WASM alongside bundles as a safety net for path resolution
+  await copyQuickjsWasm();
+
   console.log("\n🎉 Build completed successfully!");
   console.log(`📦 Output directory: ${OUTPUT_DIR}`);
   console.log(`   - migrate.js`);
   console.log(`   - server.js`);
   console.log(`   - cli.js`);
+  console.log(`   - emscripten-module.wasm`);
   console.log(`   - node_modules/`);
   console.log(`   - ../README.md`);
 }

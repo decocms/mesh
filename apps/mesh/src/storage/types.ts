@@ -745,6 +745,8 @@ export interface ThreadTable {
   >;
   /** Virtual MCP (agent) this thread was initiated with */
   virtual_mcp_id: string;
+  /** Git branch this thread is pinned to (GitHub-linked virtualmcps only) */
+  branch: string | null;
   /** Per-task UI state (e.g., expanded_tools for right-panel tabs) */
   metadata: ColumnType<ThreadMetadata, string | undefined, string>;
   created_at: ColumnType<Date, Date | string, never>;
@@ -783,6 +785,8 @@ export interface Thread {
   run_started_at: string | null;
   /** Virtual MCP (agent) this thread was initiated with */
   virtual_mcp_id: string;
+  /** Git branch this thread is pinned to (GitHub-linked virtualmcps only) */
+  branch: string | null;
   metadata: ThreadMetadata;
 }
 
@@ -965,6 +969,15 @@ export interface KVTable {
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }
 
+export interface SandboxRunnerStateTable {
+  user_id: string;
+  project_ref: string;
+  runner_kind: string;
+  handle: string;
+  state: ColumnType<Record<string, unknown>, string, string>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+}
+
 // ============================================================================
 // Organization Domain Table Definition
 // ============================================================================
@@ -1110,4 +1123,6 @@ export interface Database {
 
   // Organization domain claims (for auto-join)
   organization_domains: OrganizationDomainTable;
+
+  sandbox_runner_state: SandboxRunnerStateTable;
 }

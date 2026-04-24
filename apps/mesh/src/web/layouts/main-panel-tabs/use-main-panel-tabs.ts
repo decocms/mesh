@@ -95,7 +95,10 @@ export function useMainPanelTabs(ctx: {
   taskId: string;
 }): MainPanelTabs {
   const navigate = useNavigate();
-  const search = useSearch({ strict: false }) as { main?: string };
+  const search = useSearch({ strict: false }) as {
+    main?: string;
+    branch?: string;
+  };
   const entity = useVirtualMCP(ctx.virtualMcpId);
   const metadata = useTaskMetadata(ctx.taskId);
 
@@ -136,19 +139,23 @@ export function useMainPanelTabs(ctx: {
           tabs: layoutTabs.map((t) => ({ id: t.id })),
         }
       : null,
+    hasActiveGithubRepo,
   });
 
   const automationTabParsed = parseAutomationTabId(activeTab);
 
-  const systemTabs: Array<{ id: string; title: string }> = [
-    { id: "instructions", title: "Instructions" },
-    { id: "connections", title: "Connections" },
-    { id: "automations", title: "Automations" },
-    { id: "layout", title: "Layout" },
-  ];
+  // Tabs for GitHub-linked vMCPs vs plain ones. The "git" tab (branch/PR
+  // panel) replaces Instructions and lives at the end, after Preview.
+  const systemTabs: Array<{ id: string; title: string }> = hasActiveGithubRepo
+    ? []
+    : [{ id: "instructions", title: "Instructions" }];
+  systemTabs.push({ id: "connections", title: "Connections" });
+  systemTabs.push({ id: "automations", title: "Automations" });
+  systemTabs.push({ id: "layout", title: "Layout" });
   if (hasActiveGithubRepo) {
     systemTabs.push({ id: "env", title: "Terminal" });
     systemTabs.push({ id: "preview", title: "Preview" });
+    systemTabs.push({ id: "git", title: search.branch ?? "git" });
   }
 
   // Merge pinned views + per-task expanded tools into a single list keyed

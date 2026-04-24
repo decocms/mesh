@@ -28,6 +28,7 @@ import {
   updateTaskInCache,
 } from "./cache-operations.ts";
 import { buildOptimisticTask, callUpdateTaskTool } from "./helpers.ts";
+import { useChatNavigation } from "../hooks/use-chat-navigation.ts";
 import { useState, useTransition } from "react";
 import type { ChatMessage, Task } from "./types.ts";
 import { TASK_CONSTANTS } from "./types.ts";
@@ -136,6 +137,8 @@ export function useTaskManager(virtualMcpId: string) {
   const queryClient = useQueryClient();
   const { prefillCollectionCache } = useCollectionCachePrefill();
 
+  const { branch } = useChatNavigation();
+
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
 
@@ -197,7 +200,7 @@ export function useTaskManager(virtualMcpId: string) {
   // Create task (optimistic + cache)
   const createTask = (): string => {
     const newTaskId = crypto.randomUUID();
-    const optimisticTask = buildOptimisticTask(newTaskId, virtualMcpId);
+    const optimisticTask = buildOptimisticTask(newTaskId, virtualMcpId, branch);
     addTaskToCache(queryClient, locator, optimisticTask, {
       owner: ownerFilter,
       status: "open",
@@ -238,6 +241,22 @@ export function useTaskManager(virtualMcpId: string) {
       const err = error as Error;
       toast.error(`Failed to update task status: ${err.message}`);
       console.error("[chat] Failed to set task status:", error);
+    }
+  };
+
+  // thread.branch is source of truth for vmMap[userId][branch] resolution, so
+  // picker changes must land here + URL. No-ops for cache-only threads — the
+  // branch gets written on first createMemory call.
+  const setTaskBranch = async (taskId: string, branch: string | null) => {
+    updateTaskInCache(queryClient, locator, taskId, { branch });
+    try {
+      await callUpdateTaskTool(client, taskId, { branch });
+    } catch (error) {
+      const err = error as Error;
+      // Fresh thread may not exist server-side yet; cache update is enough.
+      if (!/not found/i.test(err.message)) {
+        console.error("[chat] Failed to persist task branch:", error);
+      }
     }
   };
 
@@ -316,6 +335,7 @@ export function useTaskManager(virtualMcpId: string) {
     renameTask,
     hideTask,
     setTaskStatus,
+    setTaskBranch,
     updateMessagesCache: updateMessagesInCache,
   };
 }

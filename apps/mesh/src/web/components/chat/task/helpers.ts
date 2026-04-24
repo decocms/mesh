@@ -42,7 +42,11 @@ export async function callUpdateTaskTool(
 /**
  * Build an optimistic task object for immediate cache insertion
  */
-export function buildOptimisticTask(id: string, virtualMcpId?: string): Task {
+export function buildOptimisticTask(
+  id: string,
+  virtualMcpId?: string,
+  branch?: string | null,
+): Task {
   const now = new Date().toISOString();
   return {
     id,
@@ -51,5 +55,6 @@ export function buildOptimisticTask(id: string, virtualMcpId?: string): Task {
     created_at: now,
     updated_at: now,
     virtual_mcp_id: virtualMcpId,
+    branch: branch ?? null,
   };
 }

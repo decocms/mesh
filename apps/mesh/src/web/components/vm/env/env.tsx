@@ -5,6 +5,7 @@ import {
   useMCPClient,
   SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
+import type { VmMapEntry } from "@decocms/mesh-sdk";
 import { useQueryClient } from "@tanstack/react-query";
 import { invalidateVirtualMcpQueries } from "@/web/lib/query-keys";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
@@ -40,11 +41,12 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { useChatBridge } from "@/web/components/chat/context";
+import { useChatBridge, useChatTask } from "@/web/components/chat/context";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { VmErrorState } from "../vm-error-state";
 import { VmSuspendedState } from "../vm-suspended-state";
-import { useVmEvents } from "../hooks/use-vm-events";
+import { useVmChunkHandler, useVmEvents } from "../hooks/use-vm-events";
+import { useIsVmStartPending, useVmStart } from "../hooks/use-vm-start";
 import { VmTerminal } from "./terminal";
 import type { Terminal as XTerminal } from "@xterm/xterm";
 import { EmptyState } from "../../empty-state";
@@ -56,10 +58,12 @@ import type { PackageManager } from "@/shared/runtime-defaults";
 import { toast } from "sonner";
 
 interface VmData {
-  terminalUrl: string | null;
-  previewUrl: string;
+  /** Null for blank/tool sandboxes (no dev server). Mirrors SDK schema; today VM_START always provisions one. */
+  previewUrl: string | null;
   vmId: string;
+  branch: string;
   isNewVm: boolean;
+  runnerKind?: "docker" | "freestyle";
 }
 
 type ViewStatus =
@@ -72,42 +76,56 @@ type ViewStatus =
 
 const WELL_KNOWN_STARTERS = ["dev", "start"];
 
+/**
+ * Both runners route `/_decopilot_vm/*` through the mesh proxy. The server
+ * holds each VM's bearer token; the browser talks only to same-origin
+ * `/api/sandbox/...` so no daemon token or preview domain leaks into the
+ * iframe or logs.
+ */
+function resolveDaemonBaseUrl(entry: VmMapEntry | undefined): string | null {
+  if (!entry) return null;
+  return `/api/sandbox/${entry.vmId}/_daemon`;
+}
+
 export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const { org } = useProjectContext();
   const inset = useInsetContext();
   const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
 
-  // Check if there's already an active VM for this user
+  // currentBranch = URL override ?? thread.branch, so a persisted thread
+  // resolves to its vmMap entry even on a fresh URL.
+  const { currentBranch: urlBranch, setCurrentTaskBranch } = useChatTask();
   const userId = session?.user?.id;
-  const activeVmMetadata = inset?.entity?.metadata as
-    | {
-        activeVms?: Record<
-          string,
-          { previewUrl: string; vmId: string; terminalUrl: string | null }
-        >;
-      }
+  const vmMapMetadata = inset?.entity?.metadata as
+    | { vmMap?: Record<string, Record<string, VmMapEntry>> }
     | undefined;
-  const existingVm = userId ? activeVmMetadata?.activeVms?.[userId] : undefined;
+  const existingVm =
+    userId && urlBranch
+      ? vmMapMetadata?.vmMap?.[userId]?.[urlBranch]
+      : undefined;
 
-  const [status, setStatus] = useState<ViewStatus>(
-    existingVm ? "running" : "idle",
-  );
+  const vmData: VmData | null =
+    existingVm && urlBranch
+      ? {
+          previewUrl: existingVm.previewUrl,
+          vmId: existingVm.vmId,
+          branch: urlBranch,
+          isNewVm: false,
+          runnerKind: existingVm.runnerKind,
+        }
+      : null;
+
+  // Transient override used during user-initiated transitions
+  // ("creating" / "stopping" / "error"). Cleared via effect below once the
+  // derived status catches up.
+  const [override, setOverride] = useState<ViewStatus | null>(null);
+
   const [statusLabel, setStatusLabel] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [execInFlight, setExecInFlight] = useState(false);
   const [killedProcesses, setKilledProcesses] = useState<Set<string>>(
     new Set(),
-  );
-  const vmDataRef = useRef<VmData | null>(
-    existingVm
-      ? {
-          terminalUrl: existingVm.terminalUrl,
-          previewUrl: existingVm.previewUrl,
-          vmId: existingVm.vmId,
-          isNewVm: false,
-        }
-      : null,
   );
   const startingRef = useRef(false);
   const startedAtRef = useRef<number>(Date.now());
@@ -161,18 +179,69 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     }
   };
 
-  const vmEvents = useVmEvents(
-    status === "running" ? (vmDataRef.current?.previewUrl ?? null) : null,
-    handleChunk,
+  const vmEvents = useVmEvents();
+  useVmChunkHandler(handleChunk);
+
+  // Cross-component inflight signal — the layout/preview may have fired
+  // VM_START for this (vmcp, branch); our local `useMutation` instances only
+  // see self-initiated mutations, so without this the tab falls through to
+  // the idle/runtime-picker UI and flickers to the terminal once vmMap
+  // catches up.
+  const vmStartPending = useIsVmStartPending(
+    inset?.entity?.id,
+    urlBranch ?? undefined,
   );
 
-  // When scripts are discovered, auto-open well-known starters
+  // Final status = user-initiated override, else derived from (vmData, SSE,
+  // inflight VM_START).
+  const derivedStatus: ViewStatus = vmEvents.suspended
+    ? "suspended"
+    : vmData
+      ? "running"
+      : vmStartPending
+        ? "creating"
+        : "idle";
+  const status: ViewStatus = override ?? derivedStatus;
+
+  // Clear the override when the derived state catches up.
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — clears transient override once derivedStatus catches up; no render-time equivalent for "wait for external async state to reach a target"
+  useEffect(() => {
+    if (override === "creating" && derivedStatus === "running") {
+      setOverride(null);
+    }
+    if (override === "stopping" && derivedStatus === "idle") {
+      setOverride(null);
+    }
+  }, [derivedStatus, override]);
+
+  // Self-heal stale vmMap entries: SSE probe flips notFound on 404, VM_START
+  // writes a fresh entry. Dedup by dead vmId to avoid looping on repeat 404s.
+  // Routed through useVmStart so MCP protocol errors surface (see call-vm-tool).
+  const selfHealStart = useVmStart(client);
+  const { mutate: triggerSelfHeal, isPending: selfHealPending } = selfHealStart;
+  const virtualMcpId = inset?.entity?.id;
+  const deadVmId = vmEvents.notFound ? (existingVm?.vmId ?? null) : null;
+  const reprovisionedForVmIdRef = useRef<string | null>(null);
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — one-shot reprovision trigger gated on the notFound→deadVmId derivation
+  useEffect(() => {
+    if (!deadVmId || !virtualMcpId) return;
+    if (selfHealPending) return;
+    if (reprovisionedForVmIdRef.current === deadVmId) return;
+    reprovisionedForVmIdRef.current = deadVmId;
+    const args: { virtualMcpId: string; branch?: string } = { virtualMcpId };
+    if (urlBranch) args.branch = urlBranch;
+    triggerSelfHeal(args, {
+      onError: (err) => {
+        console.error("[env] reprovision VM_START failed", err);
+      },
+    });
+  }, [deadVmId, virtualMcpId, urlBranch, selfHealPending, triggerSelfHeal]);
+
   const scriptsAppliedRef = useRef(false);
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — responds to vmEvents.scripts discovery; drives one-time tab auto-open
   useEffect(() => {
     if (vmEvents.scripts.length > 0 && !scriptsAppliedRef.current) {
       scriptsAppliedRef.current = true;
-      // Only add the first well-known starter (matches daemon auto-start behavior)
       for (const name of WELL_KNOWN_STARTERS) {
         if (vmEvents.scripts.includes(name)) {
           setOpenScriptTabs([name]);
@@ -195,13 +264,14 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   };
 
   const handleExec = async (scriptName: string) => {
-    if (execInFlight || !vmDataRef.current) return;
+    if (execInFlight || !vmData) return;
     setExecInFlight(true);
     try {
-      const res = await fetch(
-        `${vmDataRef.current.previewUrl}/_decopilot_vm/exec/${scriptName}`,
-        { method: "POST" },
-      );
+      const base = resolveDaemonBaseUrl(existingVm);
+      if (!base) throw new Error("No VM");
+      const res = await fetch(`${base}/_decopilot_vm/exec/${scriptName}`, {
+        method: "POST",
+      });
       if (!res.ok) throw new Error(`Exec failed: ${res.statusText}`);
       setKilledProcesses((prev) => {
         const next = new Set(prev);
@@ -214,13 +284,14 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   };
 
   const handleKill = async (scriptName: string) => {
-    if (execInFlight || !vmDataRef.current) return;
+    if (execInFlight || !vmData) return;
     setExecInFlight(true);
     try {
-      const res = await fetch(
-        `${vmDataRef.current.previewUrl}/_decopilot_vm/kill/${scriptName}`,
-        { method: "POST" },
-      );
+      const base = resolveDaemonBaseUrl(existingVm);
+      if (!base) throw new Error("No VM");
+      const res = await fetch(`${base}/_decopilot_vm/kill/${scriptName}`, {
+        method: "POST",
+      });
       if (!res.ok) throw new Error(`Kill failed: ${res.statusText}`);
       setKilledProcesses((prev) => new Set(prev).add(scriptName));
     } finally {
@@ -240,7 +311,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     if (startingRef.current) return;
     startingRef.current = true;
     startedAtRef.current = Date.now();
-    setStatus("creating");
+    setOverride("creating");
     setStatusLabel("Connecting...");
     setErrorMsg("");
     scriptsAppliedRef.current = false;
@@ -249,20 +320,27 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
 
     try {
       if (!inset?.entity) throw new Error("No virtual MCP context");
-      const data = (await callTool("VM_START", {
+      const args: { virtualMcpId: string; branch?: string } = {
         virtualMcpId: inset.entity.id,
-      })) as VmData;
+      };
+      if (urlBranch) args.branch = urlBranch;
+      const data = (await callTool("VM_START", args)) as VmData;
 
-      if (!data.previewUrl || !data.vmId) {
-        throw new Error("Invalid VM response — missing URLs");
+      if (!data.previewUrl || !data.vmId || !data.branch) {
+        throw new Error("Invalid VM response — missing fields");
       }
 
-      vmDataRef.current = data;
-      setStatus("running");
+      // Server-generated branch: persist so subsequent renders resolve via vmMap[userId][branch].
+      if (!urlBranch) {
+        setCurrentTaskBranch(data.branch);
+      }
       setStatusLabel("");
       invalidateVirtualMcpQueries(queryClient);
+      // override stays "creating" until the vmMap refetch populates vmData,
+      // at which point the sync-effect above flips it to null → derivedStatus
+      // takes over as "running".
     } catch (error) {
-      setStatus("error");
+      setOverride("error");
       setErrorMsg(
         error instanceof Error ? error.message : "Failed to start VM",
       );
@@ -272,35 +350,26 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   };
 
   const handleStop = async () => {
-    vmDataRef.current = null;
-    setStatus("stopping");
+    const branchToStop = vmData?.branch ?? urlBranch;
+    setOverride("stopping");
 
     const virtualMcpId = inset?.entity?.id;
-    if (virtualMcpId) {
+    if (virtualMcpId && branchToStop) {
       try {
         await client.callTool({
           name: "VM_DELETE",
-          arguments: { virtualMcpId },
+          arguments: { virtualMcpId, branch: branchToStop },
         });
       } catch {
         // Best effort
       }
     }
 
-    setStatus("idle");
     invalidateVirtualMcpQueries(queryClient);
+    // override stays "stopping" until the vmMap refetch removes the entry,
+    // at which point the sync-effect above flips it to null → derivedStatus
+    // takes over as "idle".
   };
-
-  // Detect suspension via SSE disconnect
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — responds to vmEvents.suspended changing; drives status transition
-  useEffect(() => {
-    if (vmEvents.suspended && status === "running") {
-      setStatus("suspended");
-    }
-    if (!vmEvents.suspended && status === "suspended") {
-      setStatus("running");
-    }
-  }, [vmEvents.suspended, status]);
 
   const githubRepo = useActiveGithubRepo();
 
@@ -313,7 +382,6 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
       | { runtime?: { selected: string | null; port?: string | null } | null }
       | undefined
   )?.runtime;
-  const isDetecting = runtime === undefined;
   const NONE_VALUE = "__none__";
   const packageManagers = Object.keys(
     PACKAGE_MANAGER_CONFIG,
@@ -372,68 +440,53 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
             />
           </a>
 
-          {isDetecting ? (
-            <div className="flex items-center justify-center gap-2 w-full">
-              <Loading01
-                size={14}
-                className="animate-spin text-muted-foreground"
-              />
-              <p className="text-sm text-muted-foreground">
-                Detecting project configuration...
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-wrap items-end justify-between gap-2 w-full">
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="env-runtime" className="text-xs font-medium">
-                  Runtime
-                </Label>
-                <Select
-                  value={runtime?.selected ?? NONE_VALUE}
-                  onValueChange={(v) =>
-                    handleFieldUpdate("selected", v === NONE_VALUE ? null : v)
-                  }
-                >
-                  <SelectTrigger id="env-runtime" className="w-28">
-                    <SelectValue placeholder="None" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NONE_VALUE}>None</SelectItem>
-                    {packageManagers.map((pm) => (
-                      <SelectItem key={pm} value={pm}>
-                        {pm}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="env-port" className="text-xs font-medium">
-                  Port
-                </Label>
-                <Input
-                  id="env-port"
-                  placeholder="3000"
-                  className="w-20 h-8"
-                  defaultValue={runtime?.port ?? ""}
-                  onBlur={(e) =>
-                    handleFieldUpdate("port", e.target.value || null)
-                  }
-                />
-              </div>
-              <Button
-                onClick={handleStart}
-                disabled={isStopping || isDetecting}
+          <div className="flex flex-wrap items-end justify-between gap-2 w-full">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="env-runtime" className="text-xs font-medium">
+                Runtime
+              </Label>
+              <Select
+                value={runtime?.selected ?? NONE_VALUE}
+                onValueChange={(v) =>
+                  handleFieldUpdate("selected", v === NONE_VALUE ? null : v)
+                }
               >
-                {isStopping ? (
-                  <Loading01 size={14} className="animate-spin" />
-                ) : (
-                  <Play size={14} />
-                )}
-                {isStopping ? "Stopping..." : "Run"}
-              </Button>
+                <SelectTrigger id="env-runtime" className="w-28">
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE_VALUE}>None</SelectItem>
+                  {packageManagers.map((pm) => (
+                    <SelectItem key={pm} value={pm}>
+                      {pm}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          )}
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="env-port" className="text-xs font-medium">
+                Port
+              </Label>
+              <Input
+                id="env-port"
+                placeholder="3000"
+                className="w-20 h-8"
+                defaultValue={runtime?.port ?? ""}
+                onBlur={(e) =>
+                  handleFieldUpdate("port", e.target.value || null)
+                }
+              />
+            </div>
+            <Button onClick={handleStart} disabled={isStopping}>
+              {isStopping ? (
+                <Loading01 size={14} className="animate-spin" />
+              ) : (
+                <Play size={14} />
+              )}
+              {isStopping ? "Stopping..." : "Run"}
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -457,14 +510,12 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     return <VmSuspendedState onResume={handleStart} />;
   }
 
-  // All tabs: setup + open script tabs + optional daemon
   const allTabs = [
     "setup",
     ...openScriptTabs,
     ...(daemonOpen ? ["daemon"] : []),
   ];
 
-  // Scripts available to add (not already open)
   const addableScripts = vmEvents.scripts.filter(
     (s) => !openScriptTabs.includes(s),
   );
@@ -473,30 +524,29 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     <div className="flex flex-col w-full h-full">
       <div className="flex flex-col h-full">
         {/* Terminal tabs + action bar */}
-        <div className="flex items-center border-b border-border px-2 shrink-0">
+        <div className="flex h-12 items-center border-b border-border px-2 shrink-0">
           {allTabs.map((tab) => (
             <button
               key={tab}
               type="button"
               onClick={() => setActiveTab(tab)}
               className={cn(
-                "px-3 py-1.5 text-xs font-medium capitalize transition-colors",
+                "flex items-center h-full px-3 text-sm whitespace-nowrap border-b-2 mb-[-1px] capitalize transition-all hover:text-foreground",
                 activeTab === tab
-                  ? "text-foreground border-b-2 border-primary"
-                  : "text-muted-foreground hover:text-foreground",
+                  ? "text-foreground border-primary"
+                  : "text-muted-foreground border-transparent",
               )}
             >
               {tab}
             </button>
           ))}
 
-          {/* Add script button */}
           {addableScripts.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex items-center h-full px-2 text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <Plus size={14} />
                 </button>
@@ -515,7 +565,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
           )}
 
           <div className="flex-1 flex justify-center">
-            {vmDataRef.current?.vmId && (
+            {vmData?.vmId && (
               <div className="flex items-center">
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -523,12 +573,10 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
                       type="button"
                       className="shrink-0 rounded-l bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground cursor-pointer hover:bg-accent hover:text-foreground transition-colors border-r border-border/50"
                       onClick={() =>
-                        navigator.clipboard.writeText(
-                          vmDataRef.current?.vmId ?? "",
-                        )
+                        navigator.clipboard.writeText(vmData?.vmId ?? "")
                       }
                     >
-                      {vmDataRef.current.vmId}
+                      {vmData.vmId}
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">Copy VM ID</TooltipContent>
@@ -553,7 +601,6 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
             )}
           </div>
 
-          {/* Script tab controls (not for setup/daemon) */}
           <div className="flex items-center gap-1">
             {hasSelection && (
               <button
@@ -621,7 +668,6 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
           </div>
         </div>
 
-        {/* Terminal content */}
         <div className="flex-1 overflow-hidden">
           {allTabs.map((tab) => (
             <div

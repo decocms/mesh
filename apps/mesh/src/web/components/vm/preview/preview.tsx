@@ -2,6 +2,10 @@ import { useState, useRef, useEffect } from "react";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import { authClient } from "@/web/lib/auth-client";
 import { useToggleEnvPanel } from "@/web/hooks/use-toggle-env-panel";
+import { useChatTask } from "@/web/components/chat/context";
+import { useMCPClient, SELF_MCP_ALIAS_ID } from "@decocms/mesh-sdk";
+
+import type { VmMapEntry } from "@decocms/mesh-sdk";
 import {
   CursorClick01,
   LinkExternal01,
@@ -25,8 +29,11 @@ import {
   type VisualEditorPayload,
 } from "./visual-editor-script";
 import { VisualEditorPrompt } from "./visual-editor-prompt";
-import { useVmEvents } from "../hooks/use-vm-events";
+import { useVmEvents, useVmReloadHandler } from "../hooks/use-vm-events";
+import { useVmStart, type VmStartArgs } from "../hooks/use-vm-start";
 import { VmSuspendedState } from "../vm-suspended-state";
+import { VmBootingState } from "../vm-booting-state";
+import { VmErrorState } from "../vm-error-state";
 
 type PreviewViewMode = "preview" | "visual";
 
@@ -46,6 +53,7 @@ export function PreviewContent() {
   const inset = useInsetContext();
   const { data: session } = authClient.useSession();
   const { openEnv } = useToggleEnvPanel();
+  const { taskId, currentBranch: branch, setCurrentTaskBranch } = useChatTask();
 
   // Visual editor state
   const [viewMode, setViewMode] = useState<PreviewViewMode>("preview");
@@ -53,34 +61,147 @@ export function PreviewContent() {
     useState<VisualEditorPayload | null>(null);
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Read VM data from entity metadata
+  // vmMap[userId][branch] -> { vmId, previewUrl, runnerKind? }
   const userId = session?.user?.id;
   const metadata = inset?.entity?.metadata as
-    | {
-        activeVms?: Record<
-          string,
-          { previewUrl: string; vmId: string; terminalUrl: string | null }
-        >;
-      }
+    | { vmMap?: Record<string, Record<string, VmMapEntry>> }
     | undefined;
-  const vmEntry = userId ? metadata?.activeVms?.[userId] : undefined;
+  const vmEntry =
+    userId && branch ? metadata?.vmMap?.[userId]?.[branch] : undefined;
   const previewUrl = vmEntry?.previewUrl ?? null;
 
-  const vmEvents = useVmEvents(previewUrl, null);
+  // "reload" fires on config edits framework HMR won't catch (.ts/.tsx use HMR).
+  const vmEvents = useVmEvents();
+  useVmReloadHandler(() => {
+    const iframe = previewIframeRef.current;
+    if (!iframe) return;
+    // biome-ignore lint/correctness/noSelfAssign: reloads the iframe
+    // oxlint-disable-next-line no-self-assign
+    iframe.src = iframe.src;
+  });
   const hasHtmlPreview = vmEvents.status.htmlSupport;
   const suspended = vmEvents.suspended;
 
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — postMessage listener requires DOM event subscription; no React 19 alternative
+  // Gate iframe on upstream readiness to avoid "didn't send any data" page;
+  // keep mounted once ever-ready so HMR hiccups don't re-show the boot screen.
+  // `at` uses server-stamped vmEntry.createdAt so the timer survives remounts.
+  const bootTrackedRef = useRef<{ url: string; at: number; ready: boolean }>({
+    url: "",
+    at: 0,
+    ready: false,
+  });
+  if (previewUrl && bootTrackedRef.current.url !== previewUrl) {
+    bootTrackedRef.current = {
+      url: previewUrl,
+      at: vmEntry?.createdAt ?? Date.now(),
+      ready: false,
+    };
+  }
+  if (previewUrl && vmEvents.status.ready && !bootTrackedRef.current.ready) {
+    bootTrackedRef.current.ready = true;
+  }
+  const booting = !!previewUrl && !bootTrackedRef.current.ready && !suspended;
+
+  // Cover the gap between VM_START being submitted and vmMap populating a
+  // previewUrl; otherwise the empty "No server running" state flashes while
+  // the mutation is in flight. Capture the timestamp once per pending window
+  // so the LiveTimer's elapsed reading is stable across renders.
+  const startingSinceRef = useRef<number>(0);
+
+  // One mutation, two triggers. Dedup differs by meaning:
+  //   auto-start: once per taskId
+  //   self-heal:  once per dead vmId (don't loop on repeat 404s; new vmId OK)
+  // A shared ref would conflate them.
+  const virtualMcpId = inset?.entity?.id ?? null;
+  const mcpClient = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: inset?.entity?.organization_id ?? "",
+  });
+  const startVm = useVmStart(mcpClient);
+  const lastStartError = startVm.error?.message ?? null;
+  if (startVm.isPending) {
+    if (!startingSinceRef.current) startingSinceRef.current = Date.now();
+  } else if (previewUrl) {
+    startingSinceRef.current = 0;
+  }
+  const starting = startVm.isPending && !previewUrl && !suspended;
+  const autoStartedForTaskRef = useRef<string | null>(null);
+  const reprovisionedForVmIdRef = useRef<string | null>(null);
+
+  // ref-latest pattern: effects below depend only on upstream signals, not
+  // on this closure's churning captures (branch, mutation, setter).
+  const triggerStart = (reason: "auto-start" | "self-heal") => {
+    if (!virtualMcpId) return;
+    const args: VmStartArgs = { virtualMcpId };
+    if (branch) args.branch = branch;
+    startVm.mutate(args, {
+      onSuccess: (data) => {
+        // Server-generated branch: persist so later renders resolve via vmMap.
+        if (data?.branch && !branch) setCurrentTaskBranch(data.branch);
+      },
+      onError: (err) => {
+        console.error(`[preview] ${reason} VM_START failed`, err);
+      },
+    });
+  };
+  const triggerStartRef = useRef(triggerStart);
+  triggerStartRef.current = triggerStart;
+
+  // Auto-start = "arrive → provision one", NOT "always ensure exists". Once
+  // a vmEntry is seen for this taskId, explicit stop must NOT re-trigger (or
+  // it races the user's manual Start). Mark ref on first-sight, BEFORE
+  // evaluating shouldAutoStart, so a transient null can't sneak through.
+  if (taskId && vmEntry && autoStartedForTaskRef.current !== taskId) {
+    autoStartedForTaskRef.current = taskId;
+  }
+  // Branch must be resolved before firing: the layout's auto-start uses
+  // `urlBranch`, and `useVmStart` dedupes by (virtualMcpId, branch). Firing
+  // here with branch=null uses a different dedup key AND asks the server to
+  // generate a fresh branch — that's a different sandbox than the one the
+  // page is actually on.
+  const shouldAutoStart =
+    !!taskId &&
+    !!virtualMcpId &&
+    !!userId &&
+    !!branch &&
+    !vmEntry &&
+    !lastStartError &&
+    !startVm.isPending &&
+    autoStartedForTaskRef.current !== taskId;
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — bridges external state (vmEntry derived from query cache, taskId from router) into a one-shot mutation; no render-time equivalent
+  useEffect(() => {
+    if (!shouldAutoStart || !taskId) return;
+    autoStartedForTaskRef.current = taskId;
+    triggerStartRef.current("auto-start");
+  }, [shouldAutoStart, taskId]);
+
+  // Self-heal stale vmMap entries (SSE 404 → notFound). Dedup by dead vmId.
+  const deadVmId = vmEvents.notFound ? (vmEntry?.vmId ?? null) : null;
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — one-shot reprovision trigger gated on the notFound→deadVmId derivation
+  useEffect(() => {
+    if (!deadVmId || !virtualMcpId) return;
+    if (lastStartError || startVm.isPending) return;
+    if (reprovisionedForVmIdRef.current === deadVmId) return;
+    reprovisionedForVmIdRef.current = deadVmId;
+    triggerStartRef.current("self-heal");
+  }, [deadVmId, virtualMcpId, lastStartError, startVm.isPending]);
+
+  const retryAutoStart = () => {
+    autoStartedForTaskRef.current = null;
+    reprovisionedForVmIdRef.current = null;
+    startVm.reset();
+    triggerStartRef.current("auto-start");
+  };
+
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — DOM event subscription
   useEffect(() => {
     if (!previewUrl) return;
-
     let allowedOrigin: string;
     try {
-      allowedOrigin = new URL(previewUrl).origin;
+      allowedOrigin = new URL(previewUrl, window.location.href).origin;
     } catch {
       return;
     }
-
     const handler = (e: MessageEvent) => {
       if (e.origin !== allowedOrigin) return;
       if (e.data?.type !== "visual-editor::element-clicked") return;
@@ -89,7 +210,6 @@ export function PreviewContent() {
         setVisualElement(result.data);
       }
     };
-
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
   }, [previewUrl]);
@@ -122,7 +242,7 @@ export function PreviewContent() {
   return (
     <div className="flex flex-col w-full h-full">
       {/* Unified toolbar */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+      <div className="flex h-12 items-center gap-2 px-3 border-b border-border shrink-0">
         {previewUrl && hasHtmlPreview && (
           <ViewModeToggle
             value={viewMode}
@@ -181,9 +301,8 @@ export function PreviewContent() {
         )}
       </div>
 
-      {/* Content area */}
       <div className="flex-1 relative overflow-hidden">
-        {!previewUrl && (
+        {!previewUrl && !starting && !lastStartError && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-background">
             <Monitor04 size={48} className="text-muted-foreground/40" />
             <h3 className="text-lg font-medium">Preview</h3>
@@ -197,9 +316,29 @@ export function PreviewContent() {
           </div>
         )}
 
-        {suspended && (
+        {lastStartError && (
+          <div className="absolute inset-0 z-40 flex items-center justify-center bg-background">
+            <VmErrorState errorMsg={lastStartError} onRetry={retryAutoStart} />
+          </div>
+        )}
+
+        {!lastStartError && suspended && (
           <div className="absolute inset-0 z-30 bg-background/80 backdrop-blur-sm">
             <VmSuspendedState onResume={openEnv} />
+          </div>
+        )}
+
+        {!lastStartError && (booting || starting) && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-background">
+            <VmBootingState
+              since={
+                booting ? bootTrackedRef.current.at : startingSinceRef.current
+              }
+              hasSetupData={vmEvents.hasData("setup")}
+              scripts={vmEvents.scripts}
+              activeProcesses={vmEvents.activeProcesses}
+              onViewLogs={openEnv}
+            />
           </div>
         )}
 
@@ -215,8 +354,11 @@ export function PreviewContent() {
             onDismiss={() => setVisualElement(null)}
           />
         )}
-        {previewUrl && (
+        {previewUrl && !booting && (
           <iframe
+            // Key on previewUrl: `src` mutations don't reliably refetch in all
+            // browsers and leak in-frame state across branches.
+            key={previewUrl}
             ref={previewIframeRef}
             src={previewUrl}
             className="w-full h-full border-0"

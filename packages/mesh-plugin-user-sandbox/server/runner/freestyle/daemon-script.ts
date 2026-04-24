@@ -1,17 +1,21 @@
 /**
- * In-VM Daemon Script Builder
- *
- * Generates the Node.js daemon that runs inside Freestyle VMs.
- * The daemon handles:
- *   1. Reverse proxy: strips X-Frame-Options/CSP for iframe embedding
- *   2. Process spawning: install/dev lifecycle with PTY + SSE streaming
- *   3. Liveness probing: probes upstream dev server
- *   4. File operations: read/write/edit/grep/glob/bash endpoints
+ * Freestyle in-VM daemon builder. Output is a JS string baked into the
+ * VmSpec and started by systemd — updates require recreating freestyle VMs.
  */
 
-import { PACKAGE_MANAGER_DAEMON_CONFIG } from "../../shared/runtime-defaults";
+/** Inlined so the runner package stays self-contained (no upward import). */
+const PACKAGE_MANAGER_DAEMON_CONFIG: Record<
+  string,
+  { install: string; runPrefix: string }
+> = {
+  npm: { install: "npm install", runPrefix: "npm run" },
+  pnpm: { install: "pnpm install", runPrefix: "pnpm run" },
+  yarn: { install: "yarn install", runPrefix: "yarn run" },
+  bun: { install: "bun install", runPrefix: "bun run" },
+  deno: { install: "deno install", runPrefix: "deno task" },
+};
 
-export interface DaemonConfig {
+interface DaemonConfig {
   upstreamPort: string;
   packageManager: string | null;
   pathPrefix: string;
@@ -22,6 +26,14 @@ export interface DaemonConfig {
   bootstrapScript: string;
   gitUserName: string;
   gitUserEmail: string;
+  /** Required, non-empty. Daemon clones with `-b <branch>`. */
+  branch: string;
+  /**
+   * Bearer token required on every `/_decopilot_vm/*` request. Generated
+   * per-VM by the runner and persisted alongside state so `resume` can
+   * thread the same token on restart. Must be ≥ 32 bytes of entropy.
+   */
+  daemonToken: string;
 }
 
 export function buildDaemonScript(config: DaemonConfig): string {
@@ -36,16 +48,27 @@ export function buildDaemonScript(config: DaemonConfig): string {
     bootstrapScript,
     gitUserName,
     gitUserEmail,
+    branch,
+    daemonToken,
   } = config;
 
   if (!/^\d+$/.test(upstreamPort)) {
     throw new Error(`Invalid upstream port: ${upstreamPort}`);
+  }
+  if (typeof branch !== "string" || branch.length === 0) {
+    throw new Error("DaemonConfig.branch is required and must be non-empty");
+  }
+  if (typeof daemonToken !== "string" || daemonToken.length < 32) {
+    throw new Error(
+      "DaemonConfig.daemonToken is required and must be ≥ 32 chars",
+    );
   }
 
   return `const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { spawn, execSync } = require("child_process");
+const { timingSafeEqual } = require("crypto");
 const UPSTREAM = "${upstreamPort}";
 const UPSTREAM_HOST = "localhost";
 const PROXY_PORT = ${proxyPort};
@@ -58,14 +81,17 @@ const PORT = ${JSON.stringify(port)};
 const PATH_PREFIX = ${JSON.stringify(pathPrefix)};
 const GIT_USER_NAME = ${JSON.stringify(gitUserName)};
 const GIT_USER_EMAIL = ${JSON.stringify(gitUserEmail)};
+const BRANCH = ${JSON.stringify(branch)};
+const EXPECTED_AUTH = Buffer.from("Bearer " + ${JSON.stringify(daemonToken)}, "utf8");
 
-const ADJECTIVES = ["amber","bold","bright","calm","crimson","coral","daring","deep","dusty","eager","faint","fierce","frozen","gentle","golden","grand","green","hollow","iron","ivory","keen","lasting","lunar","mellow","misty","noble","olive","pale","prime","quiet","rapid","rustic","serene","sharp","silver","sleek","solar","stark","still","swift","tawny","tender","thin","true","vast","velvet","warm","wild","young","zen"];
-const NOUNS = ["anchor","birch","brook","cedar","cliff","cove","crane","dune","echo","ember","falcon","fern","flint","forge","frost","glade","grove","harbor","hawk","iris","jade","lark","maple","marsh","mesa","opal","orbit","peak","pine","plume","quartz","rapids","reef","ridge","river","sage","shore","slate","spruce","stone","summit","thorn","tide","trail","vale","wren","aspen","delta","crest","spark"];
-
-function randomBranch() {
-  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
-  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
-  return "decopilot/" + adj + "-" + noun;
+// Bearer auth for /_decopilot_vm/* — reverse-proxy path stays public (serves
+// user's dev server content). timingSafeEqual requires equal-length buffers;
+// the length itself leaks nothing useful (scheme + token length are fixed).
+function authorized(req) {
+  const header = req.headers["authorization"] || "";
+  const received = Buffer.from(header, "utf8");
+  if (received.length !== EXPECTED_AUTH.length) return false;
+  return timingSafeEqual(received, EXPECTED_AUTH);
 }
 
 const APP_ROOT = "/app";
@@ -148,6 +174,9 @@ const replayBuffers = { setup: "", daemon: "" };
 const REPLAY_BYTES = 4096;
 let setupDone = false;
 let discoveredScripts = null;
+let lastBranchStatus = null;
+let branchStatusTimer = null;
+let branchStatusWatcher = null;
 
 function broadcastChunk(source, data) {
   if (!data) return;
@@ -164,6 +193,83 @@ function broadcastEvent(eventName, data) {
   const payload = JSON.stringify(data);
   for (const res of sseClients) {
     if (res.writable) res.write("event: " + eventName + "\\ndata: " + payload + "\\n\\n");
+  }
+}
+
+function computeBranchStatus() {
+  const exec = (cmd) => {
+    try {
+      return execSync(cmd, {
+        cwd: APP_ROOT,
+        uid: DECO_UID,
+        gid: DECO_GID,
+        env: DECO_ENV,
+        stdio: ["ignore", "pipe", "ignore"],
+      }).toString().trim();
+    } catch (e) {
+      return "";
+    }
+  };
+  const refExists = (ref) => exec("git rev-parse --verify --quiet " + JSON.stringify(ref)).length > 0;
+  try {
+    const branch = exec("git rev-parse --abbrev-ref HEAD");
+    if (!branch || branch === "HEAD") return null;
+    let base = exec("git symbolic-ref --short refs/remotes/origin/HEAD");
+    if (base.startsWith("origin/")) base = base.slice("origin/".length);
+    if (!base) base = "main";
+    const dirty = exec("git status --porcelain=v1").length > 0;
+
+    // origin/<branch> may not exist (not fetched yet, or local-only). Fall back
+    // to HEAD on the "branch" side when it's missing — we can still measure
+    // ahead-of-base that way; unpushed stays 0 because we can't see a diff.
+    const branchRef = refExists("origin/" + branch) ? "origin/" + branch : "HEAD";
+    const unpushed = branchRef === "origin/" + branch
+      ? Number(exec("git rev-list --count origin/" + branch + "..HEAD") || "0")
+      : 0;
+
+    let aheadOfBase = 0, behindBase = 0;
+    if (refExists("origin/" + base)) {
+      const lrcount = exec("git rev-list --left-right --count origin/" + base + "..." + branchRef);
+      const m = lrcount.match(/^(\\d+)\\s+(\\d+)$/);
+      if (m) { behindBase = Number(m[1]); aheadOfBase = Number(m[2]); }
+    }
+    // Current head sha — used by the frontend to detect branch advances
+    // past a merged PR's head.
+    const headSha = exec("git rev-parse " + branchRef);
+    return { branch: branch, base: base, workingTreeDirty: dirty, unpushed: unpushed, aheadOfBase: aheadOfBase, behindBase: behindBase, headSha: headSha };
+  } catch (e) {
+    log("branch-status compute failed:", e && e.message ? e.message : e);
+    return null;
+  }
+}
+
+function emitBranchStatus() {
+  const next = computeBranchStatus();
+  if (!next) return;
+  if (lastBranchStatus && JSON.stringify(lastBranchStatus) === JSON.stringify(next)) return;
+  lastBranchStatus = next;
+  broadcastEvent("branch-status", Object.assign({ type: "branch-status" }, next));
+}
+
+function scheduleBranchStatusRefresh() {
+  if (branchStatusTimer) return;
+  branchStatusTimer = setTimeout(() => {
+    branchStatusTimer = null;
+    emitBranchStatus();
+  }, 250);
+}
+
+function watchGitDir() {
+  if (branchStatusWatcher) return;
+  const gitDir = APP_ROOT + "/.git";
+  try {
+    branchStatusWatcher = fs.watch(gitDir, { recursive: true }, () => {
+      scheduleBranchStatusRefresh();
+    });
+    log("branch-status: watching " + gitDir);
+  } catch (e) {
+    log("branch-status: fs.watch failed, falling back to polling:", e && e.message ? e.message : e);
+    setInterval(emitBranchStatus, 5000);
   }
 }
 
@@ -225,11 +331,35 @@ function discoverScripts() {
   discoveredScripts = scriptNames;
   log("discovered scripts:", scriptNames.join(", ") || "(none)");
   broadcastEvent("scripts", { type: "scripts", scripts: scriptNames });
+
+  // Freestyle has no /_daemon/dev/start (systemd handles it), so we auto-kick
+  // the first well-known starter here to match Docker's behavior.
+  const pmConfig = PM_CONFIG[PM];
+  if (pmConfig) {
+    const autoStart = WELL_KNOWN_STARTERS.find((s) => scriptNames.includes(s));
+    if (autoStart) {
+      const cmd = PATH_PREFIX + "cd /app && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=" + PORT + " " + pmConfig.runPrefix + " " + autoStart;
+      const label = "$ " + pmConfig.runPrefix + " " + autoStart;
+      log("auto-start", autoStart);
+      runProcess(autoStart, cmd, label);
+    }
+  }
 }
 
 function runSetup() {
-  const cloneCmd = "git clone --depth 1 --single-branch " + CLONE_URL + " /app";
-  const cloneLabel = "$ git clone --depth 1 --single-branch " + REPO_NAME + " /app";
+  // Clone the repo's default branch, then switch to BRANCH — fetching it
+  // from origin when the remote has it, or creating it locally off default
+  // when it does not. This keeps newly-generated deco/* branches
+  // working without requiring the caller to push first.
+  // BRANCH is always non-empty — validated at daemon build time.
+  const branchNameOk = (b) => /^[A-Za-z0-9._/-]+$/.test(b) && !b.startsWith("-");
+  if (!branchNameOk(BRANCH)) {
+    broadcastChunk("setup", "\\r\\nInvalid branch name: " + BRANCH + "\\r\\n");
+    log("invalid branch name: " + BRANCH);
+    return;
+  }
+  const cloneCmd = "git clone --depth 1 " + CLONE_URL + " /app";
+  const cloneLabel = "$ git clone --depth 1 " + REPO_NAME + " /app";
   broadcastChunk("setup", cloneLabel + "\\r\\n");
 
   const child = spawn("script", ["-q", "-c", cloneCmd, "/dev/null"], {
@@ -248,27 +378,64 @@ function runSetup() {
       return;
     }
 
-    // Configure git identity and create branch
+    // Configure git identity.
     try {
       execSync("git config user.name " + JSON.stringify(GIT_USER_NAME), { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
       execSync("git config user.email " + JSON.stringify(GIT_USER_EMAIL), { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
-      const branch = randomBranch();
-      execSync("git checkout -b " + branch, { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
-      broadcastChunk("setup", "\\r\\n$ git checkout -b " + branch + "\\r\\n");
-      log("created branch " + branch);
+    } catch (e) {
+      log("git identity setup failed:", e.message);
+      broadcastChunk("setup", "\\r\\nWarning: could not set up git identity\\r\\n");
+    }
+
+    // Resolve BRANCH: fetch from remote when it exists there, otherwise
+    // create locally off the default branch we just cloned.
+    //
+    // The refspec form +refs/heads/BRANCH:refs/remotes/origin/BRANCH creates
+    // the remote-tracking ref in one step so branch-status can diff against
+    // origin/<branch>. The paired local-branch copy happens with a second
+    // fetch using the BRANCH:BRANCH refspec below.
+    let branchOnRemote = false;
+    try {
+      execSync(
+        "git fetch origin " +
+          JSON.stringify("+refs/heads/" + BRANCH + ":refs/remotes/origin/" + BRANCH),
+        { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV, stdio: "pipe" },
+      );
+      execSync(
+        "git fetch origin " + JSON.stringify(BRANCH) + ":" + JSON.stringify(BRANCH),
+        { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV, stdio: "pipe" },
+      );
+      branchOnRemote = true;
+    } catch (e) {
+      // Branch doesn't exist on remote — create it locally below.
+      log("fetch origin " + BRANCH + " failed (branch likely absent remote): " + (e && e.message ? e.message : e));
+    }
+
+    try {
+      if (branchOnRemote) {
+        execSync("git checkout " + JSON.stringify(BRANCH), { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
+        broadcastChunk("setup", "\\r\\n$ git checkout " + BRANCH + " (from origin)\\r\\n");
+        log("checked out " + BRANCH + " from remote");
+      } else {
+        execSync("git checkout -b " + JSON.stringify(BRANCH), { cwd: "/app", uid: DECO_UID, gid: DECO_GID, env: DECO_ENV });
+        broadcastChunk("setup", "\\r\\n$ git checkout -b " + BRANCH + " (new local)\\r\\n");
+        log("created local branch " + BRANCH + " off default");
+      }
     } catch (e) {
       log("git branch setup failed:", e.message);
-      broadcastChunk("setup", "\\r\\nWarning: could not create branch\\r\\n");
+      broadcastChunk("setup", "\\r\\nWarning: could not set up branch " + BRANCH + "\\r\\n");
     }
 
     if (!PM) {
       setupDone = true;
+      emitBranchStatus();
+      watchGitDir();
       log("setup complete (clone only, no package manager)");
       return;
     }
     // Run install in the same "setup" stream
     const pmConfig = PM_CONFIG[PM];
-    if (!pmConfig) { setupDone = true; return; }
+    if (!pmConfig) { setupDone = true; emitBranchStatus(); watchGitDir(); return; }
     const corepackSetup = "export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 && corepack enable && ";
     const installCmd = PATH_PREFIX + "cd /app && " + corepackSetup + pmConfig.install;
     const installLabel = "$ " + pmConfig.install;
@@ -286,6 +453,8 @@ function runSetup() {
     installChild.on("close", (installCode) => {
       log("install exited code=" + installCode);
       setupDone = true;
+      emitBranchStatus();
+      watchGitDir();
       if (installCode === 0) {
         log("setup complete, discovering scripts");
         discoverScripts();
@@ -511,6 +680,21 @@ http.createServer(async (req, res) => {
     log("proxy", req.method, req.url);
   }
 
+  // Bearer required on every /_decopilot_vm/* route except CORS preflight.
+  // Reverse-proxy path below stays public (iframe needs unauth dev-server).
+  if (
+    req.url.startsWith("/_decopilot_vm/") &&
+    req.method !== "OPTIONS" &&
+    !authorized(req)
+  ) {
+    res.writeHead(401, {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+    });
+    res.end(JSON.stringify({ error: "unauthorized" }));
+    return;
+  }
+
   // SSE endpoint
   if (req.url === "/_decopilot_vm/events" && req.method === "GET") {
     if (sseClients.size >= MAX_SSE_CLIENTS) {
@@ -542,6 +726,11 @@ http.createServer(async (req, res) => {
     // 4. Replay active processes
     const active = Object.keys(children).filter(k => children[k] !== null);
     res.write("event: processes\\ndata: " + JSON.stringify({ type: "processes", active: active }) + "\\n\\n");
+
+    // 5. Replay last branch-status
+    if (lastBranchStatus) {
+      res.write("event: branch-status\\ndata: " + JSON.stringify(Object.assign({ type: "branch-status" }, lastBranchStatus)) + "\\n\\n");
+    }
 
     sseClients.add(res);
     log("SSE connect, clients=" + sseClients.size);
@@ -626,7 +815,7 @@ http.createServer(async (req, res) => {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST",
-      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Headers": "Content-Type, Accept, Cache-Control, Authorization",
     });
     res.end();
     return;

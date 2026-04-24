@@ -1,3 +1,4 @@
+import type { GithubRepo } from "@decocms/mesh-sdk";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 /** Message ID generator. Use as closure where a () => string is expected (e.g. toUIMessageStreamResponse). */
@@ -9,7 +10,7 @@ export const DEFAULT_THREAD_TITLE = "New chat";
 
 export const PARENT_STEP_LIMIT = 30;
 export const SUBAGENT_STEP_LIMIT = 15;
-export const SUBAGENT_EXCLUDED_TOOLS = ["user_ask", "subtask", "open_in_agent"];
+export const SUBAGENT_EXCLUDED_TOOLS = ["user_ask", "subtask"];
 
 /**
  * Base platform prompt — shared by all agents (decopilot and custom).
@@ -141,6 +142,43 @@ Focus exclusively on:
 - Agent tools (create, update virtual MCPs)
 - Automation tools (create, configure triggers)
 </scope>`;
+}
+
+/**
+ * Repo environment prompt — injected when the active virtual MCP has a
+ * GitHub repository linked (and therefore exposes the VM/filesystem/shell
+ * tool suite).
+ */
+export function buildRepoEnvironmentPrompt(repo: GithubRepo): string {
+  return `<repo-environment>
+You are running inside the repository \`${repo.owner}/${repo.name}\`.
+Treat it as a working codebase on disk, not an abstract topic.
+
+When the user asks about code, files, structure, behavior, or bugs:
+prefer inspecting the repo with the filesystem and shell tools in
+<available-connections> over guessing or asking. Explore before
+answering.
+
+Cite file locations as \`path:line\` so the user can jump to them.
+
+Git operations live in two layers:
+- Working tree, history, commits, branches, pushes → BASH + git CLI
+  inside the VM. The repo is already cloned and checked out; never
+  re-clone.
+- PR-level operations (open, close, merge, review, comment) → GitHub
+  MCP tools. For rebasing a branch on its base, use git CLI — never
+  \`update_pull_request_branch\`, which merges instead of rebasing.
+
+When the user sends a direct imperative for a git or PR action
+("Publish", "Squash-merge the PR", "Rebase and force-push", "Address
+feedback", etc.), the user clicked a button; treat the message as an
+authenticated intent, not a question. Skip \`user_ask\`, don't restate
+the plan, don't re-derive the branch or PR — just execute. Ask only
+if you're blocked by something the user couldn't have known about
+(missing auth, merge conflict requiring a real choice, a check with
+multiple plausible fixes). This overrides the default safety rule for
+this context.
+</repo-environment>`;
 }
 
 export const TITLE_GENERATOR_PROMPT = `Generate a concise, sentence-case title (3-7 words) that captures the main topic or goal of this session. Use sentence case: capitalize only the first word and proper nouns.

@@ -316,7 +316,14 @@ export function ChatInput({
     tiptapDocRef.current = undefined;
   }
 
-  const contextWindow = selectedModel?.limits?.contextWindow;
+  // Prefer per-turn modelLimits (Claude Code reports real window at turn end)
+  // so the ring renders even when catalog limits are null.
+  const lastAssistantMetadata = [...messages]
+    .reverse()
+    .find((m) => m.role === "assistant")?.metadata;
+  const contextWindow =
+    lastAssistantMetadata?.modelLimits?.contextWindow ??
+    selectedModel?.limits?.contextWindow;
 
   const tiptapRef = useRef<TiptapInputHandle | null>(null);
 
@@ -343,7 +350,9 @@ export function ChatInput({
   const lastUsage = [...messages]
     .reverse()
     .find((m) => m.role === "assistant" && m.metadata?.usage)?.metadata?.usage;
+  // Prefer per-turn context size; fall back to cumulative for legacy messages.
   const lastTotalTokens =
+    lastUsage?.contextTokens ??
     (lastUsage?.totalTokens ?? 0) - (lastUsage?.reasoningTokens ?? 0);
 
   const playClickSound = useSound(question004Sound);

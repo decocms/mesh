@@ -21,6 +21,7 @@ import {
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { computeChatMainSizes } from "@/web/hooks/use-layout-state";
+import { ChatCenterPanel } from "@/web/layouts/chat-center-panel";
 import { MainPanelContent } from "@/web/layouts/main-panel-tabs";
 
 function PersistentChatPanel({
@@ -60,7 +61,10 @@ export interface ChatMainPanelGroupProps {
   taskId: string;
   chatOpen: boolean;
   mainOpen: boolean;
-  chatContent: React.ReactNode;
+  variant?: "home" | "default";
+  /** Optional override for the chat panel content — lets the outer layout
+   * wrap ChatCenterPanel in its own Suspense/ErrorBoundary/ActiveTaskProvider. */
+  chatContent?: React.ReactNode;
 }
 
 export function ChatMainPanelGroup({
@@ -68,6 +72,7 @@ export function ChatMainPanelGroup({
   taskId,
   chatOpen,
   mainOpen,
+  variant,
   chatContent,
 }: ChatMainPanelGroupProps) {
   const sizes = computeChatMainSizes(chatOpen, mainOpen);
@@ -100,7 +105,7 @@ export function ChatMainPanelGroup({
       <PersistentChatPanel defaultSize={sizes.chat}>
         <div className="h-full p-0.5 pt-0.25">
           <div className="h-full bg-background rounded-[0.75rem] overflow-hidden card-shadow">
-            {chatContent}
+            {chatContent ?? <ChatCenterPanel variant={variant} />}
           </div>
         </div>
       </PersistentChatPanel>

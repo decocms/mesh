@@ -58,14 +58,19 @@ export function TaskRow({
         </div>
         {task.updated_at && (
           <div className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
-            {githubRepo && (
+            {task.branch ? (
+              <>
+                <span className="truncate font-mono">{task.branch}</span>
+                <span className="shrink-0">·</span>
+              </>
+            ) : githubRepo ? (
               <>
                 <span className="truncate">
                   {githubRepo.owner}/{githubRepo.name}
                 </span>
                 <span className="shrink-0">·</span>
               </>
-            )}
+            ) : null}
             <span className="shrink-0">
               {formatTimeAgo(new Date(task.updated_at))}
             </span>

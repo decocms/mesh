@@ -153,6 +153,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
         temperature,
         memory: memoryConfig,
         thread_id,
+        branch,
         toolApprovalLevel,
         mode,
       } = await validateRequest(c);
@@ -202,6 +203,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           userId,
           taskId: resolvedThreadId,
           windowSize,
+          branch: branch ?? null,
         },
         ctx,
         { runRegistry, streamBuffer, cancelBroadcast },
@@ -248,6 +250,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
         temperature,
         memory: memoryConfig,
         thread_id,
+        branch,
         toolApprovalLevel,
         mode,
       } = await validateRequest(c);
@@ -297,6 +300,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           userId,
           taskId: resolvedThreadId,
           windowSize,
+          branch: branch ?? null,
         },
         ctx,
         { runRegistry, streamBuffer, cancelBroadcast },

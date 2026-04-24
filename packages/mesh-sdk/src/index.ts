@@ -116,6 +116,11 @@ export {
   type VirtualMCPConnection,
   type VirtualMcpUILayout,
   type VirtualMcpUILayoutTab,
+  VmMapSchema,
+  type VmMap,
+  VmMapEntrySchema,
+  type VmMapEntry,
+  type GithubRepo,
   // Decopilot event types
   THREAD_STATUSES,
   THREAD_DISPLAY_STATUSES,

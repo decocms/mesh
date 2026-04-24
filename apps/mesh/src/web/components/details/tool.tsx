@@ -64,7 +64,7 @@ import { contentBlocksToTiptapDoc } from "@/mcp-apps/content-blocks.ts";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { ToolAnnotationBadges } from "@/web/components/tools/tools-list.tsx";
 import {
-  useChatBridge,
+  useChatStream,
   useOptionalChatPrefs,
 } from "@/web/components/chat/context.tsx";
 import { usePanelActions } from "@/web/layouts/shell-layout";
@@ -202,7 +202,7 @@ function ToolDetailsAuthenticated({
 
   const { org } = useProjectContext();
   const connection = useConnection(connectionId);
-  const { sendMessage } = useChatBridge();
+  const { sendMessage } = useChatStream();
   const chatPrefs = useOptionalChatPrefs();
   const { setChatOpen } = usePanelActions();
   const sourceId = `${connectionId}:${toolName}`;
