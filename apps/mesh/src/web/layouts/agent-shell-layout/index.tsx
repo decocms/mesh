@@ -222,6 +222,9 @@ function AgentInsetProvider() {
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
   const vmMap = entity?.metadata?.vmMap;
+  // Runtime detection now lives inside VM_START (github-runtime-detect.ts on
+  // the server). The client fires VM_START eagerly and waits — no pre-flight
+  // gate, no client-side lockfile probe, no `runtime: null` sentinel.
   // daemonBaseUrl routing rationale: see VmEventsProvider.
   const vmEntry =
     userId && urlBranch ? (vmMap?.[userId]?.[urlBranch] ?? null) : null;
@@ -250,25 +253,26 @@ function AgentInsetProvider() {
   });
   const autoStart = useVmStart(autoStartClient);
   const { mutate: triggerAutoStart } = autoStart;
-  const autoStartingBranchRef = useRef<string | null>(null);
+  // Attempt at most one auto-start per (branch, mount). A user VM_DELETE
+  // removes the vmMap entry and invalidates queries — without a permanent
+  // guard the effect would immediately re-fire on the next render and
+  // resurrect the VM the user just stopped. Ref is a Set so branch switches
+  // still auto-start their own branch once, and manual starts from other
+  // surfaces populate vmMap (so the vmMap check short-circuits anyway).
+  const autoStartAttemptedRef = useRef<Set<string>>(new Set());
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — fires VM_START when vmMap is missing an entry for (user, branch); ref guard dedupes within this mount, module-level map dedupes across components
   useEffect(() => {
     if (!hasActiveGithubRepo) return;
     if (!userId) return;
     if (!urlBranch) return;
     if (vmMap?.[userId]?.[urlBranch]) return;
-    if (autoStartingBranchRef.current === urlBranch) return;
-    autoStartingBranchRef.current = urlBranch;
+    if (autoStartAttemptedRef.current.has(urlBranch)) return;
+    autoStartAttemptedRef.current.add(urlBranch);
     triggerAutoStart(
       { virtualMcpId, branch: urlBranch },
       {
         onError: (err) => {
           console.error("[auto-start-vm] failed:", err);
-        },
-        onSettled: () => {
-          if (autoStartingBranchRef.current === urlBranch) {
-            autoStartingBranchRef.current = null;
-          }
         },
       },
     );

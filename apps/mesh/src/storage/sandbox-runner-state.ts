@@ -174,6 +174,12 @@ export class KyselySandboxRunnerStateStore implements RunnerStateStore {
    * never strands a sandbox. The callback receives a scoped ops view whose
    * methods reuse the transaction's connection; using it instead of the
    * outer store is what keeps the main pool free during long provisioning.
+   *
+   * The lock wait is bounded via `SET LOCAL statement_timeout`: the holder
+   * runs slow provisioning (freestyle.vms.create ≈ 30–60s) inside its lock,
+   * and an unbounded wait lets one stalled holder wedge every concurrent
+   * ensure (observed: 132s). Timeout clears before the callback runs so
+   * nested reads/writes aren't capped by the lock-wait budget.
    */
   async withLock<T>(
     id: SandboxId,
@@ -182,8 +188,31 @@ export class KyselySandboxRunnerStateStore implements RunnerStateStore {
   ): Promise<T> {
     const key = lockKey(id, kind);
     return this.db.transaction().execute(async (trx) => {
-      await sql`select pg_advisory_xact_lock(${key}::bigint)`.execute(trx);
+      try {
+        await sql`set local statement_timeout = ${sql.lit(LOCK_WAIT_MS)}`.execute(
+          trx,
+        );
+        await sql`select pg_advisory_xact_lock(${key}::bigint)`.execute(trx);
+      } catch (err) {
+        if (isStatementTimeoutError(err)) {
+          throw new Error(
+            `sandbox advisory lock busy >${LOCK_WAIT_MS}ms for user=${id.userId} projectRef=${id.projectRef} kind=${kind} — another provisioner is slow or stuck; retry shortly`,
+          );
+        }
+        throw err;
+      }
+      await sql`set local statement_timeout = 0`.execute(trx);
       return fn(scopedStore(trx));
     });
   }
+}
+
+/** Generous enough to cover a cold freestyle.vms.create; short enough that a stuck holder isn't invisible. */
+const LOCK_WAIT_MS = 90_000;
+
+/** pg SQLSTATE 57014 = query_canceled — what `statement_timeout` raises. */
+function isStatementTimeoutError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const code = (err as { code?: unknown }).code;
+  return code === "57014" || /statement timeout/i.test(err.message);
 }
