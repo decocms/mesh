@@ -4,20 +4,14 @@
  * Layout differs by virtual MCP:
  *   - Non-decopilot agents: tasks + chat toggles (main panel opens/closes
  *     via the header tab bar).
- *   - Decopilot: tasks + main-view toggles (no tab bar; the main toggle
- *     replaces it).
+ *   - Decopilot: tasks toggle only (no layout icon on home).
  *
  * When the tasks panel is closed, an additional "new task" button slides
  * in via a grid-cols animation so the shortcut is always reachable
  * without stealing visual weight when tasks are already visible.
  */
 
-import {
-  Edit05,
-  LayoutRight,
-  Menu02,
-  MessageCircle01,
-} from "@untitledui/icons";
+import { Edit05, Menu02, MessageCircle01 } from "@untitledui/icons";
 import {
   Tooltip,
   TooltipContent,
@@ -71,24 +65,7 @@ export function ToggleButtons({
         </TooltipTrigger>
         <TooltipContent side="bottom">Tasks</TooltipContent>
       </Tooltip>
-      {isDecopilot ? (
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              onClick={toggleMain}
-              aria-pressed={mainOpen}
-              className={cn(
-                TOGGLE_BASE,
-                mainOpen ? TOGGLE_ACTIVE : TOGGLE_INACTIVE,
-              )}
-            >
-              <LayoutRight size={16} />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Main view</TooltipContent>
-        </Tooltip>
-      ) : (
+      {!isDecopilot && (
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
             <button
