@@ -496,7 +496,13 @@ export function ChatInput({
                       />
                       <ToolsPopover
                         disabled={isStreaming}
-                        onOpenConnections={() => setConnectionsOpen(true)}
+                        onOpenConnections={() => {
+                          track("connections_dialog_opened", {
+                            source: "tools_popover",
+                            mode: "add",
+                          });
+                          setConnectionsOpen(true);
+                        }}
                         virtualMcpId={selectedVirtualMcp?.id ?? decopilotId}
                       />
                       {isPlanMode && (
@@ -504,6 +510,11 @@ export function ChatInput({
                           type="button"
                           onClick={() => {
                             playSwitchSound();
+                            track("chat_mode_changed", {
+                              from_mode: "plan",
+                              to_mode: "default",
+                              source: "pill_dismiss",
+                            });
                             setChatMode("default");
                           }}
                           className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 group whitespace-nowrap animate-in fade-in duration-200"
@@ -521,6 +532,11 @@ export function ChatInput({
                           type="button"
                           onClick={() => {
                             playSwitchSound();
+                            track("chat_mode_changed", {
+                              from_mode: "gen-image",
+                              to_mode: "default",
+                              source: "pill_dismiss",
+                            });
                             setChatMode("default");
                           }}
                           className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-pink-600 dark:text-pink-400 hover:bg-pink-500/10 group whitespace-nowrap animate-in fade-in duration-200"
@@ -547,6 +563,11 @@ export function ChatInput({
                           type="button"
                           onClick={() => {
                             playSwitchSound();
+                            track("chat_mode_changed", {
+                              from_mode: "web-search",
+                              to_mode: "default",
+                              source: "pill_dismiss",
+                            });
                             setChatMode("default");
                           }}
                           className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 group whitespace-nowrap animate-in fade-in duration-200"
@@ -662,7 +683,18 @@ export function ChatInput({
 
           {/* Connections Banner Footer - always visible on home */}
           {showConnectionsBanner && (
-            <ConnectionsBanner onClick={() => setConnectionsOpen(true)} />
+            <ConnectionsBanner
+              onClick={() => {
+                track("connections_banner_clicked", {
+                  source: "home_chat_input",
+                });
+                track("connections_dialog_opened", {
+                  source: "home_banner",
+                  mode: "add",
+                });
+                setConnectionsOpen(true);
+              }}
+            />
           )}
         </div>
       </div>

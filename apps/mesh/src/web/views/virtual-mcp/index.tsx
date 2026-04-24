@@ -82,6 +82,7 @@ import { IconPicker } from "../../components/icon-picker";
 import { SimpleIconPicker } from "../../components/simple-icon-picker";
 import { Page } from "@/web/components/page";
 import { AddConnectionDialog } from "./add-connection-dialog";
+import { track } from "@/web/lib/posthog-client";
 import { DependencySelectionDialog } from "./dependency-selection-dialog";
 import { ALL_ITEMS_SELECTED } from "./selection-utils";
 import { VirtualMcpFormSchema, type VirtualMcpFormData } from "./types";
@@ -1147,6 +1148,10 @@ function VirtualMcpDetailViewWithData({
   }
 
   const handleOpenAddDialog = () => {
+    track("connections_dialog_opened", {
+      source: "agent_settings",
+      mode: "add",
+    });
     dispatch({ type: "SET_ADD_DIALOG_OPEN", payload: true });
   };
 

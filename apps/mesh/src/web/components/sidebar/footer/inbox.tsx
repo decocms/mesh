@@ -35,6 +35,7 @@ import {
 import { useAiProviderKeys } from "@/web/hooks/collections/use-ai-providers";
 import { useNavigate } from "@tanstack/react-router";
 import { AddConnectionDialog } from "@/web/views/virtual-mcp/add-connection-dialog";
+import { track } from "@/web/lib/posthog-client";
 
 interface Invitation {
   id: string;
@@ -234,7 +235,13 @@ function ConnectionsButton() {
         <SidebarMenuItem>
           <SidebarMenuButton
             tooltip="Connections"
-            onClick={() => setOpen(true)}
+            onClick={() => {
+              track("connections_dialog_opened", {
+                source: "sidebar_footer",
+                mode: "browse",
+              });
+              setOpen(true);
+            }}
           >
             <ZapSquare size={24} />
           </SidebarMenuButton>

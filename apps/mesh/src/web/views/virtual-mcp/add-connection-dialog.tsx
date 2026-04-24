@@ -52,6 +52,7 @@ import {
 } from "@untitledui/icons";
 import { Suspense, useDeferredValue, useState } from "react";
 import { toast } from "sonner";
+import { track } from "@/web/lib/posthog-client";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -116,6 +117,13 @@ function ConnectionDialogContent({
       (defaultTab === "all" ? ":home-modal" : ":agent-modal"),
     (existing) => existing ?? defaultTab,
   );
+
+  const handleTabChange = (nextTab: ConnectionTab) => {
+    if (nextTab !== activeTab) {
+      track("connections_dialog_tab_changed", { to_tab: nextTab });
+    }
+    setActiveTab(nextTab);
+  };
 
   // Connections - server-side search with infinite scroll
   const PAGE_SIZE = 100;
@@ -281,7 +289,14 @@ function ConnectionDialogContent({
               <Check size={11} /> Connected
             </Badge>
           }
-          onClick={() => onBrowseNavigate?.(slug)}
+          onClick={() => {
+            track("connection_browse_clicked", {
+              app_name: firstInstance.app_name ?? null,
+              connection_id: firstInstance.id,
+              instances_count: connections.length,
+            });
+            onBrowseNavigate?.(slug);
+          }}
         />
       );
     }
@@ -307,8 +322,18 @@ function ConnectionDialogContent({
               onClick={(e) => {
                 e.stopPropagation();
                 if (availableInstance) {
+                  track("connection_add_clicked", {
+                    action: "use_existing",
+                    app_name: firstInstance.app_name ?? null,
+                    connection_id: availableInstance.id,
+                  });
                   onAdd(availableInstance.id);
                 } else {
+                  track("connection_add_clicked", {
+                    action: "clone",
+                    app_name: firstInstance.app_name ?? null,
+                    base_connection_id: firstInstance.id,
+                  });
                   onCloneAndAdd(firstInstance);
                 }
               }}
@@ -355,6 +380,19 @@ function ConnectionDialogContent({
             disabled={connectingItemId !== null}
             onClick={(e) => {
               e.stopPropagation();
+              track("connection_add_clicked", {
+                action: "connect_new",
+                registry_item_id: item.id,
+                app_name:
+                  (
+                    item._meta?.["mcp.mesh"] as
+                      | Record<string, string>
+                      | undefined
+                  )?.friendlyName ||
+                  item.server?.name ||
+                  item.name ||
+                  null,
+              });
               onConnectAndAdd(item);
             }}
           >
@@ -382,13 +420,16 @@ function ConnectionDialogContent({
               { id: "connected", label: "Connected" },
             ]}
             activeTab={activeTab}
-            onTabChange={(id) => setActiveTab(id as ConnectionTab)}
+            onTabChange={(id) => handleTabChange(id as ConnectionTab)}
           />
           <Button
             variant="outline"
             size="sm"
             className="h-7 px-2 text-sm"
-            onClick={onCreateConnection}
+            onClick={() => {
+              track("connections_dialog_custom_clicked");
+              onCreateConnection();
+            }}
           >
             <Plus size={12} />
             Custom Connection
@@ -562,11 +603,20 @@ export function AddConnectionDialog({
           scope: "offline_access",
         });
         if (error || !token) {
+          track("connection_oauth_failed", {
+            connection_id: id,
+            flow: "clone",
+            error: error ?? "no_token",
+          });
           toast.error(`Authentication failed: ${error ?? "no token received"}`);
           // Clean up the orphaned connection
           await connectionActions.delete.mutateAsync(id);
           return;
         }
+        track("connection_oauth_succeeded", {
+          connection_id: id,
+          flow: "clone",
+        });
         if (tokenInfo) {
           try {
             const response = await fetch(`/api/connections/${id}/oauth-token`, {
@@ -661,10 +711,19 @@ export function AddConnectionDialog({
           scope: "offline_access",
         });
         if (error || !token) {
+          track("connection_oauth_failed", {
+            connection_id: id,
+            flow: "connect_new",
+            error: error ?? "no_token",
+          });
           toast.error(`Authentication failed: ${error ?? "no token received"}`);
           onAdd(id);
           return;
         }
+        track("connection_oauth_succeeded", {
+          connection_id: id,
+          flow: "connect_new",
+        });
 
         if (tokenInfo) {
           try {
@@ -781,12 +840,21 @@ export function AddConnectionDialog({
               scope: "offline_access",
             });
             if (error || !token) {
+              track("connection_oauth_failed", {
+                connection_id: id,
+                flow: "custom_create",
+                error: error ?? "no_token",
+              });
               toast.error(
                 `Authentication failed: ${error ?? "no token received"}`,
               );
               await connectionActions.delete.mutateAsync(id);
               return;
             }
+            track("connection_oauth_succeeded", {
+              connection_id: id,
+              flow: "custom_create",
+            });
             if (tokenInfo) {
               try {
                 const response = await fetch(
