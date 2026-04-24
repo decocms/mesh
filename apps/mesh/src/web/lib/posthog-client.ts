@@ -72,4 +72,24 @@ export function track(event: string, properties?: Record<string, unknown>) {
   posthog.capture(event, properties);
 }
 
+/**
+ * Report an exception to PostHog with optional structured context.
+ *
+ * Use from React error boundaries (`componentDidCatch`) where errors are
+ * caught BEFORE bubbling to `window.onerror` — so the built-in
+ * `capture_exceptions: true` autocapture never sees them. Wrap in
+ * try/catch so a PostHog failure never blocks the fallback UI.
+ */
+export function captureException(
+  error: unknown,
+  properties?: Record<string, unknown>,
+) {
+  if (!apiKey || !initialized) return;
+  try {
+    posthog.captureException(error, properties);
+  } catch {
+    // Swallow — never let analytics break the error UI.
+  }
+}
+
 export const isPostHogEnabled = Boolean(apiKey);

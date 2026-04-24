@@ -452,6 +452,20 @@ Built-in annotation map (in `BUILTIN_TOOL_ANNOTATIONS`):
 
 ---
 
+## 24. Errors (client-side exceptions)
+
+PostHog's `capture_exceptions: true` autocapture only sees exceptions that bubble to `window.onerror` / unhandled promise rejections. React error boundaries catch render-phase errors BEFORE they reach the window — so anything that hits a boundary is invisible to autocapture. The boundaries below report manually via `posthog.captureException`.
+
+| Event | Surface | Trigger | Props |
+|---|---|---|---|
+| `$exception` (from `ErrorBoundary`) | F | `error-boundary.tsx:57` `componentDidCatch` on the per-route `<ErrorBoundary>` | `boundary: "default"`, `error_name`, `error_message`, `component_stack`, `route` — render-phase or commit-phase error caught by a sub-tree boundary; the user sees the "Something went wrong" fallback but the rest of the app keeps working. |
+| `$exception` (from `ChunkErrorBoundary`) | F | `error-boundary.tsx:120` `componentDidCatch` on the root chunk boundary | `boundary: "chunk_root"`, `is_chunk_load_error`, `error_name`, `error_message`, `component_stack`, `route` — root-level catch. `is_chunk_load_error=true` triggers an auto-reload (stale post-deploy bundle); `false` = a real top-level crash that the user sees as the fallback page. |
+| `$exception` (autocapture) | F | posthog-js `capture_exceptions: true` — `window.onerror` + unhandled promise rejections | Auto-populated by posthog-js (`$exception_message`, `$exception_type`, `$exception_stack_trace_raw`, etc.) — covers everything OUTSIDE React's render path: event handlers, async code, third-party scripts. |
+
+`$exception` is PostHog's reserved event for exceptions; the `boundary` prop lets you split the React-boundary catches from the autocapture stream. Filter `$exception WHERE boundary = "default"` to see render-phase errors specifically (the "removeChild" / "Cannot read property of undefined during render" class). Browser-extension noise (Google Translate, password managers mutating the DOM) shows up here a lot — `error_message CONTAINS "removeChild"` is a useful filter for that subset.
+
+---
+
 # Issues & gaps surfaced while cataloging
 
 See `events-review.md` for the triage + fixes pass.
