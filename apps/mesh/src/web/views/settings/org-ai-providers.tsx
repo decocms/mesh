@@ -579,11 +579,19 @@ function ProviderCard({
   useEffect(() => {
     if (!isOAuthPending || !oauthStateToken) return;
 
+    // Local flag — once the popup posts back and exchangeOAuth starts, the
+    // exchange has its own onSuccess/onError handlers. Without this, a slow
+    // exchange (>2min) would race the timeout and fire a false-positive
+    // ai_provider_oauth_failed{error:"timeout"} alongside the eventual
+    // ai_provider_oauth_succeeded.
+    let exchangeStarted = false;
+
     const handleMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
       if (event.data?.type === "AI_PROVIDER_OAUTH_CALLBACK") {
         const { code, stateToken } = event.data;
         if (stateToken === oauthStateToken) {
+          exchangeStarted = true;
           exchangeOAuth({ code, stateToken });
         } else {
           console.error("State token mismatch");
@@ -596,17 +604,15 @@ function ProviderCard({
 
     window.addEventListener("message", handleMessage);
 
-    // Timeout after 2 minutes
+    // 2-minute popup-wait timeout. Distinct from exchange-failure: this means
+    // the user never came back from the OAuth popup. Tracked as a separate
+    // event so funnel math stays clean.
     const timeoutId = setTimeout(() => {
-      if (isOAuthPending) {
-        track("ai_provider_oauth_failed", {
-          provider_id: provider.id,
-          error: "timeout",
-        });
-        setIsOAuthPending(false);
-        setOauthStateToken(null);
-        toast.error("Connection timed out");
-      }
+      if (exchangeStarted) return;
+      track("ai_provider_oauth_timeout", { provider_id: provider.id });
+      setIsOAuthPending(false);
+      setOauthStateToken(null);
+      toast.error("Connection timed out");
     }, 120000);
 
     return () => {
