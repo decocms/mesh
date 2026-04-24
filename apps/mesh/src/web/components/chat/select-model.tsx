@@ -787,6 +787,7 @@ function ConnectionModelList({
   onModelSelect,
   managing,
   onToggleManage,
+  filterModels: filterModelsProp,
 }: {
   keyId: string | undefined;
   searchTerm: string;
@@ -794,8 +795,12 @@ function ConnectionModelList({
   onHover: (model: AiProviderModel) => void;
   managing: boolean;
   onToggleManage: () => void;
+  filterModels?: (m: AiProviderModel) => boolean;
 }) {
-  const { models: allModels } = useAiProviderModels(keyId);
+  const { models: rawModels } = useAiProviderModels(keyId);
+  const allModels = filterModelsProp
+    ? rawModels.filter(filterModelsProp)
+    : rawModels;
   const [shortlistSet, setShortlistSet] = useState<Set<string>>(
     () => (keyId ? readShortlist(keyId) : null) ?? DEFAULT_SHORTLIST,
   );
@@ -820,7 +825,7 @@ function ConnectionModelList({
   };
 
   const normalizedSearch = searchTerm.toLowerCase().trim();
-  const filterModels = (models: AiProviderModel[]) =>
+  const applySearch = (models: AiProviderModel[]) =>
     normalizedSearch
       ? models.filter(
           (m) =>
@@ -830,7 +835,7 @@ function ConnectionModelList({
       : models;
 
   if (managing) {
-    const grouped = groupByTier(filterModels(allModels));
+    const grouped = groupByTier(applySearch(allModels));
     const flatItems = buildManageItems(grouped);
     const selectedCount = allModels.filter((m) =>
       shortlistSet.has(m.modelId),
@@ -864,7 +869,7 @@ function ConnectionModelList({
   // Browse mode: show shortlisted models (fall back to all if none match)
   const shortlisted = allModels.filter((m) => shortlistSet.has(m.modelId));
   const browseable = shortlisted.length > 0 ? shortlisted : allModels;
-  const grouped = groupByTier(filterModels(browseable));
+  const grouped = groupByTier(applySearch(browseable));
 
   return (
     <div className="flex-1 overflow-y-auto px-0.5 pt-1 [touch-action:pan-y]">
@@ -1014,6 +1019,7 @@ interface ModelSelectorInnerProps {
   onCredentialChange: (id: string | null) => void;
   selectedModel: AiProviderModel | null;
   onModelChange: (model: AiProviderModel) => void;
+  filterModels?: (m: AiProviderModel) => boolean;
 }
 
 function ModelSelectorInner({
@@ -1022,6 +1028,7 @@ function ModelSelectorInner({
   onCredentialChange,
   selectedModel,
   onModelChange,
+  filterModels,
 }: ModelSelectorInnerProps) {
   const [hoveredModel, setHoveredModel] = useState<AiProviderModel | null>(
     null,
@@ -1072,7 +1079,7 @@ function ModelSelectorInner({
               }
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 min-w-0 border-0 shadow-none focus-visible:ring-0 px-0 h-full text-sm placeholder:text-muted-foreground/50 bg-transparent"
+              className="flex-1 min-w-0 border-0 !shadow-none focus-visible:ring-0 px-0 h-full text-sm placeholder:text-muted-foreground/50 bg-transparent"
             />
             {keys.length > 0 && (
               <Select
@@ -1164,6 +1171,7 @@ function ModelSelectorInner({
               onModelSelect={handleModelSelect}
               managing={managing}
               onToggleManage={() => setManaging((v) => !v)}
+              filterModels={filterModels}
             />
           </Suspense>
         </ErrorBoundary>
@@ -1234,6 +1242,7 @@ export interface ModelSelectorProps {
   credentialId?: string | null;
   onCredentialChange?: (id: string | null) => void;
   onModelChange?: (model: AiProviderModel) => void;
+  filterModels?: (m: AiProviderModel) => boolean;
 }
 
 export function ModelSelector({
@@ -1245,6 +1254,7 @@ export function ModelSelector({
   credentialId: credentialIdProp,
   onCredentialChange,
   onModelChange,
+  filterModels,
 }: ModelSelectorProps) {
   const [open, setOpen] = useState(false);
   const standalone = onModelChange !== undefined;
@@ -1281,6 +1291,7 @@ export function ModelSelector({
           onCredentialChange={onCredentialChange ?? (() => {})}
           selectedModel={modelProp ?? null}
           onModelChange={onModelChange}
+          filterModels={filterModels}
         />
       ) : (
         <ModelSelectorContent onClose={() => setOpen(false)} />

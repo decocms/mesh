@@ -15,8 +15,15 @@ import {
 } from "@untitledui/icons";
 import { Page } from "@/web/components/page";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Card } from "@deco/ui/components/card.tsx";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@deco/ui/components/card.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
+import { Switch } from "@deco/ui/components/switch.tsx";
 import {
   ToggleGroup,
   ToggleGroupItem,
@@ -44,16 +51,25 @@ import {
 import {
   useAiProviders,
   useAiProviderKeys,
+  useAiProviderModels,
   type AiProviderKey,
+  type AiProviderModel,
 } from "@/web/hooks/collections/use-ai-providers";
 import {
   SELF_MCP_ALIAS_ID,
   useMCPClient,
   useProjectContext,
+  pickSimpleModeDefaults,
 } from "@decocms/mesh-sdk";
 import { KEYS } from "@/web/lib/query-keys";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { ErrorBoundary } from "@/web/components/error-boundary";
+import {
+  useSimpleMode,
+  useUpdateSimpleMode,
+  type SimpleModeConfig,
+} from "@/web/hooks/collections/use-ai-simple-mode";
+import { ModelSelector } from "@/web/components/chat/select-model";
 
 function ErrorFallback({ error }: { error: Error }) {
   return (
@@ -1090,6 +1106,252 @@ function DecoCreditsHero() {
   );
 }
 
+// ── Simple Model Mode ────────────────────────────────────────────────
+
+const filterImageModels = (m: AiProviderModel) =>
+  m.capabilities?.includes("image") === true;
+
+const filterWebResearchModels = (m: AiProviderModel) => {
+  const n = m.modelId.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return n.includes("sonar") || n.includes("deepresearch");
+};
+
+type TierKey = "fast" | "smart" | "thinking";
+
+const TIER_LABELS: Record<TierKey, string> = {
+  fast: "Fast",
+  smart: "Smart",
+  thinking: "Thinking",
+};
+
+const TIER_DESCRIPTIONS: Record<TierKey, string> = {
+  fast: "Fastest responses, best for quick tasks",
+  smart: "Balanced speed and capability",
+  thinking: "Most capable, best for complex tasks",
+};
+
+function SimpleModeModelRow({
+  label,
+  description,
+  slot,
+  onSlotChange,
+  filterModels,
+}: {
+  label: string;
+  description?: string;
+  slot: SimpleModeConfig["chat"]["fast"];
+  onSlotChange: (slot: SimpleModeConfig["chat"]["fast"]) => void;
+  filterModels?: (m: AiProviderModel) => boolean;
+}) {
+  const resolvedModel: AiProviderModel | null = slot
+    ? ({
+        modelId: slot.modelId,
+        title: slot.title ?? slot.modelId,
+        keyId: slot.keyId,
+        providerId: "deco",
+        description: null,
+        logo: null,
+        capabilities: [],
+        limits: null,
+        costs: null,
+      } as AiProviderModel)
+    : null;
+
+  return (
+    <div className="flex items-center justify-between gap-4 py-3 border-b border-border/50 last:border-0">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm text-foreground">{label}</p>
+        {description && (
+          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+        )}
+      </div>
+      <div className="shrink-0">
+        <ModelSelector
+          variant="bordered"
+          placeholder="Pick model"
+          model={resolvedModel}
+          credentialId={slot?.keyId ?? null}
+          filterModels={filterModels}
+          onCredentialChange={(keyId) => {
+            if (slot && keyId) onSlotChange({ ...slot, keyId });
+          }}
+          onModelChange={(m) => {
+            onSlotChange({
+              keyId: m.keyId ?? slot?.keyId ?? "",
+              modelId: m.modelId,
+              title: m.title,
+            });
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SimpleModeSection() {
+  const allKeys = useAiProviderKeys();
+  const simpleMode = useSimpleMode();
+  const { mutate: updateSimpleMode, isPending } = useUpdateSimpleMode();
+
+  const [draft, setDraft] = useState<SimpleModeConfig>(() => ({
+    enabled: simpleMode.enabled,
+    chat: {
+      fast: simpleMode.chat.fast,
+      smart: simpleMode.chat.smart,
+      thinking: simpleMode.chat.thinking,
+    },
+    image: simpleMode.image,
+    webResearch: simpleMode.webResearch,
+  }));
+
+  // Sync remote state into draft when it changes (e.g. after save)
+  const [synced, setSynced] = useState(false);
+  if (
+    !synced &&
+    (simpleMode.enabled ||
+      simpleMode.chat.fast ||
+      simpleMode.chat.smart ||
+      simpleMode.chat.thinking)
+  ) {
+    setSynced(true);
+    setDraft({
+      enabled: simpleMode.enabled,
+      chat: {
+        fast: simpleMode.chat.fast,
+        smart: simpleMode.chat.smart,
+        thinking: simpleMode.chat.thinking,
+      },
+      image: simpleMode.image,
+      webResearch: simpleMode.webResearch,
+    });
+  }
+
+  // Lazily load models for all keys so we can pre-fill defaults.
+  // We call the hook for each key separately and collect results.
+  // Since hooks can't be called in a loop, we cap at the first 3 keys
+  // (sufficient for defaults — the user can always change manually).
+  const key0 = allKeys[0];
+  const key1 = allKeys[1];
+  const key2 = allKeys[2];
+  const { models: models0 } = useAiProviderModels(key0?.id);
+  const { models: models1 } = useAiProviderModels(key1?.id);
+  const { models: models2 } = useAiProviderModels(key2?.id);
+
+  const handleToggle = (enabled: boolean) => {
+    if (
+      enabled &&
+      !draft.chat.fast &&
+      !draft.chat.smart &&
+      !draft.chat.thinking
+    ) {
+      const modelsByKeyId: Record<string, AiProviderModel[]> = {};
+      if (key0?.id) modelsByKeyId[key0.id] = models0;
+      if (key1?.id) modelsByKeyId[key1.id] = models1;
+      if (key2?.id) modelsByKeyId[key2.id] = models2;
+      const defaults = pickSimpleModeDefaults(allKeys, modelsByKeyId);
+      setDraft({
+        enabled: true,
+        chat: defaults.chat,
+        image: defaults.image,
+        webResearch: defaults.webResearch,
+      });
+    } else {
+      setDraft((d) => ({ ...d, enabled }));
+    }
+  };
+
+  const handleSave = () => {
+    updateSimpleMode(draft, {
+      onSuccess: () => {
+        toast.success("Simple Model Mode updated");
+        setSynced(false);
+      },
+      onError: (err) => {
+        toast.error(`Failed to save: ${err.message}`);
+      },
+    });
+  };
+
+  const isDirty =
+    draft.enabled !== simpleMode.enabled ||
+    JSON.stringify(draft.chat) !== JSON.stringify(simpleMode.chat) ||
+    JSON.stringify(draft.image) !== JSON.stringify(simpleMode.image) ||
+    JSON.stringify(draft.webResearch) !==
+      JSON.stringify(simpleMode.webResearch);
+
+  return (
+    <Card className="p-6">
+      <CardHeader className="p-0 pb-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <CardTitle className="text-sm">Simple model mode</CardTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Replace the model picker with a Fast / Smart / Thinking toggle for
+              all members of this org.
+            </p>
+          </div>
+          <Switch
+            checked={draft.enabled}
+            onCheckedChange={handleToggle}
+            disabled={isPending}
+          />
+        </div>
+      </CardHeader>
+
+      {draft.enabled && (
+        <CardContent className="flex flex-col p-0 border-t border-border/50">
+          <div className="pt-1">
+            <p className="text-xs text-muted-foreground pt-3 pb-1">
+              Chat models
+            </p>
+            {(["fast", "smart", "thinking"] as TierKey[]).map((tier) => (
+              <SimpleModeModelRow
+                key={tier}
+                label={TIER_LABELS[tier]}
+                description={TIER_DESCRIPTIONS[tier]}
+                slot={draft.chat[tier]}
+                onSlotChange={(slot) =>
+                  setDraft((d) => ({
+                    ...d,
+                    chat: { ...d.chat, [tier]: slot },
+                  }))
+                }
+              />
+            ))}
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground pt-3 pb-1">
+              Other models
+            </p>
+            <SimpleModeModelRow
+              label="Image"
+              slot={draft.image}
+              filterModels={filterImageModels}
+              onSlotChange={(slot) => setDraft((d) => ({ ...d, image: slot }))}
+            />
+            <SimpleModeModelRow
+              label="Web research"
+              slot={draft.webResearch}
+              filterModels={filterWebResearchModels}
+              onSlotChange={(slot) =>
+                setDraft((d) => ({ ...d, webResearch: slot }))
+              }
+            />
+          </div>
+        </CardContent>
+      )}
+
+      {isDirty && (
+        <CardFooter className="p-0 pt-4 justify-end">
+          <Button size="sm" onClick={handleSave} disabled={isPending}>
+            {isPending ? "Saving..." : "Save changes"}
+          </Button>
+        </CardFooter>
+      )}
+    </Card>
+  );
+}
+
 // ── Page assembly ────────────────────────────────────────────────────
 
 function OrgAiProvidersContent() {
@@ -1099,12 +1361,10 @@ function OrgAiProvidersContent() {
   return (
     <div className="flex flex-col gap-6">
       <DecoCreditsHero />
-      <div>
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-          Providers
-        </p>
-        <ProviderCardGrid hideProviderId={hasDecoKey ? "deco" : undefined} />
-      </div>
+      <ProviderCardGrid hideProviderId={hasDecoKey ? "deco" : undefined} />
+      <Suspense fallback={<Skeleton className="h-16 w-full" />}>
+        <SimpleModeSection />
+      </Suspense>
     </div>
   );
 }

@@ -131,11 +131,29 @@ export interface RegistryConfig {
   blockedMcps: string[];
 }
 
+export interface SimpleModeModelSlot {
+  keyId: string;
+  modelId: string;
+  title?: string;
+}
+
+export interface SimpleModeConfig {
+  enabled: boolean;
+  chat: {
+    fast: SimpleModeModelSlot | null;
+    smart: SimpleModeModelSlot | null;
+    thinking: SimpleModeModelSlot | null;
+  };
+  image: SimpleModeModelSlot | null;
+  webResearch: SimpleModeModelSlot | null;
+}
+
 export interface OrganizationSettingsTable {
   organizationId: string;
   sidebar_items: JsonArray<SidebarItem[]> | null;
   enabled_plugins: JsonArray<string[]> | null;
   registry_config: JsonObject<RegistryConfig> | null;
+  simple_mode: JsonObject<SimpleModeConfig> | null;
   createdAt: ColumnType<Date, Date | string, never>;
   updatedAt: ColumnType<Date, Date | string, Date | string>;
 }
@@ -145,6 +163,7 @@ export interface OrganizationSettings {
   sidebar_items: SidebarItem[] | null;
   enabled_plugins: string[] | null;
   registry_config: RegistryConfig | null;
+  simple_mode: SimpleModeConfig | null;
   createdAt: Date | string;
   updatedAt: Date | string;
 }

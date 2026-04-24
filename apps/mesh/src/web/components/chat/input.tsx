@@ -1,6 +1,12 @@
 import { isModKey } from "@/web/lib/keyboard-shortcuts";
 import { calculateUsageStats } from "@/web/lib/usage-utils.ts";
 import { Button } from "@deco/ui/components/button.tsx";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@deco/ui/components/dropdown-menu.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   getWellKnownDecopilotVirtualMCP,
@@ -8,13 +14,16 @@ import {
 } from "@decocms/mesh-sdk";
 import {
   ArrowUp,
+  Atom01,
   BookOpen01,
   Check,
   Globe02,
   Image01,
+  Lightning01,
   Lock01,
   Microphone01,
   Plus,
+  Stars01,
   Stop,
   Upload01,
   X,
@@ -44,6 +53,76 @@ import { AddConnectionDialog } from "@/web/views/virtual-mcp/add-connection-dial
 import { ConnectionsBanner } from "./connections-banner";
 import { useVoiceInput } from "@/web/hooks/use-voice-input.ts";
 import { VoiceWaveform } from "./voice-input";
+
+// ============================================================================
+// SimpleModeTierDropdown
+// ============================================================================
+
+const TIER_OPTIONS = [
+  {
+    value: "fast" as const,
+    label: "Fast",
+    Icon: Lightning01,
+    description: "Quicker responses",
+  },
+  {
+    value: "smart" as const,
+    label: "Smart",
+    Icon: Stars01,
+    description: "Balanced quality",
+  },
+  {
+    value: "thinking" as const,
+    label: "Thinking",
+    Icon: Atom01,
+    description: "Deeper reasoning",
+  },
+] as const;
+
+function SimpleModeTierDropdown({
+  tier,
+  onSelect,
+}: {
+  tier: "fast" | "smart" | "thinking";
+  onSelect: (t: "fast" | "smart" | "thinking") => void;
+}) {
+  const current =
+    TIER_OPTIONS.find((o) => o.value === tier) ?? TIER_OPTIONS[1]!;
+  const Icon = current.Icon;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="default"
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <Icon size={14} />
+          <span className="hidden sm:inline">{current.label}</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52 p-1.5">
+        {TIER_OPTIONS.map(({ value, label, Icon: TierIcon, description }) => (
+          <DropdownMenuItem key={value} onSelect={() => onSelect(value)}>
+            <TierIcon size={16} className="text-muted-foreground" />
+            <div className="flex flex-col gap-0.5 flex-1">
+              <span>{label}</span>
+              <span className="text-xs text-muted-foreground font-normal">
+                {description}
+              </span>
+            </div>
+            {tier === value && (
+              <span className="text-xs text-muted-foreground font-medium">
+                On
+              </span>
+            )}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 // ============================================================================
 // useWindowFileDrop - Reusable hook for window-level file drag & drop
@@ -175,6 +254,9 @@ export function ChatInput({
     deepResearchModel,
     chatMode,
     setChatMode,
+    simpleModeEnabled,
+    simpleModeTier,
+    setSimpleModeTier,
   } = useChatPrefs();
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
@@ -419,9 +501,14 @@ export function ChatInput({
                         >
                           <Image01 size={14} className="shrink-0" />
                           <span className="max-w-[120px] truncate">
-                            {imageModel.title.includes(": ")
-                              ? imageModel.title.split(": ").slice(1).join(": ")
-                              : imageModel.title}
+                            {simpleModeEnabled
+                              ? "Create image"
+                              : imageModel.title.includes(": ")
+                                ? imageModel.title
+                                    .split(": ")
+                                    .slice(1)
+                                    .join(": ")
+                                : imageModel.title}
                           </span>
                           <X
                             size={14}
@@ -440,12 +527,14 @@ export function ChatInput({
                         >
                           <Globe02 size={14} className="shrink-0" />
                           <span className="max-w-[120px] truncate">
-                            {deepResearchModel.title.includes(": ")
-                              ? deepResearchModel.title
-                                  .split(": ")
-                                  .slice(1)
-                                  .join(": ")
-                              : deepResearchModel.title}
+                            {simpleModeEnabled
+                              ? "Web search"
+                              : deepResearchModel.title.includes(": ")
+                                ? deepResearchModel.title
+                                    .split(": ")
+                                    .slice(1)
+                                    .join(": ")
+                                : deepResearchModel.title}
                           </span>
                           <X
                             size={14}
@@ -465,11 +554,18 @@ export function ChatInput({
 
                     {/* Right Actions (mic, model, send) */}
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <ModelSelector
-                        placeholder="Model"
-                        variant="borderless"
-                        className="h-8 text-sm py-2 min-w-0"
-                      />
+                      {simpleModeEnabled ? (
+                        <SimpleModeTierDropdown
+                          tier={simpleModeTier}
+                          onSelect={setSimpleModeTier}
+                        />
+                      ) : (
+                        <ModelSelector
+                          placeholder="Model"
+                          variant="borderless"
+                          className="h-8 text-sm py-2 min-w-0"
+                        />
+                      )}
 
                       {/* Microphone button — only shown when not streaming and speech is supported */}
                       {voice.isSupported &&

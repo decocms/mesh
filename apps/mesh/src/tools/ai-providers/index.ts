@@ -10,3 +10,5 @@ export { AI_PROVIDER_PROVISION_KEY } from "./provision-key";
 export { AI_PROVIDER_TOPUP_URL } from "./topup-url";
 export { AI_PROVIDER_CREDITS } from "./credits";
 export { AI_PROVIDER_CLI_ACTIVATE } from "./cli-activate";
+export { AI_SIMPLE_MODE_GET } from "./simple-mode-get";
+export { AI_SIMPLE_MODE_UPDATE } from "./simple-mode-update";

@@ -144,7 +144,7 @@ export interface OrganizationSettingsStoragePort {
     data?: Partial<
       Pick<
         OrganizationSettings,
-        "sidebar_items" | "enabled_plugins" | "registry_config"
+        "sidebar_items" | "enabled_plugins" | "registry_config" | "simple_mode"
       >
     >,
   ): Promise<OrganizationSettings>;
