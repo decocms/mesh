@@ -1136,19 +1136,45 @@ function SimpleModeModelRow({
   slot,
   onSlotChange,
   filterModels,
+  defaultKeyId,
 }: {
   label: string;
   description?: string;
   slot: SimpleModeConfig["chat"]["fast"];
   onSlotChange: (slot: SimpleModeConfig["chat"]["fast"]) => void;
   filterModels?: (m: AiProviderModel) => boolean;
+  defaultKeyId: string | null;
 }) {
+  const allKeys = useAiProviderKeys();
+  const [localCredentialId, setLocalCredentialId] = useState<string | null>(
+    slot?.keyId ?? defaultKeyId,
+  );
+
+  // Adopt slot's keyId when it actually transitions (e.g. auto-fill from defaults)
+  // — NOT on every render, or it would revert user's in-modal credential changes.
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (slot?.keyId) setLocalCredentialId(slot.keyId);
+  }, [slot?.keyId]);
+
+  const activeKeyId = localCredentialId ?? defaultKeyId;
+  const slotKey = activeKeyId
+    ? allKeys.find((k) => k.id === activeKeyId)
+    : null;
+
+  const { models: activeModels } = useAiProviderModels(
+    filterModels ? (activeKeyId ?? undefined) : undefined,
+  );
+  const hasFilteredModels = filterModels
+    ? activeModels.some(filterModels)
+    : true;
+
   const resolvedModel: AiProviderModel | null = slot
     ? ({
         modelId: slot.modelId,
         title: slot.title ?? slot.modelId,
         keyId: slot.keyId,
-        providerId: "deco",
+        providerId: slotKey?.providerId ?? "deco",
         description: null,
         logo: null,
         capabilities: [],
@@ -1166,23 +1192,25 @@ function SimpleModeModelRow({
         )}
       </div>
       <div className="shrink-0">
-        <ModelSelector
-          variant="bordered"
-          placeholder="Pick model"
-          model={resolvedModel}
-          credentialId={slot?.keyId ?? null}
-          filterModels={filterModels}
-          onCredentialChange={(keyId) => {
-            if (slot && keyId) onSlotChange({ ...slot, keyId });
-          }}
-          onModelChange={(m) => {
-            onSlotChange({
-              keyId: m.keyId ?? slot?.keyId ?? "",
-              modelId: m.modelId,
-              title: m.title,
-            });
-          }}
-        />
+        {filterModels && !hasFilteredModels ? (
+          <p className="text-xs text-muted-foreground italic">
+            Not available with current provider
+          </p>
+        ) : (
+          <ModelSelector
+            variant="bordered"
+            placeholder="Pick model"
+            model={resolvedModel}
+            credentialId={activeKeyId}
+            filterModels={filterModels}
+            onCredentialChange={(keyId) => setLocalCredentialId(keyId)}
+            onModelChange={(m) => {
+              const keyId = m.keyId ?? activeKeyId ?? "";
+              setLocalCredentialId(keyId);
+              onSlotChange({ keyId, modelId: m.modelId, title: m.title });
+            }}
+          />
+        )}
       </div>
     </div>
   );
@@ -1279,6 +1307,81 @@ function SimpleModeSection() {
     JSON.stringify(draft.webResearch) !==
       JSON.stringify(simpleMode.webResearch);
 
+  const hasProvider = allKeys.length > 0;
+  const effectiveEnabled = draft.enabled && hasProvider;
+
+  // When all providers are removed, clear the draft so stale model
+  // selections don't carry over when a different provider is connected.
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (!hasProvider) {
+      setDraft({
+        enabled: false,
+        chat: { fast: null, smart: null, thinking: null },
+        image: null,
+        webResearch: null,
+      });
+      setSynced(false);
+    }
+  }, [hasProvider]);
+
+  // When models finish loading (async), fill any null slots that are still
+  // empty — handles the race where handleToggle ran before models were ready.
+  // Also clears slots whose keyId no longer exists in allKeys (stale provider).
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (!draft.enabled) return;
+
+    const validKeyIds = new Set(allKeys.map((k) => k.id));
+    const modelsByKeyId: Record<string, AiProviderModel[]> = {};
+    if (key0?.id) modelsByKeyId[key0.id] = models0;
+    if (key1?.id) modelsByKeyId[key1.id] = models1;
+    if (key2?.id) modelsByKeyId[key2.id] = models2;
+
+    const isStale = (slot: SimpleModeConfig["chat"]["fast"]) =>
+      slot != null && !validKeyIds.has(slot.keyId);
+
+    const clearedChat = {
+      fast: isStale(draft.chat.fast) ? null : draft.chat.fast,
+      smart: isStale(draft.chat.smart) ? null : draft.chat.smart,
+      thinking: isStale(draft.chat.thinking) ? null : draft.chat.thinking,
+    };
+    const clearedImage = isStale(draft.image) ? null : draft.image;
+    const clearedWebResearch = isStale(draft.webResearch)
+      ? null
+      : draft.webResearch;
+
+    const needsFill =
+      !clearedChat.fast ||
+      !clearedChat.smart ||
+      !clearedChat.thinking ||
+      !clearedImage ||
+      !clearedWebResearch;
+
+    if (!needsFill && clearedChat === draft.chat) return;
+
+    const defaults = pickSimpleModeDefaults(allKeys, modelsByKeyId);
+    setDraft((d) => ({
+      ...d,
+      chat: {
+        fast: clearedChat.fast ?? defaults.chat.fast,
+        smart: clearedChat.smart ?? defaults.chat.smart,
+        thinking: clearedChat.thinking ?? defaults.chat.thinking,
+      },
+      image: clearedImage ?? defaults.image,
+      webResearch: clearedWebResearch ?? defaults.webResearch,
+    }));
+  }, [
+    draft.enabled,
+    allKeys,
+    models0,
+    models1,
+    models2,
+    key0?.id,
+    key1?.id,
+    key2?.id,
+  ]); // eslint-disable-line
+
   return (
     <Card className="p-6">
       <CardHeader className="p-0 pb-4">
@@ -1286,19 +1389,20 @@ function SimpleModeSection() {
           <div>
             <CardTitle className="text-sm">Simple model mode</CardTitle>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Replace the model picker with a Fast / Smart / Thinking toggle for
-              all members of this org.
+              {hasProvider
+                ? "Replace the model picker with a Fast / Smart / Thinking toggle for all members of this org."
+                : "Connect an AI provider above to enable this feature."}
             </p>
           </div>
           <Switch
-            checked={draft.enabled}
+            checked={effectiveEnabled}
             onCheckedChange={handleToggle}
-            disabled={isPending}
+            disabled={isPending || !hasProvider}
           />
         </div>
       </CardHeader>
 
-      {draft.enabled && (
+      {effectiveEnabled && (
         <CardContent className="flex flex-col p-0 border-t border-border/50">
           <div className="pt-1">
             <p className="text-xs text-muted-foreground pt-3 pb-1">
@@ -1310,6 +1414,7 @@ function SimpleModeSection() {
                 label={TIER_LABELS[tier]}
                 description={TIER_DESCRIPTIONS[tier]}
                 slot={draft.chat[tier]}
+                defaultKeyId={allKeys[0]?.id ?? null}
                 onSlotChange={(slot) =>
                   setDraft((d) => ({
                     ...d,
@@ -1326,12 +1431,14 @@ function SimpleModeSection() {
             <SimpleModeModelRow
               label="Image"
               slot={draft.image}
+              defaultKeyId={allKeys[0]?.id ?? null}
               filterModels={filterImageModels}
               onSlotChange={(slot) => setDraft((d) => ({ ...d, image: slot }))}
             />
             <SimpleModeModelRow
               label="Web research"
               slot={draft.webResearch}
+              defaultKeyId={allKeys[0]?.id ?? null}
               filterModels={filterWebResearchModels}
               onSlotChange={(slot) =>
                 setDraft((d) => ({ ...d, webResearch: slot }))

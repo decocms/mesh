@@ -53,7 +53,7 @@
     },
     "apps/mesh": {
       "name": "decocms",
-      "version": "2.272.5",
+      "version": "2.274.0",
       "bin": {
         "deco": "./dist/server/cli.js",
       },
@@ -228,6 +228,12 @@
       "devDependencies": {
         "@types/bun": "latest",
         "typescript": "^5.8.3",
+      },
+      "optionalDependencies": {
+        "@freestyle-sh/with-bun": "^0.2.12",
+        "@freestyle-sh/with-deno": "^0.0.4",
+        "@freestyle-sh/with-nodejs": "^0.2.9",
+        "freestyle-sandboxes": "^0.1.46",
       },
     },
     "packages/mesh-plugin-workflows": {
