@@ -244,7 +244,17 @@ export function ToolsPopover({
 
   return (
     <>
-      <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenu
+        open={open}
+        onOpenChange={(next) => {
+          if (next && !open) {
+            track("chat_tools_popover_opened", {
+              chat_mode: chatMode,
+            });
+          }
+          setOpen(next);
+        }}
+      >
         <DropdownMenuTrigger asChild>
           <Button
             type="button"

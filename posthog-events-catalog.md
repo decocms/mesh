@@ -135,6 +135,7 @@ Every caveat is repeated inline in the relevant row below so you don't have to r
 | `chat_voice_started` | F | `input.tsx:206` mic clicked + `startRecording()` resolves (does NOT fire on click alone) | `thread_id`, `outcome` (`started`/`unsupported`/`permission_denied`/`unknown`) — filter by `outcome=started` for actual recording starts. |
 | `chat_voice_confirmed` | F | `input.tsx:210` user confirms completed voice recording | `thread_id` — NOT the same as message sent; the transcript still has to be submitted. |
 | `chat_voice_cancelled` | F | `input.tsx:217` user cancels in-progress recording | `thread_id` |
+| `chat_tools_popover_opened` | F | `tools-popover.tsx` `DropdownMenu.onOpenChange` (open transition only — does NOT fire on close) | `chat_mode` — the current mode at the moment of open. Discovery signal; does NOT imply a sub-action was taken. |
 | `chat_mode_changed` | F | `tools-popover.tsx:136/220/232` (popover toggles) + `input.tsx:431/453/479` (pill X dismiss) | `from_mode`, `to_mode`, `source` (`tools_popover`/`pill_dismiss`) — the mode the NEXT submitted message will use, until changed again. |
 | `chat_prompt_inserted` | F | `tools-popover.tsx:178` selecting a prompt from the Prompts submenu | `prompt_name`, `with_arguments` — prompt text inserted into the editor. Does NOT mean the message was sent. |
 | `chat_image_model_selected` | F | `tools-popover.tsx:197` image model picked in the Image submenu | `model_id`, `model_title`, `provider` — preference change only; does NOT imply an image was generated. |
