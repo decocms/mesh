@@ -472,11 +472,16 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     });
     const baseSpec = new VmSpec()
       .with("node", new VmNodeJs())
+      .with("js", new VmBun())
       .additionalFiles({
         "/opt/daemon.js": { content: daemonScript },
         "/opt/run-daemon.sh": {
+          // Source nvm so node + corepack are on PATH for child processes
+          // (corepack enable is needed before bun install / pnpm install /
+          // yarn install; npm projects need node itself). Bun is the daemon
+          // runtime but child processes inherit whatever PATH we set here.
           content:
-            "#!/bin/bash\nsource /etc/profile.d/nvm.sh\nexec node /opt/daemon.js\n",
+            "#!/bin/bash\nsource /etc/profile.d/nvm.sh 2>/dev/null || true\nexec /opt/bun/bin/bun /opt/daemon.js\n",
         },
         "/opt/install-ripgrep.sh": {
           content:
@@ -505,22 +510,20 @@ export class FreestyleSandboxRunner implements SandboxRunner {
         exec: ["/bin/bash /opt/run-daemon.sh"],
         after: [
           "install-nodejs.service",
+          "install-bun.service",
           "install-ripgrep.service",
           "prepare-app-dir.service",
         ],
         requires: [
           "install-nodejs.service",
+          "install-bun.service",
           "install-ripgrep.service",
           "prepare-app-dir.service",
         ],
         wantedBy: ["multi-user.target"],
         restartPolicy: { policy: "always", restartSec: 2 },
       });
-    return runtime === "deno"
-      ? baseSpec.with("deno", new VmDeno())
-      : runtime === "bun"
-        ? baseSpec.with("js", new VmBun())
-        : baseSpec;
+    return runtime === "deno" ? baseSpec.with("deno", new VmDeno()) : baseSpec;
   }
 
   /** Same base64 scheme as `proxyDaemonRequest` — parity with exec path. */
