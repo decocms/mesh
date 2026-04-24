@@ -181,19 +181,35 @@ type SimpleTier = "fast" | "smart" | "thinking";
 
 /**
  * Resolve a stored ModelRef against the currently available keys and models.
- * Returns null when the ref points to a key or model that no longer exists.
+ * Returns null when the ref's key no longer exists. When the key exists but
+ * the model isn't in the provided models list (e.g. the list only covers a
+ * different credential), synthesizes a minimal AiProviderModel from the ref
+ * — callers still get a routable `{ keyId, modelId }` object.
  */
 function findModel(
   ref: ModelRef | null,
   allKeys: AiProviderKey[],
   allModels: AiProviderModel[],
+  title?: string,
 ): AiProviderModel | null {
   if (!ref) return null;
-  if (!allKeys.some((k) => k.id === ref.keyId)) return null;
-  return (
-    allModels.find((m) => m.keyId === ref.keyId && m.modelId === ref.modelId) ??
-    null
+  const key = allKeys.find((k) => k.id === ref.keyId);
+  if (!key) return null;
+  const hit = allModels.find(
+    (m) => m.keyId === ref.keyId && m.modelId === ref.modelId,
   );
+  if (hit) return hit;
+  return {
+    modelId: ref.modelId,
+    title: title ?? ref.modelId,
+    keyId: ref.keyId,
+    providerId: key.providerId,
+    description: null,
+    logo: null,
+    capabilities: [],
+    limits: null,
+    costs: null,
+  } as AiProviderModel;
 }
 
 /**
@@ -354,12 +370,9 @@ export function ChatContextProvider({
 
   // Resolve the chat model: Simple Mode and regular paths are mutually
   // exclusive — no silent shadowing.
+  const activeChatSlot = simpleMode.chat[activeTier];
   const selectedModel: AiProviderModel | null = simpleMode.enabled
-    ? findModel(
-        simpleMode.chat[activeTier] as ModelRef | null,
-        keys,
-        allKeyModels,
-      )
+    ? findModel(activeChatSlot, keys, allKeyModels, activeChatSlot?.title)
     : (validatedStoredChat ?? defaultModel);
   const isModelsLoading = !storedChatRef && isModelsQueryLoading;
 
@@ -369,7 +382,7 @@ export function ChatContextProvider({
   );
   const validatedStoredImage = findModel(storedImageRef, keys, imageModels);
   const resolvedImageModel: AiProviderModel | null = simpleMode.enabled
-    ? findModel(simpleMode.image as ModelRef | null, keys, allKeyModels)
+    ? findModel(simpleMode.image, keys, allKeyModels, simpleMode.image?.title)
     : (validatedStoredImage ?? imageModels[0] ?? null);
 
   // Deep research model — same split.
@@ -387,7 +400,12 @@ export function ChatContextProvider({
     deepResearchModels[0] ??
     null;
   const resolvedDeepResearchModel: AiProviderModel | null = simpleMode.enabled
-    ? findModel(simpleMode.webResearch as ModelRef | null, keys, allKeyModels)
+    ? findModel(
+        simpleMode.webResearch,
+        keys,
+        allKeyModels,
+        simpleMode.webResearch?.title,
+      )
     : (validatedStoredDeepResearch ?? defaultDeepResearchModel);
 
   // Task management (scoped by URL virtualMcpId — task list doesn't change on override)
