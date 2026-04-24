@@ -6,6 +6,7 @@ import { ManageRolesDialog } from "@/web/components/manage-roles-dialog";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { InviteMemberDialog } from "@/web/components/invite-member-dialog";
+import { track } from "@/web/lib/posthog-client";
 import { useMembers } from "@/web/hooks/use-members";
 import {
   useInvitations,
@@ -522,11 +523,15 @@ function OrgMembersContent() {
       }
     },
     onSuccess: () => {
+      track("member_removed");
       queryClient.invalidateQueries({ queryKey: KEYS.members(locator) });
       toast.success("Member has been removed from the organization");
       setMemberToRemove(null);
     },
     onError: (error) => {
+      track("member_remove_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       toast.error(
         error instanceof Error ? error.message : "Failed to remove member",
       );
@@ -549,11 +554,16 @@ function OrgMembersContent() {
         throw new Error(result.error.message);
       }
     },
-    onSuccess: () => {
+    onSuccess: (_res, vars) => {
+      track("member_role_updated", { new_role: vars.role });
       queryClient.invalidateQueries({ queryKey: KEYS.members(locator) });
       toast.success("Member's role has been updated");
     },
-    onError: (error) => {
+    onError: (error, vars) => {
+      track("member_role_update_failed", {
+        new_role: vars.role,
+        error: error instanceof Error ? error.message : String(error),
+      });
       toast.error(
         error instanceof Error ? error.message : "Failed to update role",
       );
@@ -587,11 +597,16 @@ function OrgMembersContent() {
         throw new Error(inviteResult.error.message);
       }
     },
-    onSuccess: () => {
+    onSuccess: (_res, vars) => {
+      track("invitation_role_updated", { new_role: vars.role });
       queryClient.invalidateQueries({ queryKey: KEYS.invitations(locator) });
       toast.success("Invitation role has been updated");
     },
-    onError: (error) => {
+    onError: (error, vars) => {
+      track("invitation_role_update_failed", {
+        new_role: vars.role,
+        error: error instanceof Error ? error.message : String(error),
+      });
       toast.error(
         error instanceof Error
           ? error.message

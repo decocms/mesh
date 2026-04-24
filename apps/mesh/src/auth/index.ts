@@ -30,6 +30,7 @@ import {
 } from "better-auth/plugins/organization/access";
 
 import { getConfig } from "@/core/config";
+import { posthog } from "@/posthog";
 import { getBaseUrl } from "@/core/server-constants";
 import { createAccessControl, Role } from "@decocms/better-auth/plugins/access";
 import { getDb, getDatabaseUrl, getDbDialect } from "../database";
@@ -433,6 +434,20 @@ export const auth = betterAuth({
     user: {
       create: {
         after: async (user) => {
+          // Top-of-funnel signup event. Fires once per new user account,
+          // before any org is created. Use this (not organization_created)
+          // to measure raw signup volume.
+          posthog.capture({
+            distinctId: user.id,
+            event: "user_signed_up",
+            properties: {
+              email: user.email,
+              email_domain: user.email?.split("@")[1]?.toLowerCase() ?? null,
+              email_verified: !!user.emailVerified,
+              has_name: !!user.name,
+            },
+          });
+
           // Domain-based handling for verified corporate emails.
           // 1. If an org claimed the domain with auto-join → add as member
           // 2. If corporate but unclaimed → skip default org creation so
@@ -482,13 +497,39 @@ export const auth = betterAuth({
             const orgSlug = slugify(orgName);
 
             try {
-              await auth.api.createOrganization({
+              const created = await auth.api.createOrganization({
                 body: {
                   name: orgName,
                   slug: orgSlug,
                   userId: user.id,
                 },
               });
+
+              // Group identify for team-level analytics.
+              const orgId =
+                (created as { id?: string } | null)?.id ?? undefined;
+              if (orgId) {
+                posthog.groupIdentify({
+                  groupType: "organization",
+                  groupKey: orgId,
+                  properties: {
+                    name: orgName,
+                    slug: orgSlug,
+                    created_at: new Date().toISOString(),
+                    created_via: "signup_default",
+                  },
+                });
+                posthog.capture({
+                  distinctId: user.id,
+                  event: "organization_created",
+                  groups: { organization: orgId },
+                  properties: {
+                    organization_id: orgId,
+                    organization_slug: orgSlug,
+                    created_via: "signup_default",
+                  },
+                });
+              }
               return;
             } catch (error) {
               const isConflictError =

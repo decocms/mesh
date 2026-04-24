@@ -24,6 +24,7 @@ import { Page } from "@/web/components/page";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { useRegistryConnections } from "@/web/hooks/use-registry-connections";
 import { useRegistrySettings } from "@/web/hooks/use-registry-settings";
+import { track } from "@/web/lib/posthog-client";
 
 function ErrorFallback({ error }: { error: Error }) {
   return (
@@ -69,6 +70,9 @@ function AddPrivateRegistryForm({
       return created.id;
     },
     onSuccess: (connectionId) => {
+      track("store_private_registry_added", {
+        connection_id: connectionId,
+      });
       toast.success("Private registry added");
       onSuccess(connectionId);
     },
@@ -269,6 +273,10 @@ function OrgStoreContent() {
   );
 
   const handleToggle = async (connectionId: string, enabled: boolean) => {
+    track("store_registry_toggled", {
+      connection_id: connectionId,
+      enabled,
+    });
     const current = registryConfig ?? { registries: {}, blockedMcps: [] };
     await updateRegistryConfig({
       ...current,
@@ -280,6 +288,7 @@ function OrgStoreContent() {
   };
 
   const handleDelete = async (connectionId: string) => {
+    track("store_private_registry_removed", { connection_id: connectionId });
     await connectionActions.delete.mutateAsync(connectionId);
     queryClient.invalidateQueries({ queryKey: KEYS.registryConfig(org.id) });
   };

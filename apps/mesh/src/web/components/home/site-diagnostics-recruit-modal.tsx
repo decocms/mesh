@@ -38,6 +38,7 @@ import type { CollectionListOutput } from "@decocms/bindings/collections";
 import type { ConnectionEntity } from "@decocms/mesh-sdk";
 import { useRegistryApp } from "@/web/hooks/use-registry-app";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
+import { track } from "@/web/lib/posthog-client";
 
 interface SiteDiagnosticsRecruitModalProps {
   open: boolean;
@@ -239,9 +240,17 @@ export function SiteDiagnosticsRecruitModal({
       });
 
       // 4. Navigate to the new agent
+      track("agent_recruit_confirmed", {
+        template_id: "site-diagnostics",
+        agent_id: virtualMcp.id!,
+      });
       onOpenChange(false);
       navigateToAgent(virtualMcp.id!);
     } catch (error) {
+      track("agent_recruit_failed", {
+        template_id: "site-diagnostics",
+        error: error instanceof Error ? error.message : String(error),
+      });
       console.error("Failed to create Site Diagnostics agent:", error);
     } finally {
       setIsRecruiting(false);
