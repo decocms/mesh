@@ -328,6 +328,7 @@ export function SettingsTab({
       .join("\n");
     if (!instructionsText.trim()) return;
 
+    flushEditSession();
     track("automation_improve_clicked", {
       automation_id: automationId,
       agent_id: agentId,
@@ -373,9 +374,41 @@ export function SettingsTab({
   const selectedModel: AiProviderModel | null =
     models.find((m) => m.modelId === watchModelId) ?? null;
 
+  // Session-based tracking for automation_updated. Auto-saves persist every
+  // ~1s but we only emit one PostHog event per edit-session (aggregated
+  // fields + save_count + edit_duration_ms). A session ends after 30s of
+  // quiet, or on explicit flush (tab-leave, improve, test).
+  const editSessionStartRef = useRef<number | null>(null);
+  const editSessionFieldsRef = useRef<Set<string>>(new Set());
+  const editSessionSaveCountRef = useRef(0);
+  const editSessionFlushRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const EDIT_SESSION_QUIET_MS = 30_000;
+
+  const flushEditSession = () => {
+    if (editSessionFlushRef.current) {
+      clearTimeout(editSessionFlushRef.current);
+      editSessionFlushRef.current = null;
+    }
+    if (editSessionStartRef.current === null) return;
+    track("automation_updated", {
+      automation_id: automationId,
+      agent_id: agentId,
+      fields: Array.from(editSessionFieldsRef.current),
+      save_count: editSessionSaveCountRef.current,
+      edit_duration_ms: Date.now() - editSessionStartRef.current,
+    });
+    editSessionStartRef.current = null;
+    editSessionFieldsRef.current = new Set();
+    editSessionSaveCountRef.current = 0;
+  };
+
   const saveForm = async (): Promise<boolean> => {
     const hasDirtyFields = Object.keys(form.formState.dirtyFields).length > 0;
     if (!hasDirtyFields && !tiptapDirtyRef.current) return true;
+    const dirtyFormKeys = Object.keys(form.formState.dirtyFields);
+    const tiptapWasDirty = tiptapDirtyRef.current;
     tiptapDirtyRef.current = false;
 
     const values = form.getValues();
@@ -402,11 +435,22 @@ export function SettingsTab({
         temperature: 0,
       };
       await updateMutation.mutateAsync(updatePayload);
-      track("automation_updated", {
-        automation_id: automationId,
-        agent_id: agentId,
-        fields: Object.keys(form.formState.dirtyFields),
-      });
+
+      // Accumulate into the edit session.
+      if (editSessionStartRef.current === null) {
+        editSessionStartRef.current = Date.now();
+      }
+      for (const k of dirtyFormKeys) editSessionFieldsRef.current.add(k);
+      if (tiptapWasDirty) editSessionFieldsRef.current.add("messages");
+      editSessionSaveCountRef.current += 1;
+      if (editSessionFlushRef.current) {
+        clearTimeout(editSessionFlushRef.current);
+      }
+      editSessionFlushRef.current = setTimeout(
+        flushEditSession,
+        EDIT_SESSION_QUIET_MS,
+      );
+
       form.reset({
         ...values,
         credential_id: coercedCredentialId,
@@ -455,6 +499,7 @@ export function SettingsTab({
       agent_id: agentId,
     });
     const saved = await flushAndSave();
+    flushEditSession();
     if (!saved) return;
 
     if (!tiptapDoc) {

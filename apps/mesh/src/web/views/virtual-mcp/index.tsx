@@ -1094,6 +1094,12 @@ function VirtualMcpDetailViewWithData({
     const currentInstructions = form.getValues("metadata.instructions");
     if (!currentInstructions?.trim()) return;
 
+    flushEditSession();
+    track("agent_instructions_improve_clicked", {
+      agent_id: virtualMcp.id,
+      instructions_length: currentInstructions.length,
+    });
+
     setChatMode("plan");
 
     createTaskWithMessage({
@@ -1110,10 +1116,43 @@ function VirtualMcpDetailViewWithData({
   };
 
   const handleTestAgent = () => {
+    flushEditSession();
+    track("agent_test_clicked", { agent_id: virtualMcp.id });
     createNewTask();
   };
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Session-based tracking for agent_updated. Auto-saves persist every ~1s but
+  // we only emit one PostHog event per edit-session (aggregated fields +
+  // save_count + edit_duration_ms). A session ends after 30s of quiet.
+  const editSessionStartRef = useRef<number | null>(null);
+  const editSessionFieldsRef = useRef<Set<string>>(new Set());
+  const editSessionSaveCountRef = useRef(0);
+  const editSessionInstructionsLengthRef = useRef<number | null>(null);
+  const editSessionFlushRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const EDIT_SESSION_QUIET_MS = 30_000;
+
+  const flushEditSession = () => {
+    if (editSessionFlushRef.current) {
+      clearTimeout(editSessionFlushRef.current);
+      editSessionFlushRef.current = null;
+    }
+    if (editSessionStartRef.current === null) return;
+    track("agent_updated", {
+      agent_id: virtualMcp.id,
+      fields: Array.from(editSessionFieldsRef.current),
+      instructions_length: editSessionInstructionsLengthRef.current,
+      save_count: editSessionSaveCountRef.current,
+      edit_duration_ms: Date.now() - editSessionStartRef.current,
+    });
+    editSessionStartRef.current = null;
+    editSessionFieldsRef.current = new Set();
+    editSessionSaveCountRef.current = 0;
+    editSessionInstructionsLengthRef.current = null;
+  };
 
   const saveForm = async () => {
     if (saveTimerRef.current) {
@@ -1121,14 +1160,34 @@ function VirtualMcpDetailViewWithData({
       saveTimerRef.current = null;
     }
 
-    const hasDirtyFields = Object.keys(form.formState.dirtyFields).length > 0;
-    if (!hasDirtyFields) return;
+    const dirtyKeys = Object.keys(form.formState.dirtyFields);
+    if (dirtyKeys.length === 0) return;
+    const instructionsDirty = dirtyKeys.includes("metadata");
 
     const formData = form.getValues();
     const data = await actions.update.mutateAsync({
       id: virtualMcp.id,
       data: formData,
     });
+
+    // Accumulate into the current edit session.
+    if (editSessionStartRef.current === null) {
+      editSessionStartRef.current = Date.now();
+    }
+    for (const k of dirtyKeys) editSessionFieldsRef.current.add(k);
+    editSessionSaveCountRef.current += 1;
+    if (instructionsDirty) {
+      editSessionInstructionsLengthRef.current =
+        formData.metadata?.instructions?.length ?? 0;
+    }
+    if (editSessionFlushRef.current) {
+      clearTimeout(editSessionFlushRef.current);
+    }
+    editSessionFlushRef.current = setTimeout(
+      flushEditSession,
+      EDIT_SESSION_QUIET_MS,
+    );
+
     form.reset(data);
   };
 
@@ -1386,6 +1445,7 @@ Define step-by-step how the agent should handle requests.
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const handleDelete = async () => {
+    flushEditSession();
     try {
       await actions.delete.mutateAsync(virtualMcp.id);
       track("agent_deleted", {

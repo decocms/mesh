@@ -1,5 +1,4 @@
 import z from "zod";
-import { posthog } from "../../posthog";
 import { defineTool } from "../../core/define-tool";
 import {
   requireAuth,
@@ -54,18 +53,6 @@ export const AI_PROVIDER_TOPUP_URL = defineTool({
       input.amountCents,
       input.currency,
     );
-
-    posthog.capture({
-      distinctId: userId,
-      event: "credits_topup_requested",
-      groups: { organization: org.id },
-      properties: {
-        organization_id: org.id,
-        provider_id: input.providerId,
-        amount_cents: input.amountCents,
-        currency: input.currency,
-      },
-    });
 
     return { url };
   },
