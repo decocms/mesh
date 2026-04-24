@@ -79,6 +79,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@deco/ui/components/select.tsx";
+import { track } from "@/web/lib/posthog-client";
 
 // ============================================================================
 // Event Trigger Form
@@ -112,6 +113,12 @@ function EventTriggerForm({
         event_type: eventType,
         connection_id: connectionId,
         params,
+      });
+      track("automation_trigger_added", {
+        automation_id: automationId,
+        trigger_type: "event",
+        connection_id: connectionId,
+        event_type: eventType,
       });
       toast.success("Event trigger added");
       onDone();
@@ -321,6 +328,12 @@ export function SettingsTab({
       .join("\n");
     if (!instructionsText.trim()) return;
 
+    track("automation_improve_clicked", {
+      automation_id: automationId,
+      agent_id: agentId,
+      instructions_length: instructionsText.length,
+    });
+
     setChatMode("plan");
 
     createTaskWithMessage({
@@ -389,6 +402,11 @@ export function SettingsTab({
         temperature: 0,
       };
       await updateMutation.mutateAsync(updatePayload);
+      track("automation_updated", {
+        automation_id: automationId,
+        agent_id: agentId,
+        fields: Object.keys(form.formState.dirtyFields),
+      });
       form.reset({
         ...values,
         credential_id: coercedCredentialId,
@@ -432,6 +450,10 @@ export function SettingsTab({
   }
 
   const handleRunClick = async () => {
+    track("automation_test_clicked", {
+      automation_id: automationId,
+      agent_id: agentId,
+    });
     const saved = await flushAndSave();
     if (!saved) return;
 
@@ -580,6 +602,10 @@ export function SettingsTab({
                       automation_id: automationId,
                       type: "cron",
                       cron_expression: val,
+                    });
+                    track("automation_trigger_added", {
+                      automation_id: automationId,
+                      trigger_type: "cron",
                     });
                     toast.success("Starter added");
                     setShowCustomCron(false);

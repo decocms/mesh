@@ -18,6 +18,7 @@ import { Label } from "@deco/ui/components/label.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { track } from "@/web/lib/posthog-client";
 
 interface DomainData {
   domain: string | null;
@@ -64,6 +65,10 @@ export function DomainSettings() {
       return unwrapToolResult(result);
     },
     onSuccess: () => {
+      track("organization_domain_claimed", {
+        organization_id: org.id,
+        email_domain: userDomain,
+      });
       invalidate();
       toast.success("Domain claimed");
     },
@@ -83,6 +88,10 @@ export function DomainSettings() {
       return unwrapToolResult(result);
     },
     onSuccess: () => {
+      track("organization_domain_cleared", {
+        organization_id: org.id,
+        email_domain: currentDomain,
+      });
       invalidate();
       toast.success("Domain removed");
     },
@@ -96,6 +105,10 @@ export function DomainSettings() {
   const toggleAutoJoinMutation = useMutation({
     mutationFn: async (enabled: boolean) => {
       if (!currentDomain) return;
+      track("organization_auto_join_toggled", {
+        organization_id: org.id,
+        enabled,
+      });
       const result = await client.callTool({
         name: "ORGANIZATION_DOMAIN_UPDATE",
         arguments: { autoJoinEnabled: enabled },

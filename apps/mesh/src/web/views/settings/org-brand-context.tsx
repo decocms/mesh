@@ -27,6 +27,7 @@ import { Page } from "@/web/components/page";
 import { KEYS } from "@/web/lib/query-keys";
 import { unwrapToolResult } from "@/web/lib/unwrap-tool-result";
 import { usePublicConfig } from "@/web/hooks/use-public-config";
+import { track } from "@/web/lib/posthog-client";
 
 // --- Types ---
 
@@ -633,7 +634,11 @@ function ExpandableBrandEntry({
         arguments: merged,
       });
     },
-    onSuccess: () => {
+    onSuccess: (_res, data) => {
+      track("brand_updated", {
+        brand_id: brand.id,
+        fields: Object.keys(data),
+      });
       onChanged();
       toast.success("Brand context saved");
     },
@@ -656,6 +661,9 @@ function ExpandableBrandEntry({
       }
     },
     onSuccess: () => {
+      track(archived ? "brand_restored" : "brand_archived", {
+        brand_id: brand.id,
+      });
       onChanged();
       toast.success(archived ? "Brand restored" : "Brand archived");
     },
@@ -673,6 +681,7 @@ function ExpandableBrandEntry({
       });
     },
     onSuccess: () => {
+      track("brand_set_as_default", { brand_id: brand.id });
       onChanged();
       toast.success("Set as default brand");
     },
@@ -879,6 +888,7 @@ export function OrgBrandContextPage() {
       });
     },
     onSuccess: () => {
+      track("brand_created");
       invalidate();
       toast.success("Brand created");
     },
@@ -887,6 +897,7 @@ export function OrgBrandContextPage() {
 
   const { mutate: extractBrand, isPending: isExtracting } = useMutation({
     mutationFn: async (domain: string) => {
+      track("brand_extract_started", { domain });
       const result = await client.callTool({
         name: "BRAND_CONTEXT_EXTRACT",
         arguments: { domain },
@@ -895,6 +906,7 @@ export function OrgBrandContextPage() {
       unwrapToolResult(result);
     },
     onSuccess: () => {
+      track("brand_extract_succeeded");
       invalidate();
       toast.success("Brand extracted successfully");
     },

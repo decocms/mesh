@@ -62,6 +62,7 @@ import {
   pickSimpleModeDefaults,
 } from "@decocms/mesh-sdk";
 import { KEYS } from "@/web/lib/query-keys";
+import { track } from "@/web/lib/posthog-client";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import {
@@ -483,6 +484,7 @@ function ProviderCard({
       }
     },
     onSuccess: () => {
+      track("ai_provider_oauth_succeeded", { provider_id: provider.id });
       queryClient.invalidateQueries({ queryKey: KEYS.aiProviderKeys(org.id) });
       queryClient.invalidateQueries({ queryKey: KEYS.aiProviders(org.id) });
       toast.success(`${provider.name} connected successfully`);
@@ -490,6 +492,10 @@ function ProviderCard({
       setOauthStateToken(null);
     },
     onError: (err) => {
+      track("ai_provider_oauth_failed", {
+        provider_id: provider.id,
+        error: err.message,
+      });
       toast.error(`OAuth connection failed: ${err.message}`);
       setIsOAuthPending(false);
       setOauthStateToken(null);
@@ -513,9 +519,14 @@ function ProviderCard({
     },
     onSuccess: (data) => {
       if (!data?.activated) {
+        track("ai_provider_cli_activate_failed", {
+          provider_id: provider.id,
+          error: data?.error ?? "unknown",
+        });
         toast.error(data?.error ?? "CLI activation failed");
         return;
       }
+      track("ai_provider_cli_activated", { provider_id: provider.id });
       queryClient.invalidateQueries({
         queryKey: KEYS.aiProviderKeys(org.id),
       });
@@ -524,7 +535,13 @@ function ProviderCard({
       });
       toast.success(`${provider.name} activated`);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => {
+      track("ai_provider_cli_activate_failed", {
+        provider_id: provider.id,
+        error: err.message,
+      });
+      toast.error(err.message);
+    },
   });
 
   const { mutate: provisionKey, isPending: isProvisioning } = useMutation({
@@ -542,11 +559,18 @@ function ProviderCard({
       }
     },
     onSuccess: () => {
+      track("ai_provider_provision_succeeded", {
+        provider_id: provider.id,
+      });
       queryClient.invalidateQueries({ queryKey: KEYS.aiProviderKeys(org.id) });
       queryClient.invalidateQueries({ queryKey: KEYS.aiProviders(org.id) });
       toast.success(`${provider.name} connected successfully`);
     },
     onError: (err) => {
+      track("ai_provider_provision_failed", {
+        provider_id: provider.id,
+        error: err.message,
+      });
       toast.error(`Failed to connect ${provider.name}: ${err.message}`);
     },
   });
@@ -595,14 +619,32 @@ function ProviderCard({
     if (isConnectFormOpen || isOAuthPending || isActivating || isProvisioning)
       return;
     if (isCliActivate) {
-      if (!isActive) activateCli();
+      if (!isActive) {
+        track("ai_provider_connect_clicked", {
+          provider_id: provider.id,
+          method: "cli-activate",
+        });
+        activateCli();
+      }
       return;
     }
     if (supportsProvision) {
+      track("ai_provider_connect_clicked", {
+        provider_id: provider.id,
+        method: "provision",
+      });
       provisionKey();
     } else if (supportsOAuth) {
+      track("ai_provider_connect_clicked", {
+        provider_id: provider.id,
+        method: "oauth-pkce",
+      });
       handleConnectOAuth();
     } else if (supportsApiKey) {
+      track("ai_provider_connect_clicked", {
+        provider_id: provider.id,
+        method: "api-key",
+      });
       setIsConnectFormOpen(true);
     }
   };

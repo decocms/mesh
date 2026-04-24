@@ -19,6 +19,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { track } from "@/web/lib/posthog-client";
 
 const organizationSettingsSchema = z.object({
   name: z.string().min(1, "Name is required").max(255, "Name is too long"),
@@ -77,6 +78,10 @@ export function OrganizationForm() {
       return result;
     },
     onSuccess: (data) => {
+      track("organization_settings_updated", {
+        organization_id: org.id,
+        fields: Object.keys(form.formState.dirtyFields),
+      });
       queryClient.invalidateQueries({ queryKey: KEYS.organizations() });
       queryClient.invalidateQueries({
         queryKey: KEYS.activeOrganization(org.slug),

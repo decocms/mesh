@@ -12,6 +12,7 @@ import {
 } from "@/web/hooks/use-organization-roles";
 import { authClient } from "@/web/lib/auth-client";
 import { KEYS } from "@/web/lib/query-keys";
+import { track } from "@/web/lib/posthog-client";
 import { useConnections, useProjectContext } from "@decocms/mesh-sdk";
 import {
   AiProviderKey,
@@ -1518,6 +1519,17 @@ export function ManageRolesDialog({
       });
       const isNew = !variables.role.id && !variables.role.slug;
       const isBuiltinRole = variables.role.slug && !variables.role.id;
+      track(
+        isBuiltinRole
+          ? "role_members_updated"
+          : isNew
+            ? "role_created"
+            : "role_updated",
+        {
+          role_slug: variables.role.slug ?? null,
+          member_count: variables.memberIds.length,
+        },
+      );
       toast.success(
         isBuiltinRole
           ? "Members updated successfully!"
@@ -1549,7 +1561,8 @@ export function ManageRolesDialog({
 
       return result?.data;
     },
-    onSuccess: () => {
+    onSuccess: (_, roleId) => {
+      track("role_deleted", { role_id: roleId });
       queryClient.invalidateQueries({ queryKey: KEYS.members(locator) });
       queryClient.invalidateQueries({
         queryKey: KEYS.organizationRoles(locator),
