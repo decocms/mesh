@@ -59,14 +59,6 @@ export function resetUser() {
   posthog.reset();
 }
 
-export function setOrganizationGroup(
-  organizationId: string,
-  props?: { name?: string; slug?: string },
-) {
-  if (!apiKey || !initialized) return;
-  posthog.group("organization", organizationId, props);
-}
-
 export function track(event: string, properties?: Record<string, unknown>) {
   if (!apiKey || !initialized) return;
   posthog.capture(event, properties);
