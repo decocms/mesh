@@ -241,7 +241,7 @@ function ConnectApiKeyForm({
             type={showKey ? "text" : "password"}
             placeholder="sk-..."
             {...register("apiKey")}
-            className="h-8 text-sm pr-8"
+            className="ph-no-capture h-8 text-sm pr-8"
           />
           <button
             type="button"
@@ -376,7 +376,7 @@ function ConnectOpenAICompatibleForm({
             type={showKey ? "text" : "password"}
             placeholder="sk-..."
             {...register("apiKey")}
-            className="h-8 text-sm pr-8"
+            className="ph-no-capture h-8 text-sm pr-8"
           />
           <button
             type="button"

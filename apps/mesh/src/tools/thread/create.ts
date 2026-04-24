@@ -70,12 +70,13 @@ export const COLLECTION_THREADS_CREATE = defineTool({
 
     posthog.capture({
       distinctId: userId,
-      event: "thread_created",
+      event: "chat_started",
       groups: { organization: organization.id },
       properties: {
         organization_id: organization.id,
         thread_id: taskId,
         has_title: !!input.data.title,
+        created_via: "tool",
       },
     });
 

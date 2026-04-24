@@ -212,7 +212,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
 
       posthog.capture({
         distinctId: userId,
-        event: "decopilot_stream_started",
+        event: "chat_message_started",
         groups: { organization: organization.id },
         properties: {
           organization_id: organization.id,

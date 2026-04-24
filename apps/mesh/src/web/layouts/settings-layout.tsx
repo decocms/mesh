@@ -44,6 +44,7 @@ import { Suspense } from "react";
 import { pluginSettingsSidebarItems } from "@/web/index";
 import { useStatusSounds } from "../hooks/use-status-sounds";
 import { authClient } from "@/web/lib/auth-client";
+import { track } from "@/web/lib/posthog-client";
 
 interface SettingsNavItem {
   key: string;
@@ -214,6 +215,13 @@ export function SettingsSidebar() {
                       <Link
                         to={item.to}
                         params={{ org }}
+                        onClick={() =>
+                          track("settings_nav_clicked", {
+                            section_key: item.key,
+                            section_label: item.label,
+                            group_label: group.label || "main",
+                          })
+                        }
                         className="flex items-center gap-2.5 text-sm"
                       >
                         <span className="shrink-0">{item.icon}</span>

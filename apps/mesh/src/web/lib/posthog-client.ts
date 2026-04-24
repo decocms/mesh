@@ -29,10 +29,18 @@ export function initPostHog() {
     // rejections) as $exception events — gives us client-side error tracking
     // without hand-wiring every try/catch.
     capture_exceptions: true,
-    // Session recording is opt-in — enable explicitly in PostHog project
-    // settings when we're ready. Keeping it off avoids surprise data capture
-    // on a product that routes user tool inputs.
-    disable_session_recording: true,
+    // Session replay is on, but gated by project-level sampling (10%) and
+    // minimum duration (10s). See PostHog project settings.
+    // - `maskAllInputs: true` masks every native <input>/<textarea>/<select>
+    //   by default. The Decopilot chat input is a TipTap contenteditable, so
+    //   it's NOT an input and stays visible on purpose.
+    // - `blockClass: "ph-no-capture"` → add to any element that should be
+    //   fully hidden from recordings (shown as a solid block). Use on secret
+    //   fields (API keys, connection tokens).
+    session_recording: {
+      maskAllInputs: true,
+      blockClass: "ph-no-capture",
+    },
     person_profiles: "identified_only",
   });
   initialized = true;

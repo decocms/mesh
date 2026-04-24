@@ -1076,7 +1076,7 @@ async function streamCoreInner(
 
         posthog.capture({
           distinctId: input.userId,
-          event: "decopilot_stream_completed",
+          event: "chat_message_completed",
           groups: { organization: input.organizationId },
           properties: {
             organization_id: input.organizationId,
@@ -1123,13 +1123,30 @@ async function streamCoreInner(
         closeClients?.();
         titleHandle?.finish();
         if (registrySignal.aborted) {
+          // User cancelled (frontend stop button), tab closed mid-stream, or
+          // run was force-failed. Frontend chat_message_stopped covers the
+          // first case; this server event also covers the other two.
+          posthog.capture({
+            distinctId: input.userId,
+            event: "chat_message_aborted",
+            groups: { organization: input.organizationId },
+            properties: {
+              organization_id: input.organizationId,
+              thread_id: mem.thread.id,
+              agent_id: input.agent.id,
+              model_id: input.models.thinking.id,
+              mode: input.mode,
+              duration_ms: Date.now() - streamStartAt,
+              is_resume: input.isResume ?? false,
+            },
+          });
           return sanitizeStreamError(error);
         }
         console.error("[decopilot] stream error:", error);
 
         posthog.capture({
           distinctId: input.userId,
-          event: "decopilot_stream_failed",
+          event: "chat_message_failed",
           groups: { organization: input.organizationId },
           properties: {
             organization_id: input.organizationId,

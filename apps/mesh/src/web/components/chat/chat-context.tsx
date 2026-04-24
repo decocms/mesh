@@ -48,6 +48,12 @@ import {
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
 import { useTaskReadState } from "../../hooks/use-task-read-state";
 import { authClient } from "../../lib/auth-client";
+import { track } from "../../lib/posthog-client";
+
+// Module-level set so a given chat fires `chat_opened` at most once per page
+// session per thread_id. Prevents duplicates from re-renders while still
+// re-firing when the user switches tasks.
+const openedChats = new Set<string>();
 import { toMetadataModelInfo } from "../../lib/metadata-model-info";
 
 import { useChatNavigation } from "./hooks/use-chat-navigation";
@@ -677,6 +683,15 @@ export function ActiveTaskProvider({
     clearPendingMessage,
     currentBranch,
   } = useChatTask();
+
+  // Fire chat_opened once per (page session × taskId). Runs during render, but
+  // the Set gate keeps it idempotent. Fires for every thread a user views —
+  // new or existing — giving us a "chat session view" signal distinct from
+  // chat_started (thread creation).
+  if (taskId && !openedChats.has(taskId)) {
+    openedChats.add(taskId);
+    track("chat_opened", { thread_id: taskId });
+  }
   const {
     selectedModel,
     imageModel,

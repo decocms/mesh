@@ -5,6 +5,7 @@
  */
 
 import { z } from "zod";
+import { posthog } from "../../posthog";
 import { defineTool } from "../../core/define-tool";
 import {
   getUserId,
@@ -44,7 +45,7 @@ export const COLLECTION_THREADS_UPDATE = defineTool({
 
   handler: async (input, ctx) => {
     requireAuth(ctx);
-    requireOrganization(ctx);
+    const organization = requireOrganization(ctx);
 
     await ctx.access.check();
 
@@ -80,6 +81,21 @@ export const COLLECTION_THREADS_UPDATE = defineTool({
     }
 
     const thread = await ctx.storage.threads.update(id, updateData);
+
+    // Fire chat_archived / chat_unarchived when the hidden flag flips. Only
+    // fires on the specific transition, not on title/description edits that
+    // happen to include `hidden` unchanged.
+    if (data.hidden !== undefined && data.hidden !== existing.hidden) {
+      posthog.capture({
+        distinctId: userId,
+        event: data.hidden ? "chat_archived" : "chat_unarchived",
+        groups: { organization: organization.id },
+        properties: {
+          organization_id: organization.id,
+          thread_id: id,
+        },
+      });
+    }
 
     return {
       item: normalizeThreadForResponse(thread),

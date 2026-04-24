@@ -497,13 +497,39 @@ export const auth = betterAuth({
             const orgSlug = slugify(orgName);
 
             try {
-              await auth.api.createOrganization({
+              const created = await auth.api.createOrganization({
                 body: {
                   name: orgName,
                   slug: orgSlug,
                   userId: user.id,
                 },
               });
+
+              // Group identify for team-level analytics.
+              const orgId =
+                (created as { id?: string } | null)?.id ?? undefined;
+              if (orgId) {
+                posthog.groupIdentify({
+                  groupType: "organization",
+                  groupKey: orgId,
+                  properties: {
+                    name: orgName,
+                    slug: orgSlug,
+                    created_at: new Date().toISOString(),
+                    created_via: "signup_default",
+                  },
+                });
+                posthog.capture({
+                  distinctId: user.id,
+                  event: "organization_created",
+                  groups: { organization: orgId },
+                  properties: {
+                    organization_id: orgId,
+                    organization_slug: orgSlug,
+                    created_via: "signup_default",
+                  },
+                });
+              }
               return;
             } catch (error) {
               const isConflictError =
