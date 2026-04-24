@@ -41,15 +41,13 @@ export type RegistryConfig = z.infer<typeof RegistryConfigSchema>;
  * Model slot schema — a concrete model selection (provider key + model).
  * Matches SimpleModeModelSlot interface from storage/types.ts.
  */
-export const ModelSlotSchema = z
+const ModelSlotSchema = z
   .object({
     keyId: z.string(),
     modelId: z.string(),
     title: z.string().optional(),
   })
   .nullable();
-
-export type ModelSlot = z.infer<typeof ModelSlotSchema>;
 
 /**
  * Simple Model Mode configuration schema.

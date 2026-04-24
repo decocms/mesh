@@ -65,8 +65,9 @@ const EMPTY_SIMPLE_MODE: SimpleModeConfig = {
 /**
  * Core query hook over the single shared `organization_settings` row.
  * Callers pass a `select` fn to derive just the slice they care about.
+ * Not exported — use a named wrapper (useSimpleMode, useRegistryConfig, …).
  */
-export function useOrganizationSettings<T = OrganizationSettings>(
+function useOrganizationSettings<T = OrganizationSettings>(
   select?: (settings: OrganizationSettings) => T,
 ): UseQueryResult<T> {
   const { org } = useProjectContext();
@@ -252,11 +253,6 @@ export function useUpdateRegistryConfig() {
     mutateAsync: (config: RegistryConfig, options?: OrgSettingsMutateOptions) =>
       mutation.mutateAsync({ registry_config: config }, options),
   };
-}
-
-export function useEnabledPlugins(): string[] | null {
-  const { data } = useOrganizationSettings((s) => s.enabled_plugins);
-  return data ?? null;
 }
 
 /**
