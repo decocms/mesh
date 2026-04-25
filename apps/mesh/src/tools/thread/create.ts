@@ -1,7 +1,8 @@
 /**
  * COLLECTION_THREADS_CREATE Tool
  *
- * Create a new thread (organization-scoped) with collection binding compliance.
+ * Create a new thread for a virtual MCP. Branch is server-derived from the
+ * vMCP's githubRepo metadata. Idempotent on `id` collisions.
  */
 
 import { z } from "zod";
@@ -13,10 +14,8 @@ import {
 } from "../../core/mesh-context";
 import { ThreadCreateDataSchema, ThreadEntitySchema } from "./schema";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
+import { generateBranchName } from "./branch-name";
 
-/**
- * Input schema for creating threads (wrapped in data field for collection compliance)
- */
 const CreateInputSchema = z.object({
   data: ThreadCreateDataSchema.describe(
     "Data for the new thread (id is auto-generated if not provided)",
@@ -25,12 +24,17 @@ const CreateInputSchema = z.object({
 
 export type CreateThreadInput = z.infer<typeof CreateInputSchema>;
 
-/**
- * Output schema for created thread
- */
 const CreateOutputSchema = z.object({
   item: ThreadEntitySchema.describe("The created thread entity"),
 });
+
+type GithubRepoMeta = {
+  githubRepo?: {
+    owner: string;
+    name: string;
+    connectionId?: string;
+  } | null;
+};
 
 export const COLLECTION_THREADS_CREATE = defineTool({
   name: "COLLECTION_THREADS_CREATE",
@@ -39,7 +43,7 @@ export const COLLECTION_THREADS_CREATE = defineTool({
     title: "Create Thread",
     readOnlyHint: false,
     destructiveHint: true,
-    idempotentHint: false,
+    idempotentHint: true,
     openWorldHint: false,
   },
   inputSchema: CreateInputSchema,
@@ -48,7 +52,6 @@ export const COLLECTION_THREADS_CREATE = defineTool({
   handler: async (input, ctx) => {
     requireAuth(ctx);
     const organization = requireOrganization(ctx);
-
     await ctx.access.check();
 
     const userId = getUserId(ctx);
@@ -56,14 +59,28 @@ export const COLLECTION_THREADS_CREATE = defineTool({
       throw new Error("User ID required to create thread");
     }
 
-    const taskId = input.data.id ?? generatePrefixedId("thrd");
+    const { data } = input;
+    const taskId = data.id ?? generatePrefixedId("thrd");
+
+    const vmcp = await ctx.storage.virtualMcps.findById(
+      data.virtual_mcp_id,
+      organization.id,
+    );
+    if (!vmcp) {
+      throw new Error(`Virtual MCP not found: ${data.virtual_mcp_id}`);
+    }
+
+    const githubRepo = (vmcp.metadata as GithubRepoMeta | null | undefined)
+      ?.githubRepo;
+    const branch = githubRepo ? generateBranchName() : null;
 
     const result = await ctx.storage.threads.create({
       id: taskId,
       organization_id: organization.id,
-      title: input.data.title,
-      description: input.data.description,
-      branch: input.data.branch ?? null,
+      title: data.title,
+      description: data.description,
+      virtual_mcp_id: data.virtual_mcp_id,
+      branch,
       created_by: userId,
     });
 
