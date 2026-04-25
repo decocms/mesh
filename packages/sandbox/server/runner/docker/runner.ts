@@ -3,8 +3,8 @@
  *
  * One hardened container per (user, projectRef). Daemon + dev ports are
  * published to ephemeral host ports; browser traffic routes through
- * `startLocalSandboxIngress` (`*.sandboxes.localhost`). Mesh owns teardown
- * and sweeps orphans on boot/shutdown.
+ * `startLocalSandboxIngress` (`*.localhost`). Mesh owns teardown and sweeps
+ * orphans on boot/shutdown.
  */
 
 import { randomBytes, randomUUID } from "node:crypto";
@@ -528,7 +528,7 @@ export class DockerSandboxRunner implements SandboxRunner {
     const envRoot = process.env.SANDBOX_ROOT_URL;
     if (envRoot) return applyPreviewPattern(envRoot, rec.handle);
     const ingressPort = Number(process.env.SANDBOX_INGRESS_PORT ?? 7070);
-    return `http://${rec.handle}.sandboxes.localhost:${ingressPort}/`;
+    return `http://${rec.handle}.localhost:${ingressPort}/`;
   }
 
   private toSandbox(rec: DockerRecord): Sandbox {

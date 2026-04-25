@@ -26,6 +26,7 @@ import {
   useRef,
   use,
   Suspense,
+  type ReactNode,
 } from "react";
 import { Chat, useChatTask } from "@/web/components/chat/index";
 import { ChatCenterPanel } from "@/web/layouts/chat-center-panel";
@@ -54,8 +55,6 @@ import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useVmStart } from "@/web/components/vm/hooks/use-vm-start";
 import { useStatusSounds } from "../../hooks/use-status-sounds";
-import { useChatNavigation } from "@/web/components/chat/hooks/use-chat-navigation";
-import { generateBranchName } from "@/shared/branch-name";
 import { authClient } from "@/web/lib/auth-client";
 import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "@/web/components/empty-state";
@@ -72,6 +71,7 @@ import { ToggleButtons } from "./toggle-buttons";
 import { MainPanelTabsBar } from "@/web/layouts/main-panel-tabs/main-panel-tabs-bar";
 import { VirtualMcpHeaderInfo } from "../../views/virtual-mcp/header-info.tsx";
 import { VmEventsProvider } from "@/web/components/vm/hooks/vm-events-context.tsx";
+import type { VmMapEntry } from "@decocms/mesh-sdk";
 
 // ---------------------------------------------------------------------------
 // Types & Context
@@ -149,6 +149,82 @@ function MobileToolbar({ onOpenSidebar }: { onOpenSidebar: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
+// VmEventsBridge — derives the daemon URL from thread.branch and runs
+// auto-start. Lives inside Chat.Provider so it can read useChatTask, which
+// keeps the VM SSE connection in sync with the active task as the user
+// navigates between tasks (different tasks may pin different branches).
+// ---------------------------------------------------------------------------
+
+function VmEventsBridge({
+  virtualMcpId,
+  hasActiveGithubRepo,
+  vmMap,
+  children,
+}: {
+  virtualMcpId: string;
+  hasActiveGithubRepo: boolean;
+  vmMap: Record<string, Record<string, VmMapEntry>> | undefined;
+  children: ReactNode;
+}) {
+  const { org } = useProjectContext();
+  const { currentBranch } = useChatTask();
+  const { data: session } = authClient.useSession();
+  const userId = session?.user?.id;
+
+  const vmEntry =
+    userId && currentBranch ? (vmMap?.[userId]?.[currentBranch] ?? null) : null;
+  // Browser talks to the daemon directly via previewUrl. Trailing slash
+  // stripped because the SSE URL appends `/_decopilot_vm/events`.
+  const vmDaemonBaseUrl = vmEntry?.previewUrl
+    ? vmEntry.previewUrl.replace(/\/$/, "")
+    : null;
+
+  // Auto-start the VM when the active task points at a branch without a
+  // registered vmMap entry. Routed through useVmStart so concurrent mounts
+  // (preview, env, this bridge) for the same (virtualMcpId, branch) collapse
+  // onto one in-flight upstream call.
+  const autoStartClient = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+  const { mutate: triggerAutoStart } = useVmStart(autoStartClient);
+  // Attempt at most one auto-start per (branch, mount). A user VM_DELETE
+  // removes the vmMap entry — without a permanent guard the effect would
+  // re-fire and resurrect the VM the user just stopped.
+  const autoStartAttemptedRef = useRef<Set<string>>(new Set());
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — fires VM_START when vmMap is missing an entry for (user, branch); ref guard dedupes within this mount, module-level map dedupes across components
+  useEffect(() => {
+    if (!hasActiveGithubRepo) return;
+    if (!userId) return;
+    if (!currentBranch) return;
+    if (vmMap?.[userId]?.[currentBranch]) return;
+    if (autoStartAttemptedRef.current.has(currentBranch)) return;
+    autoStartAttemptedRef.current.add(currentBranch);
+    triggerAutoStart(
+      { virtualMcpId, branch: currentBranch },
+      {
+        onError: (err) => {
+          console.error("[auto-start-vm] failed:", err);
+        },
+      },
+    );
+  }, [
+    hasActiveGithubRepo,
+    userId,
+    currentBranch,
+    vmMap,
+    virtualMcpId,
+    triggerAutoStart,
+  ]);
+
+  return (
+    <VmEventsProvider daemonBaseUrl={vmDaemonBaseUrl}>
+      {children}
+    </VmEventsProvider>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // AgentInsetProvider — resolves virtualMcpId, provides InsetContext,
 // wraps in Chat.Provider, renders chat+main panel group.
 // ---------------------------------------------------------------------------
@@ -170,7 +246,6 @@ function AgentInsetProvider() {
 
   const search = useSearch({ strict: false }) as {
     virtualmcpid?: string;
-    branch?: string;
   };
   const virtualMcpId =
     search.virtualmcpid ?? getWellKnownDecopilotVirtualMCP(org.id).id;
@@ -212,81 +287,6 @@ function AgentInsetProvider() {
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, []);
-
-  // Auto-assign a branch to the thread when the virtualMCP has a GitHub repo
-  // and the URL has no `?branch=` yet. Prefer reusing the user's first
-  // existing branch from vmMap (so revisits stick to a known branch instead
-  // of minting a fresh name); fall back to generating one only when the user
-  // has no branches registered yet.
-  const { branch: urlBranch, setBranch } = useChatNavigation();
-  const { data: session } = authClient.useSession();
-  const userId = session?.user?.id;
-  const vmMap = entity?.metadata?.vmMap;
-  // Runtime detection now lives inside VM_START (github-runtime-detect.ts on
-  // the server). The client fires VM_START eagerly and waits — no pre-flight
-  // gate, no client-side lockfile probe, no `runtime: null` sentinel.
-  // daemonBaseUrl routing rationale: see VmEventsProvider.
-  const vmEntry =
-    userId && urlBranch ? (vmMap?.[userId]?.[urlBranch] ?? null) : null;
-  // Browser talks to the daemon directly via previewUrl (same host the iframe
-  // renders from). Trailing slash stripped because the SSE URL appends
-  // `/_decopilot_vm/events`.
-  const vmDaemonBaseUrl = vmEntry?.previewUrl
-    ? vmEntry.previewUrl.replace(/\/$/, "")
-    : null;
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — one-shot side effect that sets a URL search param; TanStack Router navigation has no render-time equivalent
-  useEffect(() => {
-    if (urlBranch) return;
-    if (!hasActiveGithubRepo) return;
-    if (!userId) return;
-    const userBranches = vmMap?.[userId];
-    const existing = userBranches ? Object.keys(userBranches)[0] : undefined;
-    // URL only — runs outside Chat.Provider (no thread-persistence helpers).
-    // createMemory writes thread.branch on the first stream request.
-    setBranch(existing ?? generateBranchName());
-  }, [urlBranch, hasActiveGithubRepo, setBranch, userId, vmMap]);
-
-  // Auto-start the VM when the thread lands on a branch without a registered
-  // entry. Routed through useVmStart so concurrent mounts (preview, env, this
-  // layout) for the same (virtualMcpId, branch) collapse onto one in-flight
-  // upstream call instead of stacking 10–30s container-create requests.
-  const autoStartClient = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-  const autoStart = useVmStart(autoStartClient);
-  const { mutate: triggerAutoStart } = autoStart;
-  // Attempt at most one auto-start per (branch, mount). A user VM_DELETE
-  // removes the vmMap entry and invalidates queries — without a permanent
-  // guard the effect would immediately re-fire on the next render and
-  // resurrect the VM the user just stopped. Ref is a Set so branch switches
-  // still auto-start their own branch once, and manual starts from other
-  // surfaces populate vmMap (so the vmMap check short-circuits anyway).
-  const autoStartAttemptedRef = useRef<Set<string>>(new Set());
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — fires VM_START when vmMap is missing an entry for (user, branch); ref guard dedupes within this mount, module-level map dedupes across components
-  useEffect(() => {
-    if (!hasActiveGithubRepo) return;
-    if (!userId) return;
-    if (!urlBranch) return;
-    if (vmMap?.[userId]?.[urlBranch]) return;
-    if (autoStartAttemptedRef.current.has(urlBranch)) return;
-    autoStartAttemptedRef.current.add(urlBranch);
-    triggerAutoStart(
-      { virtualMcpId, branch: urlBranch },
-      {
-        onError: (err) => {
-          console.error("[auto-start-vm] failed:", err);
-        },
-      },
-    );
-  }, [
-    hasActiveGithubRepo,
-    userId,
-    urlBranch,
-    vmMap,
-    virtualMcpId,
-    triggerAutoStart,
-  ]);
 
   const chatVirtualMcpId = virtualMcpId;
 
@@ -357,7 +357,11 @@ function AgentInsetProvider() {
       <InsetContext value={insetContextValue}>
         <div className="flex flex-col flex-1 bg-background min-h-0">
           <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
-            <VmEventsProvider daemonBaseUrl={vmDaemonBaseUrl}>
+            <VmEventsBridge
+              virtualMcpId={virtualMcpId}
+              hasActiveGithubRepo={hasActiveGithubRepo}
+              vmMap={entity?.metadata?.vmMap}
+            >
               <NewTaskBridge
                 onNewTaskRef={onNewTask}
                 createNewTask={layout.createNewTask}
@@ -369,7 +373,7 @@ function AgentInsetProvider() {
                 />
               </div>
               {mobileSidebarSheet}
-            </VmEventsProvider>
+            </VmEventsBridge>
           </Chat.Provider>
         </div>
       </InsetContext>
@@ -388,17 +392,21 @@ function AgentInsetProvider() {
         />
       </Toolbar.Toggles>
 
-      {!isDecopilot && (
-        <Toolbar.Tabs>
-          <MainPanelTabsBar
-            virtualMcpId={virtualMcpId}
-            taskId={layout.taskId}
-          />
-        </Toolbar.Tabs>
-      )}
-
       <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
-        <VmEventsProvider daemonBaseUrl={vmDaemonBaseUrl}>
+        {!isDecopilot && (
+          <Toolbar.Tabs>
+            <MainPanelTabsBar
+              virtualMcpId={virtualMcpId}
+              taskId={layout.taskId}
+            />
+          </Toolbar.Tabs>
+        )}
+
+        <VmEventsBridge
+          virtualMcpId={virtualMcpId}
+          hasActiveGithubRepo={hasActiveGithubRepo}
+          vmMap={entity?.metadata?.vmMap}
+        >
           {!isDecopilot && <VirtualMcpHeaderInfo virtualMcp={entity} />}
           <NewTaskBridge
             onNewTaskRef={onNewTask}
@@ -413,7 +421,7 @@ function AgentInsetProvider() {
               <ActiveTaskBoundary variant={isDecopilot ? "home" : undefined} />
             }
           />
-        </VmEventsProvider>
+        </VmEventsBridge>
       </Chat.Provider>
     </InsetContext>
   );

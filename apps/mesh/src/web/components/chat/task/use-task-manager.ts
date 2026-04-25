@@ -28,7 +28,6 @@ import {
   updateTaskInCache,
 } from "./cache-operations.ts";
 import { buildOptimisticTask, callUpdateTaskTool } from "./helpers.ts";
-import { useChatNavigation } from "../hooks/use-chat-navigation.ts";
 import { useState, useTransition } from "react";
 import type { ChatMessage, Task } from "./types.ts";
 import { TASK_CONSTANTS } from "./types.ts";
@@ -137,8 +136,6 @@ export function useTaskManager(virtualMcpId: string) {
   const queryClient = useQueryClient();
   const { prefillCollectionCache } = useCollectionCachePrefill();
 
-  const { branch } = useChatNavigation();
-
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
 
@@ -197,8 +194,9 @@ export function useTaskManager(virtualMcpId: string) {
     orgId: org.id,
   });
 
-  // Create task (optimistic + cache)
-  const createTask = (): string => {
+  // Create task (optimistic + cache). Branch carries over from the active task
+  // so the new thread starts on the same VM (caller passes currentBranch).
+  const createTask = (branch?: string | null): string => {
     const newTaskId = crypto.randomUUID();
     const optimisticTask = buildOptimisticTask(newTaskId, virtualMcpId, branch);
     addTaskToCache(queryClient, locator, optimisticTask, {
@@ -244,9 +242,9 @@ export function useTaskManager(virtualMcpId: string) {
     }
   };
 
-  // thread.branch is source of truth for vmMap[userId][branch] resolution, so
-  // picker changes must land here + URL. No-ops for cache-only threads — the
-  // branch gets written on first createMemory call.
+  // thread.branch is the only source of truth for vmMap[userId][branch]
+  // resolution. Picker changes land here. No-ops for cache-only threads —
+  // the branch gets written on first createMemory call.
   const setTaskBranch = async (taskId: string, branch: string | null) => {
     updateTaskInCache(queryClient, locator, taskId, { branch });
     try {

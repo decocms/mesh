@@ -50,6 +50,7 @@ import { useTaskReadState } from "../../hooks/use-task-read-state";
 import { authClient } from "../../lib/auth-client";
 import { toMetadataModelInfo } from "../../lib/metadata-model-info";
 
+import { generateBranchName } from "@/shared/branch-name";
 import { useChatNavigation } from "./hooks/use-chat-navigation";
 import { useStreamManager } from "./hooks/use-stream-manager";
 import { useTaskManager, type TaskOwnerFilter } from "./task";
@@ -105,14 +106,14 @@ export interface ChatTaskContextValue {
   hideTask: (taskId: string) => Promise<void>;
   renameTask: (taskId: string, title: string) => Promise<void>;
   setTaskStatus: (taskId: string, status: string) => Promise<void>;
-  /** Derived from thread.branch, falling back to `?branch=` for fresh threads. */
+  /** thread.branch — the only source of truth. Null until the user picks one or the server generates one on first send. */
   currentBranch: string | null;
   /**
    * Immutable once set: switching branches mid-conversation would reroute the
    * thread's vmMap entry, so users must create a new thread for another branch.
    */
   isBranchLocked: boolean;
-  /** Persist pinned branch and sync URL so it survives cross-thread navigation. */
+  /** Persist pinned branch onto the thread (cache + server). */
   setCurrentTaskBranch: (branch: string | null) => void;
   ownerFilter: TaskOwnerFilter;
   setOwnerFilter: (filter: TaskOwnerFilter) => void;
@@ -235,10 +236,8 @@ export function ChatContextProvider({
   const {
     taskId: urlTaskId,
     virtualMcpOverride,
-    branch: urlBranch,
     navigateToTask: rawNavigateToTask,
     setVirtualMcpOverride,
-    setBranch,
   } = useChatNavigation();
 
   // Preferences
@@ -512,30 +511,28 @@ export function ChatContextProvider({
 
   const clearPendingMessage = () => setPendingMessage(null);
 
-  // Atomically syncs URL `?branch=` to thread.branch so the preview iframe
-  // picks the right vmMap entry on first paint (no flicker through unset-branch).
   const navigateToTask = (
     taskId: string,
-    opts?: { virtualMcpOverride?: string; branch?: string | null },
+    opts?: { virtualMcpOverride?: string },
   ) => {
     markTaskRead(taskId);
-    const task = tasks.find((t) => t.id === taskId);
-    const resolvedBranch =
-      opts?.branch !== undefined ? opts.branch : (task?.branch ?? null);
     rawNavigateToTask(taskId, {
       virtualMcpOverride: opts?.virtualMcpOverride,
-      branch: resolvedBranch,
     });
   };
 
-  // thread.branch is authoritative; URL `?branch=` is only a seed for fresh tasks.
   const activeTask = tasks.find((t) => t.id === effectiveTaskId);
-  const currentBranch = activeTask?.branch ?? urlBranch ?? null;
+  const currentBranch = activeTask?.branch ?? null;
   const isBranchLocked = !!activeTask?.branch;
 
-  // Create task (optimistic + navigate), returns new task ID
+  // Create task (optimistic + navigate), returns new task ID. Branch carries
+  // over from the active thread when set; otherwise we generate one upfront so
+  // the empty-state picker shows a real value (the server falls back to the
+  // same `generateBranchName` if branch is null at first send, but generating
+  // here lets the UI display + persist the branch from the moment the task
+  // exists in the cache).
   const createTask = (): string => {
-    const newId = taskManager.createTask();
+    const newId = taskManager.createTask(currentBranch ?? generateBranchName());
     navigateToTask(newId);
     return newId;
   };
@@ -545,7 +542,7 @@ export function ChatContextProvider({
     message: SendMessageParams;
     virtualMcpId?: string;
   }) => {
-    const newId = taskManager.createTask();
+    const newId = taskManager.createTask(currentBranch ?? generateBranchName());
     navigateToTask(newId, {
       virtualMcpOverride:
         params.virtualMcpId && params.virtualMcpId !== virtualMcpId
@@ -587,9 +584,6 @@ export function ChatContextProvider({
     currentBranch,
     isBranchLocked,
     setCurrentTaskBranch: (branch: string | null) => {
-      // URL first so the preview panel picks up the new vmMap entry this render;
-      // thread persistence follows for subsequent navigations back to this thread.
-      setBranch(branch);
       if (effectiveTaskId) {
         taskManager.setTaskBranch(effectiveTaskId, branch);
       }

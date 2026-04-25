@@ -9,7 +9,7 @@
 import * as net from "node:net";
 import type { DockerSandboxRunner } from "./runner";
 
-const HOST_RE = /^([^.]+)\.sandboxes\.localhost(?::\d+)?$/i;
+const HOST_RE = /^([^.]+)\.localhost(?::\d+)?$/i;
 const MAX_HEADER_BYTES = 16 * 1024;
 const HEADERS_TERMINATOR = Buffer.from("\r\n\r\n");
 
@@ -156,7 +156,7 @@ export function startLocalSandboxIngress(
     // one per retry and trip MaxListenersExceededWarning after ~10 EADDRINUSE.
     server.on("listening", () => {
       console.log(
-        `[mesh-sandbox-ingress] forwarding *.sandboxes.localhost → ${host}:${port}`,
+        `[mesh-sandbox-ingress] forwarding *.localhost → ${host}:${port}`,
       );
     });
     const tryListen = (): void => {

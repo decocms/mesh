@@ -16,7 +16,7 @@ import { useProjectContext, useVirtualMCP } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import { GitBranch01, LinkExternal01 } from "@untitledui/icons";
 import { MemoizedMarkdown } from "../../chat/markdown.tsx";
-import { useChatNavigation } from "../../chat/hooks/use-chat-navigation.ts";
+import { useChatTask } from "../../chat/index";
 import { decodeHtmlEntities } from "./decode-html-entities.ts";
 import { PrSubTabs } from "./pr-sub-tabs.tsx";
 import { usePrByBranch, type PrSummary } from "./use-pr-data.ts";
@@ -74,7 +74,7 @@ function PrOverview({ pr }: { pr: PrSummary }) {
 export function GitTab({ virtualMcpId }: { virtualMcpId: string }) {
   const { org } = useProjectContext();
   const vm = useVirtualMCP(virtualMcpId);
-  const { branch } = useChatNavigation();
+  const { currentBranch: branch } = useChatTask();
 
   const githubRepo = vm?.metadata?.githubRepo ?? null;
 

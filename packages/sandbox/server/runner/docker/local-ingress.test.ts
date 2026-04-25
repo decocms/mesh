@@ -170,15 +170,11 @@ describe("startLocalSandboxIngress", () => {
     // Non-API path: daemon's catch-all proxies to the dev server (strips
     // CSP + injects HMR bootstrap along the way). Ingress never talks to
     // dev port directly.
-    const res = await sendHttp(
-      port,
-      "alpha.sandboxes.localhost",
-      "/index.html",
-    );
+    const res = await sendHttp(port, "alpha.localhost", "/index.html");
     expect(res.status).toBe(200);
     expect(res.body).toBe("DAEMON");
     expect(daemon.received()).toContain("GET /index.html HTTP/1.1");
-    expect(daemon.received()).toContain("Host: alpha.sandboxes.localhost");
+    expect(daemon.received()).toContain("Host: alpha.localhost");
   });
 
   it("routes /_decopilot_vm/* paths to the daemon port", async () => {
@@ -191,7 +187,7 @@ describe("startLocalSandboxIngress", () => {
 
     const res = await sendHttp(
       port,
-      "alpha.sandboxes.localhost",
+      "alpha.localhost",
       "/_decopilot_vm/events",
     );
     expect(res.status).toBe(200);
@@ -206,7 +202,7 @@ describe("startLocalSandboxIngress", () => {
     const { servers, port } = await startIngress(() => runner);
     currentServers = servers;
 
-    const res = await sendHttp(port, "alpha.sandboxes.localhost:7070", "/ok");
+    const res = await sendHttp(port, "alpha.localhost:7070", "/ok");
     expect(res.status).toBe(200);
     expect(res.body).toBe("DAEMON");
   });
@@ -221,11 +217,11 @@ describe("startLocalSandboxIngress", () => {
     const { servers, port } = await startIngress(() => runner);
     currentServers = servers;
 
-    const res = await sendHttp(port, "Alpha.Sandboxes.LOCALHOST", "/x");
+    const res = await sendHttp(port, "Alpha.LOCALHOST", "/x");
     expect(res.status).toBe(200);
   });
 
-  it("returns 404 for a host that isn't under *.sandboxes.localhost", async () => {
+  it("returns 404 for a host that isn't under *.localhost", async () => {
     const runner = runnerFor({});
     const { servers, port } = await startIngress(() => runner);
     currentServers = servers;
@@ -239,7 +235,7 @@ describe("startLocalSandboxIngress", () => {
     const { servers, port } = await startIngress(() => null);
     currentServers = servers;
 
-    const res = await sendHttp(port, "alpha.sandboxes.localhost", "/x");
+    const res = await sendHttp(port, "alpha.localhost", "/x");
     expect(res.status).toBe(503);
     expect(res.body).toContain("Sandbox Runner Not Initialized");
     // CORS * is required so the browser's probeMissing can observe ingress
@@ -253,7 +249,7 @@ describe("startLocalSandboxIngress", () => {
     const { servers, port } = await startIngress(() => runner);
     currentServers = servers;
 
-    const res = await sendHttp(port, "ghost.sandboxes.localhost", "/x");
+    const res = await sendHttp(port, "ghost.localhost", "/x");
     expect(res.status).toBe(404);
     expect(res.body).toContain("Sandbox Not Found");
   });
@@ -277,8 +273,7 @@ describe("startLocalSandboxIngress", () => {
     // Deliberately no \r\n\r\n. A single oversized header line with no
     // terminator forces the > MAX_HEADER_BYTES branch.
     const oversized =
-      "GET / HTTP/1.1\r\nHost: a.sandboxes.localhost\r\nX: " +
-      "y".repeat(20 * 1024);
+      "GET / HTTP/1.1\r\nHost: a.localhost\r\nX: " + "y".repeat(20 * 1024);
     const res = await sendRaw(port, oversized);
     expect(res.status).toBe(431);
     expect(res.body).toContain("Request Header Fields Too Large");

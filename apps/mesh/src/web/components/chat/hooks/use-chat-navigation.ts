@@ -16,17 +16,11 @@ export interface ChatNavigation {
   virtualMcpOverride: string | undefined;
   /** Always defined — resolved from the `/$org/$taskId` path param. */
   taskId: string;
-  /**
-   * Git branch for this thread (from `?branch=` URL search param). Undefined
-   * when not set; the server only persists it on thread creation.
-   */
-  branch: string | undefined;
   navigateToTask: (
     taskId: string,
-    opts?: { virtualMcpOverride?: string; branch?: string | null },
+    opts?: { virtualMcpOverride?: string },
   ) => void;
   setVirtualMcpOverride: (id: string | null) => void;
-  setBranch: (branch: string | null) => void;
 }
 
 export function useChatNavigation(): ChatNavigation {
@@ -35,7 +29,6 @@ export function useChatNavigation(): ChatNavigation {
   const search = useSearch({ strict: false }) as {
     virtualmcpid?: string;
     virtualMcpOverride?: string;
-    branch?: string;
   };
 
   const routeParams = useParams({ strict: false }) as {
@@ -48,7 +41,7 @@ export function useChatNavigation(): ChatNavigation {
 
   const navigateToTask = (
     taskId: string,
-    opts?: { virtualMcpOverride?: string; branch?: string | null },
+    opts?: { virtualMcpOverride?: string },
   ) => {
     // Reset panel state — only preserve virtualmcpid + tasks panel visibility.
     // This ensures panel layout defaults kick in for the new task.
@@ -62,26 +55,9 @@ export function useChatNavigation(): ChatNavigation {
         if (opts?.virtualMcpOverride) {
           next.virtualMcpOverride = opts.virtualMcpOverride;
         }
-        if (opts?.branch) {
-          next.branch = opts.branch;
-        }
         return next;
       },
     });
-  };
-
-  const setBranch = (branch: string | null) => {
-    navigate({
-      search: (prev: Record<string, unknown>) => {
-        const next = { ...prev };
-        if (branch) {
-          next.branch = branch;
-        } else {
-          delete next.branch;
-        }
-        return next;
-      },
-    } as never);
   };
 
   const setVirtualMcpOverride = (id: string | null) => {
@@ -108,9 +84,7 @@ export function useChatNavigation(): ChatNavigation {
     virtualMcpId,
     virtualMcpOverride: search.virtualMcpOverride,
     taskId,
-    branch: search.branch,
     navigateToTask,
     setVirtualMcpOverride,
-    setBranch,
   };
 }

@@ -9,17 +9,22 @@ import {
   ProjectContextProvider,
   SELF_MCP_ALIAS_ID,
   useMCPClient,
+  useProjectContext,
 } from "@decocms/mesh-sdk";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import {
   Outlet,
   useMatch,
   useNavigate,
   useParams,
+  useSearch,
 } from "@tanstack/react-router";
 import { KEYS } from "../lib/query-keys";
 import { useOrgSsoStatus } from "../hooks/use-org-sso";
 import { SsoRequiredScreen } from "../components/sso-required-screen";
+import { buildOptimisticTask } from "@/web/components/chat/task/helpers";
+import type { Task, TasksQueryData } from "@/web/components/chat/task/types";
+import { generateBranchName } from "@/shared/branch-name";
 
 // ---------------------------------------------------------------------------
 // ShellProjectProvider — fetches org settings and provides project context.
@@ -79,6 +84,64 @@ function ShellProjectProvider({
 }
 
 // ---------------------------------------------------------------------------
+// Branch carry-over for "+ New task" outside Chat.Provider.
+// Carries the branch + virtualMcpId from the active task when it's in the
+// cache; otherwise falls back to the URL's virtualmcpid and a freshly
+// generated branch name. The optimistic task lands in every cached task list
+// matching the locator so SidebarEmptyState's picker can read its branch
+// before the server-side thread is created.
+// ---------------------------------------------------------------------------
+
+function seedNewTask(
+  queryClient: ReturnType<typeof useQueryClient>,
+  locator: string,
+  oldTaskId: string,
+  newTaskId: string,
+  fallbackVirtualMcpId: string | undefined,
+): void {
+  // Snapshot the active task once across all cached lists so the optimistic
+  // task carries the same branch and virtualMcpId — and so we generate the
+  // fallback branch a single time (avoids drift between cache entries).
+  let snapshot: { branch: string | null; virtualMcpId: string | undefined } = {
+    branch: null,
+    virtualMcpId: fallbackVirtualMcpId,
+  };
+  if (oldTaskId) {
+    const queries = queryClient.getQueriesData<TasksQueryData>({
+      queryKey: KEYS.tasksPrefix(locator),
+    });
+    for (const [, data] of queries) {
+      const oldTask = data?.items.find((t: Task) => t.id === oldTaskId);
+      if (oldTask) {
+        snapshot = {
+          branch: oldTask.branch ?? null,
+          virtualMcpId: oldTask.virtual_mcp_id ?? fallbackVirtualMcpId,
+        };
+        break;
+      }
+    }
+  }
+  const branch = snapshot.branch ?? generateBranchName();
+  const optimistic = buildOptimisticTask(
+    newTaskId,
+    snapshot.virtualMcpId,
+    branch,
+  );
+  queryClient.setQueriesData<TasksQueryData>(
+    { queryKey: KEYS.tasksPrefix(locator) },
+    (data) => {
+      if (!data) return data;
+      if (data.items.some((t: Task) => t.id === newTaskId)) return data;
+      return {
+        ...data,
+        items: [optimistic, ...data.items],
+        totalCount: (data.totalCount ?? data.items.length) + 1,
+      };
+    },
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Panel actions — works anywhere in the router tree.
 // Only updates URL search params. The UnifiedPanelGroup useEffect syncs
 // the visual panel layout from the querystring-derived state.
@@ -86,10 +149,15 @@ function ShellProjectProvider({
 
 export function usePanelActions() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { locator } = useProjectContext();
 
   const params = useParams({ strict: false }) as {
     org?: string;
     taskId?: string;
+  };
+  const search = useSearch({ strict: false }) as {
+    virtualmcpid?: string;
   };
   const orgSlug = params.org ?? "";
   const currentTaskId = params.taskId ?? "";
@@ -117,13 +185,7 @@ export function usePanelActions() {
   const setTasksOpen = (open: boolean) =>
     nav((prev) => ({ ...prev, tasks: open ? 1 : 0 }));
 
-  // Existing thread (preserveBranch=false): drop the carried-over URL branch;
-  // thread.branch wins. Preserving it made the picker lie on thread bounce.
-  const setTaskId = (
-    id: string,
-    virtualMcpId?: string,
-    opts: { preserveBranch?: boolean } = {},
-  ) =>
+  const setTaskId = (id: string, virtualMcpId?: string) =>
     navWith(
       id,
       (prev) => {
@@ -131,8 +193,6 @@ export function usePanelActions() {
         if (virtualMcpId) next.virtualmcpid = virtualMcpId;
         else if (prev.virtualmcpid) next.virtualmcpid = prev.virtualmcpid;
         if (prev.tasks) next.tasks = prev.tasks;
-        // Fresh threads inherit the picker's branch; existing threads don't.
-        if (opts.preserveBranch && prev.branch) next.branch = prev.branch;
         // Preserve the main panel tab (git / preview / env / …) so that
         // switching tasks keeps the user's current view.
         if (prev.main) next.main = prev.main;
@@ -141,8 +201,24 @@ export function usePanelActions() {
       false,
     );
 
-  const createNewTask = () =>
-    setTaskId(crypto.randomUUID(), undefined, { preserveBranch: true });
+  // Carry the active task's branch onto the new task so the new chat lands on
+  // the same VM without a picker round-trip. Branch lives on `task.branch`,
+  // not the URL — so we seed an optimistic task in the same cached lists where
+  // the active task lives, before navigating. When the active task isn't in
+  // the cache (fresh URL or post-reload), we fall back to the URL's
+  // virtualmcpid + a freshly generated branch so the empty-state picker has a
+  // real value to display from the moment the new task exists.
+  const createNewTask = () => {
+    const newId = crypto.randomUUID();
+    seedNewTask(
+      queryClient,
+      locator,
+      currentTaskId,
+      newId,
+      search.virtualmcpid,
+    );
+    setTaskId(newId);
+  };
 
   const openTab = (tabId: string) =>
     navWith(currentTaskId || crypto.randomUUID(), (prev) => ({

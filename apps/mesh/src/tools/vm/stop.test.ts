@@ -50,7 +50,7 @@ const FREESTYLE_ENTRY: VmMapEntry = {
 
 const DOCKER_ENTRY: VmMapEntry = {
   vmId: "f9e2fadeb813e08eb00eef6f962be2b2",
-  previewUrl: "http://f9e2.sandboxes.localhost:7070/",
+  previewUrl: "http://f9e2.localhost:7070/",
   runnerKind: "docker",
 };
 
