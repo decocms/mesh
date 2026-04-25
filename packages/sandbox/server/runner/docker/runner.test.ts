@@ -8,6 +8,7 @@ import type {
   RunnerStateStore,
 } from "../state-store";
 import type { SandboxId } from "../types";
+import { computeHandle } from "../shared/handle";
 
 // -----------------------------------------------------------------------------
 // Exec mock: matches on args[0] + sub-arg patterns and returns canned results.
@@ -206,8 +207,8 @@ describe("DockerSandboxRunner.ensure() — fresh provision", () => {
 
     const sandbox = await runner.ensure(ID);
 
-    // handle = first 32 chars of fake id
-    expect(sandbox.handle).toBe(FAKE_ID.slice(0, 32));
+    const expectedHandle = computeHandle(ID);
+    expect(sandbox.handle).toBe(expectedHandle);
     expect(sandbox.workdir).toBe("/app");
     // Preview URL is derived from the handle via local ingress; it's non-null
     // even without a workload hint because the daemon may auto-sniff the repo.
@@ -270,9 +271,30 @@ describe("DockerSandboxRunner.ensure() — fresh provision", () => {
     expect(store.putCalls).toHaveLength(1);
     const persisted = store.putCalls[0]!;
     expect(persisted.kind).toBe("docker");
-    expect(persisted.entry.handle).toBe(FAKE_ID.slice(0, 32));
+    expect(persisted.entry.handle).toBe(expectedHandle);
     expect(persisted.entry.state.token).toBeDefined();
     expect(persisted.entry.state.daemonUrl).toMatch(/^http:\/\/127\.0\.0\.1:/);
+  });
+
+  it("passes --name=<handle> to docker run so the handle is a valid container reference", async () => {
+    const { exec, calls } = makeExec(defaultResponder);
+    const store = makeStore();
+    installFetch(() => healthOkResponse());
+    const runner = new DockerSandboxRunner({
+      image: "test-image:latest",
+      exec,
+      stateStore: store,
+    });
+
+    const sandbox = await runner.ensure(ID);
+
+    const runCall = calls.find((c) => c.args[0] === "run");
+    expect(runCall).toBeDefined();
+    const runArgs = runCall!.args;
+    const nameIdx = runArgs.findIndex(
+      (a, i) => a === "--name" && runArgs[i + 1] === sandbox.handle,
+    );
+    expect(nameIdx).toBeGreaterThanOrEqual(0);
   });
 });
 
@@ -312,7 +334,7 @@ describe("DockerSandboxRunner.ensure() — resume from persisted state", () => {
     const store = makeStore();
 
     // Pre-populate the store with a valid record.
-    const persistedHandle = FAKE_ID.slice(0, 32);
+    const persistedHandle = computeHandle(ID);
     await store.put(ID, "docker", {
       handle: persistedHandle,
       state: {

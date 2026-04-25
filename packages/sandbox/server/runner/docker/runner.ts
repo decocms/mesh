@@ -26,6 +26,7 @@ import { ensureSandboxImage } from "../../image-build";
 import {
   Inflight,
   applyPreviewPattern,
+  computeHandle,
   hashSandboxId,
   withSandboxLock,
 } from "../shared";
@@ -45,7 +46,6 @@ const RUNNER_KIND = "docker" as const;
 const LABEL_ROOT = "mesh-sandbox";
 const LABEL_ID = "mesh-sandbox.id";
 const DEFAULT_DEV_PORT = 3000;
-const HANDLE_LEN = 32; // 128-bit prefix, within RFC 1035's 63-char DNS cap.
 const PORT_READBACK_ATTEMPTS = 15;
 const PORT_READBACK_INTERVAL_MS = 200;
 const LOG_LABEL = "DockerSandboxRunner";
@@ -92,8 +92,6 @@ interface PersistedDockerState {
   daemonBootId?: string;
   [k: string]: unknown;
 }
-
-const toHandle = (rawId: string): string => rawId.slice(0, HANDLE_LEN);
 
 export class DockerSandboxRunner implements SandboxRunner {
   readonly kind = RUNNER_KIND;
@@ -176,33 +174,35 @@ export class DockerSandboxRunner implements SandboxRunner {
   async sweepOrphans(): Promise<number> {
     const r = await this.exec_([
       "ps",
-      "-aq",
+      "-a",
+      "--format",
+      "{{.Names}}",
       "--filter",
       `label=${this.labelPrefix}=1`,
     ]);
     if (r.code !== 0) return 0;
-    const ids = r.stdout.trim().split("\n").filter(Boolean);
+    const handles = r.stdout.trim().split("\n").filter(Boolean);
     await Promise.all(
-      ids.map(async (id) => {
-        await this.stopContainer(id).catch((err) =>
+      handles.map(async (handle) => {
+        await this.stopContainer(handle).catch((err) =>
           console.warn(
-            `[${LOG_LABEL}] sweep: stopContainer(${id}) failed:`,
+            `[${LOG_LABEL}] sweep: stopContainer(${handle}) failed:`,
             err instanceof Error ? err.message : String(err),
           ),
         );
         if (this.stateStore) {
           await this.stateStore
-            .deleteByHandle(RUNNER_KIND, id)
+            .deleteByHandle(RUNNER_KIND, handle)
             .catch((err) =>
               console.warn(
-                `[${LOG_LABEL}] sweep: state-store deleteByHandle(${id}) failed:`,
+                `[${LOG_LABEL}] sweep: state-store deleteByHandle(${handle}) failed:`,
                 err instanceof Error ? err.message : String(err),
               ),
             );
         }
       }),
     );
-    return ids.length;
+    return handles.length;
   }
 
   /** Docker-only: host port → dev server. Used by local ingress. */
@@ -299,10 +299,13 @@ export class DockerSandboxRunner implements SandboxRunner {
     // cpu against runaway user scripts. Read-only root removes most write-based
     // pivots; /tmp is a bounded tmpfs; /app and /home/sandbox are anonymous
     // volumes (disk-backed) so package-manager caches don't blow the mem cap.
-    const { id: rawId } = await startContainer(image, {
+    const handle = computeHandle(id, opts.repo?.branch);
+    await startContainer(image, {
       label: "sandbox",
       exec: this.exec_,
       args: [
+        "--name",
+        handle,
         "--rm",
         "--init",
         "--read-only",
@@ -328,7 +331,6 @@ export class DockerSandboxRunner implements SandboxRunner {
         ...Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
       ],
     });
-    const handle = toHandle(rawId);
 
     const daemonPort = await this.readPort(handle, DAEMON_PORT);
     const daemonUrl = `http://127.0.0.1:${daemonPort}`;
@@ -369,7 +371,7 @@ export class DockerSandboxRunner implements SandboxRunner {
   ): Promise<DockerRecord | null> {
     const state = persisted.state as Partial<PersistedDockerState>;
     if (!state.token || !state.daemonUrl) return null;
-    const handle = toHandle(persisted.handle);
+    const handle = persisted.handle;
     const devContainerPort = state.devContainerPort ?? DEFAULT_DEV_PORT;
     let daemonPort: number;
     let devPort: number;
@@ -550,13 +552,14 @@ export class DockerSandboxRunner implements SandboxRunner {
     const r = await this.exec_([
       "ps",
       "--no-trunc",
-      "-q",
+      "--format",
+      "{{.Names}}",
       "--filter",
       `label=${LABEL_ID}=${labelId}`,
     ]);
     if (r.code !== 0) return null;
-    const rawId = r.stdout.trim().split("\n").filter(Boolean)[0];
-    return rawId ? toHandle(rawId) : null;
+    const name = r.stdout.trim().split("\n").filter(Boolean)[0];
+    return name ?? null;
   }
 
   private async readPort(
