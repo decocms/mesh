@@ -218,6 +218,8 @@ export interface RequestMetadata {
   automationId?: string | null;
   /** Set by streamCore when the run was triggered by an automation */
   automationName?: string | null;
+  /** Set by streamCore — the virtual MCP / agent name */
+  virtualMcpName?: string | null;
   /** Custom properties from x-mesh-properties header (string key-value pairs) */
   properties?: Record<string, string>;
   wellKnownForwardableHeaders?: Record<string, string | null>;

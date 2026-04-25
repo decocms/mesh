@@ -220,6 +220,7 @@ export async function toolsFromMCP(
                 groups: { organization: orgId },
                 properties: {
                   organization_id: orgId,
+                  virtual_mcp_name: meshCtx?.metadata?.virtualMcpName ?? null,
                   tool_source: "mcp",
                   tool_name: t.name,
                   tool_safe_name: safeName,

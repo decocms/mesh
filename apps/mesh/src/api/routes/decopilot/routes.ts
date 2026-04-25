@@ -217,11 +217,13 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
         properties: {
           organization_id: organization.id,
           agent_id: agent,
+          virtual_mcp_name: ctx.metadata.virtualMcpName ?? null,
           mode,
           thread_id: resolvedThreadId,
           credential_id: models.credentialId,
           trigger_id: ctx.metadata.triggerId ?? null,
           is_automation: !!ctx.metadata.triggerId,
+          user_id: userId,
           user_agent: ctx.metadata.userAgent ?? null,
         },
       });

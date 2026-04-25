@@ -266,7 +266,38 @@ async function streamCoreInner(
     ctx.metadata.triggerId = input.triggerId ?? null;
     ctx.metadata.automationId = input.automationId ?? null;
     ctx.metadata.automationName = input.automationName ?? null;
+    ctx.metadata.virtualMcpName = virtualMcp?.title ?? null;
     rootSpan.setAttribute("decopilot.thread.id", mem.thread.id);
+
+    // Refresh the user's PostHog person profile every run so name/email
+    // stay current — this self-heals legacy users who predate the
+    // signup-time identify call.
+    if (ctx.auth.user) {
+      posthog.identify({
+        distinctId: input.userId,
+        properties: {
+          email: ctx.auth.user.email ?? null,
+          name: ctx.auth.user.name ?? null,
+          $set: {
+            email: ctx.auth.user.email ?? null,
+            name: ctx.auth.user.name ?? null,
+          },
+        },
+      });
+    }
+
+    // Refresh the organization group so name/slug stay current and
+    // groupIdentify runs even for orgs created before PostHog integration.
+    if (ctx.organization) {
+      posthog.groupIdentify({
+        groupType: "organization",
+        groupKey: input.organizationId,
+        properties: {
+          name: ctx.organization.name ?? null,
+          slug: ctx.organization.slug ?? null,
+        },
+      });
+    }
 
     // Identify the automation as its own PostHog persona so events show
     // "Automation: <name>" instead of being attributed to the user.
@@ -1110,6 +1141,7 @@ async function streamCoreInner(
             organization_id: input.organizationId,
             thread_id: mem.thread.id,
             agent_id: input.agent.id,
+            virtual_mcp_name: virtualMcp?.title ?? null,
             model_id: input.models.thinking.id,
             model_title: input.models.thinking.title,
             mode: input.mode,
@@ -1169,8 +1201,11 @@ async function streamCoreInner(
             groups: { organization: input.organizationId },
             properties: {
               organization_id: input.organizationId,
+              organization_name: ctx.organization?.name ?? null,
+              organization_slug: ctx.organization?.slug ?? null,
               thread_id: mem.thread.id,
               agent_id: input.agent.id,
+              virtual_mcp_name: virtualMcp?.title ?? null,
               model_id: input.models.thinking.id,
               mode: input.mode,
               duration_ms: Date.now() - streamStartAt,
@@ -1200,6 +1235,7 @@ async function streamCoreInner(
             organization_id: input.organizationId,
             thread_id: mem.thread.id,
             agent_id: input.agent.id,
+            virtual_mcp_name: virtualMcp?.title ?? null,
             model_id: input.models.thinking.id,
             mode: input.mode,
             duration_ms: Date.now() - streamStartAt,

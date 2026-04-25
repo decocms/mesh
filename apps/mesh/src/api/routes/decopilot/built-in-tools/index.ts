@@ -229,6 +229,7 @@ function instrumentBuiltIns<T extends Record<string, unknown>>(
               groups: { organization: orgId },
               properties: {
                 organization_id: orgId,
+                virtual_mcp_name: ctx.metadata.virtualMcpName ?? null,
                 tool_source: "builtin",
                 tool_name: name,
                 tool_safe_name: name,
