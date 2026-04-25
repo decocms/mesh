@@ -19,10 +19,7 @@ import type { ReactNode } from "react";
 import "../../index.css";
 
 import { authClient } from "@/web/lib/auth-client";
-import { initPostHog } from "@/web/lib/posthog-client";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
-
-initPostHog();
 import { sourcePlugins } from "./plugins.ts";
 import type {
   AnyClientPlugin,

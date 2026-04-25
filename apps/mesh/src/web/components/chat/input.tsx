@@ -47,7 +47,6 @@ import { isTiptapDocEmpty } from "./tiptap/utils";
 import { ToolsPopover } from "./tools-popover";
 import { SessionStats } from "./usage-stats";
 import { authClient } from "@/web/lib/auth-client.ts";
-import { track } from "@/web/lib/posthog-client";
 import { useSound } from "@/web/hooks/use-sound.ts";
 import { question004Sound } from "@deco/ui/lib/question-004.ts";
 import { AddConnectionDialog } from "@/web/views/virtual-mcp/add-connection-dialog";
@@ -273,30 +272,15 @@ export function ChatInput({
   const handleVoiceStart = async () => {
     voiceBaselineDocRef.current = tiptapDoc;
     await voice.startRecording();
-    // Fire with the real outcome — voice.status is set inside startRecording
-    // before the promise resolves ("recording" on success, "unsupported" or
-    // "permission-denied" on failure). Button click on its own doesn't tell
-    // us if the mic actually started.
-    const outcome =
-      voice.status === "recording"
-        ? "started"
-        : voice.status === "unsupported"
-          ? "unsupported"
-          : voice.status === "permission-denied"
-            ? "permission_denied"
-            : "unknown";
-    track("chat_voice_started", { thread_id: taskId, outcome });
   };
 
   const handleVoiceConfirm = () => {
-    track("chat_voice_confirmed", { thread_id: taskId });
     const finalText = voice.stopRecording();
     tiptapRef.current?.syncVoiceText(voiceBaselineDocRef.current, finalText);
     tiptapRef.current?.focus();
   };
 
   const handleVoiceCancel = () => {
-    track("chat_voice_cancelled", { thread_id: taskId });
     voice.cancelRecording();
     tiptapRef.current?.restoreContent(voiceBaselineDocRef.current);
   };
@@ -384,20 +368,10 @@ export function ChatInput({
   const handleSubmit = (e?: FormEvent) => {
     e?.preventDefault();
     if (isStreaming) {
-      track("chat_message_stopped", { thread_id: taskId });
       stop();
     } else if (isRunInProgress) {
-      track("chat_message_stopped", { thread_id: taskId });
       stop();
     } else if (canSubmit && tiptapDoc) {
-      track("chat_message_sent", {
-        thread_id: taskId,
-        mode: chatMode,
-        model_id: selectedModel?.modelId ?? null,
-        model_provider: selectedModel?.providerId ?? null,
-        virtual_mcp_id: selectedVirtualMcp?.id ?? null,
-        submission: e ? "button_or_enter" : "programmatic",
-      });
       playClickSound();
       void sendMessage(tiptapDoc);
       setTiptapDoc(undefined);
@@ -496,13 +470,7 @@ export function ChatInput({
                       />
                       <ToolsPopover
                         disabled={isStreaming}
-                        onOpenConnections={() => {
-                          track("connections_dialog_opened", {
-                            source: "tools_popover",
-                            mode: "add",
-                          });
-                          setConnectionsOpen(true);
-                        }}
+                        onOpenConnections={() => setConnectionsOpen(true)}
                         virtualMcpId={selectedVirtualMcp?.id ?? decopilotId}
                       />
                       {isPlanMode && (
@@ -510,11 +478,6 @@ export function ChatInput({
                           type="button"
                           onClick={() => {
                             playSwitchSound();
-                            track("chat_mode_changed", {
-                              from_mode: "plan",
-                              to_mode: "default",
-                              source: "pill_dismiss",
-                            });
                             setChatMode("default");
                           }}
                           className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 group whitespace-nowrap animate-in fade-in duration-200"
@@ -532,11 +495,6 @@ export function ChatInput({
                           type="button"
                           onClick={() => {
                             playSwitchSound();
-                            track("chat_mode_changed", {
-                              from_mode: "gen-image",
-                              to_mode: "default",
-                              source: "pill_dismiss",
-                            });
                             setChatMode("default");
                           }}
                           className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-pink-600 dark:text-pink-400 hover:bg-pink-500/10 group whitespace-nowrap animate-in fade-in duration-200"
@@ -563,11 +521,6 @@ export function ChatInput({
                           type="button"
                           onClick={() => {
                             playSwitchSound();
-                            track("chat_mode_changed", {
-                              from_mode: "web-search",
-                              to_mode: "default",
-                              source: "pill_dismiss",
-                            });
                             setChatMode("default");
                           }}
                           className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 group whitespace-nowrap animate-in fade-in duration-200"
@@ -683,18 +636,7 @@ export function ChatInput({
 
           {/* Connections Banner Footer - always visible on home */}
           {showConnectionsBanner && (
-            <ConnectionsBanner
-              onClick={() => {
-                track("connections_banner_clicked", {
-                  source: "home_chat_input",
-                });
-                track("connections_dialog_opened", {
-                  source: "home_banner",
-                  mode: "add",
-                });
-                setConnectionsOpen(true);
-              }}
-            />
+            <ConnectionsBanner onClick={() => setConnectionsOpen(true)} />
           )}
         </div>
       </div>

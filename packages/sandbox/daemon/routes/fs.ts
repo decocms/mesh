@@ -1,0 +1,258 @@
+import fs from "node:fs";
+import path from "node:path";
+import { spawn } from "node:child_process";
+import { DECO_UID, DECO_GID } from "../constants";
+import { safePath } from "../paths";
+import { parseBase64JsonBody, jsonResponse } from "./body-parser";
+
+export interface FsDeps {
+  appRoot: string;
+  /** If true, spawn rg with uid:gid=1000. Falsey in tests. */
+  dropPrivileges?: boolean;
+}
+
+function spawnOpts(
+  deps: FsDeps,
+  extra: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return deps.dropPrivileges
+    ? { uid: DECO_UID, gid: DECO_GID, ...extra }
+    : { ...extra };
+}
+
+export function makeReadHandler(deps: FsDeps) {
+  return async (req: Request): Promise<Response> => {
+    let body: { path?: string; offset?: number; limit?: number };
+    try {
+      body = (await parseBase64JsonBody(req)) as typeof body;
+    } catch (e) {
+      return jsonResponse({ error: (e as Error).message }, 400);
+    }
+    const filePath = safePath(deps.appRoot, body.path ?? "");
+    if (!filePath) return jsonResponse({ error: "Path escapes /app" }, 400);
+
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(filePath);
+    } catch {
+      return jsonResponse({ error: `File not found: ${body.path}` }, 400);
+    }
+    if (stat.isDirectory()) {
+      return jsonResponse({ error: "Path is a directory" }, 400);
+    }
+    const fd = fs.openSync(filePath, "r");
+    const probe = Buffer.alloc(Math.min(8192, stat.size));
+    fs.readSync(fd, probe, 0, probe.length, 0);
+    fs.closeSync(fd);
+    if (probe.includes(0))
+      return jsonResponse({ error: "File appears to be binary" }, 400);
+
+    const raw = fs.readFileSync(filePath, "utf-8");
+    const lines = raw.split("\n");
+    const offset = Math.max(1, body.offset ?? 1);
+    const limit = body.limit ?? 2000;
+    const slice = lines.slice(offset - 1, offset - 1 + limit);
+    const numbered = slice.map((l, i) => `${offset + i}\t${l}`).join("\n");
+    return jsonResponse({ content: numbered, lineCount: lines.length });
+  };
+}
+
+export function makeWriteHandler(deps: FsDeps) {
+  return async (req: Request): Promise<Response> => {
+    let body: { path?: string; content?: string };
+    try {
+      body = (await parseBase64JsonBody(req)) as typeof body;
+    } catch (e) {
+      return jsonResponse({ error: (e as Error).message }, 400);
+    }
+    if (typeof body.content !== "string")
+      return jsonResponse({ error: "content is required" }, 400);
+    const filePath = safePath(deps.appRoot, body.path ?? "");
+    if (!filePath) return jsonResponse({ error: "Path escapes /app" }, 400);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, body.content, "utf-8");
+    return jsonResponse({
+      ok: true,
+      bytesWritten: Buffer.byteLength(body.content, "utf-8"),
+    });
+  };
+}
+
+export function makeEditHandler(deps: FsDeps) {
+  return async (req: Request): Promise<Response> => {
+    let body: {
+      path?: string;
+      old_string?: string;
+      new_string?: string;
+      replace_all?: boolean;
+    };
+    try {
+      body = (await parseBase64JsonBody(req)) as typeof body;
+    } catch (e) {
+      return jsonResponse({ error: (e as Error).message }, 400);
+    }
+    const filePath = safePath(deps.appRoot, body.path ?? "");
+    if (!filePath) return jsonResponse({ error: "Path escapes /app" }, 400);
+    if (!body.old_string || typeof body.old_string !== "string")
+      return jsonResponse({ error: "old_string is required" }, 400);
+    if (typeof body.new_string !== "string")
+      return jsonResponse({ error: "new_string is required" }, 400);
+    if (body.old_string === body.new_string)
+      return jsonResponse(
+        { error: "old_string and new_string must differ" },
+        400,
+      );
+
+    let content: string;
+    try {
+      content = fs.readFileSync(filePath, "utf-8");
+    } catch {
+      return jsonResponse({ error: `File not found: ${body.path}` }, 400);
+    }
+    const replaceAll = body.replace_all === true;
+    const count = content.split(body.old_string).length - 1;
+    if (count === 0)
+      return jsonResponse({ error: "old_string not found in file" }, 400);
+    if (!replaceAll && count > 1)
+      return jsonResponse(
+        {
+          error: `old_string found ${count} times. Use replace_all or provide more context to make it unique.`,
+        },
+        400,
+      );
+    const updated = replaceAll
+      ? content.replaceAll(body.old_string, body.new_string)
+      : content.replace(body.old_string, body.new_string);
+    fs.writeFileSync(filePath, updated, "utf-8");
+    return jsonResponse({ ok: true, replacements: replaceAll ? count : 1 });
+  };
+}
+
+export function makeGrepHandler(deps: FsDeps) {
+  return async (req: Request): Promise<Response> => {
+    let body: {
+      pattern?: string;
+      path?: string;
+      output_mode?: "files" | "count" | "content";
+      ignore_case?: boolean;
+      context?: number;
+      glob?: string;
+      limit?: number;
+    };
+    try {
+      body = (await parseBase64JsonBody(req)) as typeof body;
+    } catch (e) {
+      return jsonResponse({ error: (e as Error).message }, 400);
+    }
+    if (!body.pattern)
+      return jsonResponse({ error: "pattern is required" }, 400);
+    const searchPath = body.path
+      ? safePath(deps.appRoot, body.path)
+      : deps.appRoot;
+    if (!searchPath) return jsonResponse({ error: "Path escapes /app" }, 400);
+    const args: string[] = [];
+    const mode = body.output_mode ?? "files";
+    if (mode === "files") args.push("--files-with-matches");
+    else if (mode === "count") args.push("--count");
+    else args.push("--line-number");
+    if (body.ignore_case) args.push("-i");
+    if (body.context && mode === "content")
+      args.push("-C", String(body.context));
+    if (body.glob) args.push("--glob", body.glob);
+    args.push("--", body.pattern, searchPath);
+
+    const limit = body.limit ?? 250;
+    const child = spawn(
+      "rg",
+      args,
+      spawnOpts(deps, {
+        cwd: deps.appRoot,
+        stdio: ["ignore", "pipe", "pipe"],
+      }) as Parameters<typeof spawn>[2],
+    );
+    let stdout = "";
+    let lineCount = 0;
+    let truncated = false;
+    child.stdout!.on("data", (chunk: Buffer) => {
+      if (truncated) return;
+      const lines = chunk.toString("utf-8").split("\n");
+      for (const line of lines) {
+        if (lineCount >= limit) {
+          truncated = true;
+          try {
+            child.kill("SIGTERM");
+          } catch {}
+          break;
+        }
+        if (line) {
+          stdout += (stdout ? "\n" : "") + line;
+          lineCount++;
+        }
+      }
+    });
+    let stderr = "";
+    child.stderr!.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf-8");
+    });
+    const code: number | null = await new Promise((resolve) => {
+      child.on("close", (c) => resolve(c));
+      child.on("error", () => resolve(-1));
+    });
+    if (code !== null && code > 1)
+      return jsonResponse(
+        { error: stderr || `rg failed with code ${code}` },
+        500,
+      );
+    return jsonResponse({ results: stdout, matchCount: lineCount });
+  };
+}
+
+export function makeGlobHandler(deps: FsDeps) {
+  return async (req: Request): Promise<Response> => {
+    let body: { pattern?: string; path?: string };
+    try {
+      body = (await parseBase64JsonBody(req)) as typeof body;
+    } catch (e) {
+      return jsonResponse({ error: (e as Error).message }, 400);
+    }
+    if (!body.pattern)
+      return jsonResponse({ error: "pattern is required" }, 400);
+    const searchPath = body.path
+      ? safePath(deps.appRoot, body.path)
+      : deps.appRoot;
+    if (!searchPath) return jsonResponse({ error: "Path escapes /app" }, 400);
+    const child = spawn(
+      "rg",
+      ["--files", "--glob", body.pattern, searchPath],
+      spawnOpts(deps, {
+        cwd: deps.appRoot,
+        stdio: ["ignore", "pipe", "pipe"],
+      }) as Parameters<typeof spawn>[2],
+    );
+    let stdout = "";
+    child.stdout!.on("data", (c: Buffer) => {
+      stdout += c.toString("utf-8");
+    });
+    let stderr = "";
+    child.stderr!.on("data", (c: Buffer) => {
+      stderr += c.toString("utf-8");
+    });
+    const code: number | null = await new Promise((resolve) => {
+      child.on("close", (c) => resolve(c));
+      child.on("error", () => resolve(-1));
+    });
+    if (code !== null && code > 1)
+      return jsonResponse(
+        { error: stderr || `rg failed with code ${code}` },
+        500,
+      );
+    const files = stdout
+      .split("\n")
+      .filter(Boolean)
+      .slice(0, 1000)
+      .map((f) =>
+        f.startsWith(`${deps.appRoot}/`) ? f.slice(deps.appRoot.length + 1) : f,
+      );
+    return jsonResponse({ files });
+  };
+}

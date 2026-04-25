@@ -4,7 +4,6 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import { MemoizedMarkdown } from "../../markdown.tsx";
 import { Check, Copy01 } from "@untitledui/icons";
 import type { TextUIPart } from "ai";
-import { track } from "@/web/lib/posthog-client";
 
 interface MessageTextPartProps {
   id: string;
@@ -26,10 +25,6 @@ export function MessageTextPart({
   const [isCopied, setIsCopied] = useState(false);
 
   const handleCopyMessage = async () => {
-    track("chat_message_copied", {
-      message_id: id,
-      chars: part.text.length,
-    });
     await handleCopy(part.text);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);

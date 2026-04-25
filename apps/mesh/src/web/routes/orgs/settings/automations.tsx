@@ -9,7 +9,6 @@ import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { AutomationListRow } from "@/web/views/automations/automation-list-row";
 import { useVirtualMCPs, useProjectContext } from "@decocms/mesh-sdk";
 import { useNavigate } from "@tanstack/react-router";
-import { track } from "@/web/lib/posthog-client";
 
 export default function SettingsAutomationsPage() {
   const { org } = useProjectContext();
@@ -32,18 +31,12 @@ export default function SettingsAutomationsPage() {
 
   const handleRowClick = (automationId: string, agentId: string | null) => {
     if (!agentId) return;
-    track("automations_list_row_clicked", {
-      automation_id: automationId,
-      agent_id: agentId,
-      source: "settings_automations",
-    });
     navigateToAgent(agentId, {
       search: { main: "automation:" + automationId },
     });
   };
 
   const handleBrowseAgents = () => {
-    track("automations_empty_state_browse_agents_clicked");
     navigate({ to: "/$org/settings/agents", params: { org: org.slug } });
   };
 

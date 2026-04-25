@@ -228,8 +228,11 @@ function AgentInsetProvider() {
   // daemonBaseUrl routing rationale: see VmEventsProvider.
   const vmEntry =
     userId && urlBranch ? (vmMap?.[userId]?.[urlBranch] ?? null) : null;
-  const vmDaemonBaseUrl = vmEntry
-    ? `/api/sandbox/${vmEntry.vmId}/_daemon`
+  // Browser talks to the daemon directly via previewUrl (same host the iframe
+  // renders from). Trailing slash stripped because the SSE URL appends
+  // `/_decopilot_vm/events`.
+  const vmDaemonBaseUrl = vmEntry?.previewUrl
+    ? vmEntry.previewUrl.replace(/\/$/, "")
     : null;
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — one-shot side effect that sets a URL search param; TanStack Router navigation has no render-time equivalent
   useEffect(() => {

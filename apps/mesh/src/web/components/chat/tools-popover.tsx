@@ -36,7 +36,6 @@ import {
 } from "@untitledui/icons";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
-import { track } from "@/web/lib/posthog-client";
 import {
   PromptArgsDialog,
   type PromptArgumentValues,
@@ -133,13 +132,7 @@ export function ToolsPopover({
 
   const handleTogglePlanMode = () => {
     playSwitchSound();
-    const nextMode = isPlanMode ? "default" : "plan";
-    track("chat_mode_changed", {
-      from_mode: chatMode,
-      to_mode: nextMode,
-      source: "tools_popover",
-    });
-    setChatMode(nextMode);
+    setChatMode(isPlanMode ? "default" : "plan");
     setOpen(false);
   };
 
@@ -175,12 +168,7 @@ export function ToolsPopover({
 
   const handlePromptSelect = async (prompt: Prompt) => {
     setOpen(false);
-    const hasArgs = !!(prompt.arguments && prompt.arguments.length > 0);
-    track("chat_prompt_inserted", {
-      prompt_name: prompt.name,
-      with_arguments: hasArgs,
-    });
-    if (hasArgs) {
+    if (prompt.arguments && prompt.arguments.length > 0) {
       setActivePrompt(prompt);
       return;
     }
@@ -195,47 +183,25 @@ export function ToolsPopover({
 
   const handleImageModelSelect = (model: AiProviderModel) => {
     playSwitchSound();
-    track("chat_image_model_selected", {
-      model_id: model.modelId,
-      model_title: model.title,
-      provider: model.providerId ?? null,
-    });
     setImageModel(model);
     setOpen(false);
   };
 
   const handleSearchModelSelect = (model: AiProviderModel) => {
     playSwitchSound();
-    track("chat_search_model_selected", {
-      model_id: model.modelId,
-      model_title: model.title,
-      provider: model.providerId ?? null,
-    });
     setDeepResearchModel(model);
     setOpen(false);
   };
 
   const handleForceImageGeneration = () => {
     playSwitchSound();
-    const nextMode = chatMode === "gen-image" ? "default" : "gen-image";
-    track("chat_mode_changed", {
-      from_mode: chatMode,
-      to_mode: nextMode,
-      source: "tools_popover",
-    });
-    setChatMode(nextMode);
+    setChatMode(chatMode === "gen-image" ? "default" : "gen-image");
     setOpen(false);
   };
 
   const handleForceWebSearch = () => {
     playSwitchSound();
-    const nextMode = chatMode === "web-search" ? "default" : "web-search";
-    track("chat_mode_changed", {
-      from_mode: chatMode,
-      to_mode: nextMode,
-      source: "tools_popover",
-    });
-    setChatMode(nextMode);
+    setChatMode(chatMode === "web-search" ? "default" : "web-search");
     setOpen(false);
   };
 
@@ -244,17 +210,7 @@ export function ToolsPopover({
 
   return (
     <>
-      <DropdownMenu
-        open={open}
-        onOpenChange={(next) => {
-          if (next && !open) {
-            track("chat_tools_popover_opened", {
-              chat_mode: chatMode,
-            });
-          }
-          setOpen(next);
-        }}
-      >
+      <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger asChild>
           <Button
             type="button"

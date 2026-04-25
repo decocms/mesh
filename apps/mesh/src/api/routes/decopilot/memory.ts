@@ -7,7 +7,6 @@
 
 import type { OrgScopedThreadStorage } from "@/storage/threads";
 import type { Thread, ThreadMessage } from "@/storage/types";
-import { posthog } from "@/posthog";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 /**
@@ -117,18 +116,6 @@ export async function createMemory(
       virtual_mcp_id: virtualMcpId ?? "",
       branch: branch ?? null,
     });
-    posthog.capture({
-      distinctId: userId,
-      event: "chat_started",
-      groups: { organization: organization_id },
-      properties: {
-        organization_id,
-        thread_id: thread.id,
-        created_via: triggerId ? "automation" : "stream_auto",
-        trigger_id: triggerId ?? null,
-        virtual_mcp_id: virtualMcpId || null,
-      },
-    });
   } else {
     // Try to get existing thread scoped to this org
     const existing = await storage.get(thread_id);
@@ -146,18 +133,6 @@ export async function createMemory(
         trigger_id: triggerId ?? null,
         virtual_mcp_id: virtualMcpId ?? "",
         branch: branch ?? null,
-      });
-      posthog.capture({
-        distinctId: userId,
-        event: "chat_started",
-        groups: { organization: organization_id },
-        properties: {
-          organization_id,
-          thread_id: thread.id,
-          created_via: triggerId ? "automation" : "stream_client_id",
-          trigger_id: triggerId ?? null,
-          virtual_mcp_id: virtualMcpId || null,
-        },
       });
     }
   }

@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useAuthConfig } from "@/web/providers/auth-config-provider";
 import { authClient } from "@/web/lib/auth-client";
-import { track } from "@/web/lib/posthog-client";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
@@ -84,11 +83,6 @@ export function UnifiedAuthForm({
       globalThis.localStorage?.setItem("hasLoggedIn", "true");
       window.location.href = redirectUrl ?? callbackUrl;
     },
-    onError: (error) => {
-      track(isSignUp ? "user_signup_failed" : "user_signin_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    },
   });
 
   const forgotPasswordMutation = useMutation({
@@ -103,13 +97,7 @@ export function UnifiedAuthForm({
       return result;
     },
     onSuccess: () => {
-      track("password_reset_requested");
       setResetEmailSent(true);
-    },
-    onError: (error) => {
-      track("password_reset_request_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
     },
   });
 
@@ -125,13 +113,7 @@ export function UnifiedAuthForm({
       return result;
     },
     onSuccess: () => {
-      track("email_otp_sent");
       setOtpSent(true);
-    },
-    onError: (error) => {
-      track("email_otp_send_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
     },
   });
 
@@ -149,11 +131,6 @@ export function UnifiedAuthForm({
     onSuccess: () => {
       globalThis.localStorage?.setItem("hasLoggedIn", "true");
       window.location.href = redirectUrl ?? callbackUrl;
-    },
-    onError: (error) => {
-      track("email_otp_verify_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
     },
   });
 

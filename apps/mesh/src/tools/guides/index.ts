@@ -8,7 +8,6 @@ import * as virtualTools from "./virtual-tools";
 
 export interface GuidePrompt {
   name: string;
-  title: string;
   description: string;
   text: string;
 }

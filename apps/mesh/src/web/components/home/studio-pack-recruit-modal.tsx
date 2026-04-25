@@ -30,7 +30,6 @@ import {
 } from "@decocms/mesh-sdk";
 import { STUDIO_PACK_AGENTS } from "@/tools/virtual/studio-pack";
 import { useNavigate } from "@tanstack/react-router";
-import { track } from "@/web/lib/posthog-client";
 
 interface StudioPackRecruitModalProps {
   open: boolean;
@@ -121,7 +120,6 @@ export function StudioPackRecruitModal({
     try {
       const selfConnectionId = WellKnownOrgMCPId.SELF(org.id);
       const existingTitles = new Set(existingAgents.map((a) => a.title));
-      let installedCount = 0;
 
       for (const agent of STUDIO_PACK_AGENTS) {
         if (existingTitles.has(agent.title)) continue;
@@ -143,20 +141,11 @@ export function StudioPackRecruitModal({
             },
           ],
         });
-        installedCount++;
       }
 
-      track("agent_recruit_confirmed", {
-        template_id: "studio-pack",
-        installed_count: installedCount,
-      });
       onOpenChange(false);
       navigate({ to: "/$org", params: { org: org.slug } });
     } catch (error) {
-      track("agent_recruit_failed", {
-        template_id: "studio-pack",
-        error: error instanceof Error ? error.message : String(error),
-      });
       console.error("Failed to install Studio Pack:", error);
     } finally {
       setIsInstalling(false);

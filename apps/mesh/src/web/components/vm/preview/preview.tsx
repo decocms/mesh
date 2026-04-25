@@ -43,7 +43,6 @@ import { useVmStart, type VmStartArgs } from "../hooks/use-vm-start";
 import { VmSuspendedState } from "../vm-suspended-state";
 import { VmBootingState } from "../vm-booting-state";
 import { VmErrorState } from "../vm-error-state";
-import { track } from "@/web/lib/posthog-client";
 
 type PreviewViewMode = "preview" | "visual";
 
@@ -439,14 +438,6 @@ export function PreviewContent() {
             className="w-full h-full border-0"
             title="Dev Server Preview"
             onLoad={() => {
-              // This is the VM dev-server preview (sandboxed running app),
-              // NOT an MCP app. MCP apps render via <MCPAppRenderer/>.
-              track("vm_preview_loaded", {
-                view_mode: viewMode,
-                vm_id: vmEntry?.vmId ?? null,
-                // Intentionally excluding the full previewUrl — it can contain
-                // ephemeral tokens / user data in the query string.
-              });
               if (viewMode === "visual") {
                 injectVisualEditor();
               }

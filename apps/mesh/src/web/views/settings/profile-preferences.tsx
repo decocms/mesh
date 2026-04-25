@@ -32,7 +32,6 @@ import {
 import { playSound } from "@deco/ui/lib/sound-engine.ts";
 import { question004Sound } from "@deco/ui/lib/question-004.ts";
 import { toast } from "@deco/ui/components/sonner.js";
-import { track } from "@/web/lib/posthog-client";
 
 function PreferenceRow({
   label,
@@ -93,7 +92,6 @@ function ProfileSection() {
     setSaving(true);
     try {
       await authClient.updateUser({ name });
-      track("profile_updated", { fields: ["name"] });
       setEditedName(null);
       toast.success("Profile updated");
     } catch {
@@ -166,7 +164,6 @@ function PreferencesSection() {
     if (checked) {
       const result = await Notification.requestPermission();
       if (result !== "granted") {
-        track("preferences_notifications_permission_denied");
         toast.error(
           "Notifications denied. Please enable them in your browser settings.",
         );
@@ -174,7 +171,6 @@ function PreferencesSection() {
         return;
       }
     }
-    track("preferences_notifications_toggled", { enabled: checked });
     setPreferences((prev) => ({ ...prev, enableNotifications: checked }));
   };
 
@@ -195,7 +191,6 @@ function PreferencesSection() {
               value={preferences.theme}
               onValueChange={(value) => {
                 if (value) {
-                  track("preferences_theme_changed", { to_value: value });
                   setPreferences((prev) => ({
                     ...prev,
                     theme: value as ThemeMode,
@@ -233,22 +228,18 @@ function PreferencesSection() {
         <PreferenceRow
           label="Sounds"
           description="Play sounds for agent actions and notifications."
-          onClick={() => {
-            track("preferences_sounds_toggled", {
-              enabled: !preferences.enableSounds,
-            });
+          onClick={() =>
             setPreferences((prev) => ({
               ...prev,
               enableSounds: !prev.enableSounds,
-            }));
-          }}
+            }))
+          }
           control={
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 aria-label="Preview notification sound"
                 onClick={() => {
-                  track("preferences_sounds_previewed");
                   playSound(question004Sound.dataUri).catch(() => {});
                 }}
                 className="size-6 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors cursor-pointer"
@@ -257,13 +248,12 @@ function PreferencesSection() {
               </button>
               <Switch
                 checked={preferences.enableSounds}
-                onCheckedChange={(checked) => {
-                  track("preferences_sounds_toggled", { enabled: checked });
+                onCheckedChange={(checked) =>
                   setPreferences((prev) => ({
                     ...prev,
                     enableSounds: checked,
-                  }));
-                }}
+                  }))
+                }
               />
             </div>
           }
@@ -274,15 +264,12 @@ function PreferencesSection() {
           control={
             <Select
               value={preferences.toolApprovalLevel}
-              onValueChange={(value) => {
-                track("preferences_tool_approval_changed", {
-                  to_value: value,
-                });
+              onValueChange={(value) =>
                 setPreferences((prev) => ({
                   ...prev,
                   toolApprovalLevel: value as ToolApprovalLevel,
-                }));
-              }}
+                }))
+              }
             >
               <SelectTrigger className="w-36 h-7 text-xs">
                 <span>
@@ -330,27 +317,21 @@ function ExperimentalSection() {
         <PreferenceRow
           label="Import from GitHub"
           description="Enable importing agents from GitHub repositories."
-          onClick={() => {
-            track("preferences_experimental_vibecode_toggled", {
-              enabled: !preferences.experimental_vibecode,
-            });
+          onClick={() =>
             setPreferences((prev) => ({
               ...prev,
               experimental_vibecode: !prev.experimental_vibecode,
-            }));
-          }}
+            }))
+          }
           control={
             <Switch
               checked={preferences.experimental_vibecode}
-              onCheckedChange={(checked) => {
-                track("preferences_experimental_vibecode_toggled", {
-                  enabled: checked,
-                });
+              onCheckedChange={(checked) =>
                 setPreferences((prev) => ({
                   ...prev,
                   experimental_vibecode: checked,
-                }));
-              }}
+                }))
+              }
             />
           }
         />

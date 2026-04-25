@@ -11,11 +11,6 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { injectCSP } from "./csp-injector.ts";
 import type { McpUiResourceCsp } from "./types.ts";
 import { useAppBridge } from "./use-app-bridge.ts";
-import { track } from "../web/lib/posthog-client";
-
-// Module-level dedup so a given MCP app resource fires `mcp_app_opened` at
-// most once per page session. Different resources still fire their own events.
-const openedMcpApps = new Set<string>();
 
 // ---------------------------------------------------------------------------
 // useResourceHtml
@@ -81,18 +76,6 @@ export function MCPAppRenderer({
 }: MCPAppRendererProps) {
   const { data } = useMCPReadResource({ client, uri, staleTime: 30_000 });
   const html = useResourceHtml(data);
-
-  // Fire mcp_app_opened once per (page session × resource URI) — render-time
-  // dedupe via module Set. Display mode distinguishes inline (shown inside
-  // chat messages) from fullscreen (opened as a view panel).
-  if (uri && !openedMcpApps.has(uri)) {
-    openedMcpApps.add(uri);
-    track("mcp_app_opened", {
-      resource_uri: uri,
-      display_mode: displayMode,
-      tool_name: toolInfo?.tool?.name ?? null,
-    });
-  }
 
   const { height, isLoading, error, iframeRef } = useAppBridge({
     client,

@@ -5,7 +5,6 @@
  */
 
 import { z } from "zod";
-import { posthog } from "../../posthog";
 import { defineTool } from "../../core/define-tool";
 import {
   getUserId,
@@ -66,18 +65,6 @@ export const COLLECTION_THREADS_CREATE = defineTool({
       description: input.data.description,
       branch: input.data.branch ?? null,
       created_by: userId,
-    });
-
-    posthog.capture({
-      distinctId: userId,
-      event: "chat_started",
-      groups: { organization: organization.id },
-      properties: {
-        organization_id: organization.id,
-        thread_id: taskId,
-        has_title: !!input.data.title,
-        created_via: "tool",
-      },
     });
 
     return {

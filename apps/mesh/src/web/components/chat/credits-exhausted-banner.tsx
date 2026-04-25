@@ -6,8 +6,7 @@
  * or navigate to settings for full provider management.
  */
 
-import { useEffect, useState } from "react";
-import { track } from "@/web/lib/posthog-client";
+import { useState } from "react";
 import { Check } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -78,11 +77,6 @@ export function CreditsExhaustedBanner({
   const [showCustom, setShowCustom] = useState(false);
   const [currency, setCurrency] = useState<"usd" | "brl">("usd");
   const currencySymbol = currency === "brl" ? "R$" : "$";
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    track("credits_exhausted_shown", { organization_id: org.id });
-  }, [org.id]);
 
   const { mutate: topUp, isPending } = useMutation({
     mutationFn: async (amountCents: number) => {
@@ -187,15 +181,7 @@ export function CreditsExhaustedBanner({
                     key={dollars}
                     type="button"
                     disabled={isPending}
-                    onClick={() => {
-                      track("credits_topup_clicked", {
-                        amount_cents: dollars * 100,
-                        currency,
-                        tier_label: label,
-                        source: "exhausted_banner",
-                      });
-                      topUp(dollars * 100);
-                    }}
+                    onClick={() => topUp(dollars * 100)}
                     className={cn(
                       "relative flex flex-col items-center gap-1 py-5 rounded-xl border transition-all duration-150 cursor-pointer",
                       "disabled:opacity-50 disabled:cursor-wait",
@@ -234,15 +220,7 @@ export function CreditsExhaustedBanner({
                   <Button
                     className="h-10"
                     disabled={!isCustomValid || isPending}
-                    onClick={() => {
-                      track("credits_topup_clicked", {
-                        amount_cents: Math.round(customNum * 100),
-                        currency,
-                        tier_label: "custom",
-                        source: "exhausted_banner",
-                      });
-                      topUp(Math.round(customNum * 100));
-                    }}
+                    onClick={() => topUp(Math.round(customNum * 100))}
                   >
                     {isPending ? "Opening..." : "Add"}
                   </Button>

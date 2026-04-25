@@ -5,7 +5,6 @@
  */
 
 import { z } from "zod";
-import { posthog } from "../../posthog";
 import { defineTool } from "../../core/define-tool";
 import {
   getUserId,
@@ -132,20 +131,6 @@ export const AUTOMATION_CREATE = defineTool({
       temperature: input.temperature,
       active: input.active,
       virtual_mcp_id: input.virtual_mcp_id ?? null,
-    });
-
-    posthog.capture({
-      distinctId: userId,
-      event: "automation_created",
-      groups: { organization: organization.id },
-      properties: {
-        organization_id: organization.id,
-        automation_id: automation.id,
-        agent_id: input.agent.id,
-        has_virtual_mcp: !!input.virtual_mcp_id,
-        active: automation.active,
-        model_id: models.thinking.id,
-      },
     });
 
     return {

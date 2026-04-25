@@ -18,7 +18,7 @@ import {
   callRegistryTool,
 } from "@/web/utils/registry-utils";
 import { useRegistryConnections } from "./use-registry-connections";
-import { useIsRegistryEnabled } from "./use-organization-settings";
+import { useRegistrySettings } from "./use-registry-settings";
 
 interface InstallResult {
   id: string;
@@ -58,7 +58,7 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
 
   // Get registry connections from registry_config, filtered to enabled only
   const registryConnections = useRegistryConnections();
-  const isRegistryEnabled = useIsRegistryEnabled();
+  const { isRegistryEnabled } = useRegistrySettings();
   const enabledRegistries = registryConnections.filter((c) =>
     isRegistryEnabled(c.id),
   );

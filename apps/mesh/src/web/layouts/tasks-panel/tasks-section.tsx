@@ -10,7 +10,6 @@ import {
 import { cn } from "@deco/ui/lib/utils.js";
 import type { Task } from "@/web/components/chat/task/types";
 import { TaskRow } from "./task-row";
-import { track } from "@/web/lib/posthog-client";
 
 type FilterOption = "all" | "manual" | "automation";
 type MemberFilter = "all" | "mine";
@@ -86,15 +85,7 @@ export function TasksSection({
             <DropdownMenuContent align="end">
               <DropdownMenuRadioGroup
                 value={memberFilter}
-                onValueChange={(v) => {
-                  const next = v as MemberFilter;
-                  if (next !== memberFilter) {
-                    track("tasks_panel_member_filter_changed", {
-                      to_value: next,
-                    });
-                  }
-                  setMemberFilter(next);
-                }}
+                onValueChange={(v) => setMemberFilter(v as MemberFilter)}
               >
                 {(Object.keys(MEMBER_FILTER_LABELS) as MemberFilter[]).map(
                   (opt) => (
@@ -122,13 +113,7 @@ export function TasksSection({
             <DropdownMenuContent align="end">
               <DropdownMenuRadioGroup
                 value={filter}
-                onValueChange={(v) => {
-                  const next = v as FilterOption;
-                  if (next !== filter) {
-                    track("tasks_panel_filter_changed", { to_value: next });
-                  }
-                  setFilter(next);
-                }}
+                onValueChange={(v) => setFilter(v as FilterOption)}
               >
                 {(Object.keys(FILTER_LABELS) as FilterOption[]).map((opt) => (
                   <DropdownMenuRadioItem key={opt} value={opt}>
@@ -141,10 +126,7 @@ export function TasksSection({
           {showNewButton && onNew && (
             <button
               type="button"
-              onClick={() => {
-                track("tasks_panel_new_clicked");
-                onNew();
-              }}
+              onClick={onNew}
               aria-label={`New ${title.toLowerCase()}`}
               className="flex size-8 items-center justify-center rounded-md hover:bg-muted hover:text-foreground"
             >
@@ -163,23 +145,8 @@ export function TasksSection({
             key={t.id}
             task={t}
             isActive={activeTaskId === t.id}
-            onClick={() => {
-              if (activeTaskId !== t.id) {
-                track("tasks_panel_task_clicked", {
-                  thread_id: t.id,
-                  virtual_mcp_id: t.virtual_mcp_id ?? null,
-                  from_automation: Boolean(t.fromAutomation),
-                });
-              }
-              onSelect(t);
-            }}
-            onArchive={() => {
-              track("tasks_panel_task_archived", {
-                thread_id: t.id,
-                virtual_mcp_id: t.virtual_mcp_id ?? null,
-              });
-              onArchive(t);
-            }}
+            onClick={() => onSelect(t)}
+            onArchive={() => onArchive(t)}
             showAutomationBadge={showAutomationBadge || t.fromAutomation}
           />
         ))

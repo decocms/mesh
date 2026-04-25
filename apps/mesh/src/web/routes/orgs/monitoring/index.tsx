@@ -71,7 +71,6 @@ import { OverviewTabContent, OverviewTabSkeleton } from "./overview.tsx";
 import { AuditTabContent, MonitoringLogsTable } from "./audit.tsx";
 import { ThreadsTabContent, ThreadsFiltersPopover } from "./threads.tsx";
 import { getOrgMembers } from "./utils.ts";
-import { track } from "@/web/lib/posthog-client";
 
 // ============================================================================
 // Filters Popover Component
@@ -952,26 +951,9 @@ export default function MonitoringDashboard() {
             to={to}
             propertyFilters={propertyFilters}
             onUpdateFilters={updateFilters}
-            onTimeRangeChange={(range) => {
-              track("monitoring_time_range_changed", {
-                from: range.from,
-                to: range.to,
-              });
-              handleTimeRangeChange(range);
-            }}
-            onStreamingToggle={() => {
-              track("monitoring_live_toggled", { enabled: !streaming });
-              updateFilters({ streaming: !streaming });
-            }}
-            onTabChange={(newTab) => {
-              if (newTab !== tab) {
-                track("monitoring_tab_changed", {
-                  from_tab: tab,
-                  to_tab: newTab,
-                });
-              }
-              updateFilters({ tab: newTab });
-            }}
+            onTimeRangeChange={handleTimeRangeChange}
+            onStreamingToggle={() => updateFilters({ streaming: !streaming })}
+            onTabChange={(newTab) => updateFilters({ tab: newTab })}
           />
         </Suspense>
       </ErrorBoundary>

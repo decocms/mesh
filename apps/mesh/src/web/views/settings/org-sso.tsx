@@ -13,7 +13,6 @@ import {
   useToggleSsoEnforcement,
 } from "@/web/hooks/use-org-sso";
 import { CheckCircle, AlertCircle, Trash01 } from "@untitledui/icons";
-import { track } from "@/web/lib/posthog-client";
 
 export function OrgSsoPage() {
   const { org } = useProjectContext();
@@ -71,10 +70,6 @@ export function OrgSsoPage() {
         domain: formState.domain,
         enforced: config?.enforced ?? false,
       });
-      track(isConfigured ? "sso_config_updated" : "sso_configured", {
-        organization_id: org.id,
-        email_domain: formState.domain,
-      });
       toast.success("SSO configuration saved");
       setIsEditing(false);
     } catch (err) {
@@ -88,7 +83,6 @@ export function OrgSsoPage() {
     if (!confirm("Are you sure you want to remove SSO configuration?")) return;
     try {
       await deleteMutation.mutateAsync();
-      track("sso_config_removed", { organization_id: org.id });
       toast.success("SSO configuration removed");
       setIsEditing(false);
     } catch {
@@ -99,10 +93,6 @@ export function OrgSsoPage() {
   const handleEnforceToggle = async (enforced: boolean) => {
     try {
       await enforceMutation.mutateAsync(enforced);
-      track("sso_enforcement_toggled", {
-        organization_id: org.id,
-        enforced,
-      });
       toast.success(
         enforced ? "SSO enforcement enabled" : "SSO enforcement disabled",
       );

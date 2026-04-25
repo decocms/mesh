@@ -12,7 +12,6 @@ import {
 } from "@/web/hooks/use-organization-roles";
 import { authClient } from "@/web/lib/auth-client";
 import { KEYS } from "@/web/lib/query-keys";
-import { track } from "@/web/lib/posthog-client";
 import { useConnections, useProjectContext } from "@decocms/mesh-sdk";
 import {
   AiProviderKey,
@@ -1519,17 +1518,6 @@ export function ManageRolesDialog({
       });
       const isNew = !variables.role.id && !variables.role.slug;
       const isBuiltinRole = variables.role.slug && !variables.role.id;
-      track(
-        isBuiltinRole
-          ? "role_members_updated"
-          : isNew
-            ? "role_created"
-            : "role_updated",
-        {
-          role_slug: variables.role.slug ?? null,
-          member_count: variables.memberIds.length,
-        },
-      );
       toast.success(
         isBuiltinRole
           ? "Members updated successfully!"
@@ -1544,21 +1532,7 @@ export function ManageRolesDialog({
       }
       onSuccess?.();
     },
-    onError: (error, variables) => {
-      const isNew = !variables.role.id && !variables.role.slug;
-      const isBuiltinRole = variables.role.slug && !variables.role.id;
-      track(
-        isBuiltinRole
-          ? "role_members_update_failed"
-          : isNew
-            ? "role_create_failed"
-            : "role_update_failed",
-        {
-          role_slug: variables.role.slug ?? null,
-          member_count: variables.memberIds.length,
-          error: error instanceof Error ? error.message : String(error),
-        },
-      );
+    onError: (error) => {
       toast.error(
         error instanceof Error ? error.message : "Failed to save role",
       );
@@ -1575,8 +1549,7 @@ export function ManageRolesDialog({
 
       return result?.data;
     },
-    onSuccess: (_, roleId) => {
-      track("role_deleted", { role_id: roleId });
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: KEYS.members(locator) });
       queryClient.invalidateQueries({
         queryKey: KEYS.organizationRoles(locator),
@@ -1603,11 +1576,7 @@ export function ManageRolesDialog({
         }
       }
     },
-    onError: (error, roleId) => {
-      track("role_delete_failed", {
-        role_id: roleId,
-        error: error instanceof Error ? error.message : String(error),
-      });
+    onError: (error) => {
       toast.error(
         error instanceof Error ? error.message : "Failed to delete role",
       );

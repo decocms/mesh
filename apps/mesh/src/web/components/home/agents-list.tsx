@@ -33,10 +33,6 @@ import { AiResearchRecruitModal } from "@/web/components/home/ai-research-recrui
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { Suspense, useState } from "react";
-import { track } from "@/web/lib/posthog-client";
-
-type TileKind = "template" | "existing" | "recent";
-type TileAction = "new_chat" | "open_modal" | "navigate";
 
 /**
  * Individual agent preview component
@@ -44,7 +40,6 @@ type TileAction = "new_chat" | "open_modal" | "navigate";
 function AgentPreview({
   agent,
   onSpecialClick,
-  tracking,
 }: {
   agent: {
     id: string;
@@ -52,23 +47,11 @@ function AgentPreview({
     icon?: string | null;
   };
   onSpecialClick?: () => void;
-  tracking: {
-    template_id: string | null;
-    tile_kind: TileKind;
-    action: TileAction;
-  };
 }) {
   const { org } = useProjectContext();
   const navigate = useNavigate();
 
   const handleClick = () => {
-    track("home_agent_tile_clicked", {
-      template_id: tracking.template_id,
-      agent_id: agent.id,
-      agent_title: agent.title,
-      tile_kind: tracking.tile_kind,
-      action: tracking.action,
-    });
     if (onSpecialClick) {
       onSpecialClick();
     } else {
@@ -127,7 +110,6 @@ function SeeAllButton() {
       )}
       aria-label="See all agents"
       onClick={() => {
-        track("home_see_all_agents_clicked");
         navigate({ to: "/$org/settings/agents", params: { org: org.slug } });
       }}
     >
@@ -152,10 +134,7 @@ function CreateAgentButton() {
   return (
     <button
       type="button"
-      onClick={() => {
-        track("home_create_agent_clicked");
-        createVirtualMCP();
-      }}
+      onClick={() => createVirtualMCP()}
       disabled={isCreating}
       className={cn(
         "flex flex-col items-center gap-3 p-2 rounded-lg",
@@ -256,11 +235,6 @@ function AgentsListContent() {
             key={siteEditorAgent.id}
             agent={siteEditorAgent}
             onSpecialClick={() => setImportDecoOpen(true)}
-            tracking={{
-              template_id: siteEditorAgent.id,
-              tile_kind: "template",
-              action: "open_modal",
-            }}
           />
           <AgentPreview
             key={siteDiagnosticsAgent.id}
@@ -270,11 +244,6 @@ function AgentsListContent() {
                 ? () => navigateToAgent(existingDiagnostics.id)
                 : () => setDiagnosticsModalOpen(true)
             }
-            tracking={{
-              template_id: siteDiagnosticsAgent.id,
-              tile_kind: existingDiagnostics ? "existing" : "template",
-              action: existingDiagnostics ? "navigate" : "open_modal",
-            }}
           />
           <AgentPreview
             key={aiImageAgent.id}
@@ -284,11 +253,6 @@ function AgentsListContent() {
                 ? () => navigateToAgent(existingAiImage.id)
                 : () => setAiImageModalOpen(true)
             }
-            tracking={{
-              template_id: aiImageAgent.id,
-              tile_kind: existingAiImage ? "existing" : "template",
-              action: existingAiImage ? "navigate" : "open_modal",
-            }}
           />
           <AgentPreview
             key={aiResearchAgent.id}
@@ -298,11 +262,6 @@ function AgentsListContent() {
                 ? () => navigateToAgent(existingAiResearch.id)
                 : () => setAiResearchModalOpen(true)
             }
-            tracking={{
-              template_id: aiResearchAgent.id,
-              tile_kind: existingAiResearch ? "existing" : "template",
-              action: existingAiResearch ? "navigate" : "open_modal",
-            }}
           />
           {agents
             .filter(
@@ -316,11 +275,6 @@ function AgentsListContent() {
                 key={agent.id ?? "default"}
                 agent={agent}
                 onSpecialClick={() => navigateToAgent(agent.id)}
-                tracking={{
-                  template_id: null,
-                  tile_kind: "recent",
-                  action: "navigate",
-                }}
               />
             ))}
           <CreateAgentButton />

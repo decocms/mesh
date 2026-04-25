@@ -19,7 +19,6 @@ import {
   useVirtualMCPActions,
 } from "@decocms/mesh-sdk";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
-import { track } from "@/web/lib/posthog-client";
 
 const AI_IMAGE_SYSTEM_PROMPT = `You are an image generator agent. Every request of the user is somewhat related to creating, editing or varying an image. You have access to image generation tools
 
@@ -359,17 +358,9 @@ export function AiImageRecruitModal({
         },
       });
 
-      track("agent_recruit_confirmed", {
-        template_id: "ai-image",
-        agent_id: virtualMcp.id!,
-      });
       onOpenChange(false);
       navigateToAgent(virtualMcp.id!);
     } catch (error) {
-      track("agent_recruit_failed", {
-        template_id: "ai-image",
-        error: error instanceof Error ? error.message : String(error),
-      });
       console.error("Failed to create Image Creator agent:", error);
     } finally {
       setIsRecruiting(false);

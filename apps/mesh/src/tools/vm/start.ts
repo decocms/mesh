@@ -16,7 +16,7 @@ import {
   resolveRunnerKindFromEnv,
   type RunnerKind,
   type Workload,
-} from "mesh-plugin-user-sandbox/runner";
+} from "@decocms/sandbox/runner";
 import { defineTool } from "../../core/define-tool";
 import type { MeshContext } from "../../core/mesh-context";
 import { requireVmEntry, resolveRuntimeConfig } from "./helpers";

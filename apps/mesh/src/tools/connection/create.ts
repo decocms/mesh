@@ -7,7 +7,6 @@
 import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { posthog } from "../../posthog";
 import { defineTool } from "../../core/define-tool";
 import {
   getUserId,
@@ -134,19 +133,6 @@ export const COLLECTION_CONNECTIONS_CREATE = defineTool({
         data: connection,
       },
     );
-
-    posthog.capture({
-      distinctId: userId,
-      event: "connection_created",
-      groups: { organization: organization.id },
-      properties: {
-        connection_id: connection.id,
-        connection_type: connection.connection_type,
-        app_name: connection.app_name ?? null,
-        organization_id: organization.id,
-        tools_count: tools?.length ?? 0,
-      },
-    });
 
     return {
       item: connection,

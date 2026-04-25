@@ -47,7 +47,6 @@ export const FAST_MODEL_PREFERENCES: Partial<Record<ProviderId, string[]>> = {
   ],
   deco: ["qwen/qwen3.5-flash", "anthropic/claude-haiku"],
   google: ["gemini-2.5-flash", "gemini-3-flash"],
-  "claude-code": ["claude-code:haiku", "claude-code:sonnet"],
 };
 
 /**

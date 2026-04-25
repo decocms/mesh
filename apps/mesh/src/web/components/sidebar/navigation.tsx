@@ -16,7 +16,6 @@ import { Suspense, type ReactNode } from "react";
 import type { NavigationSidebarItem, SidebarSection } from "./types";
 import { SidebarCollapsibleGroup } from "./sidebar-group";
 import { DEFAULT_LOGO, usePublicConfig } from "@/web/hooks/use-public-config";
-import { track } from "@/web/lib/posthog-client";
 
 function SidebarLogoHeader() {
   const config = usePublicConfig();
@@ -56,12 +55,6 @@ function SidebarNavigationItem({ item }: { item: NavigationSidebarItem }) {
   const { isMobile, setOpenMobile } = useSidebar();
 
   const handleClick = () => {
-    track("nav_item_clicked", {
-      nav_key: item.key,
-      nav_label: item.label,
-      is_active: !!item.isActive,
-      is_mobile: isMobile,
-    });
     item.onClick?.();
     if (isMobile) setOpenMobile(false);
   };

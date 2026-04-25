@@ -8,13 +8,8 @@ import {
   CollectionDeleteInputSchema,
   createCollectionDeleteOutputSchema,
 } from "@decocms/bindings/collections";
-import { posthog } from "../../posthog";
 import { defineTool } from "../../core/define-tool";
-import {
-  getUserId,
-  requireAuth,
-  requireOrganization,
-} from "../../core/mesh-context";
+import { requireAuth, requireOrganization } from "../../core/mesh-context";
 import { normalizeThreadForResponse } from "./helpers";
 import { ThreadEntitySchema } from "./schema";
 
@@ -33,7 +28,7 @@ export const COLLECTION_THREADS_DELETE = defineTool({
 
   handler: async (input, ctx) => {
     requireAuth(ctx);
-    const organization = requireOrganization(ctx);
+    requireOrganization(ctx);
 
     await ctx.access.check();
 
@@ -43,19 +38,6 @@ export const COLLECTION_THREADS_DELETE = defineTool({
     }
 
     await ctx.storage.threads.delete(input.id);
-
-    const userId = getUserId(ctx);
-    if (userId) {
-      posthog.capture({
-        distinctId: userId,
-        event: "chat_deleted",
-        groups: { organization: organization.id },
-        properties: {
-          organization_id: organization.id,
-          thread_id: input.id,
-        },
-      });
-    }
 
     return {
       item: normalizeThreadForResponse(thread),

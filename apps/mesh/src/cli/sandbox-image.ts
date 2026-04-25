@@ -16,7 +16,7 @@ export async function kickoffSandboxImageBuild(opts: {
   if (process.env.MESH_SANDBOX_IMAGE) return;
 
   const { tryResolveRunnerKindFromEnv, ensureSandboxImage } = await import(
-    "mesh-plugin-user-sandbox/runner"
+    "@decocms/sandbox/runner"
   );
 
   if (tryResolveRunnerKindFromEnv() !== "docker") return;

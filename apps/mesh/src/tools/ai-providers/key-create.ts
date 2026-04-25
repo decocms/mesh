@@ -1,5 +1,4 @@
 import z from "zod";
-import { posthog } from "../../posthog";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth, requireOrganization } from "../../core/mesh-context";
 import { PROVIDER_IDS } from "../../ai-providers/provider-ids";
@@ -32,18 +31,6 @@ export const AI_PROVIDER_KEY_CREATE = defineTool({
       apiKey: input.apiKey,
       organizationId: org.id,
       createdBy: ctx.auth.user!.id,
-    });
-
-    posthog.capture({
-      distinctId: ctx.auth.user!.id,
-      event: "ai_provider_key_created",
-      groups: { organization: org.id },
-      properties: {
-        organization_id: org.id,
-        provider_id: key.providerId,
-        key_id: key.id,
-        label: key.label,
-      },
     });
 
     return {

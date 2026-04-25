@@ -1,7 +1,7 @@
 import { describe, it, expect, mock, beforeEach } from "bun:test";
 import type { VmMap, VmMapEntry } from "@decocms/mesh-sdk";
 import type { MeshContext } from "../../core/mesh-context";
-import type { SandboxRunner } from "mesh-plugin-user-sandbox/runner";
+import type { SandboxRunner } from "@decocms/sandbox/runner";
 
 // Mock per-kind runner lookup BEFORE importing VM_DELETE.
 const mockDelete = mock(async (_handle: string): Promise<void> => {});

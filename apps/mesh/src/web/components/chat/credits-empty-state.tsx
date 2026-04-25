@@ -7,8 +7,7 @@
  * so it doesn't reappear. The normal home page renders underneath.
  */
 
-import { useEffect, useState } from "react";
-import { track } from "@/web/lib/posthog-client";
+import { useState } from "react";
 import { Coins04, ArrowRight } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
@@ -76,7 +75,6 @@ export function CreditsEmptyState() {
   const currencySymbol = currency === "brl" ? "R$" : "$";
 
   const dismiss = () => {
-    track("credits_empty_state_dismissed", { organization_id: org.id });
     setOpen(false);
     try {
       localStorage.setItem(dismissKeyForOrg(org.id), "1");
@@ -84,13 +82,6 @@ export function CreditsEmptyState() {
       // localStorage unavailable
     }
   };
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (open) {
-      track("credits_empty_state_shown", { organization_id: org.id });
-    }
-  }, [open, org.id]);
 
   const { mutate: topUp, isPending } = useMutation({
     mutationFn: async (amountCents: number) => {
@@ -184,15 +175,7 @@ export function CreditsEmptyState() {
                   key={dollars}
                   type="button"
                   disabled={isPending}
-                  onClick={() => {
-                    track("credits_topup_clicked", {
-                      amount_cents: dollars * 100,
-                      currency,
-                      tier_label: label,
-                      source: "empty_state",
-                    });
-                    topUp(dollars * 100);
-                  }}
+                  onClick={() => topUp(dollars * 100)}
                   className={cn(
                     "relative flex flex-col items-center gap-1 py-6 rounded-xl border transition-all duration-150 cursor-pointer",
                     "disabled:opacity-50 disabled:cursor-wait",
@@ -229,15 +212,7 @@ export function CreditsEmptyState() {
                 <Button
                   className="h-10"
                   disabled={!isCustomValid || isPending}
-                  onClick={() => {
-                    track("credits_topup_clicked", {
-                      amount_cents: Math.round(customNum * 100),
-                      currency,
-                      tier_label: "custom",
-                      source: "empty_state",
-                    });
-                    topUp(Math.round(customNum * 100));
-                  }}
+                  onClick={() => topUp(Math.round(customNum * 100))}
                 >
                   {isPending ? "Opening..." : "Add"}
                 </Button>

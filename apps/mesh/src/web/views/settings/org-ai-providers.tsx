@@ -1,6 +1,6 @@
 import { Suspense, useState, useEffect } from "react";
 import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
-import { Controller, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -11,7 +11,6 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
-  CheckCircle,
   RefreshCw01,
 } from "@untitledui/icons";
 import { Page } from "@/web/components/page";
@@ -19,6 +18,7 @@ import { Button } from "@deco/ui/components/button.tsx";
 import {
   Card,
   CardContent,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@deco/ui/components/card.tsx";
@@ -62,15 +62,13 @@ import {
   pickSimpleModeDefaults,
 } from "@decocms/mesh-sdk";
 import { KEYS } from "@/web/lib/query-keys";
-import { track } from "@/web/lib/posthog-client";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import {
   useSimpleMode,
   useUpdateSimpleMode,
   type SimpleModeConfig,
-} from "@/web/hooks/use-organization-settings";
-import { SimpleModeConfigSchema } from "@/tools/organization/schema";
+} from "@/web/hooks/collections/use-ai-simple-mode";
 import { ModelSelector } from "@/web/components/chat/select-model";
 
 function ErrorFallback({ error }: { error: Error }) {
@@ -243,7 +241,7 @@ function ConnectApiKeyForm({
             type={showKey ? "text" : "password"}
             placeholder="sk-..."
             {...register("apiKey")}
-            className="ph-no-capture h-8 text-sm pr-8"
+            className="h-8 text-sm pr-8"
           />
           <button
             type="button"
@@ -378,7 +376,7 @@ function ConnectOpenAICompatibleForm({
             type={showKey ? "text" : "password"}
             placeholder="sk-..."
             {...register("apiKey")}
-            className="ph-no-capture h-8 text-sm pr-8"
+            className="h-8 text-sm pr-8"
           />
           <button
             type="button"
@@ -485,7 +483,6 @@ function ProviderCard({
       }
     },
     onSuccess: () => {
-      track("ai_provider_oauth_succeeded", { provider_id: provider.id });
       queryClient.invalidateQueries({ queryKey: KEYS.aiProviderKeys(org.id) });
       queryClient.invalidateQueries({ queryKey: KEYS.aiProviders(org.id) });
       toast.success(`${provider.name} connected successfully`);
@@ -493,10 +490,6 @@ function ProviderCard({
       setOauthStateToken(null);
     },
     onError: (err) => {
-      track("ai_provider_oauth_failed", {
-        provider_id: provider.id,
-        error: err.message,
-      });
       toast.error(`OAuth connection failed: ${err.message}`);
       setIsOAuthPending(false);
       setOauthStateToken(null);
@@ -520,14 +513,9 @@ function ProviderCard({
     },
     onSuccess: (data) => {
       if (!data?.activated) {
-        track("ai_provider_cli_activate_failed", {
-          provider_id: provider.id,
-          error: data?.error ?? "unknown",
-        });
         toast.error(data?.error ?? "CLI activation failed");
         return;
       }
-      track("ai_provider_cli_activated", { provider_id: provider.id });
       queryClient.invalidateQueries({
         queryKey: KEYS.aiProviderKeys(org.id),
       });
@@ -536,13 +524,7 @@ function ProviderCard({
       });
       toast.success(`${provider.name} activated`);
     },
-    onError: (err) => {
-      track("ai_provider_cli_activate_failed", {
-        provider_id: provider.id,
-        error: err.message,
-      });
-      toast.error(err.message);
-    },
+    onError: (err) => toast.error(err.message),
   });
 
   const { mutate: provisionKey, isPending: isProvisioning } = useMutation({
@@ -560,18 +542,11 @@ function ProviderCard({
       }
     },
     onSuccess: () => {
-      track("ai_provider_provision_succeeded", {
-        provider_id: provider.id,
-      });
       queryClient.invalidateQueries({ queryKey: KEYS.aiProviderKeys(org.id) });
       queryClient.invalidateQueries({ queryKey: KEYS.aiProviders(org.id) });
       toast.success(`${provider.name} connected successfully`);
     },
     onError: (err) => {
-      track("ai_provider_provision_failed", {
-        provider_id: provider.id,
-        error: err.message,
-      });
       toast.error(`Failed to connect ${provider.name}: ${err.message}`);
     },
   });
@@ -580,19 +555,11 @@ function ProviderCard({
   useEffect(() => {
     if (!isOAuthPending || !oauthStateToken) return;
 
-    // Local flag — once the popup posts back and exchangeOAuth starts, the
-    // exchange has its own onSuccess/onError handlers. Without this, a slow
-    // exchange (>2min) would race the timeout and fire a false-positive
-    // ai_provider_oauth_failed{error:"timeout"} alongside the eventual
-    // ai_provider_oauth_succeeded.
-    let exchangeStarted = false;
-
     const handleMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
       if (event.data?.type === "AI_PROVIDER_OAUTH_CALLBACK") {
         const { code, stateToken } = event.data;
         if (stateToken === oauthStateToken) {
-          exchangeStarted = true;
           exchangeOAuth({ code, stateToken });
         } else {
           console.error("State token mismatch");
@@ -605,22 +572,20 @@ function ProviderCard({
 
     window.addEventListener("message", handleMessage);
 
-    // 2-minute popup-wait timeout. Distinct from exchange-failure: this means
-    // the user never came back from the OAuth popup. Tracked as a separate
-    // event so funnel math stays clean.
+    // Timeout after 2 minutes
     const timeoutId = setTimeout(() => {
-      if (exchangeStarted) return;
-      track("ai_provider_oauth_timeout", { provider_id: provider.id });
-      setIsOAuthPending(false);
-      setOauthStateToken(null);
-      toast.error("Connection timed out");
+      if (isOAuthPending) {
+        setIsOAuthPending(false);
+        setOauthStateToken(null);
+        toast.error("Connection timed out");
+      }
     }, 120000);
 
     return () => {
       window.removeEventListener("message", handleMessage);
       clearTimeout(timeoutId);
     };
-  }, [isOAuthPending, oauthStateToken, exchangeOAuth, provider.id]);
+  }, [isOAuthPending, oauthStateToken, exchangeOAuth]);
 
   const supportsProvision = !!provider.supportsProvision;
   const supportsOAuth = provider.supportedMethods.includes("oauth-pkce");
@@ -630,32 +595,14 @@ function ProviderCard({
     if (isConnectFormOpen || isOAuthPending || isActivating || isProvisioning)
       return;
     if (isCliActivate) {
-      if (!isActive) {
-        track("ai_provider_connect_clicked", {
-          provider_id: provider.id,
-          method: "cli-activate",
-        });
-        activateCli();
-      }
+      if (!isActive) activateCli();
       return;
     }
     if (supportsProvision) {
-      track("ai_provider_connect_clicked", {
-        provider_id: provider.id,
-        method: "provision",
-      });
       provisionKey();
     } else if (supportsOAuth) {
-      track("ai_provider_connect_clicked", {
-        provider_id: provider.id,
-        method: "oauth-pkce",
-      });
       handleConnectOAuth();
     } else if (supportsApiKey) {
-      track("ai_provider_connect_clicked", {
-        provider_id: provider.id,
-        method: "api-key",
-      });
       setIsConnectFormOpen(true);
     }
   };
@@ -1189,44 +1136,19 @@ function SimpleModeModelRow({
   slot,
   onSlotChange,
   filterModels,
-  defaultKeyId,
 }: {
   label: string;
   description?: string;
   slot: SimpleModeConfig["chat"]["fast"];
   onSlotChange: (slot: SimpleModeConfig["chat"]["fast"]) => void;
   filterModels?: (m: AiProviderModel) => boolean;
-  defaultKeyId: string | null;
 }) {
-  const allKeys = useAiProviderKeys();
-  const [localCredentialId, setLocalCredentialId] = useState<string | null>(
-    slot?.keyId ?? defaultKeyId,
-  );
-
-  // Adopt slot's keyId when it actually transitions (e.g. auto-fill from defaults)
-  // — NOT on every render, or it would revert user's in-modal credential changes.
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (slot?.keyId) setLocalCredentialId(slot.keyId);
-  }, [slot?.keyId]);
-
-  const activeKeyId = localCredentialId ?? defaultKeyId;
-  const slotKey = activeKeyId
-    ? allKeys.find((k) => k.id === activeKeyId)
-    : null;
-
-  const { models: activeModels, isLoading: isLoadingModels } =
-    useAiProviderModels(filterModels ? (activeKeyId ?? undefined) : undefined);
-  const hasFilteredModels = filterModels
-    ? isLoadingModels || activeModels.some(filterModels)
-    : true;
-
   const resolvedModel: AiProviderModel | null = slot
     ? ({
         modelId: slot.modelId,
         title: slot.title ?? slot.modelId,
         keyId: slot.keyId,
-        providerId: slotKey?.providerId ?? "deco",
+        providerId: "deco",
         description: null,
         logo: null,
         capabilities: [],
@@ -1236,106 +1158,78 @@ function SimpleModeModelRow({
     : null;
 
   return (
-    <div className="flex items-center justify-between gap-4 py-2">
+    <div className="flex items-center justify-between gap-4 py-3 border-b border-border/50 last:border-0">
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-foreground">{label}</p>
+        <p className="text-sm text-foreground">{label}</p>
         {description && (
           <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
         )}
       </div>
       <div className="shrink-0">
-        {filterModels && !hasFilteredModels ? (
-          <p className="text-xs text-muted-foreground italic">
-            Not available with current provider
-          </p>
-        ) : (
-          <ModelSelector
-            variant="bordered"
-            placeholder="Pick model"
-            model={resolvedModel}
-            credentialId={activeKeyId}
-            filterModels={filterModels}
-            onCredentialChange={(keyId) => setLocalCredentialId(keyId)}
-            onModelChange={(m) => {
-              const keyId = m.keyId ?? activeKeyId ?? "";
-              setLocalCredentialId(keyId);
-              onSlotChange({ keyId, modelId: m.modelId, title: m.title });
-            }}
-          />
-        )}
+        <ModelSelector
+          variant="bordered"
+          placeholder="Pick model"
+          model={resolvedModel}
+          credentialId={slot?.keyId ?? null}
+          filterModels={filterModels}
+          onCredentialChange={(keyId) => {
+            if (slot && keyId) onSlotChange({ ...slot, keyId });
+          }}
+          onModelChange={(m) => {
+            onSlotChange({
+              keyId: m.keyId ?? slot?.keyId ?? "",
+              modelId: m.modelId,
+              title: m.title,
+            });
+          }}
+        />
       </div>
     </div>
   );
 }
 
-function AutosaveStatus({
-  isPending,
-  showSaved,
-}: {
-  isPending: boolean;
-  showSaved: boolean;
-}) {
-  if (isPending) {
-    return (
-      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-        <RefreshCw01 size={12} className="animate-spin" />
-        Saving…
-      </span>
-    );
-  }
-  if (showSaved) {
-    return (
-      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-        <CheckCircle size={12} />
-        Saved
-      </span>
-    );
-  }
-  return null;
-}
-
 function SimpleModeSection() {
   const allKeys = useAiProviderKeys();
   const simpleMode = useSimpleMode();
-  const hasProvider = allKeys.length > 0;
+  const { mutate: updateSimpleMode, isPending } = useUpdateSimpleMode();
 
-  const form = useForm<SimpleModeConfig>({
-    resolver: zodResolver(SimpleModeConfigSchema),
-    values: simpleMode,
-    mode: "onChange",
-  });
+  const [draft, setDraft] = useState<SimpleModeConfig>(() => ({
+    enabled: simpleMode.enabled,
+    chat: {
+      fast: simpleMode.chat.fast,
+      smart: simpleMode.chat.smart,
+      thinking: simpleMode.chat.thinking,
+    },
+    image: simpleMode.image,
+    webResearch: simpleMode.webResearch,
+  }));
 
-  const {
-    mutate: updateSimpleMode,
-    isPending,
-    isSuccess,
-  } = useUpdateSimpleMode();
+  // Sync remote state into draft when it changes (e.g. after save)
+  const [synced, setSynced] = useState(false);
+  if (
+    !synced &&
+    (simpleMode.enabled ||
+      simpleMode.chat.fast ||
+      simpleMode.chat.smart ||
+      simpleMode.chat.thinking)
+  ) {
+    setSynced(true);
+    setDraft({
+      enabled: simpleMode.enabled,
+      chat: {
+        fast: simpleMode.chat.fast,
+        smart: simpleMode.chat.smart,
+        thinking: simpleMode.chat.thinking,
+      },
+      image: simpleMode.image,
+      webResearch: simpleMode.webResearch,
+    });
+  }
 
-  // Autosave: watch form state; 250ms after the last dirty change, persist.
-  // The debounce coalesces multi-field writes from handleToggle and Effect 2
-  // into a single mutation. The save callback is inlined so the effect's
-  // deps only reference library-stable values (updateSimpleMode/form) and
-  // query-stable ones (simpleMode).
-  const watched = form.watch();
-  const isDirty = form.formState.isDirty;
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — autosave subscribes to derived form state over time
-  useEffect(() => {
-    if (!isDirty) return;
-    const id = setTimeout(() => {
-      updateSimpleMode(watched, {
-        onSuccess: () => form.reset(watched, { keepValues: true }),
-        onError: (err) => {
-          form.reset(simpleMode);
-          toast.error(`Failed to save: ${err.message}`);
-        },
-      });
-    }, 250);
-    return () => clearTimeout(id);
-  }, [watched, isDirty, updateSimpleMode, form, simpleMode]);
-
-  // Lazily load models for the first 3 keys so we can pre-fill defaults.
-  // Hooks can't run in loops; capping at 3 is sufficient for defaults —
-  // the user can always pick manually.
+  // Lazily load models for all keys so we can pre-fill defaults.
+  // We call the hook for each key separately and collect results.
+  // Since hooks can't be called in a loop, we cap at the first 3 keys
+  // (sufficient for defaults — the user can always change manually).
   const key0 = allKeys[0];
   const key1 = allKeys[1];
   const key2 = allKeys[2];
@@ -1344,184 +1238,115 @@ function SimpleModeSection() {
   const { models: models2 } = useAiProviderModels(key2?.id);
 
   const handleToggle = (enabled: boolean) => {
-    const currentChat = form.getValues("chat");
     if (
       enabled &&
-      !currentChat.fast &&
-      !currentChat.smart &&
-      !currentChat.thinking
+      !draft.chat.fast &&
+      !draft.chat.smart &&
+      !draft.chat.thinking
     ) {
       const modelsByKeyId: Record<string, AiProviderModel[]> = {};
       if (key0?.id) modelsByKeyId[key0.id] = models0;
       if (key1?.id) modelsByKeyId[key1.id] = models1;
       if (key2?.id) modelsByKeyId[key2.id] = models2;
       const defaults = pickSimpleModeDefaults(allKeys, modelsByKeyId);
-      form.reset(
-        {
-          enabled: true,
-          chat: defaults.chat,
-          image: defaults.image,
-          webResearch: defaults.webResearch,
-        },
-        { keepDirty: true },
-      );
+      setDraft({
+        enabled: true,
+        chat: defaults.chat,
+        image: defaults.image,
+        webResearch: defaults.webResearch,
+      });
     } else {
-      form.setValue("enabled", enabled, { shouldDirty: true });
+      setDraft((d) => ({ ...d, enabled }));
     }
   };
 
-  // Effect 1: Clear form when all providers are removed.
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — reacts to async provider list changes
-  useEffect(() => {
-    if (!hasProvider) {
-      form.reset({
-        enabled: false,
-        chat: { fast: null, smart: null, thinking: null },
-        image: null,
-        webResearch: null,
-      });
-    }
-  }, [hasProvider, form]);
-
-  // Effect 2: Fill null slots with defaults once models finish loading,
-  // and clear slots whose keyId no longer exists in allKeys (stale provider).
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — reacts to async model list loading
-  useEffect(() => {
-    const current = form.getValues();
-    if (!current.enabled) return;
-
-    const validKeyIds = new Set(allKeys.map((k) => k.id));
-    const modelsByKeyId: Record<string, AiProviderModel[]> = {};
-    if (key0?.id) modelsByKeyId[key0.id] = models0;
-    if (key1?.id) modelsByKeyId[key1.id] = models1;
-    if (key2?.id) modelsByKeyId[key2.id] = models2;
-
-    const isStale = (slot: SimpleModeConfig["chat"]["fast"]) =>
-      slot != null && !validKeyIds.has(slot.keyId);
-
-    const clearedChat = {
-      fast: isStale(current.chat.fast) ? null : current.chat.fast,
-      smart: isStale(current.chat.smart) ? null : current.chat.smart,
-      thinking: isStale(current.chat.thinking) ? null : current.chat.thinking,
-    };
-    const clearedImage = isStale(current.image) ? null : current.image;
-    const clearedWebResearch = isStale(current.webResearch)
-      ? null
-      : current.webResearch;
-
-    const needsFill =
-      !clearedChat.fast ||
-      !clearedChat.smart ||
-      !clearedChat.thinking ||
-      !clearedImage ||
-      !clearedWebResearch;
-
-    const chatUnchanged =
-      clearedChat.fast === current.chat.fast &&
-      clearedChat.smart === current.chat.smart &&
-      clearedChat.thinking === current.chat.thinking;
-    if (!needsFill && chatUnchanged) return;
-
-    const defaults = pickSimpleModeDefaults(allKeys, modelsByKeyId);
-    form.reset(
-      {
-        ...current,
-        chat: {
-          fast: clearedChat.fast ?? defaults.chat.fast,
-          smart: clearedChat.smart ?? defaults.chat.smart,
-          thinking: clearedChat.thinking ?? defaults.chat.thinking,
-        },
-        image: clearedImage ?? defaults.image,
-        webResearch: clearedWebResearch ?? defaults.webResearch,
+  const handleSave = () => {
+    updateSimpleMode(draft, {
+      onSuccess: () => {
+        toast.success("Simple Model Mode updated");
+        setSynced(false);
       },
-      { keepDirty: true },
-    );
-  }, [form, allKeys, models0, models1, models2, key0?.id, key1?.id, key2?.id]);
+      onError: (err) => {
+        toast.error(`Failed to save: ${err.message}`);
+      },
+    });
+  };
 
-  const enabled = form.watch("enabled");
-  const effectiveEnabled = enabled && hasProvider;
+  const isDirty =
+    draft.enabled !== simpleMode.enabled ||
+    JSON.stringify(draft.chat) !== JSON.stringify(simpleMode.chat) ||
+    JSON.stringify(draft.image) !== JSON.stringify(simpleMode.image) ||
+    JSON.stringify(draft.webResearch) !==
+      JSON.stringify(simpleMode.webResearch);
 
   return (
     <Card className="p-6">
-      <CardHeader className="p-0">
+      <CardHeader className="p-0 pb-4">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-sm">Simple model mode</CardTitle>
-              <AutosaveStatus
-                isPending={isPending}
-                showSaved={isSuccess && !isDirty}
-              />
-            </div>
+            <CardTitle className="text-sm">Simple model mode</CardTitle>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {hasProvider
-                ? "Replace the model picker with a Fast / Smart / Thinking toggle for all members of this org."
-                : "Connect an AI provider above to enable this feature."}
+              Replace the model picker with a Fast / Smart / Thinking toggle for
+              all members of this org.
             </p>
           </div>
           <Switch
-            checked={effectiveEnabled}
+            checked={draft.enabled}
             onCheckedChange={handleToggle}
-            disabled={isPending || !hasProvider}
+            disabled={isPending}
           />
         </div>
       </CardHeader>
 
-      {effectiveEnabled && (
-        <CardContent className="flex flex-col p-0 mt-6">
-          <div className="flex flex-col gap-1 pb-6">
-            <p className="text-xs font-medium text-muted-foreground mb-1">
+      {draft.enabled && (
+        <CardContent className="flex flex-col p-0 border-t border-border/50">
+          <div className="pt-1">
+            <p className="text-xs text-muted-foreground pt-3 pb-1">
               Chat models
             </p>
             {(["fast", "smart", "thinking"] as TierKey[]).map((tier) => (
-              <Controller
+              <SimpleModeModelRow
                 key={tier}
-                control={form.control}
-                name={`chat.${tier}` as const}
-                render={({ field }) => (
-                  <SimpleModeModelRow
-                    label={TIER_LABELS[tier]}
-                    description={TIER_DESCRIPTIONS[tier]}
-                    slot={field.value}
-                    defaultKeyId={allKeys[0]?.id ?? null}
-                    onSlotChange={(slot) => field.onChange(slot)}
-                  />
-                )}
+                label={TIER_LABELS[tier]}
+                description={TIER_DESCRIPTIONS[tier]}
+                slot={draft.chat[tier]}
+                onSlotChange={(slot) =>
+                  setDraft((d) => ({
+                    ...d,
+                    chat: { ...d.chat, [tier]: slot },
+                  }))
+                }
               />
             ))}
           </div>
-          <div className="flex flex-col gap-1 pt-6 border-t border-border/50">
-            <p className="text-xs font-medium text-muted-foreground mb-1">
+          <div>
+            <p className="text-xs text-muted-foreground pt-3 pb-1">
               Other models
             </p>
-            <Controller
-              control={form.control}
-              name="image"
-              render={({ field }) => (
-                <SimpleModeModelRow
-                  label="Image"
-                  slot={field.value}
-                  defaultKeyId={allKeys[0]?.id ?? null}
-                  filterModels={filterImageModels}
-                  onSlotChange={(slot) => field.onChange(slot)}
-                />
-              )}
+            <SimpleModeModelRow
+              label="Image"
+              slot={draft.image}
+              filterModels={filterImageModels}
+              onSlotChange={(slot) => setDraft((d) => ({ ...d, image: slot }))}
             />
-            <Controller
-              control={form.control}
-              name="webResearch"
-              render={({ field }) => (
-                <SimpleModeModelRow
-                  label="Web research"
-                  slot={field.value}
-                  defaultKeyId={allKeys[0]?.id ?? null}
-                  filterModels={filterWebResearchModels}
-                  onSlotChange={(slot) => field.onChange(slot)}
-                />
-              )}
+            <SimpleModeModelRow
+              label="Web research"
+              slot={draft.webResearch}
+              filterModels={filterWebResearchModels}
+              onSlotChange={(slot) =>
+                setDraft((d) => ({ ...d, webResearch: slot }))
+              }
             />
           </div>
         </CardContent>
+      )}
+
+      {isDirty && (
+        <CardFooter className="p-0 pt-4 justify-end">
+          <Button size="sm" onClick={handleSave} disabled={isPending}>
+            {isPending ? "Saving..." : "Save changes"}
+          </Button>
+        </CardFooter>
       )}
     </Card>
   );

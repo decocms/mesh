@@ -5,9 +5,8 @@
  * IMPORTANT: The key value is only returned here and cannot be retrieved later.
  */
 
-import { posthog } from "../../posthog";
 import { defineTool } from "../../core/define-tool";
-import { getUserId, requireAuth } from "../../core/mesh-context";
+import { requireAuth } from "../../core/mesh-context";
 import { ApiKeyCreateInputSchema, ApiKeyCreateOutputSchema } from "./schema";
 
 export const API_KEY_CREATE = defineTool({
@@ -55,23 +54,6 @@ export const API_KEY_CREATE = defineTool({
       result.createdAt instanceof Date
         ? result.createdAt.toISOString()
         : result.createdAt;
-
-    const userId = getUserId(ctx);
-    if (userId) {
-      posthog.capture({
-        distinctId: userId,
-        event: "api_key_created",
-        ...(ctx.organization?.id
-          ? { groups: { organization: ctx.organization.id } }
-          : {}),
-        properties: {
-          key_id: result.id,
-          key_name: result.name ?? input.name,
-          organization_id: ctx.organization?.id,
-          has_expiry: !!expiresAt,
-        },
-      });
-    }
 
     return {
       id: result.id,

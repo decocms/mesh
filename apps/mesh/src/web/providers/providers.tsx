@@ -3,7 +3,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { AuthConfigProvider } from "@/web/providers/auth-config-provider";
 import { BetterAuthUIProvider } from "@/web/providers/better-auth-ui-provider";
-import { PostHogIdentitySync } from "@/web/providers/posthog-provider";
 import { SplashScreen } from "@/web/components/splash-screen";
 import { ThemeProvider } from "@/web/providers/theme-provider";
 import { Toaster } from "sonner";
@@ -32,9 +31,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <Suspense fallback={<SplashScreen />}>
         <ThemeProvider>
           <AuthConfigProvider>
-            <BetterAuthUIProvider>
-              <PostHogIdentitySync>{children}</PostHogIdentitySync>
-            </BetterAuthUIProvider>
+            <BetterAuthUIProvider>{children}</BetterAuthUIProvider>
           </AuthConfigProvider>
         </ThemeProvider>
       </Suspense>

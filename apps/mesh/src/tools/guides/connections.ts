@@ -3,7 +3,6 @@ import type { GuidePrompt, GuideResource } from "./index";
 export const prompts: GuidePrompt[] = [
   {
     name: "connections-create",
-    title: "Create Connections",
     description: "Add a new MCP server connection to the workspace.",
     text: `# Create connection
 
@@ -28,7 +27,6 @@ Checks:
   },
   {
     name: "connections-update",
-    title: "Update Connections",
     description: "Change an existing connection's settings or credentials.",
     text: `# Update connection
 
@@ -52,7 +50,6 @@ Checks:
   },
   {
     name: "connections-troubleshoot",
-    title: "Troubleshoot Connections",
     description: "Fix a broken or unhealthy connection.",
     text: `# Troubleshoot connection
 
