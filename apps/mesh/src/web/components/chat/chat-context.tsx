@@ -50,7 +50,6 @@ import { useTaskReadState } from "../../hooks/use-task-read-state";
 import { authClient } from "../../lib/auth-client";
 import { toMetadataModelInfo } from "../../lib/metadata-model-info";
 
-import { generateBranchName } from "@/shared/branch-name";
 import { useChatNavigation } from "./hooks/use-chat-navigation";
 import { useStreamManager } from "./hooks/use-stream-manager";
 import { useTaskManager, type TaskOwnerFilter } from "./task";
@@ -525,29 +524,26 @@ export function ChatContextProvider({
   const currentBranch = activeTask?.branch ?? null;
   const isBranchLocked = !!activeTask?.branch;
 
-  // Create task (optimistic + navigate), returns new task ID. Branch carries
-  // over from the active thread when set; otherwise we generate one upfront so
-  // the empty-state picker shows a real value (the server falls back to the
-  // same `generateBranchName` if branch is null at first send, but generating
-  // here lets the UI display + persist the branch from the moment the task
-  // exists in the cache).
+  // Create task — the route loader does the actual server-side create.
+  // We just generate a fresh id (a navigation token) and navigate.
   const createTask = (): string => {
-    const newId = taskManager.createTask(currentBranch ?? generateBranchName());
+    const newId = crypto.randomUUID();
     navigateToTask(newId);
     return newId;
   };
 
-  // Create task + queue a pending message for ActiveTaskProvider to consume
+  // Create task + queue a pending message. The new task is owned by the
+  // passed virtualMcpId (no override of any active task — the new task
+  // stands on its own).
   const createTaskWithMessage = (params: {
     message: SendMessageParams;
     virtualMcpId?: string;
   }) => {
-    const newId = taskManager.createTask(currentBranch ?? generateBranchName());
+    const newId = crypto.randomUUID();
+    // Pass the target vmcp via the URL so the route loader creates the thread
+    // bound to it (otherwise the route falls back to the well-known decopilot).
     navigateToTask(newId, {
-      virtualMcpOverride:
-        params.virtualMcpId && params.virtualMcpId !== virtualMcpId
-          ? params.virtualMcpId
-          : undefined,
+      virtualMcpOverride: params.virtualMcpId, // route reads this as the bootstrap vmcp
     });
     setPendingMessage({
       taskId: newId,
