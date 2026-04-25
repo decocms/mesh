@@ -149,8 +149,6 @@ export interface ChatPrefsContextValue {
   setTiptapDoc: (doc: Metadata["tiptapDoc"]) => void;
   /** @deprecated Use tiptapDoc directly */
   tiptapDocRef: { current: Metadata["tiptapDoc"] };
-  /** Set ephemeral per-task agent override. Passing null resets to URL agent. */
-  setVirtualMcpId: (id: string | null) => void;
   /** @deprecated No-op */
   resetInteraction: () => void;
   /** Whether Simple Model Mode is enabled for the org */
@@ -234,9 +232,8 @@ export function ChatContextProvider({
   // URL state
   const {
     taskId: urlTaskId,
-    virtualMcpOverride,
+    virtualMcpId: urlVirtualMcpId,
     navigateToTask: rawNavigateToTask,
-    setVirtualMcpOverride,
   } = useChatNavigation();
 
   // Preferences
@@ -393,8 +390,8 @@ export function ChatContextProvider({
   // taskId always comes from the URL (seeded by router's validateSearch)
   const effectiveTaskId = urlTaskId;
 
-  // Effective agent: URL override (ephemeral per-task) ?? path param (thread owner)
-  const effectiveVirtualMcpId = virtualMcpOverride ?? virtualMcpId;
+  // Effective agent: URL param ?? prop (thread owner)
+  const effectiveVirtualMcpId = urlVirtualMcpId;
 
   // Single-item fetch for the selected virtual MCP (no full list needed)
   const selectedVirtualMcpData = useVirtualMCP(effectiveVirtualMcpId);
@@ -510,13 +507,10 @@ export function ChatContextProvider({
 
   const clearPendingMessage = () => setPendingMessage(null);
 
-  const navigateToTask = (
-    taskId: string,
-    opts?: { virtualMcpOverride?: string },
-  ) => {
+  const navigateToTask = (taskId: string, opts?: { virtualMcpId?: string }) => {
     markTaskRead(taskId);
     rawNavigateToTask(taskId, {
-      virtualMcpOverride: opts?.virtualMcpOverride,
+      virtualMcpId: opts?.virtualMcpId,
     });
   };
 
@@ -543,7 +537,7 @@ export function ChatContextProvider({
     // Pass the target vmcp via the URL so the route loader creates the thread
     // bound to it (otherwise the route falls back to the well-known decopilot).
     navigateToTask(newId, {
-      virtualMcpOverride: params.virtualMcpId, // route reads this as the bootstrap vmcp
+      virtualMcpId: params.virtualMcpId,
     });
     setPendingMessage({
       taskId: newId,
@@ -618,7 +612,6 @@ export function ChatContextProvider({
     tiptapDoc,
     setTiptapDoc,
     tiptapDocRef,
-    setVirtualMcpId: setVirtualMcpOverride,
     resetInteraction: () => {},
     simpleModeEnabled: simpleMode.enabled,
     simpleModeTier,
