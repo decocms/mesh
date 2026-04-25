@@ -57,7 +57,6 @@ import {
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { usePinnedAgents } from "@/web/hooks/use-pinned-agents";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
-import { useCreateTaskAndNavigate } from "@/web/hooks/use-create-task-and-navigate";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { GitHubIcon } from "@/web/components/icons/github-icon";
@@ -81,7 +80,14 @@ function AgentListItem({
 }) {
   const navigate = useNavigate();
   const { isMobile, setOpenMobile } = useSidebar();
-  const navigateToNewTask = useCreateTaskAndNavigate();
+  const navigateToNewTask = (virtualMcpId: string) => {
+    const taskId = crypto.randomUUID();
+    navigate({
+      to: "/$org/$taskId",
+      params: { org, taskId },
+      search: { virtualmcpid: virtualMcpId },
+    });
+  };
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isActive = pathname.startsWith(`/${org}/${agent.id}`);
   const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
@@ -305,8 +311,16 @@ function PinAgentPopoverContent({
     navigateOnCreate: true,
   });
   const [preferences] = usePreferences();
+  const navigate = useNavigate();
 
-  const navigateToNewTask = useCreateTaskAndNavigate();
+  const navigateToNewTask = (virtualMcpId: string) => {
+    const taskId = crypto.randomUUID();
+    navigate({
+      to: "/$org/$taskId",
+      params: { org: org.slug, taskId },
+      search: { virtualmcpid: virtualMcpId },
+    });
+  };
   const navigateToAgent = useNavigateToAgent();
 
   const lowerSearch = search.toLowerCase();
