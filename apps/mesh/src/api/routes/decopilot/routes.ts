@@ -220,6 +220,9 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           mode,
           thread_id: resolvedThreadId,
           credential_id: models.credentialId,
+          trigger_id: ctx.metadata.triggerId ?? null,
+          is_automation: !!ctx.metadata.triggerId,
+          user_agent: ctx.metadata.userAgent ?? null,
         },
       });
 

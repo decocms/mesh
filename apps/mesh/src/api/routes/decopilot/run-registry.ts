@@ -81,13 +81,16 @@ export class RunRegistry {
     for (const event of events) {
       const stateBeforeEvent = this.states.get(event.taskId);
 
-      // Abort the running controller before projecting it away
-      if (
-        event.type === "PREVIOUS_RUN_ABORTED" ||
-        event.type === "RUN_FAILED"
-      ) {
+      // Abort the running controller before projecting it away.
+      // Pass the abort reason so stream-core can distinguish user-cancelled
+      // from server-initiated aborts via registrySignal.reason.
+      if (event.type === "RUN_FAILED") {
         if (stateBeforeEvent?.status.tag === "running") {
-          stateBeforeEvent.status.abortController.abort();
+          stateBeforeEvent.status.abortController.abort(event.reason);
+        }
+      } else if (event.type === "PREVIOUS_RUN_ABORTED") {
+        if (stateBeforeEvent?.status.tag === "running") {
+          stateBeforeEvent.status.abortController.abort("server-aborted");
         }
       }
 
@@ -156,7 +159,7 @@ export class RunRegistry {
     // 2. In-memory: abort all controllers (stops streamText loops)
     for (const [, state] of this.states) {
       if (state.status.tag === "running") {
-        state.status.abortController.abort();
+        state.status.abortController.abort("ghost");
       }
     }
     // 3. In-memory: clear map

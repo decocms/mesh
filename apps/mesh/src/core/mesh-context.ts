@@ -212,6 +212,12 @@ export interface RequestMetadata {
   userAgent?: string;
   ipAddress?: string;
   threadId?: string;
+  /** Set by streamCore when the run was triggered by an automation */
+  triggerId?: string | null;
+  /** Set by streamCore when the run was triggered by an automation */
+  automationId?: string | null;
+  /** Set by streamCore when the run was triggered by an automation */
+  automationName?: string | null;
   /** Custom properties from x-mesh-properties header (string key-value pairs) */
   properties?: Record<string, string>;
   wellKnownForwardableHeaders?: Record<string, string | null>;

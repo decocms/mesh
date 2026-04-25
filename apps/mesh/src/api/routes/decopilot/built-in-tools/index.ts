@@ -222,8 +222,9 @@ function instrumentBuiltIns<T extends Record<string, unknown>>(
         } finally {
           const latencyMs = performance.now() - startTime;
           if (orgId && userId) {
+            const automationId = ctx.metadata.automationId;
             posthog.capture({
-              distinctId: userId,
+              distinctId: automationId ? `automation_${automationId}` : userId,
               event: "tool_called",
               groups: { organization: orgId },
               properties: {
@@ -237,6 +238,11 @@ function instrumentBuiltIns<T extends Record<string, unknown>>(
                 open_world: null,
                 latency_ms: Math.round(latencyMs),
                 is_error: isError,
+                trigger_id: ctx.metadata.triggerId ?? null,
+                is_automation: !!automationId,
+                automation_id: automationId ?? null,
+                automation_name: ctx.metadata.automationName ?? null,
+                user_id: userId,
               },
             });
           }

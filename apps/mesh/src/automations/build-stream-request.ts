@@ -37,6 +37,8 @@ export function buildStreamRequest(
     organizationId: automation.organization_id,
     userId: automation.created_by,
     triggerId: triggerId ?? undefined,
+    automationId: automation.id,
+    automationName: automation.name,
     taskId,
   };
 

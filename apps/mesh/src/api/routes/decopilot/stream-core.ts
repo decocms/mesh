@@ -90,7 +90,7 @@ function classifyStreamError(
     error instanceof Error ? error.message : String(error)
   ).toLowerCase();
   if (
-    /insufficient|no credits|out of credits|balance|payment|quota exceeded|402/i.test(
+    /insufficient|no credits|out of credits|balance|payment|quota exceeded|key.?limit|total.?limit|402/i.test(
       msg,
     )
   ) {
@@ -142,6 +142,9 @@ export interface StreamCoreInput {
   userId: string;
   taskId?: string;
   triggerId?: string;
+  /** Automation that fired this run, used to attribute analytics to the automation rather than the user. */
+  automationId?: string;
+  automationName?: string;
   windowSize?: number;
   abortSignal?: AbortSignal;
   isResume?: boolean;
@@ -251,6 +254,8 @@ async function streamCoreInner(
         userId: input.userId,
         defaultWindowSize: windowSize,
         triggerId: input.triggerId,
+        automationId: input.automationId,
+        automationName: input.automationName,
         virtualMcpId: input.agent.id,
         branch: input.branch ?? null,
       }),
@@ -258,7 +263,28 @@ async function streamCoreInner(
 
     taskId = mem.thread.id;
     ctx.metadata.threadId = mem.thread.id;
+    ctx.metadata.triggerId = input.triggerId ?? null;
+    ctx.metadata.automationId = input.automationId ?? null;
+    ctx.metadata.automationName = input.automationName ?? null;
     rootSpan.setAttribute("decopilot.thread.id", mem.thread.id);
+
+    // Identify the automation as its own PostHog persona so events show
+    // "Automation: <name>" instead of being attributed to the user.
+    if (input.automationId) {
+      posthog.identify({
+        distinctId: `automation_${input.automationId}`,
+        properties: {
+          name: input.automationName ?? `Automation ${input.automationId}`,
+          $set: {
+            name: input.automationName ?? `Automation ${input.automationId}`,
+            is_automation: true,
+            automation_id: input.automationId,
+            owner_user_id: input.userId,
+            organization_id: input.organizationId,
+          },
+        },
+      });
+    }
 
     if (mem.thread.created_by !== input.userId) {
       throw new Error(
@@ -1075,7 +1101,9 @@ async function streamCoreInner(
         });
 
         posthog.capture({
-          distinctId: input.userId,
+          distinctId: input.automationId
+            ? `automation_${input.automationId}`
+            : input.userId,
           event: "chat_message_completed",
           groups: { organization: input.organizationId },
           properties: {
@@ -1092,6 +1120,12 @@ async function streamCoreInner(
             output_tokens: aggregatedUsage.outputTokens,
             total_tokens: aggregatedUsage.totalTokens,
             is_resume: input.isResume ?? false,
+            trigger_id: input.triggerId ?? null,
+            is_automation: !!input.automationId,
+            automation_id: input.automationId ?? null,
+            automation_name: input.automationName ?? null,
+            user_id: input.userId,
+            user_agent: ctx.metadata.userAgent ?? null,
           },
         });
       },
@@ -1123,12 +1157,15 @@ async function streamCoreInner(
         closeClients?.();
         titleHandle?.finish();
         if (registrySignal.aborted) {
-          // User cancelled (frontend stop button), tab closed mid-stream, or
-          // run was force-failed. Frontend chat_message_stopped covers the
-          // first case; this server event also covers the other two.
+          const abortReason = registrySignal.reason as string | undefined;
+          const isUserCancelled = abortReason === "cancelled";
           posthog.capture({
-            distinctId: input.userId,
-            event: "chat_message_aborted",
+            distinctId: input.automationId
+              ? `automation_${input.automationId}`
+              : input.userId,
+            event: isUserCancelled
+              ? "chat_message_stopped"
+              : "chat_message_aborted",
             groups: { organization: input.organizationId },
             properties: {
               organization_id: input.organizationId,
@@ -1138,6 +1175,15 @@ async function streamCoreInner(
               mode: input.mode,
               duration_ms: Date.now() - streamStartAt,
               is_resume: input.isResume ?? false,
+              trigger_id: input.triggerId ?? null,
+              is_automation: !!input.automationId,
+              automation_id: input.automationId ?? null,
+              automation_name: input.automationName ?? null,
+              user_id: input.userId,
+              user_agent: ctx.metadata.userAgent ?? null,
+              ...(!isUserCancelled && {
+                abort_reason: abortReason ?? "unknown",
+              }),
             },
           });
           return sanitizeStreamError(error);
@@ -1145,7 +1191,9 @@ async function streamCoreInner(
         console.error("[decopilot] stream error:", error);
 
         posthog.capture({
-          distinctId: input.userId,
+          distinctId: input.automationId
+            ? `automation_${input.automationId}`
+            : input.userId,
           event: "chat_message_failed",
           groups: { organization: input.organizationId },
           properties: {
@@ -1159,6 +1207,12 @@ async function streamCoreInner(
             error_message:
               error instanceof Error ? error.message : String(error),
             is_resume: input.isResume ?? false,
+            trigger_id: input.triggerId ?? null,
+            is_automation: !!input.automationId,
+            automation_id: input.automationId ?? null,
+            automation_name: input.automationName ?? null,
+            user_id: input.userId,
+            user_agent: ctx.metadata.userAgent ?? null,
           },
         });
 

@@ -29,6 +29,10 @@ export interface MemoryConfig {
   /** Optional trigger ID for automation-created threads */
   triggerId?: string;
 
+  /** Optional automation metadata for analytics attribution */
+  automationId?: string;
+  automationName?: string;
+
   /** Virtual MCP ID to associate with the thread */
   virtualMcpId?: string;
 
@@ -101,9 +105,12 @@ export async function createMemory(
     userId,
     defaultWindowSize,
     triggerId,
+    automationId,
+    automationName,
     virtualMcpId,
     branch,
   } = config;
+  const distinctId = automationId ? `automation_${automationId}` : userId;
 
   let thread: Thread;
 
@@ -118,7 +125,7 @@ export async function createMemory(
       branch: branch ?? null,
     });
     posthog.capture({
-      distinctId: userId,
+      distinctId,
       event: "chat_started",
       groups: { organization: organization_id },
       properties: {
@@ -126,6 +133,10 @@ export async function createMemory(
         thread_id: thread.id,
         created_via: triggerId ? "automation" : "stream_auto",
         trigger_id: triggerId ?? null,
+        is_automation: !!automationId,
+        automation_id: automationId ?? null,
+        automation_name: automationName ?? null,
+        user_id: userId,
         virtual_mcp_id: virtualMcpId || null,
       },
     });
@@ -148,7 +159,7 @@ export async function createMemory(
         branch: branch ?? null,
       });
       posthog.capture({
-        distinctId: userId,
+        distinctId,
         event: "chat_started",
         groups: { organization: organization_id },
         properties: {
@@ -156,6 +167,10 @@ export async function createMemory(
           thread_id: thread.id,
           created_via: triggerId ? "automation" : "stream_client_id",
           trigger_id: triggerId ?? null,
+          is_automation: !!automationId,
+          automation_id: automationId ?? null,
+          automation_name: automationName ?? null,
+          user_id: userId,
           virtual_mcp_id: virtualMcpId || null,
         },
       });

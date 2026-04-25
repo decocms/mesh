@@ -211,8 +211,11 @@ export async function toolsFromMCP(
             const orgId = meshCtx?.organization?.id;
             const userId = meshCtx?.auth?.user?.id;
             if (orgId && userId) {
+              const automationId = meshCtx?.metadata?.automationId;
               posthog.capture({
-                distinctId: userId,
+                distinctId: automationId
+                  ? `automation_${automationId}`
+                  : userId,
                 event: "tool_called",
                 groups: { organization: orgId },
                 properties: {
@@ -226,6 +229,11 @@ export async function toolsFromMCP(
                   open_world: annotations?.openWorldHint ?? null,
                   latency_ms: Math.round(latencyMs),
                   is_error: isError,
+                  trigger_id: meshCtx?.metadata?.triggerId ?? null,
+                  is_automation: !!automationId,
+                  automation_id: automationId ?? null,
+                  automation_name: meshCtx?.metadata?.automationName ?? null,
+                  user_id: userId,
                 },
               });
             }
