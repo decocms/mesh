@@ -1190,37 +1190,36 @@ async function streamCoreInner(
         titleHandle?.finish();
         if (registrySignal.aborted) {
           const abortReason = registrySignal.reason as string | undefined;
-          const isUserCancelled = abortReason === "cancelled";
-          posthog.capture({
-            distinctId: input.automationId
-              ? `automation_${input.automationId}`
-              : input.userId,
-            event: isUserCancelled
-              ? "chat_message_stopped"
-              : "chat_message_aborted",
-            groups: { organization: input.organizationId },
-            properties: {
-              organization_id: input.organizationId,
-              organization_name: ctx.organization?.name ?? null,
-              organization_slug: ctx.organization?.slug ?? null,
-              thread_id: mem.thread.id,
-              agent_id: input.agent.id,
-              virtual_mcp_name: virtualMcp?.title ?? null,
-              model_id: input.models.thinking.id,
-              mode: input.mode,
-              duration_ms: Date.now() - streamStartAt,
-              is_resume: input.isResume ?? false,
-              trigger_id: input.triggerId ?? null,
-              is_automation: !!input.automationId,
-              automation_id: input.automationId ?? null,
-              automation_name: input.automationName ?? null,
-              user_id: input.userId,
-              user_agent: ctx.metadata.userAgent ?? null,
-              ...(!isUserCancelled && {
+          // Frontend already emits `chat_message_stopped` on user cancel,
+          // so we skip the server event in that case to avoid duplicates.
+          // We only fire `chat_message_aborted` for non-user aborts (tab
+          // close, registry race, force-fail, reaped, ghost).
+          if (abortReason !== "cancelled") {
+            posthog.capture({
+              distinctId: input.automationId
+                ? `automation_${input.automationId}`
+                : input.userId,
+              event: "chat_message_aborted",
+              groups: { organization: input.organizationId },
+              properties: {
+                organization_id: input.organizationId,
+                thread_id: mem.thread.id,
+                agent_id: input.agent.id,
+                virtual_mcp_name: virtualMcp?.title ?? null,
+                model_id: input.models.thinking.id,
+                mode: input.mode,
+                duration_ms: Date.now() - streamStartAt,
+                is_resume: input.isResume ?? false,
+                trigger_id: input.triggerId ?? null,
+                is_automation: !!input.automationId,
+                automation_id: input.automationId ?? null,
+                automation_name: input.automationName ?? null,
+                user_id: input.userId,
+                user_agent: ctx.metadata.userAgent ?? null,
                 abort_reason: abortReason ?? "unknown",
-              }),
-            },
-          });
+              },
+            });
+          }
           return sanitizeStreamError(error);
         }
         console.error("[decopilot] stream error:", error);
