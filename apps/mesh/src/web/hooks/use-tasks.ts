@@ -56,3 +56,5 @@ export function useTaskActions() {
   });
   return useCollectionActions<Task>(org.id, "THREADS", client);
 }
+
+export { useEnsureTask } from "./use-ensure-task";
