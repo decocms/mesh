@@ -720,7 +720,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
       created_at: toIsoString(row.created_at),
       updated_at: toIsoString(row.updated_at),
       created_by: row.created_by,
-      updated_by: row.updated_by,
+      updated_by: row.updated_by ?? undefined,
       hidden: !!row.hidden,
     };
   }

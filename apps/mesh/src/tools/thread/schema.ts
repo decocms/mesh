@@ -68,7 +68,7 @@ export const ThreadEntitySchema = z.object({
   created_by: z.string().describe("User ID who created the thread"),
   updated_by: z
     .string()
-    .nullable()
+    .optional()
     .describe("User ID who last updated the thread"),
   virtual_mcp_id: z
     .string()
