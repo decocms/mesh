@@ -22,7 +22,6 @@ import {
 import { KEYS } from "../lib/query-keys";
 import { useOrgSsoStatus } from "../hooks/use-org-sso";
 import { SsoRequiredScreen } from "../components/sso-required-screen";
-import { buildOptimisticTask } from "@/web/components/chat/task/helpers";
 import type { Task, TasksQueryData } from "@/web/components/chat/task/types";
 import { generateBranchName } from "@/shared/branch-name";
 
@@ -122,11 +121,16 @@ function seedNewTask(
     }
   }
   const branch = snapshot.branch ?? generateBranchName();
-  const optimistic = buildOptimisticTask(
-    newTaskId,
-    snapshot.virtualMcpId,
+  const now = new Date().toISOString();
+  const optimistic: Task = {
+    id: newTaskId,
+    title: "New chat",
+    status: "completed",
+    created_at: now,
+    updated_at: now,
+    virtual_mcp_id: snapshot.virtualMcpId,
     branch,
-  );
+  };
   queryClient.setQueriesData<TasksQueryData>(
     { queryKey: KEYS.tasksPrefix(locator) },
     (data) => {
