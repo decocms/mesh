@@ -50,7 +50,7 @@ import { inspectWorkdir } from "./daemon/workdir.mjs";
 
 const DAEMON_PREFIX = "/_daemon";
 
-function runBash(command, timeoutMs, cwd = WORKDIR) {
+function runBash(command, timeoutMs, cwd = WORKDIR, logSource = null) {
   return new Promise((resolve) => {
     const child = spawn("bash", ["-lc", command], { cwd, env: childEnv() });
     let stdout = "";
@@ -62,9 +62,11 @@ function runBash(command, timeoutMs, cwd = WORKDIR) {
     }, timeoutMs);
     child.stdout.on("data", (d) => {
       stdout += d.toString();
+      if (logSource) appendLog(logSource, d);
     });
     child.stderr.on("data", (d) => {
       stderr += d.toString();
+      if (logSource) appendLog(logSource, d);
     });
     child.on("close", (code) => {
       clearTimeout(timer);
@@ -281,12 +283,19 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "POST" && subUrl === "/bash") {
     try {
       const body = await parsedBody(req);
-      const { command, timeout = 60_000, cwd } = body;
+      const { command, timeout = 60_000, cwd, logSource } = body;
       if (typeof command !== "string" || command.length === 0) {
         send(res, 400, { error: "command is required" });
         return;
       }
-      const result = await runBash(command, Number(timeout), cwd);
+      const result = await runBash(
+        command,
+        Number(timeout),
+        cwd,
+        typeof logSource === "string" && logSource.length > 0
+          ? logSource
+          : null,
+      );
       send(res, 200, result);
     } catch (err) {
       send(res, 500, { error: String(err) });

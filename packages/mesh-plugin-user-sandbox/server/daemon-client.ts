@@ -62,6 +62,7 @@ export async function daemonBash(
   daemonUrl: string,
   token: string,
   input: ExecInput,
+  opts?: { logSource?: string },
 ): Promise<ExecOutput> {
   const timeoutMs = input.timeoutMs ?? DEFAULT_EXEC_TIMEOUT_MS;
   const response = await fetch(`${daemonUrl}/_daemon/bash`, {
@@ -75,6 +76,7 @@ export async function daemonBash(
       timeout: timeoutMs,
       cwd: input.cwd,
       env: input.env,
+      logSource: opts?.logSource,
     }),
     signal: AbortSignal.timeout(timeoutMs + 5_000),
   });
@@ -137,10 +139,15 @@ export async function bootstrapRepo(
     .filter((part): part is string => part !== null)
     .join(" && ");
   // Medium repos routinely exceed the default 60s exec timeout.
-  const result = await daemonBash(daemonUrl, token, {
-    command: cmd,
-    timeoutMs: 10 * 60_000,
-  });
+  // `logSource: "setup"` streams git clone/checkout output through the daemon's
+  // log ring so the Terminal tab's Setup pane can replay it on SSE connect —
+  // matches the freestyle flow where setup logs come from the systemd unit.
+  const result = await daemonBash(
+    daemonUrl,
+    token,
+    { command: cmd, timeoutMs: 10 * 60_000 },
+    { logSource: "setup" },
+  );
   if (result.exitCode !== 0) {
     throw new Error(
       `sandbox repo bootstrap failed (exit ${result.exitCode}): ${result.stderr || result.stdout}`,

@@ -75,6 +75,12 @@ interface DockerRecord {
   devPort: number;
   devContainerPort: number;
   repoAttached: boolean;
+  /**
+   * In-flight repo bootstrap, or null when idle. See the K8s runner — we run
+   * clone/checkout in the background so the Terminal tab catches setup logs
+   * via SSE instead of seeing the full backlog dumped at once via `replayTo`.
+   */
+  bootstrapPromise: Promise<void> | null;
   workload: Workload | null;
 }
 
@@ -247,38 +253,83 @@ export class DockerSandboxRunner implements SandboxRunner {
     persistNow: boolean,
   ): Promise<Sandbox> {
     this.records.set(rec.handle, rec);
-    let bootstrapped = false;
-    if (opts.repo && !rec.repoAttached) {
-      try {
-        await bootstrapRepo(rec.daemonUrl, rec.token, rec.workdir, opts.repo);
-        rec.repoAttached = true;
-        bootstrapped = true;
-      } catch (err) {
-        this.records.delete(rec.handle);
-        await this.stopContainer(rec.handle).catch((teardownErr) =>
-          console.warn(
-            `[${LOG_LABEL}] orphan teardown after attach failure handle=${rec.handle} attachErr="${
-              err instanceof Error ? err.message : String(err)
-            }" teardownErr="${
-              teardownErr instanceof Error
-                ? teardownErr.message
-                : String(teardownErr)
-            }"`,
-          ),
-        );
-        throw err;
-      }
+    // Persist BEFORE starting background bootstrap so the handle is resolvable
+    // via /api/sandbox/:handle/_daemon/... as soon as VM_START returns (see
+    // K8s runner `finish` for the full rationale).
+    if (persistNow) await this.persist(ops, rec);
+    // Bootstrap in the background — see K8s runner `finish` for the rationale
+    // (Terminal tab subscribes only after VM_START returns; if we `await` the
+    // clone here, the setup logs arrive as a post-hoc burst via `replayTo`).
+    if (opts.repo && !rec.repoAttached && !rec.bootstrapPromise) {
+      rec.bootstrapPromise = this.bootstrapAndStart(rec, opts);
+    } else if (!opts.repo || rec.repoAttached) {
+      startDevServer(
+        rec.daemonUrl,
+        rec.token,
+        opts.workload ?? rec.workload,
+        LOG_LABEL,
+      );
     }
-    // Persist on fresh provision/adopt, OR after we just flipped repoAttached
-    // on a resumed record (so subsequent ensure() skips bootstrap).
-    if (persistNow || bootstrapped) await this.persist(ops, rec);
-    startDevServer(
-      rec.daemonUrl,
-      rec.token,
-      opts.workload ?? rec.workload,
-      LOG_LABEL,
-    );
     return this.toSandbox(rec);
+  }
+
+  /**
+   * Uses `this.stateStore` (unscoped) for the post-bootstrap persist — the
+   * `ops` view from the caller's `withLock` scope is bound to a transaction
+   * that closed when VM_START returned.
+   */
+  private async bootstrapAndStart(
+    rec: DockerRecord,
+    opts: EnsureOptions,
+  ): Promise<void> {
+    try {
+      await bootstrapRepo(rec.daemonUrl, rec.token, rec.workdir, opts.repo!);
+      rec.repoAttached = true;
+      await this.persist(this.stateStore, rec).catch((err) =>
+        console.warn(
+          `[${LOG_LABEL}] persist after bootstrap failed for ${rec.handle}: ${err instanceof Error ? err.message : String(err)}`,
+        ),
+      );
+      startDevServer(
+        rec.daemonUrl,
+        rec.token,
+        opts.workload ?? rec.workload,
+        LOG_LABEL,
+      );
+    } catch (err) {
+      // Bootstrap failure used to tear the container down synchronously so a
+      // failed VM_START wouldn't leak a half-broken sandbox. With the async
+      // flow VM_START has already returned 200, so the user can't see the
+      // error on the call — tear down anyway to match the old contract and
+      // avoid stranding a container that can't serve the project.
+      console.warn(
+        `[${LOG_LABEL}] background bootstrap failed for ${rec.handle}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      this.records.delete(rec.handle);
+      // We persisted synchronously before kicking off bootstrap (so the proxy
+      // at /api/sandbox/:handle could resolve immediately). Clean it up now
+      // so the next VM_START doesn't rehydrate an orphan row.
+      if (this.stateStore) {
+        await this.stateStore
+          .deleteByHandle(RUNNER_KIND, rec.handle)
+          .catch((err) =>
+            console.warn(
+              `[${LOG_LABEL}] state cleanup after attach failure handle=${rec.handle} err="${err instanceof Error ? err.message : String(err)}"`,
+            ),
+          );
+      }
+      await this.stopContainer(rec.handle).catch((teardownErr) =>
+        console.warn(
+          `[${LOG_LABEL}] orphan teardown after attach failure handle=${rec.handle} teardownErr="${
+            teardownErr instanceof Error
+              ? teardownErr.message
+              : String(teardownErr)
+          }"`,
+        ),
+      );
+    } finally {
+      rec.bootstrapPromise = null;
+    }
   }
 
   private async provision(
@@ -360,6 +411,7 @@ export class DockerSandboxRunner implements SandboxRunner {
       devPort,
       devContainerPort,
       repoAttached: false,
+      bootstrapPromise: null,
       workload: opts.workload ?? null,
     };
   }
@@ -397,6 +449,7 @@ export class DockerSandboxRunner implements SandboxRunner {
       devPort,
       devContainerPort,
       repoAttached: state.repoAttached ?? false,
+      bootstrapPromise: null,
       workload: state.workload ?? null,
     };
   }
@@ -458,6 +511,7 @@ export class DockerSandboxRunner implements SandboxRunner {
       devPort,
       devContainerPort,
       repoAttached: false,
+      bootstrapPromise: null,
       workload: opts.workload ?? null,
     };
   }

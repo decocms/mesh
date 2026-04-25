@@ -2,6 +2,42 @@
 
 Isolated per-user sandboxes for MCP tool execution.
 
+One sandbox per `(userId, projectRef)`: a container (or VM) holding a checked-out
+repo plus an in-pod daemon that proxies exec, file ops, and the dev server.
+Callers go through a single `SandboxRunner` interface; the runner decides how
+the sandbox is provisioned and reached.
+
+## Runners
+
+Three runner backends live behind the common `SandboxRunner` interface
+(`server/runner/types.ts`):
+
+- **Docker** (`./runner`) — default for local dev. Spawns containers via the
+  local Docker CLI and routes browser traffic through an in-process ingress
+  bound on `SANDBOX_INGRESS_PORT`.
+- **Freestyle** (`./runner/freestyle`) — hosted VMs. Preview URL is a
+  Freestyle-provided HTTPS domain; daemon traffic is base64-wrapped to clear
+  Cloudflare WAF. SDKs are `optionalDependencies` and only pulled in when this
+  runner is selected.
+- **Kubernetes** (`./runner/k8s`) — one `SandboxClaim` per sandbox against the
+  [kubernetes-sigs/agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox)
+  operator. Mesh talks to pods via apiserver port-forward in dev; in prod,
+  `previewUrlPattern` switches the preview URL to real ingress and skips the
+  dev forward.
+
+### Selection
+
+The host app calls `resolveRunnerKindFromEnv()` / `tryResolveRunnerKindFromEnv()`
+from `./runner`:
+
+1. `MESH_SANDBOX_RUNNER=docker|freestyle|kubernetes` wins when set.
+2. Otherwise, `FREESTYLE_API_KEY` present → `freestyle`.
+3. Otherwise, in `NODE_ENV=production` → unresolved (strict variant throws).
+4. Otherwise (dev) → `docker` if the CLI is on `PATH`, else unresolved.
+
+Kubernetes is **explicit-only** — it's never auto-selected, so docker-only
+deploys don't accidentally need a kubeconfig.
+
 ## URL shape
 
 - **Prod**: `https://<handle>.sandboxes.<root>/*` → pod dev server on `:3000`
@@ -12,7 +48,7 @@ Handles are a 128-bit hex prefix of the container id — 32 chars, DNS-label
 safe (RFC 1035 caps labels at 63), still cryptographically secret as a
 capability. The URL itself is the capability.
 
-## Local dev
+## Local dev (Docker)
 
 The local ingress forwarder binds both `127.0.0.1` and `::1` on
 `SANDBOX_INGRESS_PORT` (default `7070`) and routes requests by `Host:` header.
@@ -27,7 +63,13 @@ for this, you can remove them — they're no longer needed.
 
 ## Environment
 
-- `SANDBOX_INGRESS_PORT` (default `7070`) — local forwarder bind port.
+- `MESH_SANDBOX_RUNNER` — pin the runner: `docker`, `freestyle`, or
+  `kubernetes`. Leave unset in dev to let auto-detect pick docker.
+- `FREESTYLE_API_KEY` — required for the Freestyle runner. Presence also
+  auto-selects it when `MESH_SANDBOX_RUNNER` is unset.
+- `MESH_SANDBOX_IMAGE` — override the Docker runner image
+  (default `mesh-sandbox:local`, built from `image/Dockerfile`).
+- `SANDBOX_INGRESS_PORT` (default `7070`) — local Docker ingress bind port.
 - `SANDBOX_ROOT_URL` — production template for the pod URL. Either a bare
   base (`https://sandboxes.example.com` → handle becomes leading subdomain)
   or a `{handle}` template (`https://{handle}.sandboxes.example.com`).

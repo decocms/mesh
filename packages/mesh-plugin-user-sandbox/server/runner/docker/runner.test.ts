@@ -326,7 +326,7 @@ describe("DockerSandboxRunner.ensure() — resume from persisted state", () => {
 });
 
 describe("DockerSandboxRunner.ensure() — attach-repo failure cleanup", () => {
-  it("stops the orphaned container and rethrows when bootstrap fails", async () => {
+  it("stops the orphaned container when background bootstrap fails", async () => {
     const stopCalls: string[] = [];
     const { exec } = makeExec((args) => {
       if (args[0] === "stop") {
@@ -347,24 +347,33 @@ describe("DockerSandboxRunner.ensure() — attach-repo failure cleanup", () => {
     const runner = new DockerSandboxRunner({ exec, stateStore: store });
 
     const handle = FAKE_ID.slice(0, 32);
-    await expect(
-      runner.ensure(ID, {
-        repo: {
-          cloneUrl: "https://example.com/r.git",
-          userName: "u",
-          userEmail: "u@e",
-        },
-      }),
-    ).rejects.toThrow(/bootstrap boom/);
+    // Bootstrap is now async — ensure() resolves as soon as the daemon is
+    // healthy, and the clone runs in the background so setup logs stream to
+    // the Terminal tab live.
+    const sandbox = await runner.ensure(ID, {
+      repo: {
+        cloneUrl: "https://example.com/r.git",
+        userName: "u",
+        userEmail: "u@e",
+      },
+    });
+    expect(sandbox.handle).toBe(handle);
 
+    // Poll for the background teardown — chained microtasks across a mock
+    // fetch and a stopContainer call should settle within a few ticks.
+    const deadline = Date.now() + 500;
+    while (!stopCalls.includes(handle) && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 5));
+    }
     expect(stopCalls).toContain(handle);
-    // byHandle entry removed → alive uses exec_('inspect') which would still
-    // return "true" for our mock; instead verify via lookup path by calling
-    // `resolveDevPort` which reads byHandle first, then store. Since persist
-    // runs AFTER bootstrap, the store is also empty.
+
+    // The pre-bootstrap persist (required so /api/sandbox/:handle resolves
+    // while clone runs) is cleaned up in the failure path, so the handle
+    // no longer resolves afterwards.
+    expect(store.putCalls).toHaveLength(1);
+    expect(store.deleteByHandleCalls.map((c) => c.handle)).toContain(handle);
     const devPort = await runner.resolveDevPort(handle);
     expect(devPort).toBeNull();
-    expect(store.putCalls).toHaveLength(0);
   });
 });
 

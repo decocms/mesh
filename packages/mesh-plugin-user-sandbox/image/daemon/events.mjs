@@ -9,7 +9,10 @@ const backpressureCounts = new WeakMap();
 
 export function appendLog(source, chunk) {
   const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
-  const lines = text.split(/\r?\n/);
+  // Split on any run of CR/LF so bare `\r` (git-clone progress "Receiving
+  // objects: X%\r...") surfaces as distinct lines instead of accumulating
+  // until the trailing newline git writes when done.
+  const lines = text.split(/[\r\n]+/);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (line.length === 0 && i === lines.length - 1) continue;

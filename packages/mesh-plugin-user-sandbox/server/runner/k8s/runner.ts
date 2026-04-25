@@ -122,6 +122,14 @@ interface K8sRecord {
   repoAttached: boolean;
   workload: Workload | null;
   /**
+   * In-flight repo bootstrap, or null when idle. Set when VM_START kicks off
+   * clone/checkout in the background so the browser opens SSE against the
+   * daemon while git is still running and watches setup logs stream live.
+   * Concurrent VM_STARTs for the same handle join this promise instead of
+   * racing a second `git clone`.
+   */
+  bootstrapPromise: Promise<void> | null;
+  /**
    * Per-daemon-boot UUID. `/app` lives in the container's ephemeral layer
    * (see sandbox-template.yaml — no volumeMount), so any OOMKill/crash
    * restart wipes the repo while the state store still says
@@ -347,19 +355,31 @@ export class KubernetesSandboxRunner implements SandboxRunner {
     patchTtl: boolean,
   ): Promise<Sandbox> {
     this.records.set(rec.handle, rec);
-    let bootstrapped = false;
-    if (opts.repo && !rec.repoAttached) {
-      await bootstrapRepo(rec.daemonUrl, rec.token, rec.workdir, opts.repo);
-      rec.repoAttached = true;
-      bootstrapped = true;
+    // Persist BEFORE starting background bootstrap. The browser opens SSE at
+    // `/api/sandbox/<handle>/_daemon/...` as soon as VM_START returns, and
+    // that route authorizes by looking up `sandbox_runner_state` by handle
+    // (apps/mesh/src/api/routes/sandbox-daemon.ts) — if the row isn't there
+    // yet, the proxy 404s and the Terminal tab flips to "VM suspended" while
+    // clone runs. Persisting with `repoAttached: false` makes the handle
+    // resolvable immediately; bootstrapAndStart re-persists on success.
+    if (persistNow) await this.persist(ops, rec);
+    // Return VM_START as soon as the daemon is reachable. The clone/checkout
+    // takes ~30s on medium repos, and the browser only opens SSE after it
+    // learns `daemonUrl` from this call's result — blocking here means the
+    // Terminal tab subscribes *after* setup already ran, so it sees the whole
+    // log backlog as a single burst via `replayTo`. Running bootstrap in the
+    // background lets the browser watch git progress stream live.
+    if (opts.repo && !rec.repoAttached && !rec.bootstrapPromise) {
+      rec.bootstrapPromise = this.bootstrapAndStart(rec, opts);
+    } else if (!opts.repo || rec.repoAttached) {
+      // No bootstrap needed — start the dev server right away.
+      startDevServer(
+        rec.daemonUrl,
+        rec.token,
+        opts.workload ?? rec.workload,
+        LOG_LABEL,
+      );
     }
-    if (persistNow || bootstrapped) await this.persist(ops, rec);
-    startDevServer(
-      rec.daemonUrl,
-      rec.token,
-      opts.workload ?? rec.workload,
-      LOG_LABEL,
-    );
     // Fresh provision set a shutdownTime in the claim spec already; resumes
     // and adopts rely on this patch to stay alive.
     if (patchTtl) {
@@ -375,6 +395,44 @@ export class KubernetesSandboxRunner implements SandboxRunner {
       );
     }
     return this.toSandbox(rec);
+  }
+
+  /**
+   * Runs clone/checkout against the daemon, then kicks the dev server. Logs
+   * stream through the daemon's SSE ring (see daemon.mjs `runBash`'s
+   * `logSource` path) so the Terminal tab shows them live. On failure we leave
+   * the sandbox alive — user retries by clicking Run again, which enters
+   * `finish` with `repoAttached: false` and the promise cleared.
+   *
+   * Uses `this.stateStore` (unscoped) for the post-bootstrap persist — NOT
+   * the `ops` view from the original `withLock` scope, which is bound to a
+   * transaction that closed when VM_START returned.
+   */
+  private async bootstrapAndStart(
+    rec: K8sRecord,
+    opts: EnsureOptions,
+  ): Promise<void> {
+    try {
+      await bootstrapRepo(rec.daemonUrl, rec.token, rec.workdir, opts.repo!);
+      rec.repoAttached = true;
+      await this.persist(this.stateStore, rec).catch((err) =>
+        console.warn(
+          `[${LOG_LABEL}] persist after bootstrap failed for ${rec.handle}: ${err instanceof Error ? err.message : String(err)}`,
+        ),
+      );
+      startDevServer(
+        rec.daemonUrl,
+        rec.token,
+        opts.workload ?? rec.workload,
+        LOG_LABEL,
+      );
+    } catch (err) {
+      console.warn(
+        `[${LOG_LABEL}] background bootstrap failed for ${rec.handle}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    } finally {
+      rec.bootstrapPromise = null;
+    }
   }
 
   private async provision(
@@ -454,6 +512,7 @@ export class KubernetesSandboxRunner implements SandboxRunner {
       daemonForward,
       devForward,
       repoAttached: false,
+      bootstrapPromise: null,
       workload: opts.workload ?? null,
       daemonBootId: await readDaemonBootId(daemonUrl),
     };
@@ -536,6 +595,7 @@ export class KubernetesSandboxRunner implements SandboxRunner {
       daemonForward,
       devForward,
       repoAttached: rebooted ? false : (state.repoAttached ?? false),
+      bootstrapPromise: null,
       workload: state.workload ?? null,
       daemonBootId: currentBootId,
     };
@@ -580,6 +640,7 @@ export class KubernetesSandboxRunner implements SandboxRunner {
       devForward,
       // Adopted: repo state unknown → next ensure re-runs attach if needed.
       repoAttached: false,
+      bootstrapPromise: null,
       workload: null,
       daemonBootId: await readDaemonBootId(daemonUrl),
     };

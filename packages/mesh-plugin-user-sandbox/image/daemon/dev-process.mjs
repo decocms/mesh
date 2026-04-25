@@ -202,6 +202,11 @@ export async function startDev({
   const env = childEnv({
     HOST: "0.0.0.0",
     PORT: String(DEV_PORT),
+    // Vite's interactive shortcut reader (press h/b/q + enter) blocks on
+    // stdin; with stdio:"ignore" below, it sees EOF and exits 0 right after
+    // printing its banner. CI=1 disables the reader so the dev server keeps
+    // running.
+    CI: "1",
   });
 
   // `script -q -c` gives the child a PTY so ANSI colors / progress output
