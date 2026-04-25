@@ -100,12 +100,11 @@ export type ThreadEntity = z.infer<typeof ThreadEntitySchema>;
 
 export const ThreadCreateDataSchema = z.object({
   id: z.string().optional().describe("Optional custom ID for the thread"),
-  title: z.string().describe("Thread title"),
+  title: z.string().optional().describe("Thread title"),
   description: z.string().nullish().describe("Thread description"),
-  branch: z
+  virtual_mcp_id: z
     .string()
-    .nullish()
-    .describe("Git branch to pin this thread to (GitHub-linked vms only)"),
+    .describe("Virtual MCP (agent) this thread is bound to"),
 });
 
 export type ThreadCreateData = z.infer<typeof ThreadCreateDataSchema>;
