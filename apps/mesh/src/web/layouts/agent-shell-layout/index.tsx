@@ -72,6 +72,7 @@ import { MainPanelTabsBar } from "@/web/layouts/main-panel-tabs/main-panel-tabs-
 import { VirtualMcpHeaderInfo } from "../../views/virtual-mcp/header-info.tsx";
 import { VmEventsProvider } from "@/web/components/vm/hooks/vm-events-context.tsx";
 import type { VmMapEntry } from "@decocms/mesh-sdk";
+import { useEnsureTask } from "@/web/hooks/use-tasks";
 
 // ---------------------------------------------------------------------------
 // Types & Context
@@ -252,6 +253,12 @@ function AgentInsetProvider() {
   const isDecopilot = virtualMcpId === getDecopilotId(org.id);
   const isAgentRoute = !isDecopilot;
 
+  // Ensure the thread row exists for this URL before rendering the chat. On
+  // 404 the hook fires COLLECTION_THREADS_CREATE (idempotent) and surfaces a
+  // "Creating task…" state until the row is persisted. Without this the
+  // chat renders with branch=null because the thread never existed.
+  const ensureState = useEnsureTask(params.taskId ?? "", virtualMcpId);
+
   // Fetch entity (Suspense-based — resolved before render)
   const entity = useVirtualMCP(virtualMcpId);
 
@@ -294,6 +301,34 @@ function AgentInsetProvider() {
     virtualMcpId,
     entity,
   };
+
+  if (ensureState.status === "creating" || ensureState.status === "loading") {
+    return (
+      <InsetContext value={insetContextValue}>
+        <div className="flex-1 min-h-0 pr-1.5 pb-1.5 overflow-hidden">
+          <div className="flex h-full items-center justify-center bg-background card-shadow rounded-[0.75rem] text-sm text-muted-foreground">
+            <Loading01 className="size-4 animate-spin mr-2" />
+            Creating task…
+          </div>
+        </div>
+      </InsetContext>
+    );
+  }
+
+  if (ensureState.status === "error") {
+    return (
+      <InsetContext value={insetContextValue}>
+        <div className="flex-1 min-h-0 pr-1.5 pb-1.5 overflow-hidden">
+          <div className="flex flex-col h-full items-center justify-center gap-2 bg-background card-shadow rounded-[0.75rem] p-8 text-sm">
+            <div className="font-medium">Task unavailable</div>
+            <div className="text-muted-foreground">
+              {ensureState.error.message}
+            </div>
+          </div>
+        </div>
+      </InsetContext>
+    );
+  }
 
   if (!entity) {
     return (
