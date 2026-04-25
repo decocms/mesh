@@ -12,14 +12,14 @@
  * Freestyle's Cloudflare WAF.
  */
 
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { VmBun } from "@freestyle-sh/with-bun";
 import { VmDeno } from "@freestyle-sh/with-deno";
 import { VmNodeJs } from "@freestyle-sh/with-nodejs";
 import { freestyle, VmSpec } from "freestyle-sandboxes";
-import { Inflight, withSandboxLock } from "../shared";
+import { computeHandle, Inflight, withSandboxLock } from "../shared";
 import type { RunnerStateStore, RunnerStateStoreOps } from "../state-store";
 import {
   sandboxIdKey,
@@ -285,7 +285,7 @@ export class FreestyleSandboxRunner implements SandboxRunner {
   ): Promise<FreestyleRecord> {
     const repo = opts.repo!;
     const workload = opts.workload ?? null;
-    const previewDomain = `${this.computeDomainKey(id)}.${this.previewRootDomain}`;
+    const previewDomain = `${this.computeDomainKey(id, repo.branch)}.${this.previewRootDomain}`;
     const daemonToken = randomBytes(DAEMON_TOKEN_BYTES).toString("hex");
     const daemonBootId = randomUUID();
     const spec = this.buildSpec({ repo, workload, daemonToken, daemonBootId });
@@ -437,15 +437,12 @@ export class FreestyleSandboxRunner implements SandboxRunner {
   }
 
   /**
-   * Stable per-(userId, projectRef) domain key. 16 hex (64 bits) is enough
-   * collision resistance for a per-user routing key; old VMs idle out via
-   * `idleTimeoutSeconds`.
+   * Stable per-(userId, projectRef, branch) domain key. Format:
+   * `<branch-slug>-<hash5>` (or bare hash5 when branch is missing). See
+   * `computeHandle` in the shared package for full format details.
    */
-  private computeDomainKey(id: SandboxId): string {
-    return createHash("sha256")
-      .update(sandboxIdKey(id))
-      .digest("hex")
-      .slice(0, 16);
+  private computeDomainKey(id: SandboxId, branch?: string | null): string {
+    return computeHandle(id, branch);
   }
 
   /**
