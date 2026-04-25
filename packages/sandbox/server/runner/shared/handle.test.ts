@@ -59,6 +59,11 @@ describe("computeHandle", () => {
     expect(handle).toMatch(/^[0-9a-f]{5}$/);
   });
 
+  it("returns a bare 5-char hash when branch is whitespace-only", () => {
+    const handle = computeHandle(ID, "   ");
+    expect(handle).toMatch(/^[0-9a-f]{5}$/);
+  });
+
   it("is deterministic for the same (id, branch) pair", () => {
     const a = computeHandle(ID, "deco/foo");
     const b = computeHandle(ID, "deco/foo");
