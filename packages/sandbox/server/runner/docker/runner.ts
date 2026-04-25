@@ -300,37 +300,54 @@ export class DockerSandboxRunner implements SandboxRunner {
     // pivots; /tmp is a bounded tmpfs; /app and /home/sandbox are anonymous
     // volumes (disk-backed) so package-manager caches don't blow the mem cap.
     const handle = computeHandle(id, opts.repo?.branch);
-    await startContainer(image, {
-      label: "sandbox",
-      exec: this.exec_,
-      args: [
-        "--name",
-        handle,
-        "--rm",
-        "--init",
-        "--read-only",
-        "--tmpfs=/tmp:rw,nosuid,nodev,size=256m",
-        "-v",
-        "/app",
-        "-v",
-        "/home/sandbox",
-        "--cap-drop=ALL",
-        "--security-opt=no-new-privileges",
-        "--pids-limit=512",
-        "--memory=2g",
-        "--memory-swap=2g",
-        "--cpus=1",
-        "--label",
-        `${this.labelPrefix}=1`,
-        "--label",
-        `${LABEL_ID}=${labelId}`,
-        "-p",
-        `127.0.0.1:0:${DAEMON_PORT}`,
-        "-p",
-        `127.0.0.1:0:${devContainerPort}`,
-        ...Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
-      ],
-    });
+    const tryStart = () =>
+      startContainer(image, {
+        label: "sandbox",
+        exec: this.exec_,
+        args: [
+          "--name",
+          handle,
+          "--rm",
+          "--init",
+          "--read-only",
+          "--tmpfs=/tmp:rw,nosuid,nodev,size=256m",
+          "-v",
+          "/app",
+          "-v",
+          "/home/sandbox",
+          "--cap-drop=ALL",
+          "--security-opt=no-new-privileges",
+          "--pids-limit=512",
+          "--memory=2g",
+          "--memory-swap=2g",
+          "--cpus=1",
+          "--label",
+          `${this.labelPrefix}=1`,
+          "--label",
+          `${LABEL_ID}=${labelId}`,
+          "-p",
+          `127.0.0.1:0:${DAEMON_PORT}`,
+          "-p",
+          `127.0.0.1:0:${devContainerPort}`,
+          ...Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
+        ],
+      });
+
+    try {
+      await tryStart();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // findExisting only adopts *running* containers via `docker ps`, so a
+      // stopped same-name orphan left behind by a crash that bypassed --rm
+      // cleanup will collide on `--name`. Force-remove the orphan and retry
+      // once; if the retry still fails, surface the original error.
+      if (msg.includes("is already in use")) {
+        await this.exec_(["rm", "-f", handle]).catch(() => undefined);
+        await tryStart();
+      } else {
+        throw err;
+      }
+    }
 
     const daemonPort = await this.readPort(handle, DAEMON_PORT);
     const daemonUrl = `http://127.0.0.1:${daemonPort}`;

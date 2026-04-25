@@ -298,6 +298,98 @@ describe("DockerSandboxRunner.ensure() — fresh provision", () => {
   });
 });
 
+describe("DockerSandboxRunner.ensure() — adopt by label", () => {
+  it("adopts an existing labeled container by name without calling docker run", async () => {
+    let runCount = 0;
+    const expectedHandle = computeHandle(ID);
+
+    const { exec } = makeExec((args) => {
+      const [sub] = args;
+      // Pretend the container with our labelId is already running. The
+      // findExisting query is `ps --no-trunc --format {{.Names}} --filter label=...`.
+      if (sub === "ps" && args.includes("--filter")) {
+        return {
+          stdout: `${expectedHandle}\n`,
+          stderr: "",
+          code: 0,
+        };
+      }
+      // `inspect` for env-var recovery (DAEMON_TOKEN, APP_ROOT). The
+      // reconstructFromContainer parser walks lines and extracts these keys.
+      if (sub === "inspect") {
+        return {
+          stdout: "DAEMON_TOKEN=adopted-token\nAPP_ROOT=/app\n",
+          stderr: "",
+          code: 0,
+        };
+      }
+      if (sub === "run") {
+        runCount++;
+      }
+      return defaultResponder(args);
+    });
+    const store = makeStore();
+    installFetch(() => healthOkResponse());
+
+    const runner = new DockerSandboxRunner({
+      image: "test-image:latest",
+      exec,
+      stateStore: store,
+    });
+
+    const sandbox = await runner.ensure(ID);
+
+    expect(sandbox.handle).toBe(expectedHandle);
+    expect(runCount).toBe(0); // No new container created.
+    // The handle returned by findExisting must be the *name* (slug-hash), not
+    // a container ID prefix — guards against regressing back to `ps -q`.
+    expect(sandbox.handle).not.toMatch(/^[0-9a-f]{32,}$/);
+  });
+});
+
+describe("DockerSandboxRunner.ensure() — --name collision recovery", () => {
+  it("removes a colliding orphan container and retries the run", async () => {
+    let runCalls = 0;
+    let rmCalls = 0;
+
+    const { exec } = makeExec((args) => {
+      const [sub] = args;
+      if (sub === "run") {
+        runCalls++;
+        if (runCalls === 1) {
+          return {
+            stdout: "",
+            stderr:
+              'Error response from daemon: Conflict. The container name "/x" is already in use by container "abcd"',
+            code: 125,
+          };
+        }
+        // Second run succeeds.
+        return defaultResponder(args);
+      }
+      if (sub === "rm") {
+        rmCalls++;
+        return { stdout: "", stderr: "", code: 0 };
+      }
+      return defaultResponder(args);
+    });
+    const store = makeStore();
+    installFetch(() => healthOkResponse());
+
+    const runner = new DockerSandboxRunner({
+      image: "test-image:latest",
+      exec,
+      stateStore: store,
+    });
+
+    const sandbox = await runner.ensure(ID);
+
+    expect(sandbox.handle).toBe(computeHandle(ID));
+    expect(runCalls).toBe(2);
+    expect(rmCalls).toBe(1);
+  });
+});
+
 describe("DockerSandboxRunner.ensure() — in-process dedupe", () => {
   it("two concurrent ensure() calls share one docker run", async () => {
     let runCount = 0;
