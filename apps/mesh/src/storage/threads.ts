@@ -155,13 +155,26 @@ export class SqlThreadStorage implements ThreadStoragePort {
         : {}),
     };
 
-    const result = await this.db
+    const inserted = await this.db
       .insertInto("threads")
       .values(row)
+      .onConflict((oc) => oc.column("id").doNothing())
       .returningAll()
+      .executeTakeFirst();
+
+    if (inserted) {
+      return this.threadFromDbRow(inserted);
+    }
+
+    // Conflict — another caller already inserted this id. Return the row that won.
+    const existing = await this.db
+      .selectFrom("threads")
+      .selectAll()
+      .where("id", "=", id)
+      .where("organization_id", "=", data.organization_id)
       .executeTakeFirstOrThrow();
 
-    return this.threadFromDbRow(result);
+    return this.threadFromDbRow(existing);
   }
 
   async get(id: string, organizationId: string): Promise<Thread | null> {
