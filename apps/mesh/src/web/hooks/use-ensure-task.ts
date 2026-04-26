@@ -17,7 +17,7 @@ import {
   useMCPClient,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { KEYS } from "../lib/query-keys";
 import type { ThreadCreateData } from "@/tools/thread/schema";
@@ -36,12 +36,13 @@ function isNotFoundError(err: unknown): boolean {
 }
 
 export function useEnsureTask(id: string, virtualMcpId: string): State {
-  const { org } = useProjectContext();
+  const { org, locator } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
   const actions = useTaskActions();
+  const queryClient = useQueryClient();
 
   // Track whether we've fired the create mutation to avoid re-triggering
   // under React 19 concurrent rendering / Strict Mode. Refs mutate
@@ -63,9 +64,10 @@ export function useEnsureTask(id: string, virtualMcpId: string): State {
     refetchOnWindowFocus: false,
   });
 
-  // Fire create exactly once on 404. The mutation invalidates the collection,
-  // which re-runs this query through useTask consumers; we also refetch the
-  // local one explicitly.
+  // Fire create exactly once on 404. The mutation invalidates the collection
+  // cache; we also explicitly invalidate the legacy KEYS.tasksPrefix query
+  // (which chat-context's tasks.find() reads) so the branch picker picks up
+  // the new thread immediately, and refetch the local ensure query.
   if (
     query.isSuccess &&
     !query.data &&
@@ -78,7 +80,12 @@ export function useEnsureTask(id: string, virtualMcpId: string): State {
         id,
         virtual_mcp_id: virtualMcpId,
       } as ThreadCreateData)
-      .then(() => query.refetch())
+      .then(() => {
+        queryClient.invalidateQueries({
+          queryKey: KEYS.tasksPrefix(locator),
+        });
+        return query.refetch();
+      })
       .catch(() => {
         // mutation toast already fired; let render path show the error
         createStartedRef.current = false; // allow retry on transient failure
