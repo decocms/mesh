@@ -44,10 +44,13 @@ export function useEnsureTask(id: string, virtualMcpId: string): State {
   const actions = useTaskActions();
   const queryClient = useQueryClient();
 
-  // Track whether we've fired the create mutation to avoid re-triggering
-  // under React 19 concurrent rendering / Strict Mode. Refs mutate
-  // synchronously; mutation status does not.
-  const createStartedRef = useRef(false);
+  // Track which id we last fired the create mutation for. AgentInsetProvider
+  // does not unmount between task navigations, so the hook (and the
+  // useTaskActions mutation it owns) persists across id changes. We can't
+  // rely on `actions.create.status === "idle"` (sticks at "success" after
+  // the first create) or a boolean ref (never resets for the next id).
+  // Refs mutate synchronously, which keeps the gate Strict-Mode safe.
+  const createStartedForIdRef = useRef<string | null>(null);
 
   const query = useQuery<Task | null>({
     queryKey: KEYS.ensureTask(org.id, id),
@@ -64,17 +67,13 @@ export function useEnsureTask(id: string, virtualMcpId: string): State {
     refetchOnWindowFocus: false,
   });
 
-  // Fire create exactly once on 404. The mutation invalidates the collection
-  // cache; we also explicitly invalidate the legacy KEYS.tasksPrefix query
-  // (which chat-context's tasks.find() reads) so the branch picker picks up
-  // the new thread immediately, and refetch the local ensure query.
-  if (
-    query.isSuccess &&
-    !query.data &&
-    actions.create.status === "idle" &&
-    !createStartedRef.current
-  ) {
-    createStartedRef.current = true;
+  // Fire create exactly once per id on 404. We invalidate both the
+  // collection cache (covered by useCollectionActions.onSuccess) and the
+  // legacy KEYS.tasksPrefix query (which chat-context's tasks.find() reads)
+  // so the branch picker picks up the new thread immediately, then refetch
+  // the local ensure query.
+  if (query.isSuccess && !query.data && createStartedForIdRef.current !== id) {
+    createStartedForIdRef.current = id;
     void actions.create
       .mutateAsync({
         id,
@@ -87,8 +86,11 @@ export function useEnsureTask(id: string, virtualMcpId: string): State {
         return query.refetch();
       })
       .catch(() => {
-        // mutation toast already fired; let render path show the error
-        createStartedRef.current = false; // allow retry on transient failure
+        // mutation toast already fired; let render path show the error.
+        // Reset the guard for THIS id so retry-on-remount can re-fire.
+        if (createStartedForIdRef.current === id) {
+          createStartedForIdRef.current = null;
+        }
       });
   }
 
