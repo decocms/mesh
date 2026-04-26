@@ -306,8 +306,11 @@ export async function migrateToLatest<T = unknown>(
     keepOpen = false,
     database: customDb,
     skipBetterAuth = false,
-    seed,
+    seed: seedOption,
   } = options ?? {};
+
+  // Check for seed from environment variable
+  const seed = seedOption || (process.env.SEED as SeedName | undefined);
 
   // Run Better Auth migrations (unless skipped or using custom db)
   let betterAuth = "skipped";
@@ -334,6 +337,8 @@ export async function migrateToLatest<T = unknown>(
     // Run seed if specified
     let seedResult: T | undefined;
     if (seed) {
+      const source = seedOption ? "option" : "SEED environment variable";
+      console.log(`🌱 Running seed "${seed}" (from ${source})...`);
       seedResult = await runSeed<T>(database.db, seed);
     }
 
