@@ -115,31 +115,6 @@ export function buildAuthConfig(): AuthConfig {
 }
 
 /**
- * Auth Configuration Endpoint
- *
- * Returns information about available authentication methods
- *
- * Route: GET /api/auth/custom/config
- */
-app.get("/config", async (c) => {
-  try {
-    const config = buildAuthConfig();
-    return c.json({ success: true, config });
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Failed to load auth config";
-
-    return c.json(
-      {
-        success: false,
-        error: errorMessage,
-      },
-      500,
-    );
-  }
-});
-
-/**
  * Local Mode Auto-Session Endpoint
  *
  * When local mode is active, this endpoint signs in the admin user
