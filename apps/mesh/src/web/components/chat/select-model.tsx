@@ -954,7 +954,7 @@ export function modelSupportsFiles(
 ): boolean {
   return (
     selectedModel?.capabilities?.includes("vision") === true ||
-    selectedModel?.capabilities?.includes("image") === true
+    selectedModel?.capabilities?.includes("file") === true
   );
 }
 
