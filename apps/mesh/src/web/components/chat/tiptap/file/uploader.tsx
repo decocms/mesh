@@ -9,7 +9,12 @@ import { useCurrentEditor, type Editor } from "@tiptap/react";
 import { useEffect, useRef, type ChangeEvent } from "react";
 import { Attachment01 } from "@untitledui/icons";
 import { toast } from "sonner";
-import { modelSupportsFiles } from "../../select-model";
+import {
+  getAcceptedMimeTypesForModel,
+  getSupportedFileTypesLabel,
+  isFileTypeSupportedByModel,
+  modelSupportsFiles,
+} from "../../select-model";
 import { insertFile, type FileAttrs } from "./node.tsx";
 import { AiProviderModel } from "@/web/hooks/collections/use-ai-providers.ts";
 
@@ -30,6 +35,16 @@ export async function processFile(
   // Check if model supports files
   if (!modelSupportsFiles(selectedModel)) {
     toast.error("Selected model does not support file uploads");
+    return;
+  }
+
+  const fileMimeType = file.type || "application/octet-stream";
+  if (!isFileTypeSupportedByModel(fileMimeType, selectedModel)) {
+    const accepted = getSupportedFileTypesLabel(selectedModel);
+    const modelName = selectedModel?.title ?? "This model";
+    toast.error(`"${file.name}" can't be attached`, {
+      description: `${modelName} accepts ${accepted}. PowerPoint, Word, and Excel files aren't supported yet.`,
+    });
     return;
   }
 
@@ -231,6 +246,7 @@ export function FileUploadButton({
         ref={fileInputRef}
         type="file"
         multiple
+        accept={getAcceptedMimeTypesForModel(selectedModel)}
         className="hidden"
         onChange={handleFileSelect}
         disabled={isStreaming}

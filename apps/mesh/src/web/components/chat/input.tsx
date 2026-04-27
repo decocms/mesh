@@ -34,7 +34,7 @@ import type { Metadata } from "./types.ts";
 import { useChatStream, useChatTask, useChatPrefs } from "./context";
 import { ChatHighlight } from "./highlight";
 import { ModelSelector } from "./select-model";
-import { modelSupportsFiles } from "./select-model";
+import { getSupportedFileTypesLabel, modelSupportsFiles } from "./select-model";
 import type { AiProviderModel } from "@/web/hooks/collections/use-ai-providers";
 import { FileUploadButton, processFile } from "./tiptap/file";
 import { useCurrentEditor } from "@tiptap/react";
@@ -218,13 +218,16 @@ function FileDropZone({
       {supportsFiles ? (
         <>
           <Upload01 size={24} />
-          <span className="text-sm font-medium">Drop files here</span>
+          <span className="text-sm font-medium">
+            Drop {getSupportedFileTypesLabel(selectedModel)} here
+          </span>
         </>
       ) : (
         <>
           <Lock01 size={24} />
           <span className="text-sm font-medium">
-            This model does not support files
+            This model can't read attachments — switch to one with vision or
+            file support
           </span>
         </>
       )}
