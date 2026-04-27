@@ -161,8 +161,9 @@ function SpecialistsStep({
         toast.success(
           `Self-healing repo ready — ${succeeded.length} specialist${succeeded.length > 1 ? "s" : ""} set up`,
         );
-      } else {
-        toast.success("Self-healing repo ready");
+      } else if (failed.length === 0) {
+        // No specialists toggled on — repo is imported, user opted to skip.
+        toast.success("Repo imported. Add specialists later from automations.");
       }
       if (failed.length > 0) {
         toast.warning(
@@ -442,6 +443,21 @@ async function setupSpecialistOrchestration({
   repo: string;
   siteRootUrl: string;
 }) {
+  const automationName = `${repo}: ${template.title}`;
+
+  // Skip if the user already ran this flow for this repo+specialist —
+  // creating a second automation would double the daily cron rate.
+  const existing = (await selfClient.callTool({
+    name: "AUTOMATION_LIST",
+    arguments: { virtual_mcp_id: projectAgentId },
+  })) as {
+    structuredContent?: { automations?: Array<{ name: string }> };
+  };
+  const alreadyExists = existing.structuredContent?.automations?.some(
+    (a) => a.name === automationName,
+  );
+  if (alreadyExists) return;
+
   const specialistAgentId = await findOrCreateSpecialistVirtualMcp({
     template,
     selfClient,
@@ -460,7 +476,7 @@ async function setupSpecialistOrchestration({
   const automationResult = (await selfClient.callTool({
     name: "AUTOMATION_CREATE",
     arguments: {
-      name: `${repo}: ${template.title}`,
+      name: automationName,
       virtual_mcp_id: projectAgentId,
       agent: { id: projectAgentId },
       messages,
