@@ -15,6 +15,7 @@ const mockParams: BuiltinToolParams = {
     thinking: { id: "model_test" },
   } as never,
   toolOutputMap: new Map(),
+  pendingImages: [],
   passthroughClient: {
     listTools: () => Promise.resolve({ tools: [] }),
     callTool: () => Promise.resolve({ content: [] }),
