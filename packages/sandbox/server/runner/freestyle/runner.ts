@@ -13,8 +13,6 @@
  */
 
 import { randomBytes, randomUUID } from "node:crypto";
-import fs from "node:fs";
-import { fileURLToPath } from "node:url";
 import { VmBun } from "@freestyle-sh/with-bun";
 import { VmDeno } from "@freestyle-sh/with-deno";
 import { VmNodeJs } from "@freestyle-sh/with-nodejs";
@@ -32,15 +30,17 @@ import {
   type SandboxRunner,
   type Workload,
 } from "../types";
-
-/**
- * Unified daemon bundle. Read once at module load; subsequent VM creates
- * reuse the cached string. bun build produces this at package build time.
- */
-const DAEMON_BUNDLE_PATH = fileURLToPath(
-  new URL("../../../daemon/dist/daemon.js", import.meta.url),
-);
-const DAEMON_BUNDLE_CONTENT = fs.readFileSync(DAEMON_BUNDLE_PATH, "utf-8");
+// Inlined as a string at build time. Path lookup via import.meta.url breaks
+// once the server is bundled into apps/mesh/dist/server/server.js because
+// `../../../` then resolves outside the published package. The text-import
+// attribute makes bun build embed the daemon bytes directly into server.js,
+// so no asset has to ship alongside the bundle.
+// @ts-expect-error - Bun-specific text loader attribute; TS resolves the
+// underlying .js file and doesn't model `with { type: "text" }`.
+import _daemonBundle from "../../../daemon/dist/daemon.js" with {
+  type: "text",
+};
+const DAEMON_BUNDLE_CONTENT: string = _daemonBundle;
 
 const RUNNER_KIND = "freestyle" as const;
 const LOG_LABEL = "FreestyleSandboxRunner";
