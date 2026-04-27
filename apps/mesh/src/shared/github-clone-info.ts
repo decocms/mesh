@@ -15,8 +15,8 @@ import {
   refreshAndStore,
 } from "../oauth/token-refresh";
 
-export const MCP_GITHUB_BOT_NAME = "mcp-github[bot]";
-export const MCP_GITHUB_BOT_EMAIL = "mcp-github[bot]@users.noreply.github.com";
+const MCP_GITHUB_BOT_NAME = "mcp-github[bot]";
+const MCP_GITHUB_BOT_EMAIL = "mcp-github[bot]@users.noreply.github.com";
 
 export interface GitHubCloneInfo {
   cloneUrl: string;
