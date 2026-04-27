@@ -82,6 +82,7 @@ import { IconPicker } from "../../components/icon-picker";
 import { SimpleIconPicker } from "../../components/simple-icon-picker";
 import { Page } from "@/web/components/page";
 import { AddConnectionDialog } from "./add-connection-dialog";
+import { track } from "@/web/lib/posthog-client";
 import { DependencySelectionDialog } from "./dependency-selection-dialog";
 import { ALL_ITEMS_SELECTED } from "./selection-utils";
 import { VirtualMcpFormSchema, type VirtualMcpFormData } from "./types";
@@ -1093,6 +1094,12 @@ function VirtualMcpDetailViewWithData({
     const currentInstructions = form.getValues("metadata.instructions");
     if (!currentInstructions?.trim()) return;
 
+    flushEditSession();
+    track("agent_instructions_improve_clicked", {
+      agent_id: virtualMcp.id,
+      instructions_length: currentInstructions.length,
+    });
+
     setChatMode("plan");
 
     createTaskWithMessage({
@@ -1109,10 +1116,43 @@ function VirtualMcpDetailViewWithData({
   };
 
   const handleTestAgent = () => {
+    flushEditSession();
+    track("agent_test_clicked", { agent_id: virtualMcp.id });
     createNewTask();
   };
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Session-based tracking for agent_updated. Auto-saves persist every ~1s but
+  // we only emit one PostHog event per edit-session (aggregated fields +
+  // save_count + edit_duration_ms). A session ends after 30s of quiet.
+  const editSessionStartRef = useRef<number | null>(null);
+  const editSessionFieldsRef = useRef<Set<string>>(new Set());
+  const editSessionSaveCountRef = useRef(0);
+  const editSessionInstructionsLengthRef = useRef<number | null>(null);
+  const editSessionFlushRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const EDIT_SESSION_QUIET_MS = 30_000;
+
+  const flushEditSession = () => {
+    if (editSessionFlushRef.current) {
+      clearTimeout(editSessionFlushRef.current);
+      editSessionFlushRef.current = null;
+    }
+    if (editSessionStartRef.current === null) return;
+    track("agent_updated", {
+      agent_id: virtualMcp.id,
+      fields: Array.from(editSessionFieldsRef.current),
+      instructions_length: editSessionInstructionsLengthRef.current,
+      save_count: editSessionSaveCountRef.current,
+      edit_duration_ms: Date.now() - editSessionStartRef.current,
+    });
+    editSessionStartRef.current = null;
+    editSessionFieldsRef.current = new Set();
+    editSessionSaveCountRef.current = 0;
+    editSessionInstructionsLengthRef.current = null;
+  };
 
   const saveForm = async () => {
     if (saveTimerRef.current) {
@@ -1120,14 +1160,34 @@ function VirtualMcpDetailViewWithData({
       saveTimerRef.current = null;
     }
 
-    const hasDirtyFields = Object.keys(form.formState.dirtyFields).length > 0;
-    if (!hasDirtyFields) return;
+    const dirtyKeys = Object.keys(form.formState.dirtyFields);
+    if (dirtyKeys.length === 0) return;
+    const instructionsDirty = dirtyKeys.includes("metadata");
 
     const formData = form.getValues();
     const data = await actions.update.mutateAsync({
       id: virtualMcp.id,
       data: formData,
     });
+
+    // Accumulate into the current edit session.
+    if (editSessionStartRef.current === null) {
+      editSessionStartRef.current = Date.now();
+    }
+    for (const k of dirtyKeys) editSessionFieldsRef.current.add(k);
+    editSessionSaveCountRef.current += 1;
+    if (instructionsDirty) {
+      editSessionInstructionsLengthRef.current =
+        formData.metadata?.instructions?.length ?? 0;
+    }
+    if (editSessionFlushRef.current) {
+      clearTimeout(editSessionFlushRef.current);
+    }
+    editSessionFlushRef.current = setTimeout(
+      flushEditSession,
+      EDIT_SESSION_QUIET_MS,
+    );
+
     form.reset(data);
   };
 
@@ -1147,6 +1207,10 @@ function VirtualMcpDetailViewWithData({
   }
 
   const handleOpenAddDialog = () => {
+    track("connections_dialog_opened", {
+      source: "agent_settings",
+      mode: "add",
+    });
     dispatch({ type: "SET_ADD_DIALOG_OPEN", payload: true });
   };
 
@@ -1381,8 +1445,13 @@ Define step-by-step how the agent should handle requests.
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const handleDelete = async () => {
+    flushEditSession();
     try {
       await actions.delete.mutateAsync(virtualMcp.id);
+      track("agent_deleted", {
+        agent_id: virtualMcp.id,
+        source: "agent_detail",
+      });
       toast.success(`Deleted "${virtualMcp.title}"`);
       navigate({ to: "/$org", params: { org: org.slug } });
     } catch {
@@ -1490,12 +1559,15 @@ Define step-by-step how the agent should handle requests.
                 variant="outline"
                 size="sm"
                 className="shrink-0"
-                onClick={() =>
+                onClick={() => {
+                  track("agent_connect_modal_opened", {
+                    agent_id: virtualMcp.id,
+                  });
                   dispatch({
                     type: "SET_SHARE_DIALOG_OPEN",
                     payload: true,
-                  })
-                }
+                  });
+                }}
               >
                 <span className="flex items-center -space-x-1.5 mr-0.5">
                   <span className="inline-flex items-center justify-center size-4 rounded-full bg-black ring-1 ring-white/20 shrink-0">
@@ -1701,6 +1773,7 @@ Define step-by-step how the agent should handle requests.
         onOpenChange={(open) =>
           dispatch({ type: "SET_ADD_DIALOG_OPEN", payload: open })
         }
+        agentId={virtualMcp.id}
         addedConnectionIds={addedConnectionIds}
         onAdd={handleAddConnection}
       />

@@ -3,6 +3,7 @@ import type { GuidePrompt, GuideResource } from "./index";
 export const prompts: GuidePrompt[] = [
   {
     name: "automations-create",
+    title: "Create Automations",
     description:
       "Set up a background workflow that runs on a schedule, event, or webhook.",
     text: `# Create automation
@@ -28,6 +29,7 @@ Checks:
   },
   {
     name: "automations-update",
+    title: "Update Automations",
     description: "Change an automation's triggers, agent, or configuration.",
     text: `# Update automation
 

@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@deco/ui/components/select.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
+import { track } from "@/web/lib/posthog-client";
 import { authClient } from "@/web/lib/auth-client";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import { KEYS } from "@/web/lib/query-keys";
@@ -132,7 +133,11 @@ export function InviteMemberDialog({ trigger }: InviteMemberDialogProps) {
 
       return results;
     },
-    onSuccess: (_, { emails }) => {
+    onSuccess: (_, { emails, role }) => {
+      track("member_invited", {
+        count: emails.length,
+        role,
+      });
       queryClient.invalidateQueries({ queryKey: KEYS.members(locator) });
       queryClient.invalidateQueries({ queryKey: KEYS.invitations(locator) });
       toast.success(
@@ -146,7 +151,12 @@ export function InviteMemberDialog({ trigger }: InviteMemberDialogProps) {
       });
       setOpen(false);
     },
-    onError: (error) => {
+    onError: (error, { emails, role }) => {
+      track("member_invite_failed", {
+        count: emails.length,
+        role,
+        error: error instanceof Error ? error.message : String(error),
+      });
       toast.error(
         error instanceof Error ? error.message : "Failed to invite members",
       );

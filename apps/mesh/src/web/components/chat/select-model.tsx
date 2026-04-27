@@ -54,6 +54,7 @@ import {
   useAiProviders,
 } from "../../hooks/collections/use-ai-providers";
 import { ErrorBoundary } from "../error-boundary";
+import { track } from "@/web/lib/posthog-client";
 import { useChatPrefs } from "./context";
 import { getProviderLogo } from "@/web/utils/ai-providers-logos";
 import { useNavigate } from "@tanstack/react-router";
@@ -1218,10 +1219,19 @@ function ModelSelectorContent({ onClose }: { onClose: () => void }) {
     <ModelSelectorInner
       onClose={onClose}
       credentialId={credentialId}
-      onCredentialChange={setCredentialId}
+      onCredentialChange={(id) => {
+        track("chat_credential_changed", { credential_id: id });
+        setCredentialId(id);
+      }}
       selectedModel={selectedModel}
       onModelChange={(model) => {
         if (!credentialId) return;
+        track("chat_model_changed", {
+          from_model_id: selectedModel?.modelId ?? null,
+          to_model_id: model.modelId,
+          to_model_provider: model.providerId ?? null,
+          credential_id: credentialId,
+        });
         setModel({ ...model, keyId: credentialId });
       }}
     />

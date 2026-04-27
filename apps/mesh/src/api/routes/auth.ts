@@ -7,6 +7,7 @@
 
 import { Hono } from "hono";
 import { getConnInfo } from "hono/bun";
+import { posthog } from "../../posthog";
 import { getSettings } from "../../settings";
 import {
   auth,
@@ -335,8 +336,20 @@ app.post("/domain-join", async (c) => {
       }
     }
 
+    posthog.capture({
+      distinctId: session.user.id,
+      event: "organization_domain_joined",
+      groups: { organization: org.id },
+      properties: {
+        organization_id: org.id,
+        organization_slug: org.slug,
+        email_domain: emailDomain,
+      },
+    });
+
     return c.json({ success: true, slug: org.slug });
   } catch (error) {
+    posthog.captureException(error, session.user.id);
     console.error("[Auth] Domain join failed:", error);
     return c.json(
       { success: false, error: "Failed to join organization" },
@@ -524,12 +537,46 @@ app.post("/domain-setup", async (c) => {
       console.error("[Auth] Brand extraction failed (non-fatal):", brandError);
     }
 
+    posthog.identify({
+      distinctId: session.user.id,
+      properties: {
+        email: session.user.email,
+        $set: { email: session.user.email },
+        $set_once: { first_organization_created_at: new Date().toISOString() },
+      },
+    });
+
+    posthog.groupIdentify({
+      groupType: "organization",
+      groupKey: orgId,
+      properties: {
+        name: orgResult.slug ?? baseSlug,
+        slug: orgResult.slug ?? baseSlug,
+        email_domain: emailDomain,
+        brand_extracted: brandExtracted,
+        created_at: new Date().toISOString(),
+      },
+    });
+
+    posthog.capture({
+      distinctId: session.user.id,
+      event: "organization_created",
+      groups: { organization: orgId },
+      properties: {
+        organization_id: orgId,
+        organization_slug: orgResult.slug ?? baseSlug,
+        email_domain: emailDomain,
+        brand_extracted: brandExtracted,
+      },
+    });
+
     return c.json({
       success: true,
       slug: orgResult.slug ?? baseSlug,
       brandExtracted,
     });
   } catch (error) {
+    posthog.captureException(error, session.user?.id);
     console.error("[Auth] Domain setup failed:", error);
     return c.json(
       { success: false, error: "Failed to set up organization" },

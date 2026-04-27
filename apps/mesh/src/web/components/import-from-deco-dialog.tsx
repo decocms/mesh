@@ -21,6 +21,7 @@ import { authClient } from "@/web/lib/auth-client";
 import { KEYS } from "@/web/lib/query-keys";
 import { generateSlug } from "@/web/lib/slug";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
+import { track } from "@/web/lib/posthog-client";
 
 interface DecoSite {
   name: string;
@@ -109,6 +110,7 @@ export function ImportFromDecoDialog({
 
   const importMutation = useMutation({
     mutationFn: async (siteName: string) => {
+      track("deco_site_import_started", { site_name: siteName });
       // 1. Create the connection server-side so the deco.cx API key never
       //    reaches the browser — the backend fetches and encrypts it directly.
       const connRes = await fetch("/api/deco-sites/connection", {
@@ -211,6 +213,11 @@ export function ImportFromDecoDialog({
       };
     },
     onSuccess: ({ slug, virtualMcpId, item }) => {
+      track("deco_site_import_succeeded", {
+        site_name: item.title,
+        virtual_mcp_id: virtualMcpId,
+        slug,
+      });
       // Seed the individual item cache so useVirtualMCP resolves instantly on
       // the redirected page without waiting for a network round-trip.
       queryClient.setQueryData(
@@ -239,6 +246,9 @@ export function ImportFromDecoDialog({
       navigateToAgent(virtualMcpId);
     },
     onError: (err) => {
+      track("deco_site_import_failed", {
+        error: err instanceof Error ? err.message : "Unknown error",
+      });
       toast.error(
         "Import failed: " +
           (err instanceof Error ? err.message : "Unknown error"),

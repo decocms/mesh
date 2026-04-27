@@ -64,6 +64,7 @@ import {
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { usePinnedAgents } from "@/web/hooks/use-pinned-agents";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
+import { track } from "@/web/lib/posthog-client";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { GitHubIcon } from "@/web/components/icons/github-icon";
@@ -180,6 +181,10 @@ function AgentListItem({
             tooltip={buttonRect ? undefined : agent.title}
             isActive={isActive}
             onClick={() => {
+              track("sidebar_agent_pin_clicked", {
+                agent_id: agent.id,
+                agent_title: agent.title,
+              });
               navigateToNewTask(agent.id);
               if (isMobile) setOpenMobile(false);
             }}
@@ -448,6 +453,7 @@ function PinAgentPopoverContent({
             type="button"
             disabled={isCreating}
             onClick={async () => {
+              track("agent_create_new_clicked", { source: "browse_popover" });
               await createVirtualMCP();
               onClose();
             }}
@@ -464,6 +470,7 @@ function PinAgentPopoverContent({
           <button
             type="button"
             onClick={() => {
+              track("agent_import_clicked", { source: "deco_cx" });
               onOpenImportDeco();
               onClose();
             }}
@@ -485,6 +492,7 @@ function PinAgentPopoverContent({
             <button
               type="button"
               onClick={() => {
+                track("agent_import_clicked", { source: "github" });
                 onOpenGithubImport();
                 onClose();
               }}
@@ -521,7 +529,13 @@ function PinAgentPopoverContent({
                 <button
                   key={template.id}
                   type="button"
-                  onClick={() => handleTemplateClick(template.id)}
+                  onClick={() => {
+                    track("agent_template_clicked", {
+                      template_id: template.id,
+                      template_title: template.title,
+                    });
+                    handleTemplateClick(template.id);
+                  }}
                   className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <AgentAvatar
@@ -608,7 +622,10 @@ function PinAgentPopover() {
             <SidebarMenuButton
               tooltip="Browse agents"
               className="bg-muted/75 hover:bg-sidebar-accent"
-              onClick={() => setOpen(true)}
+              onClick={() => {
+                track("agent_browser_opened", { surface: "mobile_drawer" });
+                setOpen(true);
+              }}
             >
               <Plus className="!opacity-100" />
             </SidebarMenuButton>
@@ -621,7 +638,15 @@ function PinAgentPopover() {
           </Drawer>
         </>
       ) : (
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover
+          open={open}
+          onOpenChange={(next) => {
+            if (next && !open) {
+              track("agent_browser_opened", { surface: "desktop_popover" });
+            }
+            setOpen(next);
+          }}
+        >
           <SidebarMenuItem>
             <PopoverTrigger asChild>
               <SidebarMenuButton

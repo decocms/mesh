@@ -6,8 +6,29 @@
  */
 
 import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
+import { posthog } from "@/posthog";
 import type { UIMessageStreamWriter } from "ai";
 import { toolNeedsApproval, type ToolApprovalLevel } from "../helpers";
+
+// Known destructive/read-only classifications for built-in tools. Mirrors
+// the MCP annotations used by passthrough tools so dashboards can filter
+// uniformly across both sources.
+const BUILTIN_TOOL_ANNOTATIONS: Record<
+  string,
+  { readOnly?: boolean; destructive?: boolean }
+> = {
+  agent_search: { readOnly: true, destructive: false },
+  read_tool_output: { readOnly: true, destructive: false },
+  read_resource: { readOnly: true, destructive: false },
+  read_prompt: { readOnly: true, destructive: false },
+  web_search: { readOnly: true, destructive: false },
+  generate_image: { readOnly: false, destructive: false },
+  open_in_agent: { readOnly: false, destructive: false },
+  subtask: { readOnly: false, destructive: false },
+  user_ask: { readOnly: true, destructive: false },
+  propose_plan: { readOnly: true, destructive: false },
+  enable_tools: { readOnly: true, destructive: false },
+};
 import { createAgentSearchTool } from "./agent-search";
 import { createReadToolOutputTool } from "./read-tool-output";
 import { createReadPromptTool } from "./prompts";
@@ -167,6 +188,66 @@ async function buildAllTools(
 }
 
 /**
+ * Wrap each tool's execute() with a posthog tool_called capture so built-in
+ * tool usage shows up in the same analytics pipeline as passthrough MCP
+ * tools. Preserves the original tool shape so AI SDK can't tell the wrapper
+ * is there.
+ */
+function instrumentBuiltIns<T extends Record<string, unknown>>(
+  tools: T,
+  params: BuiltinToolParams,
+  ctx: MeshContext,
+): T {
+  const orgId = params.organization.id;
+  const userId = ctx.auth?.user?.id;
+  const result: Record<string, unknown> = {};
+  for (const [name, tool] of Object.entries(tools)) {
+    const t = tool as { execute?: Function; [k: string]: unknown };
+    const originalExecute = t.execute;
+    if (typeof originalExecute !== "function") {
+      result[name] = tool;
+      continue;
+    }
+    const hints = BUILTIN_TOOL_ANNOTATIONS[name];
+    result[name] = {
+      ...t,
+      execute: async (input: unknown, options: unknown) => {
+        const startTime = performance.now();
+        let isError = false;
+        try {
+          return await originalExecute.call(t, input, options);
+        } catch (err) {
+          isError = true;
+          throw err;
+        } finally {
+          const latencyMs = performance.now() - startTime;
+          if (orgId && userId) {
+            posthog.capture({
+              distinctId: userId,
+              event: "tool_called",
+              groups: { organization: orgId },
+              properties: {
+                organization_id: orgId,
+                tool_source: "builtin",
+                tool_name: name,
+                tool_safe_name: name,
+                read_only: hints?.readOnly ?? null,
+                destructive: hints?.destructive ?? null,
+                idempotent: null,
+                open_world: null,
+                latency_ms: Math.round(latencyMs),
+                is_error: isError,
+              },
+            });
+          }
+        }
+      },
+    };
+  }
+  return result as T;
+}
+
+/**
  * Get built-in tools as a ToolSet.
  * propose_plan is only included when chat mode is `plan`.
  */
@@ -175,7 +256,8 @@ export async function getBuiltInTools(
   params: BuiltinToolParams,
   ctx: MeshContext,
 ) {
-  const tools = await buildAllTools(writer, params, ctx);
+  const raw = await buildAllTools(writer, params, ctx);
+  const tools = instrumentBuiltIns(raw, params, ctx) as typeof raw;
 
   if (!params.isPlanMode) {
     const { propose_plan: _, ...rest } = tools;

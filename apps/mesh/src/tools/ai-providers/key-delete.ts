@@ -1,4 +1,5 @@
 import z from "zod";
+import { posthog } from "../../posthog";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth, requireOrganization } from "../../core/mesh-context";
 
@@ -17,6 +18,16 @@ export const AI_PROVIDER_KEY_DELETE = defineTool({
     await ctx.access.check();
 
     await ctx.storage.aiProviderKeys.delete(input.keyId, org.id);
+
+    posthog.capture({
+      distinctId: ctx.auth.user!.id,
+      event: "ai_provider_key_deleted",
+      groups: { organization: org.id },
+      properties: {
+        organization_id: org.id,
+        key_id: input.keyId,
+      },
+    });
 
     return { success: true };
   },

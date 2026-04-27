@@ -18,6 +18,7 @@ import {
 import type { Context } from "hono";
 
 import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
+import { posthog } from "@/posthog";
 import { HTTPException } from "hono/http-exception";
 import { MCP_TOOL_CALL_TIMEOUT_MS } from "@/core/constants";
 import { resolveArgsStorageRefs } from "./file-materializer";
@@ -167,6 +168,7 @@ export async function toolsFromMCP(
           }) !== false,
         execute: async (input, callOptions) => {
           const startTime = performance.now();
+          let isError = false;
           try {
             // Resolve any mesh-storage: URIs in tool arguments to fresh
             // presigned URLs before forwarding to the MCP client.
@@ -187,10 +189,14 @@ export async function toolsFromMCP(
                 timeout: MCP_TOOL_CALL_TIMEOUT_MS,
               },
             );
+            isError = Boolean((result as { isError?: boolean })?.isError);
             return result as unknown as CallToolResult;
+          } catch (err) {
+            isError = true;
+            throw err;
           } finally {
+            const latencyMs = performance.now() - startTime;
             if (writer) {
-              const latencyMs = performance.now() - startTime;
               writer.write({
                 type: "data-tool-metadata",
                 id: callOptions.toolCallId,
@@ -198,6 +204,28 @@ export async function toolsFromMCP(
                   _meta,
                   annotations,
                   latencyMs,
+                },
+              });
+            }
+            // Product analytics: fire-and-forget. Posthog-node batches.
+            const orgId = meshCtx?.organization?.id;
+            const userId = meshCtx?.auth?.user?.id;
+            if (orgId && userId) {
+              posthog.capture({
+                distinctId: userId,
+                event: "tool_called",
+                groups: { organization: orgId },
+                properties: {
+                  organization_id: orgId,
+                  tool_source: "mcp",
+                  tool_name: t.name,
+                  tool_safe_name: safeName,
+                  read_only: annotations?.readOnlyHint ?? null,
+                  destructive: annotations?.destructiveHint ?? null,
+                  idempotent: annotations?.idempotentHint ?? null,
+                  open_world: annotations?.openWorldHint ?? null,
+                  latency_ms: Math.round(latencyMs),
+                  is_error: isError,
                 },
               });
             }

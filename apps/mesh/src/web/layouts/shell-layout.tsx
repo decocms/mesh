@@ -5,12 +5,7 @@ import { isModKey } from "@/web/lib/keyboard-shortcuts";
 import RequiredAuthLayout from "@/web/layouts/required-auth-layout";
 import { authClient } from "@/web/lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
-import {
-  ProjectContextProvider,
-  SELF_MCP_ALIAS_ID,
-  useMCPClient,
-  useProjectContext,
-} from "@decocms/mesh-sdk";
+import { ProjectContextProvider, useProjectContext } from "@decocms/mesh-sdk";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import {
   Outlet,
@@ -22,6 +17,7 @@ import {
 import { KEYS } from "../lib/query-keys";
 import { readCachedTaskBranch } from "../lib/read-cached-task-branch";
 import { useTaskActions } from "../hooks/use-tasks";
+import { useOrganizationSettingsSuspense } from "../hooks/use-organization-settings";
 import { useOrgSsoStatus } from "../hooks/use-org-sso";
 import { SsoRequiredScreen } from "../components/sso-required-screen";
 
@@ -29,11 +25,6 @@ import { SsoRequiredScreen } from "../components/sso-required-screen";
 // ShellProjectProvider — fetches org settings and provides project context.
 // SSO enforcement MUST stay in ShellLayoutContent, above all child rendering.
 // ---------------------------------------------------------------------------
-
-type OrgSettingsPayload = {
-  organizationId: string;
-  enabled_plugins?: string[] | null;
-};
 
 /**
  * Single ProjectContextProvider for the entire shell.
@@ -47,24 +38,7 @@ function ShellProjectProvider({
   org: NonNullable<Parameters<typeof ProjectContextProvider>[0]["org"]>;
   children: React.ReactNode;
 }) {
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-
-  const { data: orgSettings } = useSuspenseQuery({
-    queryKey: KEYS.organizationSettings(org.id),
-    queryFn: async () => {
-      const result = await client.callTool({
-        name: "ORGANIZATION_SETTINGS_GET",
-        arguments: {},
-      });
-      const payload =
-        (result as { structuredContent?: unknown }).structuredContent ?? result;
-      return (payload ?? {}) as OrgSettingsPayload;
-    },
-    staleTime: 60_000,
-  });
+  const orgSettings = useOrganizationSettingsSuspense(org.id);
 
   const project = {
     id: org.id,
