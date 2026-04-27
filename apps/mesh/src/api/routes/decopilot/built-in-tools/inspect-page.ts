@@ -142,7 +142,21 @@ export function createInspectPageTool(
           };
         }
 
-        const result = await response.json();
+        let result: {
+          consoleLogs?: { type: string; text: string }[];
+          errors?: string[];
+          evaluateResult?: unknown;
+        };
+        try {
+          result = await response.json();
+        } catch {
+          const text = await response.text().catch(() => "");
+          return {
+            success: false,
+            error: `Browserless returned non-JSON response: ${text.slice(0, 200)}`,
+            url: input.url,
+          };
+        }
         const resultJson = JSON.stringify(result, null, 2);
 
         // Always store in toolOutputMap for read_tool_output access
