@@ -1,13 +1,20 @@
 import { Button } from "@deco/ui/components/button.tsx";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@deco/ui/components/dialog.tsx";
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { useCurrentEditor, type Editor } from "@tiptap/react";
-import { useEffect, useRef, type ChangeEvent } from "react";
-import { Attachment01 } from "@untitledui/icons";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { AlertTriangle, Attachment01, X } from "@untitledui/icons";
 import { toast } from "sonner";
 import {
   getAcceptedMimeTypesForModel,
@@ -18,9 +25,16 @@ import {
 import { insertFile, type FileAttrs } from "./node.tsx";
 import { AiProviderModel } from "@/web/hooks/collections/use-ai-providers.ts";
 
+export interface UnsupportedFileInfo {
+  fileName: string;
+  modelName: string;
+  accepted: string;
+}
+
 interface FileUploaderProps {
   editor: Editor;
   selectedModel: AiProviderModel | null;
+  onUnsupportedFile?: (info: UnsupportedFileInfo) => void;
 }
 
 /**
@@ -31,6 +45,7 @@ export async function processFile(
   selectedModel: AiProviderModel | null,
   file: File,
   position: number,
+  onUnsupportedFile?: (info: UnsupportedFileInfo) => void,
 ): Promise<void> {
   // Check if model supports files
   if (!modelSupportsFiles(selectedModel)) {
@@ -42,9 +57,13 @@ export async function processFile(
   if (!isFileTypeSupportedByModel(fileMimeType, selectedModel)) {
     const accepted = getSupportedFileTypesLabel(selectedModel);
     const modelName = selectedModel?.title ?? "This model";
-    toast.error(`"${file.name}" can't be attached`, {
-      description: `${modelName} accepts ${accepted}. PowerPoint, Word, and Excel files aren't supported yet.`,
-    });
+    if (onUnsupportedFile) {
+      onUnsupportedFile({ fileName: file.name, modelName, accepted });
+    } else {
+      toast.error(`"${file.name}" can't be attached`, {
+        description: `${modelName} accepts ${accepted}. PowerPoint, Word, and Excel files aren't supported yet.`,
+      });
+    }
     return;
   }
 
@@ -96,7 +115,11 @@ export async function processFile(
  * FileUploader component that registers a ProseMirror plugin to handle file drops.
  * Uses a ref to keep the latest selectedModel in sync for file processing.
  */
-export function FileUploader({ editor, selectedModel }: FileUploaderProps) {
+export function FileUploader({
+  editor,
+  selectedModel,
+  onUnsupportedFile,
+}: FileUploaderProps) {
   // Use a ref to store the latest processFile handler
   // This ensures we always use the latest selectedModel when processing files
   const processFileRef = useRef<
@@ -107,9 +130,15 @@ export function FileUploader({ editor, selectedModel }: FileUploaderProps) {
   // eslint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
     processFileRef.current = async (file: File, position: number) => {
-      await processFile(editor, selectedModel, file, position);
+      await processFile(
+        editor,
+        selectedModel,
+        file,
+        position,
+        onUnsupportedFile,
+      );
     };
-  }, [editor, selectedModel]);
+  }, [editor, selectedModel, onUnsupportedFile]);
 
   // Register the file drop plugin once per editor instance
   // eslint-disable-next-line ban-use-effect/ban-use-effect
@@ -204,12 +233,14 @@ interface FileUploadButtonProps {
   selectedModel: AiProviderModel | null;
   isStreaming: boolean;
   icon?: React.ReactNode;
+  onUnsupportedFile?: (info: UnsupportedFileInfo) => void;
 }
 
 export function FileUploadButton({
   selectedModel,
   isStreaming,
   icon,
+  onUnsupportedFile,
 }: FileUploadButtonProps) {
   const { editor } = useCurrentEditor();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -227,7 +258,13 @@ export function FileUploadButton({
 
     // Process files sequentially using the shared processFile function
     for (const file of fileArray) {
-      await processFile(editor, selectedModel, file, currentPos);
+      await processFile(
+        editor,
+        selectedModel,
+        file,
+        currentPos,
+        onUnsupportedFile,
+      );
     }
 
     // Reset input so same file can be selected again
@@ -268,4 +305,106 @@ export function FileUploadButton({
       </Tooltip>
     </>
   );
+}
+
+const UNSUPPORTED_EXAMPLES = [
+  "PowerPoint (.pptx)",
+  "Word documents (.docx)",
+  "Excel spreadsheets (.xlsx)",
+] as const;
+
+/**
+ * Dialog shown when the user tries to attach a file whose MIME type the
+ * selected model doesn't support.
+ */
+export function UnsupportedFileDialog({
+  info,
+  onClose,
+}: {
+  info: UnsupportedFileInfo | null;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open={info !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        className="sm:max-w-[480px] gap-0 p-0 overflow-hidden"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        {/* Header with subtle amber warning gradient */}
+        <div className="relative px-8 pt-8 pb-2 overflow-hidden">
+          <div
+            className="absolute inset-x-0 top-0 h-36 pointer-events-none"
+            style={{
+              backgroundImage: [
+                "radial-gradient(ellipse 40% 200% at -5% 100%, rgba(251,191,36,0.35) 0%, transparent 100%)",
+                "radial-gradient(ellipse 40% 200% at 105% -10%, rgba(244,114,182,0.25) 0%, transparent 100%)",
+              ].join(", "),
+              maskImage:
+                "linear-gradient(to bottom, black 0%, transparent 100%)",
+              WebkitMaskImage:
+                "linear-gradient(to bottom, black 0%, transparent 100%)",
+            }}
+          />
+          <DialogHeader className="relative gap-4">
+            <div className="flex items-center justify-center size-9 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
+              <AlertTriangle size={18} />
+            </div>
+            <div>
+              <DialogTitle className="text-xl font-semibold tracking-tight">
+                File type not supported
+              </DialogTitle>
+              <DialogDescription className="mt-1.5 text-sm leading-relaxed">
+                <span className="font-medium text-foreground">
+                  &ldquo;{info?.fileName}&rdquo;
+                </span>{" "}
+                can&apos;t be attached to this chat.
+              </DialogDescription>
+            </div>
+          </DialogHeader>
+        </div>
+
+        {/* Body */}
+        <div className="px-8 pt-3 pb-6 space-y-3">
+          <div className="rounded-xl border border-border p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">
+              {info?.modelName} accepts
+            </div>
+            <div className="flex items-center gap-2 text-sm text-foreground">
+              <Attachment01 size={14} className="text-muted-foreground" />
+              <span className="capitalize">{info?.accepted}</span>
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-muted/25 border border-border/50 p-4 space-y-2">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Not supported yet
+            </div>
+            {UNSUPPORTED_EXAMPLES.map((label) => (
+              <div key={label} className="flex items-center gap-3">
+                <div className="flex items-center justify-center size-5 rounded-full bg-muted shrink-0">
+                  <X size={10} className="text-muted-foreground" />
+                </div>
+                <span className="text-sm text-foreground/80">{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-8 py-4 border-t border-border bg-muted/30 flex items-center justify-end">
+          <Button onClick={onClose}>Got it</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function useUnsupportedFileDialog() {
+  const [unsupportedFile, setUnsupportedFile] =
+    useState<UnsupportedFileInfo | null>(null);
+  return {
+    unsupportedFile,
+    onUnsupportedFile: setUnsupportedFile,
+    clearUnsupportedFile: () => setUnsupportedFile(null),
+  };
 }
