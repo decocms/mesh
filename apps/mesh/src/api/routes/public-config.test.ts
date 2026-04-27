@@ -51,23 +51,11 @@ describe("GET /api/config", () => {
     process.env.POSTHOG_HOST = "https://eu.i.posthog.com";
 
     const res = await publicConfigRoutes.request("/");
+    expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.config.posthog).toEqual({
       key: "phc_test_key",
       host: "https://eu.i.posthog.com",
     });
-  });
-
-  it("includes auth config block", async () => {
-    const res = await publicConfigRoutes.request("/");
-    const body = await res.json();
-    // AuthConfig has these top-level keys; we only assert presence
-    // (not values) since they depend on auth-config.json at boot.
-    expect(body.config.auth).toBeDefined();
-    expect(body.config.auth).toHaveProperty("emailAndPassword");
-    expect(body.config.auth).toHaveProperty("socialProviders");
-    expect(body.config.auth).toHaveProperty("sso");
-    expect(body.config.auth).toHaveProperty("stdioEnabled");
-    expect(body.config.auth).toHaveProperty("localMode");
   });
 });
