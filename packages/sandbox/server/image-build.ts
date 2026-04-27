@@ -1,0 +1,113 @@
+import { spawn } from "node:child_process";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { DEFAULT_IMAGE } from "../shared";
+import { dockerExec, type DockerExecFn } from "./docker-cli";
+
+export interface EnsureImageOptions {
+  image?: string;
+  /** Override docker inspect; falls through to a spawned `docker build` on miss. */
+  exec?: DockerExecFn;
+  /** Line-oriented progress sink for build stdout+stderr. */
+  onLog?: (line: string) => void;
+}
+
+/** Directory containing the Dockerfile shipped with this package. */
+const IMAGE_DIR = resolve(fileURLToPath(import.meta.url), "../../image");
+/** Root of the sandbox package; used as docker build context. */
+const SANDBOX_ROOT = resolve(fileURLToPath(import.meta.url), "../..");
+
+let inflight: Promise<void> | null = null;
+
+/**
+ * Ensures the local sandbox image is present, building from the in-tree
+ * Dockerfile if missing. Concurrent callers await one shared build; a failed
+ * build clears the singleton so the next call retries rather than resurfacing
+ * the stale error. No-op for non-default images — those are assumed to be
+ * registry-hosted and pulled by `docker run`.
+ */
+export function ensureSandboxImage(
+  opts: EnsureImageOptions = {},
+): Promise<void> {
+  const image = opts.image ?? DEFAULT_IMAGE;
+  if (image !== DEFAULT_IMAGE) return Promise.resolve();
+  if (inflight) return inflight;
+
+  const exec = opts.exec ?? dockerExec;
+  const work = (async () => {
+    const inspect = await exec(["image", "inspect", image]);
+    if (inspect.code === 0) return;
+    opts.onLog?.(`building ${image}…`);
+    await buildImage(image, opts.onLog);
+    opts.onLog?.(`${image} ready`);
+  })();
+
+  inflight = work.catch((err) => {
+    inflight = null;
+    throw err;
+  });
+  return inflight;
+}
+
+function buildImage(
+  image: string,
+  onLog?: (line: string) => void,
+): Promise<void> {
+  return new Promise((resolveP, reject) => {
+    const child = spawn(
+      "docker",
+      [
+        "build",
+        "-t",
+        image,
+        "-f",
+        resolve(IMAGE_DIR, "Dockerfile"),
+        SANDBOX_ROOT,
+      ],
+      {
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    streamLines(child.stdout, onLog);
+    streamLines(child.stderr, onLog);
+    child.on("error", (err) => {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        reject(
+          new Error(
+            "docker CLI not found on PATH. Install Docker Desktop (macOS) or Docker Engine (Linux).",
+          ),
+        );
+        return;
+      }
+      reject(err);
+    });
+    child.on("close", (code) => {
+      if (code === 0) resolveP();
+      else
+        reject(
+          new Error(`docker build ${image} exited ${code ?? "(unknown)"}`),
+        );
+    });
+  });
+}
+
+function streamLines(
+  stream: NodeJS.ReadableStream | null,
+  onLog?: (line: string) => void,
+) {
+  if (!stream) return;
+  let buf = "";
+  stream.on("data", (chunk: Buffer | string) => {
+    buf += chunk.toString();
+    const lines = buf.split(/\r?\n/);
+    buf = lines.pop() ?? "";
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed) onLog?.(trimmed);
+    }
+  });
+  stream.on("end", () => {
+    const trimmed = buf.trim();
+    if (trimmed) onLog?.(trimmed);
+  });
+}

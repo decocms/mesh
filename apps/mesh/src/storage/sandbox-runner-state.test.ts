@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import type { SandboxId } from "mesh-plugin-user-sandbox/runner";
+import type { SandboxId } from "@decocms/sandbox/runner";
 import {
   closeTestDatabase,
   createTestDatabase,

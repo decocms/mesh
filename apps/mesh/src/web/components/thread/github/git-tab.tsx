@@ -16,7 +16,7 @@ import { useProjectContext, useVirtualMCP } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import { GitBranch01, LinkExternal01 } from "@untitledui/icons";
 import { MemoizedMarkdown } from "../../chat/markdown.tsx";
-import { useChatNavigation } from "../../chat/hooks/use-chat-navigation.ts";
+import { useChatTask } from "../../chat/index";
 import { decodeHtmlEntities } from "./decode-html-entities.ts";
 import { PrSubTabs } from "./pr-sub-tabs.tsx";
 import { usePrByBranch, type PrSummary } from "./use-pr-data.ts";
@@ -42,10 +42,39 @@ function PrHeader({ pr }: { pr: PrSummary }) {
   );
 }
 
+/**
+ * State C header block: small PR-number link, title, author · base ← head.
+ * Replaces the full-width PrHeader bar in the open-PR view.
+ */
+function PrOverview({ pr }: { pr: PrSummary }) {
+  return (
+    <div className="space-y-2">
+      <h1 className="text-2xl font-semibold">{decodeHtmlEntities(pr.title)}</h1>
+      <div className="text-sm text-muted-foreground">
+        <a
+          href={pr.htmlUrl}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`Open PR #${pr.number} on GitHub`}
+          className="inline-flex items-center gap-1 hover:text-foreground"
+        >
+          PR #{pr.number}
+          <LinkExternal01 className="h-3.5 w-3.5" />
+        </a>
+        {" · "}
+        {pr.author && <>@{pr.author} · </>}
+        <span className="font-mono text-xs">{pr.base}</span>
+        {" ← "}
+        <span className="font-mono text-xs">{pr.head}</span>
+      </div>
+    </div>
+  );
+}
+
 export function GitTab({ virtualMcpId }: { virtualMcpId: string }) {
   const { org } = useProjectContext();
   const vm = useVirtualMCP(virtualMcpId);
-  const { branch } = useChatNavigation();
+  const { currentBranch: branch } = useChatTask();
 
   const githubRepo = vm?.metadata?.githubRepo ?? null;
 
@@ -156,13 +185,19 @@ function GitTabContent(props: ContentProps) {
   if (pr && pr.state === "open") {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
-        <PrHeader pr={pr} />
-        <PrSubTabs
-          pr={pr}
-          connectionId={connectionId}
-          owner={owner}
-          repo={repo}
-        />
+        <div className="flex-1 overflow-auto">
+          <div className="mx-auto w-full max-w-[1200px] px-4 pt-8 pb-6 md:px-10 md:pt-12 md:pb-10">
+            <PrOverview pr={pr} />
+            <div className="mt-8">
+              <PrSubTabs
+                pr={pr}
+                connectionId={connectionId}
+                owner={owner}
+                repo={repo}
+              />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

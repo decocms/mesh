@@ -59,6 +59,7 @@ import { toMetadataModelInfo } from "../../lib/metadata-model-info";
 
 import { useChatNavigation } from "./hooks/use-chat-navigation";
 import { useStreamManager } from "./hooks/use-stream-manager";
+import { useTaskActions } from "../../hooks/use-tasks";
 import { useTaskManager, type TaskOwnerFilter } from "./task";
 import { useTaskMessages } from "./task/use-task-manager";
 import { derivePartsFromTiptapDoc } from "./derive-parts";
@@ -112,14 +113,14 @@ export interface ChatTaskContextValue {
   hideTask: (taskId: string) => Promise<void>;
   renameTask: (taskId: string, title: string) => Promise<void>;
   setTaskStatus: (taskId: string, status: string) => Promise<void>;
-  /** Derived from thread.branch, falling back to `?branch=` for fresh threads. */
+  /** thread.branch — the only source of truth. Null until the user picks one or the server generates one on first send. */
   currentBranch: string | null;
   /**
    * Immutable once set: switching branches mid-conversation would reroute the
    * thread's vmMap entry, so users must create a new thread for another branch.
    */
   isBranchLocked: boolean;
-  /** Persist pinned branch and sync URL so it survives cross-thread navigation. */
+  /** Persist pinned branch onto the thread (cache + server). */
   setCurrentTaskBranch: (branch: string | null) => void;
   ownerFilter: TaskOwnerFilter;
   setOwnerFilter: (filter: TaskOwnerFilter) => void;
@@ -156,8 +157,6 @@ export interface ChatPrefsContextValue {
   setTiptapDoc: (doc: Metadata["tiptapDoc"]) => void;
   /** @deprecated Use tiptapDoc directly */
   tiptapDocRef: { current: Metadata["tiptapDoc"] };
-  /** Set ephemeral per-task agent override. Passing null resets to URL agent. */
-  setVirtualMcpId: (id: string | null) => void;
   /** @deprecated No-op */
   resetInteraction: () => void;
   /** Whether Simple Model Mode is enabled for the org */
@@ -298,11 +297,8 @@ export function ChatContextProvider({
   // URL state
   const {
     taskId: urlTaskId,
-    virtualMcpOverride,
-    branch: urlBranch,
+    virtualMcpId: urlVirtualMcpId,
     navigateToTask: rawNavigateToTask,
-    setVirtualMcpOverride,
-    setBranch,
   } = useChatNavigation();
 
   // Preferences
@@ -435,8 +431,8 @@ export function ChatContextProvider({
   // taskId always comes from the URL (seeded by router's validateSearch)
   const effectiveTaskId = urlTaskId;
 
-  // Effective agent: URL override (ephemeral per-task) ?? path param (thread owner)
-  const effectiveVirtualMcpId = virtualMcpOverride ?? virtualMcpId;
+  // Effective agent: URL param ?? prop (thread owner)
+  const effectiveVirtualMcpId = urlVirtualMcpId;
 
   // Single-item fetch for the selected virtual MCP (no full list needed)
   const selectedVirtualMcpData = useVirtualMCP(effectiveVirtualMcpId);
@@ -552,46 +548,66 @@ export function ChatContextProvider({
 
   const clearPendingMessage = () => setPendingMessage(null);
 
-  // Atomically syncs URL `?branch=` to thread.branch so the preview iframe
-  // picks the right vmMap entry on first paint (no flicker through unset-branch).
-  const navigateToTask = (
-    taskId: string,
-    opts?: { virtualMcpOverride?: string; branch?: string | null },
-  ) => {
+  const navigateToTask = (taskId: string, opts?: { virtualMcpId?: string }) => {
     markTaskRead(taskId);
-    const task = tasks.find((t) => t.id === taskId);
-    const resolvedBranch =
-      opts?.branch !== undefined ? opts.branch : (task?.branch ?? null);
     rawNavigateToTask(taskId, {
-      virtualMcpOverride: opts?.virtualMcpOverride,
-      branch: resolvedBranch,
+      virtualMcpId: opts?.virtualMcpId,
     });
   };
 
-  // thread.branch is authoritative; URL `?branch=` is only a seed for fresh tasks.
   const activeTask = tasks.find((t) => t.id === effectiveTaskId);
-  const currentBranch = activeTask?.branch ?? urlBranch ?? null;
+  const currentBranch = activeTask?.branch ?? null;
   const isBranchLocked = !!activeTask?.branch;
 
-  // Create task (optimistic + navigate), returns new task ID
+  // Create task — calls COLLECTION_THREADS_CREATE up-front with the active
+  // task's branch so the new thread lands on the same warm sandbox. The
+  // route loader's useEnsureTask will see the row already exists on its
+  // GET and skip the create-on-404 fallback.
+  const taskActions = useTaskActions();
   const createTask = (): string => {
-    const newId = taskManager.createTask();
-    navigateToTask(newId);
+    const newId = crypto.randomUUID();
+    void taskActions.create
+      .mutateAsync({
+        id: newId,
+        virtual_mcp_id: virtualMcpId,
+        ...(currentBranch ? { branch: currentBranch } : {}),
+      } as Partial<Task>)
+      .then(() => navigateToTask(newId))
+      .catch(() => {
+        // create error toast already fired by useCollectionActions; navigate
+        // anyway so the user's not stranded — the route loader's ensure
+        // fallback will retry.
+        navigateToTask(newId);
+      });
     return newId;
   };
 
-  // Create task + queue a pending message for ActiveTaskProvider to consume
+  // Create task + queue a pending message. Propagates currentBranch only
+  // when the new task is on the same vMCP (different vMCPs have their own
+  // vmMap, so carrying a branch across them would land on a cold sandbox).
   const createTaskWithMessage = (params: {
     message: SendMessageParams;
     virtualMcpId?: string;
   }) => {
-    const newId = taskManager.createTask();
-    navigateToTask(newId, {
-      virtualMcpOverride:
-        params.virtualMcpId && params.virtualMcpId !== virtualMcpId
-          ? params.virtualMcpId
-          : undefined,
-    });
+    const newId = crypto.randomUUID();
+    const targetVmcp = params.virtualMcpId ?? virtualMcpId;
+    const carryBranch = targetVmcp === virtualMcpId ? currentBranch : null;
+    void taskActions.create
+      .mutateAsync({
+        id: newId,
+        virtual_mcp_id: targetVmcp,
+        ...(carryBranch ? { branch: carryBranch } : {}),
+      } as Partial<Task>)
+      .then(() =>
+        navigateToTask(newId, {
+          virtualMcpId: params.virtualMcpId,
+        }),
+      )
+      .catch(() => {
+        navigateToTask(newId, {
+          virtualMcpId: params.virtualMcpId,
+        });
+      });
     setPendingMessage({
       taskId: newId,
       message: params.message,
@@ -627,9 +643,6 @@ export function ChatContextProvider({
     currentBranch,
     isBranchLocked,
     setCurrentTaskBranch: (branch: string | null) => {
-      // URL first so the preview panel picks up the new vmMap entry this render;
-      // thread persistence follows for subsequent navigations back to this thread.
-      setBranch(branch);
       if (effectiveTaskId) {
         taskManager.setTaskBranch(effectiveTaskId, branch);
       }
@@ -674,7 +687,6 @@ export function ChatContextProvider({
     tiptapDoc,
     setTiptapDoc,
     tiptapDocRef,
-    setVirtualMcpId: setVirtualMcpOverride,
     resetInteraction: () => {},
     simpleModeEnabled: simpleMode.enabled,
     simpleModeTier: activeTier,
