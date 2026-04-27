@@ -1,18 +1,20 @@
 /**
  * PostHog analytics client (server-side singleton).
  *
- * Enabled only when POSTHOG_KEY is set. On self-hosted / open-source
+ * Enabled only when VITE_POSTHOG_KEY is set. On self-hosted / open-source
  * deployments without the env var, all methods are no-ops so the rest of
  * the app can call `posthog.capture(...)` unconditionally.
  *
- * Host defaults to PostHog US cloud and can be overridden with POSTHOG_HOST
- * (e.g. https://eu.i.posthog.com for EU region or a self-hosted instance).
+ * Host defaults to PostHog US cloud and can be overridden with
+ * VITE_POSTHOG_HOST (e.g. https://eu.i.posthog.com for EU region or a
+ * self-hosted instance). The `VITE_` prefix is shared with the client so
+ * server and browser publish to the same project from a single env var.
  */
 
 import { PostHog } from "posthog-node";
 
-const apiKey = process.env.POSTHOG_KEY;
-const host = process.env.POSTHOG_HOST;
+const apiKey = process.env.VITE_POSTHOG_KEY;
+const host = process.env.VITE_POSTHOG_HOST;
 
 type PostHogLike = Pick<
   PostHog,
