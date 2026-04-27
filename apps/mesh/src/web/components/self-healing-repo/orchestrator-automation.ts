@@ -16,8 +16,9 @@ interface OrchestratorAutomationArgs {
  * Round-trip behavior:
  * - Cron path: `derivePartsFromTiptapDoc` resolves the @specialist mention to a
  *   `[DELEGATE TO AGENT: ...]` instruction and concatenates inline text into a
- *   single user-message text part. Paragraph boundaries are flattened, so the
- *   prose is shaped to read coherently as one long block.
+ *   single user-message text part. It does NOT insert separators at paragraph
+ *   boundaries, so each non-final paragraph ends with `\n\n` baked into its
+ *   last text node — that way step headers don't collide in inlineText.
  * - UI editing: the doc is stored under `metadata.tiptapDoc`, so reopening the
  *   automation in the editor renders the @specialist as a chip and the prose
  *   as paragraphs.
@@ -135,7 +136,26 @@ export function buildOrchestratorAutomationDoc(
 
   return {
     type: "doc",
-    content: paragraphs,
+    content: paragraphs.map((p, i) =>
+      i < paragraphs.length - 1 ? withTrailingBreak(p) : p,
+    ),
+  };
+}
+
+/**
+ * `derivePartsFromTiptapDoc` concatenates text without inserting separators at
+ * paragraph boundaries, so we bake a trailing `\n\n` into each non-final
+ * paragraph's last text node. Renders as collapsed whitespace in the editor;
+ * preserves section breaks in the cron-time inlineText.
+ */
+function withTrailingBreak(p: JSONContent): JSONContent {
+  const content = p.content;
+  if (!content || content.length === 0) return p;
+  const last = content[content.length - 1];
+  if (!last || last.type !== "text" || typeof last.text !== "string") return p;
+  return {
+    ...p,
+    content: [...content.slice(0, -1), { ...last, text: `${last.text}\n\n` }],
   };
 }
 
