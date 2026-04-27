@@ -11,11 +11,7 @@
  */
 
 import { authClient } from "@/web/lib/auth-client";
-import {
-  identifyUser,
-  initPostHog,
-  resetUser,
-} from "@/web/lib/posthog-client";
+import { identifyUser, initPostHog, resetUser } from "@/web/lib/posthog-client";
 import { usePublicConfig } from "@/web/hooks/use-public-config";
 
 let lastUserId: string | null = null;
