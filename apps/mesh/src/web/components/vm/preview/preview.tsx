@@ -164,11 +164,11 @@ export function PreviewContent() {
   if (taskId && vmEntry && autoStartedForTaskRef.current !== taskId) {
     autoStartedForTaskRef.current = taskId;
   }
-  // Branch must be resolved before firing: the layout's auto-start uses
-  // `urlBranch`, and `useVmStart` dedupes by (virtualMcpId, branch). Firing
-  // here with branch=null uses a different dedup key AND asks the server to
-  // generate a fresh branch — that's a different sandbox than the one the
-  // page is actually on.
+  // Branch must be resolved before firing: VmEventsBridge keys auto-start on
+  // `currentBranch`, and `useVmStart` dedupes by (virtualMcpId, branch).
+  // Firing here with branch=null uses a different dedup key AND asks the
+  // server to generate a fresh branch — that's a different sandbox than the
+  // one the page is actually on.
   const shouldAutoStart =
     !!taskId &&
     !!virtualMcpId &&

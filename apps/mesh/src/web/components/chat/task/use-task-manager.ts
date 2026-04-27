@@ -18,17 +18,11 @@ import {
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { authClient } from "../../../lib/auth-client";
-import { useCollectionCachePrefill } from "../../../hooks/use-collection-cache-prefill";
 import { LOCALSTORAGE_KEYS } from "../../../lib/localstorage-keys";
 import { KEYS } from "../../../lib/query-keys";
 import { useDecopilotEvents } from "../../../hooks/use-decopilot-events";
-import {
-  addTaskToCache,
-  updateMessagesCache,
-  updateTaskInCache,
-} from "./cache-operations.ts";
-import { buildOptimisticTask, callUpdateTaskTool } from "./helpers.ts";
-import { useChatNavigation } from "../hooks/use-chat-navigation.ts";
+import { updateMessagesCache, updateTaskInCache } from "./cache-operations.ts";
+import { callUpdateTaskTool } from "./helpers.ts";
 import { useState, useTransition } from "react";
 import type { ChatMessage, Task } from "./types.ts";
 import { TASK_CONSTANTS } from "./types.ts";
@@ -135,9 +129,6 @@ export function useTaskMessages(taskId: string | null) {
 export function useTaskManager(virtualMcpId: string) {
   const { locator, org } = useProjectContext();
   const queryClient = useQueryClient();
-  const { prefillCollectionCache } = useCollectionCachePrefill();
-
-  const { branch } = useChatNavigation();
 
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
@@ -197,25 +188,6 @@ export function useTaskManager(virtualMcpId: string) {
     orgId: org.id,
   });
 
-  // Create task (optimistic + cache)
-  const createTask = (): string => {
-    const newTaskId = crypto.randomUUID();
-    const optimisticTask = buildOptimisticTask(newTaskId, virtualMcpId, branch);
-    addTaskToCache(queryClient, locator, optimisticTask, {
-      owner: ownerFilter,
-      status: "open",
-      virtualMcpId,
-      userId: ownerFilter === "me" ? (userId ?? null) : null,
-    });
-    if (client) {
-      prefillCollectionCache(client, "THREAD_MESSAGES", org.id, {
-        filters: [{ column: "thread_id", value: newTaskId }],
-        pageSize: TASK_CONSTANTS.TASK_MESSAGES_PAGE_SIZE,
-      });
-    }
-    return newTaskId;
-  };
-
   // Update task in cache (across all matching task lists)
   const updateTask = (taskId: string, updates: Partial<Task>) => {
     updateTaskInCache(queryClient, locator, taskId, updates);
@@ -244,19 +216,16 @@ export function useTaskManager(virtualMcpId: string) {
     }
   };
 
-  // thread.branch is source of truth for vmMap[userId][branch] resolution, so
-  // picker changes must land here + URL. No-ops for cache-only threads — the
-  // branch gets written on first createMemory call.
+  // Persist the picked branch on the thread row. Server enforces that
+  // github-linked threads cannot have branch=null; surface that error.
   const setTaskBranch = async (taskId: string, branch: string | null) => {
-    updateTaskInCache(queryClient, locator, taskId, { branch });
     try {
       await callUpdateTaskTool(client, taskId, { branch });
+      updateTaskInCache(queryClient, locator, taskId, { branch });
     } catch (error) {
       const err = error as Error;
-      // Fresh thread may not exist server-side yet; cache update is enough.
-      if (!/not found/i.test(err.message)) {
-        console.error("[chat] Failed to persist task branch:", error);
-      }
+      toast.error(`Failed to update branch: ${err.message}`);
+      console.error("[chat] setTaskBranch:", error);
     }
   };
 
@@ -330,7 +299,6 @@ export function useTaskManager(virtualMcpId: string) {
     ownerFilter,
     setOwnerFilter,
     isFilterChangePending,
-    createTask,
     updateTask,
     renameTask,
     hideTask,

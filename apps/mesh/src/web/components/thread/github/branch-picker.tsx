@@ -16,7 +16,6 @@ import {
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
 import { GitBranch01 } from "@untitledui/icons";
-import { generateBranchName } from "@/shared/branch-name";
 import { useBranches } from "./use-branches";
 
 interface Props {
@@ -80,17 +79,7 @@ export function BranchPicker({
         align="start"
       >
         <Command>
-          <div className="flex items-center border-b pr-2 [&>[data-slot=command-input-wrapper]]:flex-1 [&>[data-slot=command-input-wrapper]]:border-b-0">
-            <CommandInput placeholder="Search branches…" />
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 shrink-0"
-              onClick={() => pick(generateBranchName())}
-            >
-              New
-            </Button>
-          </div>
+          <CommandInput placeholder="Search branches…" />
           <CommandList>
             {isError && (
               <div className="p-3 text-xs text-muted-foreground">

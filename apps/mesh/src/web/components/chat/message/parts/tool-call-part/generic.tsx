@@ -28,6 +28,7 @@ import { stripMcpServerPrefix } from "@/web/lib/tool-namespace";
 import { useToolDefinitionLookup } from "@/web/hooks/use-tool-definition-lookup";
 import { toTitleCase } from "./utils.tsx";
 import type {
+  McpUiDisplayMode,
   McpUiMessageRequest,
   McpUiUpdateModelContextRequest,
 } from "@modelcontextprotocol/ext-apps";
@@ -244,6 +245,16 @@ export function GenericToolCallPart({
     });
   };
 
+  const handleRequestDisplayMode = (
+    mode: McpUiDisplayMode,
+  ): McpUiDisplayMode => {
+    if (mode === "fullscreen" && canOpenInPanel) {
+      handleOpenInPanel();
+      return "fullscreen";
+    }
+    return "inline";
+  };
+
   const handleAppMessage = (params: McpUiMessageRequest["params"]) => {
     const doc = contentBlocksToTiptapDoc(params.content);
     if (doc.content.length > 0) {
@@ -384,6 +395,9 @@ export function GenericToolCallPart({
                     ? () => chatPrefs.clearAppContext(sourceId)
                     : undefined
                 }
+                onRequestDisplayMode={
+                  canOpenInPanel ? handleRequestDisplayMode : undefined
+                }
               />
             </Suspense>
           </ErrorBoundary>
@@ -406,6 +420,9 @@ interface MCPAppRendererProps {
     params: McpUiUpdateModelContextRequest["params"],
   ) => void;
   onTeardown?: () => void;
+  onRequestDisplayMode?: (
+    mode: McpUiDisplayMode,
+  ) => McpUiDisplayMode | Promise<McpUiDisplayMode>;
 }
 
 /**
@@ -492,6 +509,7 @@ function MCPAppRenderer({
   onMessage,
   onUpdateModelContext,
   onTeardown,
+  onRequestDisplayMode,
 }: MCPAppRendererProps) {
   const client = useMCPClient({ connectionId, orgId });
 
@@ -513,6 +531,7 @@ function MCPAppRenderer({
         onMessage={onMessage}
         onUpdateModelContext={onUpdateModelContext}
         onTeardown={onTeardown}
+        onRequestDisplayMode={onRequestDisplayMode}
       />
     </div>
   );

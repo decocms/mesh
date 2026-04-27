@@ -14,7 +14,7 @@ const BASE_THREAD: Thread = {
   created_at: "2025-01-01T00:00:00.000Z",
   updated_at: "2025-01-01T00:00:00.000Z",
   created_by: "user_test",
-  updated_by: null,
+  updated_by: undefined,
   hidden: null,
   status: "completed",
   trigger_id: null,

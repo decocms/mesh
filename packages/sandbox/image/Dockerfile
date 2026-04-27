@@ -1,0 +1,40 @@
+# Build: docker build -t mesh-sandbox:local -f packages/sandbox/image/Dockerfile packages/sandbox
+FROM oven/bun:1.3.13-debian
+
+ARG NODE_MAJOR=22
+ARG DENO_VERSION=v1.46.3
+
+# `locales` + generated `en_US.UTF-8` is load-bearing: repos using
+# `embedded-postgres` refuse to init without it.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+       bash ca-certificates curl git gnupg locales python3 ripgrep unzip \
+  && sed -i 's/^#\s*en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
+  && locale-gen \
+  && curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
+  && apt-get install -y --no-install-recommends nodejs \
+  && rm -rf /var/lib/apt/lists/* \
+  && curl -fsSL https://deno.land/install.sh \
+       | DENO_INSTALL=/opt/deno sh -s -- -y "${DENO_VERSION}" \
+  && ln -s /opt/deno/bin/deno /usr/local/bin/deno \
+  && corepack enable \
+  && corepack prepare yarn@stable --activate \
+  && corepack prepare pnpm@latest --activate
+
+ENV LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8
+
+# Non-root sandbox user. The bun image comes with a 'bun' user (UID 1000),
+# but we drop privileges further by replacing it with a 'sandbox' user.
+RUN userdel --remove bun \
+  && useradd --create-home --uid 1000 --user-group --shell /bin/bash sandbox \
+  && mkdir -p /app /opt/sandbox-daemon \
+  && chown -R sandbox:sandbox /app /opt/sandbox-daemon
+
+WORKDIR /app
+COPY --chown=sandbox:sandbox daemon/dist/daemon.js /opt/sandbox-daemon/daemon.js
+
+ENV IS_SANDBOX=1
+USER sandbox
+EXPOSE 9000
+CMD ["bun", "/opt/sandbox-daemon/daemon.js"]

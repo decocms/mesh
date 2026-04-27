@@ -12,7 +12,6 @@ export const KEYS = {
   publicConfig: () => ["publicConfig"] as const,
 
   // Auth-related queries
-  authConfig: () => ["authConfig"] as const,
   session: () => ["session"] as const,
 
   // Task queries (filters scope the cache entry)
@@ -163,6 +162,10 @@ export const KEYS = {
     ["monitoring", "logs-infinite", locator, paramsKey] as const,
   monitoringLogDetail: (logId: string) =>
     ["monitoring", "log-detail", logId] as const,
+
+  // Ensure-task query (load-or-create by id)
+  ensureTask: (orgId: string, id: string) =>
+    ["ensure-task", orgId, id] as const,
 
   // Thread queries (scoped by locator)
   threadsInfinite: (locator: string, paramsKey: string) =>

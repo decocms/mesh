@@ -40,16 +40,12 @@ export function ChecksTab({ pr, connectionId, owner, repo }: Props) {
     });
 
   if (checksQuery.isLoading) {
-    return (
-      <div className="p-4 text-sm text-muted-foreground">Loading checks…</div>
-    );
+    return <div className="text-sm text-muted-foreground">Loading checks…</div>;
   }
 
   if (checksQuery.isError) {
     return (
-      <div className="p-4 text-sm text-destructive">
-        Couldn't load check runs.
-      </div>
+      <div className="text-sm text-destructive">Couldn't load check runs.</div>
     );
   }
 
@@ -57,14 +53,14 @@ export function ChecksTab({ pr, connectionId, owner, repo }: Props) {
 
   if (checks.length === 0) {
     return (
-      <div className="p-4 text-sm text-muted-foreground">
+      <div className="text-sm text-muted-foreground">
         No check runs on the PR head commit.
       </div>
     );
   }
 
   return (
-    <ul className="flex flex-col gap-0.5 p-2">
+    <ul className="flex flex-col gap-0.5">
       {checks.map((c) => (
         <li
           key={c.id}

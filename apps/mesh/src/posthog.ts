@@ -5,8 +5,10 @@
  * deployments without the env var, all methods are no-ops so the rest of
  * the app can call `posthog.capture(...)` unconditionally.
  *
- * Host defaults to PostHog US cloud and can be overridden with POSTHOG_HOST
- * (e.g. https://eu.i.posthog.com for EU region or a self-hosted instance).
+ * Host defaults to PostHog US cloud and can be overridden with
+ * POSTHOG_HOST (e.g. https://eu.i.posthog.com for EU region or a
+ * self-hosted instance). The same env vars are read by the
+ * /api/config handler and exposed to the browser at runtime.
  */
 
 import { PostHog } from "posthog-node";

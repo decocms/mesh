@@ -1,4 +1,4 @@
-import type { SandboxRunner } from "mesh-plugin-user-sandbox/runner";
+import type { SandboxRunner } from "@decocms/sandbox/runner";
 
 export interface VmToolsParams {
   readonly runner: SandboxRunner;
