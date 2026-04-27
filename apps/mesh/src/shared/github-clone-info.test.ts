@@ -75,11 +75,14 @@ describe("buildCloneInfo", () => {
     fetchCalls = [];
     mockRefreshAccessToken.mockReset();
     await tokenStorage.delete(connectionId);
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
+    globalThis.fetch = (async (
+      input: RequestInfo | URL,
+      _init?: RequestInit,
+    ) => {
       const url = typeof input === "string" ? input : input.toString();
       fetchCalls.push(url);
       throw new Error(`buildCloneInfo must not fetch — got ${url}`);
-    }) as typeof globalThis.fetch;
+    }) as unknown as typeof globalThis.fetch;
   });
 
   afterEach(() => {
