@@ -23,6 +23,7 @@ import { createGenerateImageTool } from "./generate-image";
 import { createWebSearchTool } from "./web-search";
 import { createTakeScreenshotTool, type PendingImage } from "./take-screenshot";
 import { createScrapeUrlTool } from "./scrape-url";
+import { createInspectPageTool } from "./inspect-page";
 import type { ModelsConfig } from "../types";
 import type { MeshProvider } from "@/ai-providers/types";
 
@@ -175,6 +176,10 @@ async function buildAllTools(
       ctx,
       toolOutputMap,
     });
+    tools.inspect_page = createInspectPageTool(writer, {
+      ctx,
+      toolOutputMap,
+    });
   }
   return tools as {
     user_ask: typeof userAskTool;
@@ -189,6 +194,7 @@ async function buildAllTools(
     web_search: ReturnType<typeof createWebSearchTool>;
     take_screenshot: ReturnType<typeof createTakeScreenshotTool>;
     scrape_url: ReturnType<typeof createScrapeUrlTool>;
+    inspect_page: ReturnType<typeof createInspectPageTool>;
   };
 }
 
