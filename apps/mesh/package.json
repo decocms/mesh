@@ -132,7 +132,7 @@
     "@vitejs/plugin-react": "^5.1.0",
     "ai": "^6.0.116",
     "babel-plugin-react-compiler": "^1.0.0",
-    "better-auth": "1.4.5",
+    "better-auth": "1.4.9",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "concurrently": "^9.2.1",
