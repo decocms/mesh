@@ -445,52 +445,67 @@ async function setupSpecialistOrchestration({
 }) {
   const automationName = `${repo}: ${template.title}`;
 
-  // Skip if the user already ran this flow for this repo+specialist —
-  // creating a second automation would double the daily cron rate.
+  // Look for a previous run's automation. If it exists AND already has a
+  // trigger, this is a no-op rerun — skip. If it exists with no trigger,
+  // a previous attempt failed mid-flow (CREATE succeeded, TRIGGER_ADD
+  // failed); reuse the orphan and just add the missing cron trigger
+  // instead of creating a duplicate automation.
   const existing = (await selfClient.callTool({
     name: "AUTOMATION_LIST",
     arguments: { virtual_mcp_id: projectAgentId },
   })) as {
-    structuredContent?: { automations?: Array<{ name: string }> };
+    structuredContent?: {
+      automations?: Array<{ id: string; name: string; trigger_count: number }>;
+    };
   };
-  const alreadyExists = existing.structuredContent?.automations?.some(
+  const existingMatch = existing.structuredContent?.automations?.find(
     (a) => a.name === automationName,
   );
-  if (alreadyExists) return;
 
-  const specialistAgentId = await findOrCreateSpecialistVirtualMcp({
-    template,
-    selfClient,
-    siteDiagnosticsConnectionId,
-  });
+  let automationId: string;
 
-  const tiptapDoc = buildOrchestratorAutomationDoc({
-    template,
-    specialistAgentId,
-    owner,
-    repo,
-    siteRootUrl,
-  });
-  const messages = tiptapDocToMessages(tiptapDoc);
+  if (existingMatch && existingMatch.trigger_count > 0) {
+    return;
+  }
 
-  const automationResult = (await selfClient.callTool({
-    name: "AUTOMATION_CREATE",
-    arguments: {
-      name: automationName,
-      virtual_mcp_id: projectAgentId,
-      agent: { id: projectAgentId },
-      messages,
-      active: true,
-    },
-  })) as { structuredContent?: unknown };
+  if (existingMatch) {
+    automationId = existingMatch.id;
+  } else {
+    const specialistAgentId = await findOrCreateSpecialistVirtualMcp({
+      template,
+      selfClient,
+      siteDiagnosticsConnectionId,
+    });
 
-  const automationPayload = (automationResult.structuredContent ??
-    automationResult) as { id: string };
+    const tiptapDoc = buildOrchestratorAutomationDoc({
+      template,
+      specialistAgentId,
+      owner,
+      repo,
+      siteRootUrl,
+    });
+    const messages = tiptapDocToMessages(tiptapDoc);
+
+    const automationResult = (await selfClient.callTool({
+      name: "AUTOMATION_CREATE",
+      arguments: {
+        name: automationName,
+        virtual_mcp_id: projectAgentId,
+        agent: { id: projectAgentId },
+        messages,
+        active: true,
+      },
+    })) as { structuredContent?: unknown };
+
+    const automationPayload = (automationResult.structuredContent ??
+      automationResult) as { id: string };
+    automationId = automationPayload.id;
+  }
 
   await selfClient.callTool({
     name: "AUTOMATION_TRIGGER_ADD",
     arguments: {
-      automation_id: automationPayload.id,
+      automation_id: automationId,
       type: "cron",
       cron_expression: template.cron,
     },
