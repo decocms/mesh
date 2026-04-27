@@ -1,18 +1,18 @@
 /**
- * Syncs the Better Auth session into PostHog.
+ * Initializes PostHog from the runtime public config and syncs the
+ * Better Auth session into it.
  *
+ * - Calls `initPostHog(key, host)` once on mount when `posthog` config
+ *   is present (server returns `posthog: null` when unconfigured).
  * - Calls `identify` when a logged-in user is present.
  * - Calls `reset` when the session clears (logout).
  *
- * No-op when PostHog isn't configured (missing `VITE_POSTHOG_KEY`).
+ * Must render below the Suspense boundary that fetches /api/config.
  */
 
 import { authClient } from "@/web/lib/auth-client";
-import {
-  identifyUser,
-  isPostHogEnabled,
-  resetUser,
-} from "@/web/lib/posthog-client";
+import { identifyUser, initPostHog, resetUser } from "@/web/lib/posthog-client";
+import { usePublicConfig } from "@/web/hooks/use-public-config";
 
 let lastUserId: string | null = null;
 
@@ -21,9 +21,12 @@ export function PostHogIdentitySync({
 }: {
   children: React.ReactNode;
 }) {
+  const publicConfig = usePublicConfig();
   const { data: session } = authClient.useSession();
 
-  if (isPostHogEnabled) {
+  if (publicConfig.posthog) {
+    initPostHog(publicConfig.posthog.key, publicConfig.posthog.host);
+
     const userId = session?.user?.id ?? null;
 
     if (userId && userId !== lastUserId) {

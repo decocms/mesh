@@ -12,7 +12,6 @@ export const KEYS = {
   publicConfig: () => ["publicConfig"] as const,
 
   // Auth-related queries
-  authConfig: () => ["authConfig"] as const,
   session: () => ["session"] as const,
 
   // Task queries (filters scope the cache entry)
