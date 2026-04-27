@@ -25,7 +25,7 @@ import {
 } from "../../core/mesh-context";
 import { ThreadCreateDataSchema, ThreadEntitySchema } from "./schema";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
-import { generateBranchName } from "./branch-name";
+import { generateBranchName } from "@/shared/branch-name";
 
 const CreateInputSchema = z.object({
   data: ThreadCreateDataSchema.describe(
