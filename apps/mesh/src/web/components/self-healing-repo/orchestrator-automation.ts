@@ -28,11 +28,12 @@ export function buildOrchestratorAutomationDoc(
 ): TiptapDoc {
   const { template, specialistAgentId, owner, repo, siteRootUrl } = args;
   const subtaskInput = template.buildSubtaskInput({ siteRootUrl });
+  // Canonical short identifier — matches the `specialist:` field each prompt
+  // self-identifies with (seo, perf, links), and the title-tag in the issue
+  // title (e.g. "[seo] ..."). Always derived from issueLabel, not template.id,
+  // because the suffix in template.id ("-auditor"/"-watchdog"/"-finder")
+  // doesn't map cleanly to the specialist's own identifier.
   const shortTag = template.issueLabel.replace(/^agent:/, "");
-  const specialistKey = template.id.replace(
-    /-(?:auditor|watchdog|finder)$/,
-    "",
-  );
 
   const paragraphs: JSONContent[] = [];
 
@@ -98,7 +99,7 @@ export function buildOrchestratorAutomationDoc(
           `  labels: ["${template.issueLabel}", "auto-generated", "severity:<low|medium|high>"]\n` +
           `  body:\n` +
           `---\n` +
-          `specialist: ${specialistKey}\n` +
+          `specialist: ${shortTag}\n` +
           `kind: <kind>\n` +
           `severity: <low|medium|high>\n` +
           `target:\n` +
