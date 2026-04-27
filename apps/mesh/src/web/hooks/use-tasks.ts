@@ -12,6 +12,8 @@ import {
   useProjectContext,
   type UseCollectionListOptions,
 } from "@decocms/mesh-sdk";
+import { useQueryClient } from "@tanstack/react-query";
+import { KEYS } from "@/web/lib/query-keys";
 import type { ThreadEntity } from "@/tools/thread/schema";
 
 export type Task = ThreadEntity;
@@ -44,17 +46,41 @@ export function useTasks(options: UseTasksOptions = {}) {
 }
 
 /**
- * Mutation hooks. `create.mutateAsync({ id?, virtual_mcp_id, title?, description? })`.
- * `update.mutateAsync({ id, data })`. Note: the server ignores any `branch` you
- * pass to `create` — branch is derived from the vMCP.
+ * Mutation hooks. `create.mutateAsync({ id?, virtual_mcp_id, branch?, title?, description? })`.
+ * `update.mutateAsync({ id, data })`.
+ *
+ * The `create.onSuccess` from useCollectionActions only invalidates the
+ * canonical collection cache. Tasks have a parallel legacy task list at
+ * KEYS.tasksPrefix(locator) that chat-context reads from for the branch
+ * picker; we wrap the create mutation here so every caller refreshes both
+ * caches consistently.
  */
 export function useTaskActions() {
-  const { org } = useProjectContext();
+  const { org, locator } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
-  return useCollectionActions<Task>(org.id, "THREADS", client);
+  const queryClient = useQueryClient();
+  const actions = useCollectionActions<Task>(org.id, "THREADS", client);
+
+  const originalCreate = actions.create;
+  const wrappedMutateAsync: typeof originalCreate.mutateAsync = async (
+    data,
+    options,
+  ) => {
+    const result = await originalCreate.mutateAsync(data, options);
+    queryClient.invalidateQueries({ queryKey: KEYS.tasksPrefix(locator) });
+    return result;
+  };
+
+  return {
+    ...actions,
+    create: {
+      ...originalCreate,
+      mutateAsync: wrappedMutateAsync,
+    },
+  };
 }
 
 export { useEnsureTask } from "./use-ensure-task";

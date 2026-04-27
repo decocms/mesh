@@ -1,8 +1,18 @@
 /**
  * COLLECTION_THREADS_CREATE Tool
  *
- * Create a new thread for a virtual MCP. Branch is server-derived from the
- * vMCP's githubRepo metadata. Idempotent on `id` collisions.
+ * Create a new thread for a virtual MCP.
+ *
+ * Branch resolution (only meaningful when the vMCP has a githubRepo):
+ *   1. Honor `data.branch` when provided.
+ *   2. Otherwise pick the most-recently-touched branch from the user's
+ *      `vmMap[userId]` so a new task lands on a warm sandbox.
+ *   3. Fall back to a freshly generated `deco/<adj>-<noun>` name when the
+ *      user has no vmMap entries for this vMCP.
+ *
+ * Threads created on a vMCP without a githubRepo always get `branch = null`.
+ *
+ * Idempotent on `id` collisions (storage uses INSERT … ON CONFLICT DO NOTHING).
  */
 
 import { z } from "zod";
@@ -35,6 +45,26 @@ type GithubRepoMeta = {
     connectionId?: string;
   } | null;
 };
+
+type VmMapMeta = {
+  vmMap?: Record<string, Record<string, { createdAt?: number }>>;
+};
+
+/**
+ * Pick the user's most-recently-touched branch from vmMap. Returns undefined
+ * when the user has no entries (caller falls back to generateBranchName).
+ */
+function pickWarmBranchFromVmMap(
+  vmMap: VmMapMeta["vmMap"],
+  userId: string,
+): string | undefined {
+  const entries = vmMap?.[userId];
+  if (!entries) return undefined;
+  const sorted = Object.entries(entries).sort(
+    ([, a], [, b]) => (b.createdAt ?? 0) - (a.createdAt ?? 0),
+  );
+  return sorted[0]?.[0];
+}
 
 export const COLLECTION_THREADS_CREATE = defineTool({
   name: "COLLECTION_THREADS_CREATE",
@@ -70,9 +100,18 @@ export const COLLECTION_THREADS_CREATE = defineTool({
       throw new Error(`Virtual MCP not found: ${data.virtual_mcp_id}`);
     }
 
-    const githubRepo = (vmcp.metadata as GithubRepoMeta | null | undefined)
-      ?.githubRepo;
-    const branch = githubRepo ? generateBranchName() : null;
+    const metadata = vmcp.metadata as
+      | (GithubRepoMeta & VmMapMeta)
+      | null
+      | undefined;
+    const githubRepo = metadata?.githubRepo;
+    let branch: string | null = null;
+    if (githubRepo) {
+      branch =
+        data.branch ??
+        pickWarmBranchFromVmMap(metadata?.vmMap, userId) ??
+        generateBranchName();
+    }
 
     const result = await ctx.storage.threads.create({
       id: taskId,

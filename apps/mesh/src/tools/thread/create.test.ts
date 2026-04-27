@@ -57,7 +57,110 @@ describe("COLLECTION_THREADS_CREATE", () => {
     expect(result.item.branch).toBeNull();
   });
 
-  // NOTE: This test fails until Task 4 (storage ON CONFLICT DO NOTHING) lands.
+  it("uses the input branch when the vMCP has a github repo", async () => {
+    const vmcp = await env.ctx.storage.virtualMcps.create(
+      env.orgId,
+      env.userId,
+      {
+        title: "gh-vmcp-explicit",
+        connections: [],
+        status: "active",
+        pinned: false,
+        metadata: {
+          githubRepo: {
+            owner: "acme",
+            name: "repo",
+            url: "https://github.com/acme/repo",
+            installationId: 1,
+            connectionId: "conn_x",
+          },
+        },
+      },
+    );
+
+    const result = await COLLECTION_THREADS_CREATE.handler(
+      {
+        data: {
+          virtual_mcp_id: vmcp.id,
+          title: "t",
+          branch: "deco/custom-branch",
+        },
+      },
+      env.ctx,
+    );
+
+    expect(result.item.branch).toBe("deco/custom-branch");
+  });
+
+  it("ignores the input branch when the vMCP has no github repo", async () => {
+    const vmcp = await env.ctx.storage.virtualMcps.create(
+      env.orgId,
+      env.userId,
+      {
+        title: "no-gh-with-input-branch",
+        connections: [],
+        status: "active",
+        pinned: false,
+      },
+    );
+
+    const result = await COLLECTION_THREADS_CREATE.handler(
+      {
+        data: {
+          virtual_mcp_id: vmcp.id,
+          title: "t",
+          branch: "deco/should-be-ignored",
+        },
+      },
+      env.ctx,
+    );
+
+    expect(result.item.branch).toBeNull();
+  });
+
+  it("picks the most-recently-touched vmMap branch when no input branch + github vMCP", async () => {
+    const vmcp = await env.ctx.storage.virtualMcps.create(
+      env.orgId,
+      env.userId,
+      {
+        title: "gh-vmcp-with-vmmap",
+        connections: [],
+        status: "active",
+        pinned: false,
+        metadata: {
+          githubRepo: {
+            owner: "acme",
+            name: "repo",
+            url: "https://github.com/acme/repo",
+            installationId: 1,
+            connectionId: "conn_x",
+          },
+          vmMap: {
+            [env.userId]: {
+              "deco/old-branch": {
+                vmId: "vm_old",
+                previewUrl: null,
+                createdAt: 1000,
+              },
+              "deco/new-branch": {
+                vmId: "vm_new",
+                previewUrl: null,
+                createdAt: 2000,
+              },
+            },
+          },
+        },
+      },
+    );
+
+    const result = await COLLECTION_THREADS_CREATE.handler(
+      { data: { virtual_mcp_id: vmcp.id, title: "t" } },
+      env.ctx,
+    );
+
+    expect(result.item.branch).toBe("deco/new-branch");
+  });
+
   it("is idempotent: creating with the same id twice returns the same row", async () => {
     const vmcp = await env.ctx.storage.virtualMcps.create(
       env.orgId,

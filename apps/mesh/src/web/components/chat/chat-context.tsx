@@ -52,6 +52,7 @@ import { toMetadataModelInfo } from "../../lib/metadata-model-info";
 
 import { useChatNavigation } from "./hooks/use-chat-navigation";
 import { useStreamManager } from "./hooks/use-stream-manager";
+import { useTaskActions } from "../../hooks/use-tasks";
 import { useTaskManager, type TaskOwnerFilter } from "./task";
 import { useTaskMessages } from "./task/use-task-manager";
 import { derivePartsFromTiptapDoc } from "./derive-parts";
@@ -518,27 +519,55 @@ export function ChatContextProvider({
   const currentBranch = activeTask?.branch ?? null;
   const isBranchLocked = !!activeTask?.branch;
 
-  // Create task — the route loader does the actual server-side create.
-  // We just generate a fresh id (a navigation token) and navigate.
+  // Create task — calls COLLECTION_THREADS_CREATE up-front with the active
+  // task's branch so the new thread lands on the same warm sandbox. The
+  // route loader's useEnsureTask will see the row already exists on its
+  // GET and skip the create-on-404 fallback.
+  const taskActions = useTaskActions();
   const createTask = (): string => {
     const newId = crypto.randomUUID();
-    navigateToTask(newId);
+    void taskActions.create
+      .mutateAsync({
+        id: newId,
+        virtual_mcp_id: virtualMcpId,
+        ...(currentBranch ? { branch: currentBranch } : {}),
+      } as Partial<Task>)
+      .then(() => navigateToTask(newId))
+      .catch(() => {
+        // create error toast already fired by useCollectionActions; navigate
+        // anyway so the user's not stranded — the route loader's ensure
+        // fallback will retry.
+        navigateToTask(newId);
+      });
     return newId;
   };
 
-  // Create task + queue a pending message. The new task is owned by the
-  // passed virtualMcpId (no override of any active task — the new task
-  // stands on its own).
+  // Create task + queue a pending message. Propagates currentBranch only
+  // when the new task is on the same vMCP (different vMCPs have their own
+  // vmMap, so carrying a branch across them would land on a cold sandbox).
   const createTaskWithMessage = (params: {
     message: SendMessageParams;
     virtualMcpId?: string;
   }) => {
     const newId = crypto.randomUUID();
-    // Pass the target vmcp via the URL so the route loader creates the thread
-    // bound to it (otherwise the route falls back to the well-known decopilot).
-    navigateToTask(newId, {
-      virtualMcpId: params.virtualMcpId,
-    });
+    const targetVmcp = params.virtualMcpId ?? virtualMcpId;
+    const carryBranch = targetVmcp === virtualMcpId ? currentBranch : null;
+    void taskActions.create
+      .mutateAsync({
+        id: newId,
+        virtual_mcp_id: targetVmcp,
+        ...(carryBranch ? { branch: carryBranch } : {}),
+      } as Partial<Task>)
+      .then(() =>
+        navigateToTask(newId, {
+          virtualMcpId: params.virtualMcpId,
+        }),
+      )
+      .catch(() => {
+        navigateToTask(newId, {
+          virtualMcpId: params.virtualMcpId,
+        });
+      });
     setPendingMessage({
       taskId: newId,
       message: params.message,

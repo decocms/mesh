@@ -9,15 +9,19 @@ import {
   ProjectContextProvider,
   SELF_MCP_ALIAS_ID,
   useMCPClient,
+  useProjectContext,
 } from "@decocms/mesh-sdk";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import {
   Outlet,
   useMatch,
   useNavigate,
   useParams,
+  useSearch,
 } from "@tanstack/react-router";
 import { KEYS } from "../lib/query-keys";
+import { readCachedTaskBranch } from "../lib/read-cached-task-branch";
+import { useTaskActions } from "../hooks/use-tasks";
 import { useOrgSsoStatus } from "../hooks/use-org-sso";
 import { SsoRequiredScreen } from "../components/sso-required-screen";
 
@@ -86,11 +90,15 @@ function ShellProjectProvider({
 
 export function usePanelActions() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const taskActions = useTaskActions();
+  const { locator } = useProjectContext();
 
   const params = useParams({ strict: false }) as {
     org?: string;
     taskId?: string;
   };
+  const search = useSearch({ strict: false }) as { virtualmcpid?: string };
   const orgSlug = params.org ?? "";
   const currentTaskId = params.taskId ?? "";
 
@@ -133,8 +141,24 @@ export function usePanelActions() {
       false,
     );
 
-  const createNewTask = () => {
+  // Create a new task carrying the current task's branch (if any) so the
+  // new thread lands on the same warm sandbox. Server picks from vmMap when
+  // no branch is provided. Awaiting the create avoids the route loader's
+  // create-on-404 fallback firing without a branch hint.
+  const createNewTask = async () => {
     const newId = crypto.randomUUID();
+    const branch = readCachedTaskBranch(queryClient, locator, currentTaskId);
+    const targetVmcp = search.virtualmcpid;
+    try {
+      await taskActions.create.mutateAsync({
+        id: newId,
+        ...(targetVmcp ? { virtual_mcp_id: targetVmcp } : {}),
+        ...(branch ? { branch } : {}),
+      });
+    } catch {
+      // Toast already fired by useCollectionActions; navigate anyway so the
+      // route loader's ensure-fallback can retry.
+    }
     setTaskId(newId);
   };
 

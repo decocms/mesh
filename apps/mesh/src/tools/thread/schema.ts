@@ -105,6 +105,13 @@ export const ThreadCreateDataSchema = z.object({
   virtual_mcp_id: z
     .string()
     .describe("Virtual MCP (agent) this thread is bound to"),
+  branch: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      "Preferred branch. Used only when the vMCP has a githubRepo; ignored otherwise. When omitted, the server picks the most-recently-touched branch from the user's vmMap, falling back to a freshly generated name.",
+    ),
 });
 
 export type ThreadCreateData = z.infer<typeof ThreadCreateDataSchema>;

@@ -1,6 +1,13 @@
 import { Suspense, useState, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useRouterState,
+  useSearch,
+} from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
   closestCenter,
@@ -67,6 +74,47 @@ import { GitHubRepoPicker } from "@/web/components/github-repo-picker.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
 import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
+import { useTaskActions } from "@/web/hooks/use-tasks";
+import { readCachedTaskBranch } from "@/web/lib/read-cached-task-branch";
+
+/**
+ * Hook for sidebar "spawn task on this vMCP" buttons. When the user clicks
+ * a vMCP that matches the URL's current virtualmcpid, the active task's
+ * branch is carried into the new thread so the new task lands on the same
+ * warm sandbox. When the clicked vMCP differs, no branch is passed and the
+ * server picks the most-recently-touched vmMap entry for that vMCP.
+ */
+function useNavigateToNewTaskWithBranchCarry(orgSlug: string) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const taskActions = useTaskActions();
+  const { locator } = useProjectContext();
+  const params = useParams({ strict: false }) as { taskId?: string };
+  const search = useSearch({ strict: false }) as { virtualmcpid?: string };
+
+  return async (clickedVirtualMcpId: string) => {
+    const taskId = crypto.randomUUID();
+    const carryBranch =
+      clickedVirtualMcpId === search.virtualmcpid
+        ? readCachedTaskBranch(queryClient, locator, params.taskId ?? "")
+        : null;
+    try {
+      await taskActions.create.mutateAsync({
+        id: taskId,
+        virtual_mcp_id: clickedVirtualMcpId,
+        ...(carryBranch ? { branch: carryBranch } : {}),
+      });
+    } catch {
+      // Toast already fired; navigate anyway so the route loader's
+      // ensure-fallback can retry.
+    }
+    navigate({
+      to: "/$org/$taskId",
+      params: { org: orgSlug, taskId },
+      search: { virtualmcpid: clickedVirtualMcpId },
+    });
+  };
+}
 function AgentListItem({
   agent,
   org,
@@ -80,14 +128,7 @@ function AgentListItem({
 }) {
   const navigate = useNavigate();
   const { isMobile, setOpenMobile } = useSidebar();
-  const navigateToNewTask = (virtualMcpId: string) => {
-    const taskId = crypto.randomUUID();
-    navigate({
-      to: "/$org/$taskId",
-      params: { org, taskId },
-      search: { virtualmcpid: virtualMcpId },
-    });
-  };
+  const navigateToNewTask = useNavigateToNewTaskWithBranchCarry(org);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isActive = pathname.startsWith(`/${org}/${agent.id}`);
   const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
@@ -311,16 +352,8 @@ function PinAgentPopoverContent({
     navigateOnCreate: true,
   });
   const [preferences] = usePreferences();
-  const navigate = useNavigate();
 
-  const navigateToNewTask = (virtualMcpId: string) => {
-    const taskId = crypto.randomUUID();
-    navigate({
-      to: "/$org/$taskId",
-      params: { org: org.slug, taskId },
-      search: { virtualmcpid: virtualMcpId },
-    });
-  };
+  const navigateToNewTask = useNavigateToNewTaskWithBranchCarry(org.slug);
   const navigateToAgent = useNavigateToAgent();
 
   const lowerSearch = search.toLowerCase();
