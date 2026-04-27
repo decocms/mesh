@@ -1,7 +1,7 @@
 /**
- * Authenticated clone URL + git identity from a connection's OAuth token.
- * Falls back to generic defaults on /user failure so callers never block
- * on a flaky upstream.
+ * Authenticated clone URL + bot git identity from a connection's downstream
+ * App installation token. Makes no GitHub API call — the committer is the
+ * Mesh GitHub App bot.
  */
 
 import type { Kysely } from "kysely";
@@ -14,6 +14,9 @@ import {
   RECONNECT_ERROR,
   refreshAndStore,
 } from "../oauth/token-refresh";
+
+export const MCP_GITHUB_BOT_NAME = "mcp-github[bot]";
+export const MCP_GITHUB_BOT_EMAIL = "mcp-github[bot]@users.noreply.github.com";
 
 export interface GitHubCloneInfo {
   cloneUrl: string;
@@ -38,7 +41,6 @@ export async function buildCloneInfo(
 
   let accessToken = token.accessToken;
 
-  // Proactive refresh before baking into the clone URL. Mirrors GITHUB_LIST_USER_ORGS.
   if (
     canRefresh(token) &&
     tokenStorage.isExpired(token, PROACTIVE_REFRESH_BUFFER_MS)
@@ -52,27 +54,9 @@ export async function buildCloneInfo(
 
   const cloneUrl = `https://x-access-token:${accessToken}@github.com/${owner}/${name}.git`;
 
-  let gitUserName = "Deco Studio";
-  let gitUserEmail = "studio@deco.cx";
-  try {
-    const res = await fetch("https://api.github.com/user", {
-      headers: {
-        Authorization: `token ${accessToken}`,
-        Accept: "application/vnd.github+json",
-      },
-    });
-    if (res.ok) {
-      const user = (await res.json()) as {
-        name?: string | null;
-        login: string;
-        email?: string | null;
-      };
-      gitUserName = user.name || user.login;
-      gitUserEmail = user.email || `${user.login}@users.noreply.github.com`;
-    }
-  } catch {
-    // Fallback to defaults — don't block the caller.
-  }
-
-  return { cloneUrl, gitUserName, gitUserEmail };
+  return {
+    cloneUrl,
+    gitUserName: MCP_GITHUB_BOT_NAME,
+    gitUserEmail: MCP_GITHUB_BOT_EMAIL,
+  };
 }
