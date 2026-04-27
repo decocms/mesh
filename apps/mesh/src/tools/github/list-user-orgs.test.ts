@@ -94,9 +94,13 @@ describe("GITHUB_LIST_USER_ORGS", () => {
     return [() => (globalThis.fetch = originalFetch)];
   };
 
-  const githubOkResponse = (installations: unknown[]) =>
+  const installationReposResponse = (
+    repositories: Array<{
+      owner: { login: string; avatar_url: string; type: string };
+    }>,
+  ) =>
     new Response(
-      JSON.stringify({ installations, total_count: installations.length }),
+      JSON.stringify({ repositories, total_count: repositories.length }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
 
@@ -212,15 +216,13 @@ describe("GITHUB_LIST_USER_ORGS", () => {
     });
 
     installHandler(() =>
-      githubOkResponse([
+      installationReposResponse([
         {
-          id: 42,
-          account: {
+          owner: {
             login: "octocat",
             avatar_url: "https://example.com/a.png",
             type: "User",
           },
-          app_slug: "mcp-github",
         },
       ]),
     );
@@ -229,7 +231,7 @@ describe("GITHUB_LIST_USER_ORGS", () => {
 
     expect(result.installations).toEqual([
       {
-        installationId: 42,
+        installationId: 0,
         login: "octocat",
         avatarUrl: "https://example.com/a.png",
         type: "User",
@@ -237,6 +239,7 @@ describe("GITHUB_LIST_USER_ORGS", () => {
     ]);
     expect(result.appSlug).toBe("mcp-github");
     expect(fetchCalls).toHaveLength(1);
+    expect(fetchCalls[0]?.url).toContain("/installation/repositories");
     expect(fetchCalls[0]?.headers["authorization"]).toBe("Bearer valid-token");
     expect(mockRefreshAccessToken).not.toHaveBeenCalled();
   });
@@ -261,7 +264,7 @@ describe("GITHUB_LIST_USER_ORGS", () => {
       scope: "repo",
     });
 
-    installHandler(() => githubOkResponse([]));
+    installHandler(() => installationReposResponse([]));
 
     const result = await GITHUB_LIST_USER_ORGS.execute({ connectionId }, ctx);
 
@@ -325,15 +328,13 @@ describe("GITHUB_LIST_USER_ORGS", () => {
     installHandler(
       () => github401(),
       () =>
-        githubOkResponse([
+        installationReposResponse([
           {
-            id: 7,
-            account: {
+            owner: {
               login: "acme",
               avatar_url: "https://example.com/b.png",
               type: "Organization",
             },
-            app_slug: "mcp-github",
           },
         ]),
     );
@@ -445,71 +446,8 @@ describe("GITHUB_LIST_USER_ORGS", () => {
 
     await expect(
       GITHUB_LIST_USER_ORGS.execute({ connectionId }, ctx),
-    ).rejects.toThrow(/500/);
+    ).rejects.toThrow(/installation\/repositories.*500/i);
 
     expect(mockRefreshAccessToken).not.toHaveBeenCalled();
-  });
-
-  it("reactively refreshes on 401 that surfaces on a later page", async () => {
-    await tokenStorage.upsert({
-      connectionId,
-      accessToken: "seemingly-valid-token",
-      refreshToken: "rt",
-      scope: "repo",
-      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-      clientId: "cid",
-      clientSecret: "csecret",
-      tokenEndpoint: "https://github.com/login/oauth/access_token",
-    });
-
-    mockRefreshAccessToken.mockResolvedValueOnce({
-      success: true,
-      accessToken: "fresh-token",
-      refreshToken: "rt2",
-      expiresIn: 3600,
-      scope: "repo",
-    });
-
-    const fullPage = Array.from({ length: 100 }, (_, i) => ({
-      id: i + 1,
-      account: {
-        login: `org-${i + 1}`,
-        avatar_url: `https://example.com/${i + 1}.png`,
-        type: "Organization",
-      },
-      app_slug: "mcp-github",
-    }));
-
-    installHandler(
-      () => githubOkResponse(fullPage),
-      () => github401(),
-      () =>
-        githubOkResponse([
-          {
-            id: 101,
-            account: {
-              login: "late",
-              avatar_url: "https://example.com/late.png",
-              type: "Organization",
-            },
-            app_slug: "mcp-github",
-          },
-        ]),
-    );
-
-    const result = await GITHUB_LIST_USER_ORGS.execute({ connectionId }, ctx);
-
-    expect(result.installations).toHaveLength(101);
-    expect(mockRefreshAccessToken).toHaveBeenCalledTimes(1);
-    expect(fetchCalls).toHaveLength(3);
-    expect(fetchCalls[0]?.headers["authorization"]).toBe(
-      "Bearer seemingly-valid-token",
-    );
-    expect(fetchCalls[1]?.headers["authorization"]).toBe(
-      "Bearer seemingly-valid-token",
-    );
-    expect(fetchCalls[2]?.headers["authorization"]).toBe("Bearer fresh-token");
-    expect(fetchCalls[1]?.url).toContain("page=2");
-    expect(fetchCalls[2]?.url).toContain("page=2");
   });
 });
