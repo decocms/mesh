@@ -16,10 +16,9 @@ import { Suspense, useState } from "react";
 import { ErrorBoundary } from "../error-boundary";
 
 import { Chat } from "./index";
-import { useChatStream, useChatPrefs } from "./context";
+import { useChatStream, useChatPrefs, useChatTask } from "./context";
 import { ChatContextPanel } from "./context-panel";
 import { wasCreditsEmptyDismissed } from "./credits-empty-state";
-import { useChatNavigation } from "./hooks/use-chat-navigation.ts";
 import { BranchPicker } from "../thread/github/branch-picker.tsx";
 
 import { useAiProviderKeys } from "@/web/hooks/collections/use-ai-providers";
@@ -206,7 +205,7 @@ function SidebarEmptyState() {
   const { org } = useProjectContext();
   const { selectedVirtualMcp } = useChatPrefs();
   const { data: session } = authClient.useSession();
-  const { branch, setBranch } = useChatNavigation();
+  const { currentBranch, setCurrentTaskBranch } = useChatTask();
 
   const defaultAgent = getWellKnownDecopilotVirtualMCP(org.id);
   const displayAgent = selectedVirtualMcp ?? defaultAgent;
@@ -242,8 +241,8 @@ function SidebarEmptyState() {
               owner={githubRepo.owner}
               repo={githubRepo.name}
               vmMap={fullVm?.metadata?.vmMap}
-              value={branch}
-              onChange={setBranch}
+              value={currentBranch ?? undefined}
+              onChange={setCurrentTaskBranch}
             />
           </div>
         )}

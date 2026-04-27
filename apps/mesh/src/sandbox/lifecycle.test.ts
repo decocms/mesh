@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { DockerSandboxRunner } from "mesh-plugin-user-sandbox/runner";
+import { DockerSandboxRunner } from "@decocms/sandbox/runner";
 import type { MeshContext } from "@/core/mesh-context";
 import { asDockerRunner, getRunnerByKind } from "./lifecycle";
 

@@ -6,8 +6,8 @@ import type {
   Sandbox,
   SandboxId,
   SandboxRunner,
-} from "mesh-plugin-user-sandbox/runner";
-import { composeSandboxRef } from "mesh-plugin-user-sandbox/runner";
+} from "@decocms/sandbox/runner";
+import { composeSandboxRef } from "@decocms/sandbox/runner";
 
 // Pin runner kind — the dev env flips MESH_SANDBOX_RUNNER and VM_START
 // reads it at handler time.

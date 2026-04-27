@@ -26,7 +26,7 @@
     "packages/mesh-sdk": {
       "ignoreDependencies": ["sonner"]
     },
-    "packages/mesh-plugin-user-sandbox": {
+    "packages/@decocms/sandbox": {
       // daemon.mjs is the container entry (COPY'd into the image and run via
       // `node /opt/sandbox-daemon/daemon.mjs`); it imports the daemon/*.mjs
       // modules. Without marking it as an entry, knip treats the whole graph

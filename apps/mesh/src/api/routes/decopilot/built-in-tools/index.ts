@@ -15,7 +15,7 @@ import { createReadResourceTool } from "./resources";
 import { createSandboxTool, type VirtualClient } from "./sandbox";
 import { createVmTools } from "./vm-tools";
 import { getRunnerByKind } from "@/sandbox/lifecycle";
-import type { RunnerKind } from "mesh-plugin-user-sandbox/runner";
+import type { RunnerKind } from "@decocms/sandbox/runner";
 import { createSubtaskTool } from "./subtask";
 import { userAskTool } from "./user-ask";
 import { proposePlanTool } from "./propose-plan";

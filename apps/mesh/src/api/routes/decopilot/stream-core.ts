@@ -197,6 +197,10 @@ async function streamCoreInner(
 
     const windowSize = input.windowSize ?? DEFAULT_WINDOW_SIZE;
 
+    if (!input.taskId) {
+      throw new Error("streamCore: taskId is required");
+    }
+
     // 2. Load entities and create/load memory in parallel
     const [virtualMcp, provider, mem] = await Promise.all([
       ctx.storage.virtualMcps.findById(input.agent.id, input.organizationId),
@@ -211,9 +215,6 @@ async function streamCoreInner(
         thread_id: input.taskId,
         userId: input.userId,
         defaultWindowSize: windowSize,
-        triggerId: input.triggerId,
-        virtualMcpId: input.agent.id,
-        branch: input.branch ?? null,
       }),
     ]);
 

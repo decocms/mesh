@@ -293,7 +293,6 @@ export function SettingsTab({
   // Chat hooks for running the automation
   const { createTaskWithMessage } = useChatTask();
   const {
-    setVirtualMcpId,
     setModel,
     credentialId: chatCredentialId,
     selectedModel: chatModel,
@@ -440,7 +439,6 @@ export function SettingsTab({
       return;
     }
 
-    setVirtualMcpId(agentId || null);
     if (selectedModel && watchConnectionId) {
       setModel({ ...selectedModel, keyId: watchConnectionId });
     }
@@ -450,6 +448,7 @@ export function SettingsTab({
     const parts = derivePartsFromTiptapDoc(tiptapDoc);
     createTaskWithMessage({
       message: { tiptapDoc, parts },
+      virtualMcpId: agentId || undefined,
     });
   };
 

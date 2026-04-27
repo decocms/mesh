@@ -84,6 +84,9 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Build daemon bundle
+        run: bun run --cwd=packages/sandbox build
+
       - name: Start NATS with JetStream
         run: |
           docker run -d --name nats -p 4222:4222 nats:2.10 -js
@@ -135,3 +138,51 @@ jobs:
 
       - name: Run knip
         run: bun run knip
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.5"
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build daemon bundle
+        run: bun run --cwd=packages/sandbox build
+
+      - name: Build sandbox image
+        run: |
+          docker build \
+            -t mesh-sandbox:ci \
+            -f packages/sandbox/image/Dockerfile \
+            packages/sandbox
+
+      - name: Smoke test
+        run: |
+          docker run -d --name sandbox-smoke -p 19999:9000 \
+            -e DAEMON_TOKEN="$(printf 't%.0s' {1..32})" \
+            -e DAEMON_BOOT_ID="ci-smoke" \
+            -e APP_ROOT=/app \
+            -e PROXY_PORT=9000 \
+            -e DAEMON_NO_AUTOSTART=1 \
+            mesh-sandbox:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:19999/health | grep -q '"bootId":"ci-smoke"'; then
+              echo "ok"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "smoke test failed — daemon did not return /health with ci-smoke bootId"
+          docker logs sandbox-smoke
+          exit 1
+
+      - name: Tear down
+        if: always()
+        run: docker rm -f sandbox-smoke || true

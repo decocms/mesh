@@ -16,13 +16,13 @@ import {
   resolveRunnerKindFromEnv,
   type RunnerKind,
   type Workload,
-} from "mesh-plugin-user-sandbox/runner";
+} from "@decocms/sandbox/runner";
 import { defineTool } from "../../core/define-tool";
 import type { MeshContext } from "../../core/mesh-context";
 import { requireVmEntry, resolveRuntimeConfig } from "./helpers";
 import { buildCloneInfo } from "../../shared/github-clone-info";
 import { detectRepoRuntime } from "../../shared/github-runtime-detect";
-import { generateBranchName } from "../../shared/branch-name";
+import { generateBranchName } from "../thread/branch-name";
 import { PACKAGE_MANAGER_CONFIG } from "../../shared/runtime-defaults";
 import { getRunnerByKind, getSharedRunner } from "../../sandbox/lifecycle";
 import { setVmMapEntry } from "./vm-map";
