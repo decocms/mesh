@@ -155,6 +155,7 @@ interface AuthenticatedUser {
   email?: string;
   emailVerified?: boolean;
   name?: string;
+  image?: string;
   role?: string;
 }
 
