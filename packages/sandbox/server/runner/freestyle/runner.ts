@@ -53,6 +53,59 @@ const DISPOSE_TIMEOUT_MS = 10_000;
 /** Stop running VMs after this much idle time. Freestyle bills per active second. */
 const DEFAULT_IDLE_TIMEOUT_SECONDS = 1800;
 
+type PhaseLog = (msg: string, fields?: Record<string, unknown>) => void;
+
+function makePhaseLog(scope: string): PhaseLog {
+  const t0 = Date.now();
+  return (msg, fields = {}) => {
+    const tail = Object.entries(fields)
+      .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
+      .join(" ");
+    console.log(
+      `[${scope}] +${Date.now() - t0}ms ${msg}${tail ? ` ${tail}` : ""}`,
+    );
+  };
+}
+
+/**
+ * Pull as much detail as possible from an unknown thrown value. SDK errors
+ * may wrap an HTTP Response, attach a `cause`, or be plain objects — bare
+ * `err.message` regularly produces "[object Object]" in the logs.
+ */
+function describeError(err: unknown): Record<string, unknown> {
+  if (err instanceof Error) {
+    const out: Record<string, unknown> = {
+      name: err.name,
+      message: err.message,
+    };
+    if (err.stack) out.stack = err.stack.split("\n").slice(0, 4).join(" | ");
+    if ("cause" in err && err.cause !== undefined) {
+      out.cause =
+        err.cause instanceof Error
+          ? `${err.cause.name}: ${err.cause.message}`
+          : String(err.cause);
+    }
+    if ("status" in err && typeof err.status === "number")
+      out.status = err.status;
+    if ("code" in err) out.code = String(err.code);
+    if ("response" in err && err.response && typeof err.response === "object") {
+      const resp = err.response as { status?: number; statusText?: string };
+      out.responseStatus = resp.status;
+      out.responseStatusText = resp.statusText;
+    }
+    return out;
+  }
+  if (err === null || err === undefined) return { err: String(err) };
+  if (typeof err === "object") {
+    try {
+      return { raw: JSON.stringify(err) };
+    } catch {
+      return { raw: Object.prototype.toString.call(err) };
+    }
+  }
+  return { raw: String(err) };
+}
+
 export interface FreestyleRunnerOptions {
   stateStore?: RunnerStateStore;
   /** Override when the freestyle account uses a custom apex. Default: `deco.studio`. */
@@ -260,28 +313,36 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     opts: EnsureOptions,
     ops: RunnerStateStoreOps | null,
   ): Promise<Sandbox> {
+    const log = makePhaseLog(LOG_LABEL);
+    log("ensure start", { userId: id.userId, projectRef: id.projectRef });
     // 1. State-store resume.
     if (ops) {
       const persisted = await ops.get(id, RUNNER_KIND);
+      log("state-store get done", { persisted: !!persisted });
       if (persisted) {
-        const rec = await this.resume(id, persisted, opts);
+        const rec = await this.resume(id, persisted, opts, log);
         if (rec) {
+          log("ensure ok via=resume", { handle: rec.handle });
           this.records.set(rec.handle, rec);
           return this.toSandbox(rec);
         }
         await ops.delete(id, RUNNER_KIND);
+        log("resume rejected, falling through to provision");
       }
     }
     // 2. Fresh provision. No adopt path: freestyle has no tag-side lookup.
-    const rec = await this.provision(id, opts);
+    log("provision start");
+    const rec = await this.provision(id, opts, log);
     this.records.set(rec.handle, rec);
     await this.persist(ops, rec);
+    log("ensure ok via=provision", { handle: rec.handle });
     return this.toSandbox(rec);
   }
 
   private async provision(
     id: SandboxId,
     opts: EnsureOptions,
+    log: PhaseLog,
   ): Promise<FreestyleRecord> {
     const repo = opts.repo!;
     const workload = opts.workload ?? null;
@@ -289,7 +350,14 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     const daemonToken = randomBytes(DAEMON_TOKEN_BYTES).toString("hex");
     const daemonBootId = randomUUID();
     const spec = this.buildSpec({ repo, workload, daemonToken, daemonBootId });
+    log("spec built", {
+      previewDomain,
+      runtime: workload?.runtime ?? "node",
+      packageManager: workload?.packageManager ?? "(none)",
+      branch: repo.branch ?? "(none)",
+    });
     let result: { vmId: string };
+    log("freestyle.vms.create start");
     try {
       result = await freestyle.vms.create({
         spec,
@@ -298,12 +366,14 @@ export class FreestyleSandboxRunner implements SandboxRunner {
         idleTimeoutSeconds: this.idleTimeoutSeconds,
       });
     } catch (err) {
+      log("freestyle.vms.create failed", describeError(err));
       throw new Error(
         `[${LOG_LABEL}] vms.create failed for domain=${previewDomain} user=${id.userId} projectRef=${id.projectRef}: ${
           err instanceof Error ? err.message : String(err)
         }`,
       );
     }
+    log("freestyle.vms.create ok", { vmId: result.vmId });
     return {
       id,
       handle: result.vmId,
@@ -326,14 +396,21 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     id: SandboxId,
     persisted: { handle: string; state: Record<string, unknown> },
     opts: EnsureOptions,
+    log: PhaseLog,
   ): Promise<FreestyleRecord | null> {
     const state = persisted.state as Partial<PersistedFreestyleState>;
-    if (!state.vmId || !state.previewDomain || !state.repo) return null;
+    if (!state.vmId || !state.previewDomain || !state.repo) {
+      log("resume bail: incomplete state");
+      return null;
+    }
     // Rows persisted before bearer auth landed have no daemonToken. The
     // running VM's daemon script also predates auth, so a new token wouldn't
     // match. Dispose the old VM explicitly — idle-timeout would orphan one
     // VM per stale row, which stacks up and is billed.
     if (!state.daemonToken) {
+      log("resume bail: no daemonToken; disposing legacy vm", {
+        vmId: state.vmId,
+      });
       await disposeVm(state.vmId, "resume:no-daemon-token");
       return null;
     }
@@ -355,12 +432,18 @@ export class FreestyleSandboxRunner implements SandboxRunner {
       daemonToken: state.daemonToken,
       daemonBootId,
     });
+    log("resume vm.start network call", { vmId: state.vmId });
     try {
       const vm = freestyle.vms.ref({ vmId: state.vmId, spec });
       await vm.start();
-    } catch {
+    } catch (err) {
+      log("resume vm.start failed", {
+        vmId: state.vmId,
+        ...describeError(err),
+      });
       return null;
     }
+    log("resume vm.start ok", { vmId: state.vmId });
     return {
       id,
       handle: state.vmId,
