@@ -77,10 +77,10 @@ export function useEnsureTask(id: string, virtualMcpId: string): State {
       return payload.item;
     },
     onSuccess: () => {
-      // Refresh the canonical collection cache (used by useTask/useTasks)
-      // and the legacy KEYS.tasksPrefix list (read by chat-context's
-      // tasks.find), then refetch the ensure query so the consumer
-      // transitions from "creating" to "ready" without an extra round-trip.
+      // Refresh the canonical THREADS collection cache and the legacy
+      // KEYS.tasksPrefix list (read by chat-context's tasks.find), then
+      // refetch the ensure query so the consumer transitions from
+      // "creating" to "ready" without an extra round-trip.
       queryClient.invalidateQueries({
         predicate: (q) =>
           q.queryKey[1] === org.id &&
