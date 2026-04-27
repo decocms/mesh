@@ -127,7 +127,11 @@ export function MCPAppRenderer({
 
   return (
     <div
-      className={cn("relative w-full overflow-hidden rounded-lg", className)}
+      className={cn(
+        "relative w-full overflow-hidden rounded-lg",
+        displayMode === "fullscreen" && "h-full",
+        className,
+      )}
       style={
         displayMode !== "fullscreen" ? { height: `${height}px` } : undefined
       }
