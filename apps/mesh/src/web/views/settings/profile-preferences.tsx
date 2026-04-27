@@ -354,6 +354,33 @@ function ExperimentalSection() {
             />
           }
         />
+        <PreferenceRow
+          label="Caveman mode"
+          description="Adds a 🪨 toggle to the chat input. Activate to re-skin the context window and cost tooltip with stone-age vibes."
+          onClick={() => {
+            track("preferences_experimental_caveman_toggled", {
+              enabled: !preferences.experimental_caveman,
+            });
+            setPreferences((prev) => ({
+              ...prev,
+              experimental_caveman: !prev.experimental_caveman,
+            }));
+          }}
+          control={
+            <Switch
+              checked={preferences.experimental_caveman}
+              onCheckedChange={(checked) => {
+                track("preferences_experimental_caveman_toggled", {
+                  enabled: checked,
+                });
+                setPreferences((prev) => ({
+                  ...prev,
+                  experimental_caveman: checked,
+                }));
+              }}
+            />
+          }
+        />
       </CardContent>
     </Card>
   );

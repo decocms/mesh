@@ -9,6 +9,8 @@ interface Preferences {
   enableSounds: boolean;
   theme: ThemeMode;
   experimental_vibecode: boolean;
+  experimental_caveman: boolean;
+  caveman_active: boolean;
 }
 
 const DEFAULT_PREFERENCES: Preferences = {
@@ -17,6 +19,8 @@ const DEFAULT_PREFERENCES: Preferences = {
   enableSounds: false,
   theme: "system",
   experimental_vibecode: false,
+  experimental_caveman: false,
+  caveman_active: false,
 };
 
 const VALID_TOOL_APPROVAL_LEVELS: ToolApprovalLevel[] = ["auto", "readonly"];

@@ -7,17 +7,26 @@ import { Activity } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
 import type { UsageStats as UsageStatsType } from "@/web/lib/usage-utils.ts";
 import { formatDuration } from "@/web/lib/format-time.ts";
+import {
+  CAVEMAN_RING_COLORS,
+  cavemanLabel,
+  useCavemanMode,
+} from "@/web/lib/caveman-mode.ts";
 
 const RING_SIZE = 16;
 const RING_STROKE = 2.5;
 const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
+const CAVEMAN_TOOLTIP_CLASSES = "bg-[#3A322B] text-[#E8DDC9] border-[#5C4A38]";
+const CAVEMAN_TOOLTIP_LABEL = "opacity-70";
+
 interface UsageStatsProps {
   usage: UsageStatsType | null | undefined;
 }
 
 export function MessageUsageStats({ usage }: UsageStatsProps) {
+  const caveman = useCavemanMode();
   if (!usage) return null;
   const { totalTokens, inputTokens, outputTokens, cost } = usage;
   if (!totalTokens && !inputTokens && !outputTokens) return null;
@@ -32,20 +41,39 @@ export function MessageUsageStats({ usage }: UsageStatsProps) {
           </span>
         </span>
       </TooltipTrigger>
-      <TooltipContent side="top" className="font-mono text-[11px]">
-        <p className="text-muted text-[10px] mb-1">tokens</p>
+      <TooltipContent
+        side="top"
+        className={cn(
+          "font-mono text-[11px]",
+          caveman && CAVEMAN_TOOLTIP_CLASSES,
+        )}
+      >
+        <p
+          className={cn(
+            "text-[10px] mb-1",
+            caveman ? CAVEMAN_TOOLTIP_LABEL : "text-muted",
+          )}
+        >
+          {cavemanLabel("tokens", caveman)}
+        </p>
         <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-          <span className="text-muted">in</span>
+          <span className={caveman ? CAVEMAN_TOOLTIP_LABEL : "text-muted"}>
+            {cavemanLabel("in", caveman)}
+          </span>
           <span className="text-right tabular-nums">
             {inputTokens.toLocaleString()}
           </span>
-          <span className="text-muted">out</span>
+          <span className={caveman ? CAVEMAN_TOOLTIP_LABEL : "text-muted"}>
+            {cavemanLabel("out", caveman)}
+          </span>
           <span className="text-right tabular-nums">
             {(outputTokens - (usage.reasoningTokens ?? 0)).toLocaleString()}
           </span>
           {cost > 0 && (
             <>
-              <span className="text-muted">cost</span>
+              <span className={caveman ? CAVEMAN_TOOLTIP_LABEL : "text-muted"}>
+                {cavemanLabel("cost", caveman)}
+              </span>
               <span className="text-right tabular-nums">
                 ${cost.toFixed(4)}
               </span>
@@ -63,6 +91,7 @@ interface MessageStatsBarProps {
 }
 
 export function MessageStatsBar({ usage, duration }: MessageStatsBarProps) {
+  const caveman = useCavemanMode();
   const hasDuration = duration != null && duration > 0;
   const hasCost = usage != null && (usage.cost ?? 0) > 0;
   const hasTokens = usage != null && (usage.totalTokens ?? 0) > 0;
@@ -80,8 +109,21 @@ export function MessageStatsBar({ usage, duration }: MessageStatsBarProps) {
               {durationLabel}
             </span>
           </TooltipTrigger>
-          <TooltipContent side="top" className="font-mono text-[11px]">
-            <p className="opacity-60 text-[10px] mb-1">thinking</p>
+          <TooltipContent
+            side="top"
+            className={cn(
+              "font-mono text-[11px]",
+              caveman && CAVEMAN_TOOLTIP_CLASSES,
+            )}
+          >
+            <p
+              className={cn(
+                "text-[10px] mb-1",
+                caveman ? CAVEMAN_TOOLTIP_LABEL : "opacity-60",
+              )}
+            >
+              {cavemanLabel("thinking", caveman)}
+            </p>
             <span className="tabular-nums">
               {formatDuration(duration! / 1000)}
             </span>
@@ -105,14 +147,31 @@ export function MessageStatsBar({ usage, duration }: MessageStatsBarProps) {
                 : `${usage!.totalTokens.toLocaleString()} tok`}
             </span>
           </TooltipTrigger>
-          <TooltipContent side="top" className="font-mono text-[11px]">
-            <p className="opacity-60 text-[10px] mb-1">tokens</p>
+          <TooltipContent
+            side="top"
+            className={cn(
+              "font-mono text-[11px]",
+              caveman && CAVEMAN_TOOLTIP_CLASSES,
+            )}
+          >
+            <p
+              className={cn(
+                "text-[10px] mb-1",
+                caveman ? CAVEMAN_TOOLTIP_LABEL : "opacity-60",
+              )}
+            >
+              {cavemanLabel("tokens", caveman)}
+            </p>
             <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-              <span className="opacity-60">in</span>
+              <span className={caveman ? CAVEMAN_TOOLTIP_LABEL : "opacity-60"}>
+                {cavemanLabel("in", caveman)}
+              </span>
               <span className="text-right tabular-nums">
                 {(usage!.inputTokens ?? 0).toLocaleString()}
               </span>
-              <span className="opacity-60">out</span>
+              <span className={caveman ? CAVEMAN_TOOLTIP_LABEL : "opacity-60"}>
+                {cavemanLabel("out", caveman)}
+              </span>
               <span className="text-right tabular-nums">
                 {(
                   (usage!.outputTokens ?? 0) - (usage?.reasoningTokens ?? 0)
@@ -120,7 +179,11 @@ export function MessageStatsBar({ usage, duration }: MessageStatsBarProps) {
               </span>
               {(usage?.reasoningTokens ?? 0) > 0 && (
                 <>
-                  <span className="opacity-60">think</span>
+                  <span
+                    className={caveman ? CAVEMAN_TOOLTIP_LABEL : "opacity-60"}
+                  >
+                    {cavemanLabel("think", caveman)}
+                  </span>
                   <span className="text-right tabular-nums">
                     {usage!.reasoningTokens!.toLocaleString()}
                   </span>
@@ -147,11 +210,19 @@ export function SessionStats({
   contextWindow,
   onOpenContextPanel,
 }: SessionStatsProps) {
+  const caveman = useCavemanMode();
   const pct = Math.min((totalTokens / contextWindow) * 100, 100);
   const offset = RING_CIRCUMFERENCE - (pct / 100) * RING_CIRCUMFERENCE;
   const cost = usage?.cost ?? 0;
   const inputTokens = usage?.inputTokens ?? 0;
   const outputTokens = usage?.outputTokens ?? 0;
+
+  const cavemanFillColor =
+    pct > 90
+      ? CAVEMAN_RING_COLORS.danger
+      : pct > 70
+        ? CAVEMAN_RING_COLORS.warn
+        : CAVEMAN_RING_COLORS.default;
 
   return (
     <Tooltip>
@@ -160,7 +231,10 @@ export function SessionStats({
           type="button"
           onClick={onOpenContextPanel}
           className={cn(
-            "flex items-center gap-1.5 text-muted-foreground hover:text-foreground h-6 px-1 shrink-0",
+            "flex items-center gap-1.5 h-6 px-1 shrink-0",
+            caveman
+              ? "text-[#8B6F47] hover:text-[#6B3410]"
+              : "text-muted-foreground hover:text-foreground",
             onOpenContextPanel ? "cursor-pointer" : "cursor-default",
           )}
         >
@@ -170,53 +244,71 @@ export function SessionStats({
               cy={RING_SIZE / 2}
               r={RING_RADIUS}
               fill="none"
-              stroke="currentColor"
+              stroke={caveman ? CAVEMAN_RING_COLORS.track : "currentColor"}
               strokeWidth={RING_STROKE}
-              className="opacity-15"
+              className={caveman ? "opacity-35" : "opacity-15"}
             />
             <circle
               cx={RING_SIZE / 2}
               cy={RING_SIZE / 2}
               r={RING_RADIUS}
               fill="none"
-              stroke="currentColor"
+              stroke={caveman ? cavemanFillColor : "currentColor"}
               strokeWidth={RING_STROKE}
               strokeDasharray={RING_CIRCUMFERENCE}
               strokeDashoffset={offset}
-              strokeLinecap="round"
+              strokeLinecap={caveman ? "butt" : "round"}
               className={cn(
-                pct > 90
-                  ? "text-destructive"
-                  : pct > 70
-                    ? "text-warning"
-                    : "text-muted-foreground",
+                !caveman &&
+                  (pct > 90
+                    ? "text-destructive"
+                    : pct > 70
+                      ? "text-warning"
+                      : "text-muted-foreground"),
               )}
             />
           </svg>
           <span className="text-[11px] font-mono tabular-nums">
+            {caveman ? "🪨 " : ""}
             {pct.toFixed(0)}%{cost > 0 ? ` · $${cost.toFixed(2)}` : ""}
           </span>
         </button>
       </TooltipTrigger>
-      <TooltipContent side="top" className="font-mono text-[11px]">
+      <TooltipContent
+        side="top"
+        className={cn(
+          "font-mono text-[11px]",
+          caveman && CAVEMAN_TOOLTIP_CLASSES,
+        )}
+      >
         <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-          <span className="text-muted">context</span>
+          <span className={caveman ? CAVEMAN_TOOLTIP_LABEL : "text-muted"}>
+            {cavemanLabel("context", caveman)}
+          </span>
           <span className="text-right tabular-nums">{pct.toFixed(1)}%</span>
-          <span className="text-muted">tokens</span>
+          <span className={caveman ? CAVEMAN_TOOLTIP_LABEL : "text-muted"}>
+            {cavemanLabel("tokens", caveman)}
+          </span>
           <span className="text-right tabular-nums">
             {totalTokens.toLocaleString()}
           </span>
           {cost > 0 && (
             <>
-              <span className="text-muted">cost</span>
+              <span className={caveman ? CAVEMAN_TOOLTIP_LABEL : "text-muted"}>
+                {cavemanLabel("cost", caveman)}
+              </span>
               <span className="text-right tabular-nums">
                 ${cost.toFixed(4)}
               </span>
-              <span className="text-muted">in</span>
+              <span className={caveman ? CAVEMAN_TOOLTIP_LABEL : "text-muted"}>
+                {cavemanLabel("in", caveman)}
+              </span>
               <span className="text-right tabular-nums">
                 {inputTokens.toLocaleString()}
               </span>
-              <span className="text-muted">out</span>
+              <span className={caveman ? CAVEMAN_TOOLTIP_LABEL : "text-muted"}>
+                {cavemanLabel("out", caveman)}
+              </span>
               <span className="text-right tabular-nums">
                 {outputTokens.toLocaleString()}
               </span>
