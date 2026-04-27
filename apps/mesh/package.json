@@ -1,6 +1,6 @@
 {
   "name": "decocms",
-  "version": "2.276.0",
+  "version": "2.276.2",
   "description": "Deco CMS — Self-hostable MCP Gateway for managing AI connections and tools",
   "author": "Deco team",
   "repository": {
@@ -145,7 +145,7 @@
     "kysely-pglite": "^0.6.1",
     "lucide-react": "^0.468.0",
     "marked": "^15.0.6",
-    "mesh-plugin-user-sandbox": "workspace:*",
+    "@decocms/sandbox": "workspace:*",
     "mesh-plugin-workflows": "workspace:*",
     "nanoid": "^5.1.6",
     "pg": "^8.16.3",

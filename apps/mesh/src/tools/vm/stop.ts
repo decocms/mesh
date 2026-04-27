@@ -5,7 +5,7 @@
  */
 
 import { z } from "zod";
-import type { RunnerKind } from "mesh-plugin-user-sandbox/runner";
+import type { RunnerKind } from "@decocms/sandbox/runner";
 import { defineTool } from "../../core/define-tool";
 import { requireVmEntry } from "./helpers";
 import { getRunnerByKind } from "../../sandbox/lifecycle";

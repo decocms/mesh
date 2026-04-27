@@ -25,16 +25,12 @@ export function ChangesTab({ pr, connectionId, owner, repo }: Props) {
   });
 
   if (filesQuery.isLoading) {
-    return (
-      <div className="p-4 text-sm text-muted-foreground">Loading files…</div>
-    );
+    return <div className="text-sm text-muted-foreground">Loading files…</div>;
   }
 
   if (filesQuery.isError) {
     return (
-      <div className="p-4 text-sm text-destructive">
-        Couldn't load file list.
-      </div>
+      <div className="text-sm text-destructive">Couldn't load file list.</div>
     );
   }
 
@@ -42,13 +38,13 @@ export function ChangesTab({ pr, connectionId, owner, repo }: Props) {
 
   if (files.length === 0) {
     return (
-      <div className="p-4 text-sm text-muted-foreground">No files changed.</div>
+      <div className="text-sm text-muted-foreground">No files changed.</div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-1 p-2">
-      <div className="px-2 pb-2 text-xs text-muted-foreground">
+    <div className="flex flex-col gap-1">
+      <div className="pb-2 text-xs text-muted-foreground">
         {files.length} file{files.length === 1 ? "" : "s"} changed ·{" "}
         <a
           href={`${pr.htmlUrl}/files`}

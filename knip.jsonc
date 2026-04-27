@@ -26,12 +26,11 @@
     "packages/mesh-sdk": {
       "ignoreDependencies": ["sonner"]
     },
-    "packages/mesh-plugin-user-sandbox": {
-      // daemon.mjs is the container entry (COPY'd into the image and run via
-      // `node /opt/sandbox-daemon/daemon.mjs`); it imports the daemon/*.mjs
-      // modules. Without marking it as an entry, knip treats the whole graph
-      // as unused.
-      "entry": ["image/daemon.mjs"]
+    "packages/sandbox": {
+      // daemon/entry.ts is bundled via `bun build daemon/entry.ts` into a
+      // standalone binary that runs inside the sandbox VM. Without marking
+      // it as an entry, knip treats the whole daemon graph as unused.
+      "entry": ["daemon/entry.ts"]
     },
     "packages/typegen": {}
   },

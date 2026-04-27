@@ -45,7 +45,6 @@ import oauthProxyRoutes, {
 } from "./routes/oauth-proxy";
 import openaiCompatRoutes from "./routes/openai-compat";
 import proxyRoutes from "./routes/proxy";
-import { createSandboxDaemonRoutes } from "./routes/sandbox-daemon";
 import { createKVRoutes } from "./routes/kv";
 import { createTriggerCallbackRoutes } from "./routes/trigger-callback";
 import publicConfigRoutes from "./routes/public-config";
@@ -1361,10 +1360,6 @@ export async function createApp(options: CreateAppOptions = {}) {
   });
   app.route("/api", decopilotRoutes);
 
-  // Daemon control-plane passthrough only — dev-server traffic bypasses
-  // mesh and hits pods' public URLs directly.
-  app.route("/", createSandboxDaemonRoutes());
-
   // Stable file redirect endpoint (resolves mesh-storage: URIs to presigned URLs)
   app.route("/api", filesRoutes);
 
@@ -1591,7 +1586,7 @@ export async function createApp(options: CreateAppOptions = {}) {
     const dockerRunner = asDockerRunner(getSharedRunnerIfInit());
     if (dockerRunner) {
       const { sweepDockerOrphansOnShutdown } = await import(
-        "mesh-plugin-user-sandbox/runner"
+        "@decocms/sandbox/runner"
       );
       await sweepDockerOrphansOnShutdown(dockerRunner);
     }

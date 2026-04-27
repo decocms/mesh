@@ -164,6 +164,10 @@ export const KEYS = {
   monitoringLogDetail: (logId: string) =>
     ["monitoring", "log-detail", logId] as const,
 
+  // Ensure-task query (load-or-create by id)
+  ensureTask: (orgId: string, id: string) =>
+    ["ensure-task", orgId, id] as const,
+
   // Thread queries (scoped by locator)
   threadsInfinite: (locator: string, paramsKey: string) =>
     ["threads", "list-infinite", locator, paramsKey] as const,

@@ -81,12 +81,10 @@ let ingressServers: import("node:net").Server[] = [];
 // Docker-only boot/dev wiring. Both hooks (boot sweep + local ingress) are
 // intimate with Docker-specific primitives (labels, host-port mappings);
 // other runners manage their own VM/ingress lifecycle.
-const { tryResolveRunnerKindFromEnv } = await import(
-  "mesh-plugin-user-sandbox/runner"
-);
+const { tryResolveRunnerKindFromEnv } = await import("@decocms/sandbox/runner");
 if (tryResolveRunnerKindFromEnv() === "docker") {
   const { sweepDockerOrphansOnBoot, startLocalSandboxIngress } = await import(
-    "mesh-plugin-user-sandbox/runner"
+    "@decocms/sandbox/runner"
   );
   const { asDockerRunner, getSharedRunnerIfInit } = await import(
     "./sandbox/lifecycle"

@@ -77,14 +77,13 @@ type ViewStatus =
 const WELL_KNOWN_STARTERS = ["dev", "start"];
 
 /**
- * Both runners route `/_decopilot_vm/*` through the mesh proxy. The server
- * holds each VM's bearer token; the browser talks only to same-origin
- * `/api/sandbox/...` so no daemon token or preview domain leaks into the
- * iframe or logs.
+ * Browser talks to the daemon directly via previewUrl (same host that serves
+ * the iframe). Trailing slash stripped because callers append `/_decopilot_vm/...`.
+ * The daemon serves this surface unauthenticated.
  */
 function resolveDaemonBaseUrl(entry: VmMapEntry | undefined): string | null {
-  if (!entry) return null;
-  return `/api/sandbox/${entry.vmId}/_daemon`;
+  if (!entry?.previewUrl) return null;
+  return entry.previewUrl.replace(/\/$/, "");
 }
 
 export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
@@ -93,24 +92,23 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
 
-  // currentBranch = URL override ?? thread.branch, so a persisted thread
-  // resolves to its vmMap entry even on a fresh URL.
-  const { currentBranch: urlBranch, setCurrentTaskBranch } = useChatTask();
+  // thread.branch is the only source for vmMap resolution.
+  const { currentBranch, setCurrentTaskBranch } = useChatTask();
   const userId = session?.user?.id;
   const vmMapMetadata = inset?.entity?.metadata as
     | { vmMap?: Record<string, Record<string, VmMapEntry>> }
     | undefined;
   const existingVm =
-    userId && urlBranch
-      ? vmMapMetadata?.vmMap?.[userId]?.[urlBranch]
+    userId && currentBranch
+      ? vmMapMetadata?.vmMap?.[userId]?.[currentBranch]
       : undefined;
 
   const vmData: VmData | null =
-    existingVm && urlBranch
+    existingVm && currentBranch
       ? {
           previewUrl: existingVm.previewUrl,
           vmId: existingVm.vmId,
-          branch: urlBranch,
+          branch: currentBranch,
           isNewVm: false,
           runnerKind: existingVm.runnerKind,
         }
@@ -189,7 +187,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   // catches up.
   const vmStartPending = useIsVmStartPending(
     inset?.entity?.id,
-    urlBranch ?? undefined,
+    currentBranch ?? undefined,
   );
 
   // Final status = user-initiated override, else derived from (vmData, SSE,
@@ -229,13 +227,13 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     if (reprovisionedForVmIdRef.current === deadVmId) return;
     reprovisionedForVmIdRef.current = deadVmId;
     const args: { virtualMcpId: string; branch?: string } = { virtualMcpId };
-    if (urlBranch) args.branch = urlBranch;
+    if (currentBranch) args.branch = currentBranch;
     triggerSelfHeal(args, {
       onError: (err) => {
         console.error("[env] reprovision VM_START failed", err);
       },
     });
-  }, [deadVmId, virtualMcpId, urlBranch, selfHealPending, triggerSelfHeal]);
+  }, [deadVmId, virtualMcpId, currentBranch, selfHealPending, triggerSelfHeal]);
 
   const scriptsAppliedRef = useRef(false);
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — responds to vmEvents.scripts discovery; drives one-time tab auto-open
@@ -323,7 +321,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
       const args: { virtualMcpId: string; branch?: string } = {
         virtualMcpId: inset.entity.id,
       };
-      if (urlBranch) args.branch = urlBranch;
+      if (currentBranch) args.branch = currentBranch;
       const data = (await callTool("VM_START", args)) as VmData;
 
       if (!data.vmId || !data.branch) {
@@ -331,7 +329,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
       }
 
       // Server-generated branch: persist so subsequent renders resolve via vmMap[userId][branch].
-      if (!urlBranch) {
+      if (!currentBranch) {
         setCurrentTaskBranch(data.branch);
       }
       setStatusLabel("");
@@ -350,7 +348,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   };
 
   const handleStop = async () => {
-    const branchToStop = vmData?.branch ?? urlBranch;
+    const branchToStop = vmData?.branch ?? currentBranch;
     setOverride("stopping");
 
     const virtualMcpId = inset?.entity?.id;

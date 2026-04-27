@@ -26,10 +26,9 @@ export function DescriptionTab({ pr, connectionId, owner, repo }: Props) {
   });
 
   return (
-    <div className="flex flex-col gap-4 p-4">
-      <h1 className="text-lg font-semibold">{decodeHtmlEntities(pr.title)}</h1>
+    <div className="space-y-8">
       {pr.body && (
-        <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
+        <div className="text-sm">
           <MemoizedMarkdown
             id={`pr-body-${pr.number}`}
             text={decodeHtmlEntities(pr.body)}
