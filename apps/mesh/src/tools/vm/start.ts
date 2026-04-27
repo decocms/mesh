@@ -66,13 +66,7 @@ export const VM_START = defineTool({
   }),
 
   handler: async (input, ctx) => {
-    const log = makePhaseLog("VM_START");
     const resolvedBranch = input.branch ?? generateBranchName();
-    log("start", {
-      virtualMcpId: input.virtualMcpId,
-      branch: resolvedBranch,
-      branchProvided: input.branch != null,
-    });
     const {
       metadata,
       userId,
@@ -82,7 +76,6 @@ export const VM_START = defineTool({
       { virtualMcpId: input.virtualMcpId, branch: resolvedBranch },
       ctx,
     );
-    log("vmEntry resolved", { existing: !!existing, userId });
 
     const githubRepo = (metadata as GithubRepoMeta).githubRepo;
     if (!githubRepo) {
@@ -93,16 +86,12 @@ export const VM_START = defineTool({
     }
 
     const runnerKind = resolveRunnerKindFromEnv();
-    log("runner kind resolved", { runnerKind });
 
     // Runner env flipped since the existing entry was written. We don't
     // preserve the old VM — tear it down under its original runner and let
     // the provisioning below spin a fresh one. The boot overlay covers the
     // transition; `isNewVm` fires naturally because the handle changes.
     await reapStaleRunner(ctx, existing, runnerKind);
-    if (existing && existing.runnerKind && existing.runnerKind !== runnerKind) {
-      log("reaped stale runner", { priorKind: existing.runnerKind });
-    }
 
     const { entry, isNewVm } = await provisionSandbox({
       ctx,
@@ -113,9 +102,7 @@ export const VM_START = defineTool({
       metadata,
       githubRepo,
       existing,
-      log,
     });
-    log("done", { handle: entry.vmId, isNewVm });
     return {
       ...entry,
       branch: resolvedBranch,
@@ -152,20 +139,6 @@ async function reapStaleRunner(
   }
 }
 
-type PhaseLog = (msg: string, fields?: Record<string, unknown>) => void;
-
-function makePhaseLog(scope: string): PhaseLog {
-  const t0 = Date.now();
-  return (msg, fields = {}) => {
-    const tail = Object.entries(fields)
-      .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
-      .join(" ");
-    console.log(
-      `[${scope}] +${Date.now() - t0}ms ${msg}${tail ? " " + tail : ""}`,
-    );
-  };
-}
-
 type StartParams = {
   ctx: MeshContext;
   userId: string;
@@ -175,7 +148,6 @@ type StartParams = {
   metadata: Record<string, unknown>;
   githubRepo: { owner: string; name: string; connectionId?: string };
   existing: VmMapEntry | null;
-  log: PhaseLog;
 };
 
 async function provisionSandbox(
@@ -190,7 +162,6 @@ async function provisionSandbox(
     metadata,
     githubRepo,
     existing,
-    log,
   } = params;
 
   let { runtime, packageManager, port } = resolveRuntimeConfig(metadata);
@@ -201,7 +172,6 @@ async function provisionSandbox(
     ctx.db,
     ctx.vault,
   );
-  log("clone-info built");
 
   // Lockfile probe only when metadata has no PM. Used to be client-side in
   // the repo picker, but that introduced a race — VM_START fired from the
@@ -211,7 +181,6 @@ async function provisionSandbox(
   // always matches the detected PM; the result is persisted so subsequent
   // starts skip the probe.
   if (!packageManager) {
-    log("runtime probe start");
     const detected = await detectRepoRuntime(
       githubRepo.connectionId!,
       githubRepo.owner,
@@ -219,9 +188,6 @@ async function provisionSandbox(
       ctx.db,
       ctx.vault,
     );
-    log("runtime probe done", {
-      detected: detected?.packageManager ?? "(none)",
-    });
     if (detected) {
       packageManager = detected.packageManager;
       runtime = PACKAGE_MANAGER_CONFIG[detected.packageManager].runtime;
@@ -253,7 +219,6 @@ async function provisionSandbox(
     branch,
   });
   const runner = await getSharedRunner(ctx);
-  log("runner.ensure start", { kind: runner.kind });
   const sandbox = await runner.ensure(
     { userId, projectRef },
     {
@@ -267,7 +232,6 @@ async function provisionSandbox(
       workload,
     },
   );
-  log("runner.ensure ok", { handle: sandbox.handle });
 
   // Preserve `createdAt` across resumes so the booting overlay's elapsed
   // timer doesn't reset on re-run.

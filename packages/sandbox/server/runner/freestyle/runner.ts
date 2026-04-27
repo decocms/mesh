@@ -67,6 +67,45 @@ function makePhaseLog(scope: string): PhaseLog {
   };
 }
 
+/**
+ * Pull as much detail as possible from an unknown thrown value. SDK errors
+ * may wrap an HTTP Response, attach a `cause`, or be plain objects — bare
+ * `err.message` regularly produces "[object Object]" in the logs.
+ */
+function describeError(err: unknown): Record<string, unknown> {
+  if (err instanceof Error) {
+    const out: Record<string, unknown> = {
+      name: err.name,
+      message: err.message,
+    };
+    if (err.stack) out.stack = err.stack.split("\n").slice(0, 4).join(" | ");
+    if ("cause" in err && err.cause !== undefined) {
+      out.cause =
+        err.cause instanceof Error
+          ? `${err.cause.name}: ${err.cause.message}`
+          : String(err.cause);
+    }
+    if ("status" in err && typeof err.status === "number")
+      out.status = err.status;
+    if ("code" in err) out.code = String(err.code);
+    if ("response" in err && err.response && typeof err.response === "object") {
+      const resp = err.response as { status?: number; statusText?: string };
+      out.responseStatus = resp.status;
+      out.responseStatusText = resp.statusText;
+    }
+    return out;
+  }
+  if (err === null || err === undefined) return { err: String(err) };
+  if (typeof err === "object") {
+    try {
+      return { raw: JSON.stringify(err) };
+    } catch {
+      return { raw: Object.prototype.toString.call(err) };
+    }
+  }
+  return { raw: String(err) };
+}
+
 export interface FreestyleRunnerOptions {
   stateStore?: RunnerStateStore;
   /** Override when the freestyle account uses a custom apex. Default: `deco.studio`. */
@@ -327,9 +366,7 @@ export class FreestyleSandboxRunner implements SandboxRunner {
         idleTimeoutSeconds: this.idleTimeoutSeconds,
       });
     } catch (err) {
-      log("freestyle.vms.create failed", {
-        err: err instanceof Error ? err.message : String(err),
-      });
+      log("freestyle.vms.create failed", describeError(err));
       throw new Error(
         `[${LOG_LABEL}] vms.create failed for domain=${previewDomain} user=${id.userId} projectRef=${id.projectRef}: ${
           err instanceof Error ? err.message : String(err)
@@ -402,7 +439,7 @@ export class FreestyleSandboxRunner implements SandboxRunner {
     } catch (err) {
       log("resume vm.start failed", {
         vmId: state.vmId,
-        err: err instanceof Error ? err.message : String(err),
+        ...describeError(err),
       });
       return null;
     }
