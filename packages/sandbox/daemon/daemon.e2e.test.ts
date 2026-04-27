@@ -19,6 +19,13 @@ const DAEMON_TOKEN = "t".repeat(32);
 // the rg-dependent test when it's missing so the rest of the suite still runs.
 const hasRipgrep = spawnSync("which", ["rg"]).status === 0;
 
+// CI cold-start of `bun` + the bundled daemon listener occasionally exceeds
+// Bun's default 5s hook timeout, especially on shared runners under load.
+// Each test in this file spawns a fresh daemon, so we give beforeEach and
+// afterEach generous headroom.
+const HOOK_TIMEOUT_MS = 30_000;
+const PORT_WAIT_TIMEOUT_MS = 20_000;
+
 function authHeaders(
   extra: Record<string, string> = {},
 ): Record<string, string> {
@@ -34,7 +41,10 @@ function freePort(): number {
   return 50000 + Math.floor(Math.random() * 10000);
 }
 
-async function waitForPort(port: number, timeoutMs = 5000): Promise<void> {
+async function waitForPort(
+  port: number,
+  timeoutMs = PORT_WAIT_TIMEOUT_MS,
+): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
@@ -88,10 +98,10 @@ async function stopDaemon() {
 describe("daemon e2e (runs generated script under Bun)", () => {
   beforeEach(async () => {
     await startDaemon();
-  });
+  }, HOOK_TIMEOUT_MS);
   afterEach(async () => {
     await stopDaemon();
-  });
+  }, HOOK_TIMEOUT_MS);
 
   it("GET /_decopilot_vm/scripts returns { scripts: [] } before discovery", async () => {
     const res = await fetch(
@@ -410,10 +420,10 @@ describe("daemon e2e (runs generated script under Bun)", () => {
 describe("daemon e2e (Bun-native server guarantees)", () => {
   beforeEach(async () => {
     await startDaemon();
-  });
+  }, HOOK_TIMEOUT_MS);
   afterEach(async () => {
     await stopDaemon();
-  });
+  }, HOOK_TIMEOUT_MS);
 
   it("returns Access-Control-Allow-Origin=* on every /_decopilot_vm/* response branch", async () => {
     // 1. GET /scripts (native Response branch)
@@ -488,7 +498,7 @@ describe("daemon e2e (reverse proxy)", () => {
       upstreamServer.stop(true);
       upstreamServer = null;
     }
-  });
+  }, HOOK_TIMEOUT_MS);
 
   it("injects BOOTSTRAP and strips XFO/CSP/content-encoding for HTML", async () => {
     await startWithUpstream(
