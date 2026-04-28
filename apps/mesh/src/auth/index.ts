@@ -40,6 +40,7 @@ import { createEmailSender, findEmailProvider } from "./email-providers";
 import { emailButton, emailParagraph, emailTemplate } from "./email-template";
 import { createMagicLinkConfig } from "./magic-link";
 import { seedOrgDb } from "./org";
+import { identifyAuthenticatedUser } from "./posthog-identify";
 import { ADMIN_ROLES } from "./roles";
 import { createSSOConfig } from "./sso";
 
@@ -434,6 +435,16 @@ export const auth = betterAuth({
     user: {
       create: {
         after: async (user) => {
+          // Tag the PostHog person record with email/name BEFORE the
+          // user_signed_up capture so that event lands on a person record
+          // that already has $set: { email } applied.
+          identifyAuthenticatedUser({
+            id: user.id,
+            email: user.email,
+            name: user.name ?? null,
+            emailVerified: !!user.emailVerified,
+          });
+
           // Top-of-funnel signup event. Fires once per new user account,
           // before any org is created. Use this (not organization_created)
           // to measure raw signup volume.
@@ -544,6 +555,31 @@ export const auth = betterAuth({
               }
             }
           }
+        },
+      },
+    },
+    session: {
+      create: {
+        // Re-identify on every successful login (email/password, OTP,
+        // magic link, SSO). PostHog merges person properties server-side,
+        // so this is idempotent and provides automatic backfill for
+        // existing users whose person records were created before
+        // posthog.identify was wired into the auth flow.
+        after: async (session) => {
+          const row = await getDb()
+            .db.selectFrom("user")
+            .select(["id", "email", "name", "emailVerified"])
+            .where("id", "=", session.userId)
+            .executeTakeFirst();
+
+          if (!row) return;
+
+          identifyAuthenticatedUser({
+            id: row.id,
+            email: row.email,
+            name: row.name ?? null,
+            emailVerified: !!row.emailVerified,
+          });
         },
       },
     },
