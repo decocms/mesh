@@ -1,68 +1,156 @@
-# agent-sandbox subchart
+# agent-sandbox Helm chart
 
-Local Helm subchart that vendors
-[`kubernetes-sigs/agent-sandbox`](https://github.com/kubernetes-sigs/agent-sandbox)
-so the parent `chart-deco-studio` can install the operator + CRDs for the
-mesh k8s sandbox runner. Upstream does not publish a Helm chart as of
-v0.4.2 — only raw `manifest.yaml` + `extensions.yaml` release assets — so
-we vendor the YAML here and reference the subchart via `file://`.
+Standalone Helm chart for the mesh / Studio k8s sandbox runner. Installs
+the upstream [`kubernetes-sigs/agent-sandbox`](https://github.com/kubernetes-sigs/agent-sandbox)
+operator + CRDs (vendored — upstream doesn't publish a Helm chart as of
+v0.4.2) and the Studio-side resources that consume them: `SandboxTemplate`,
+RBAC, `NetworkPolicy`, optional `SandboxWarmPool`, optional preview
+`Gateway` + `Certificate`.
 
-Version pin: **v0.4.2** (see `Chart.yaml` `appVersion`).
+This chart is **deployed independently** of the studio (`chart-deco-studio`)
+chart, typically as its own ArgoCD `Application`. Cross-chart wiring lives
+under `mesh.*` values: tell this chart where the studio release runs so the
+RBAC `RoleBinding`, `NetworkPolicy` ingress selector, and preview
+`HTTPRoute` `backendRef` can reach it.
+
+Pinned upstream version: **v0.4.2** (see `Chart.yaml` `appVersion`).
+
+## Install
+
+Published as an OCI artifact at
+`oci://ghcr.io/decocms/studio/charts/agent-sandbox` by
+`.github/workflows/release-agent-sandbox-chart.yaml`.
+
+```bash
+helm install agent-sandbox \
+  oci://ghcr.io/decocms/studio/charts/agent-sandbox \
+  --version 0.1.0 \
+  --namespace agent-sandbox-system --create-namespace \
+  --set mesh.namespace=deco-studio \
+  --set mesh.serviceAccountName=deco-studio \
+  --set mesh.serviceName=deco-studio \
+  --set mesh.servicePort=80
+```
+
+Then point the studio (chart-deco-studio) release at this runner:
+
+```yaml
+# in your studio values.yaml
+configMap:
+  meshConfig:
+    STUDIO_SANDBOX_RUNNER: "agent-sandbox"
+    STUDIO_SANDBOX_PREVIEW_URL_PATTERN: "https://{handle}.preview.example.com"
+```
+
+### ArgoCD Application
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: agent-sandbox
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/decocms/studio/charts
+    chart: agent-sandbox
+    targetRevision: 0.1.0
+    helm:
+      values: |
+        mesh:
+          namespace: deco-studio
+          serviceAccountName: deco-studio
+          serviceName: deco-studio
+          servicePort: 80
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: agent-sandbox-system
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+```
 
 ## Layout
 
 ```
 agent-sandbox/
 ├── Chart.yaml
-├── values.yaml                        # intentionally empty — no tunables
-├── vendor.sh                          # re-fetch upstream YAML on version bump
+├── values.yaml                          # tunables + mesh.* cross-refs
+├── vendor.sh                            # re-fetches upstream YAML
+├── examples/
+│   └── values-kind.yaml                 # local dev overrides
 ├── crds/
-│   └── agent-sandbox-crds.yaml        # all CustomResourceDefinition docs
+│   └── agent-sandbox-crds.yaml          # vendored CRDs
 └── templates/
-    └── agent-sandbox-manifest.yaml    # Deployment, RBAC, Namespace, Service, ServiceAccount
+    ├── _helpers.tpl
+    ├── validations.yaml                 # Gateway API + cert-manager preflight
+    ├── agent-sandbox-manifest.yaml      # vendored upstream operator
+    ├── sandbox-template.yaml            # SandboxTemplate (studio-sandbox)
+    ├── sandbox-warm-pool.yaml           # SandboxWarmPool (optional)
+    ├── sandbox-network-policy.yaml      # NetworkPolicy on sandbox pods
+    ├── sandbox-rbac.yaml                # Role + cross-ns RoleBinding to mesh SA
+    ├── sandbox-preview-cert.yaml        # cert-manager Certificate (optional)
+    └── sandbox-preview-gateway.yaml     # Gateway + HTTPRoute (optional)
 ```
 
-Upstream `extensions.yaml` and `manifest.yaml` both contain a mix of CRDs
-and non-CRD resources (controller Deployment, RBAC, Namespace). `vendor.sh`
-splits on `kind: CustomResourceDefinition` at document boundaries and
-routes each doc to the right directory.
+`vendor.sh` splits upstream multi-doc YAML on `kind: CustomResourceDefinition`
+boundaries and routes each doc into `crds/` or `templates/`.
+
+## Values
+
+See `values.yaml` for the full set. The most-tuned ones:
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `image.repository` | `ghcr.io/decocms/studio/studio-sandbox` | studio-sandbox image |
+| `image.tag` | chart `appVersion` | bump in lockstep with packages/sandbox/package.json |
+| `resources.*` | 0.5/2 CPU, 1/4Gi RAM | per sandbox pod |
+| `nodeSelector` / `tolerations` / `affinity` | `{}` | for sandbox isolation NodePool |
+| `hostUsers` | `false` | userns remap; flip to `true` if kernel/containerd doesn't support userns |
+| `readOnlyRootFilesystem` | `true` | RO rootfs + emptyDirs on /app, /tmp, /home |
+| `networkPolicy.enabled` | `true` | locks down ingress/egress |
+| `warmPool.enabled` / `warmPool.size` | `false` / `0` | only after measuring cold-start pain |
+| `previewGateway.enabled` | `false` | wildcard `*.preview.<domain>` Gateway + cert |
+| `mesh.namespace` | `deco-studio` | studio release namespace |
+| `mesh.serviceAccountName` | `deco-studio` | mesh ServiceAccount that gets the RoleBinding |
+| `mesh.serviceName` | `deco-studio` | mesh Service the preview HTTPRoute targets |
+| `mesh.servicePort` | `80` | match studio's `service.port` |
+| `mesh.podSelectorLabels` | `chart-deco-studio` / `deco-studio` | for the NetworkPolicy ingress rule |
 
 ## CRD upgrade caveat
 
-Helm installs files in `crds/` on first install but **never upgrades
-them** (this is an intentional Helm design choice — CRD upgrades are
-treated as a manual operation because schema changes can break existing
-custom resources). That's acceptable for mesh because:
-
-- Upstream pin is tight (v0.4.2).
-- CRD schema changes are rare between upstream patch releases.
-
-To pick up upstream CRD schema changes after running `vendor.sh`:
+Helm install-applies files under `crds/` on first install but **never
+upgrades them** (intentional Helm design choice). After bumping
+`appVersion` via `./vendor.sh`, run:
 
 ```bash
-kubectl apply -f deploy/helm/charts/agent-sandbox/crds/agent-sandbox-crds.yaml
+kubectl apply -f deploy/helm/agent-sandbox/crds/agent-sandbox-crds.yaml
 # then helm upgrade as normal
 ```
 
-Uninstall + reinstall also works but drops existing SandboxClaims.
+Uninstall + reinstall also works but drops existing `SandboxClaim`s.
 
 ## Bumping upstream version
 
 ```bash
-./vendor.sh v0.4.3               # re-fetches + re-splits
+./vendor.sh v0.4.3               # re-fetches + re-splits, requires sha256 in KNOWN_CHECKSUMS
 # edit Chart.yaml: appVersion -> "0.4.3"
-# bump version: ... (subchart version; e.g. 0.1.0 -> 0.2.0)
-helm dependency update ../../    # refresh parent Chart.lock
+# bump version: 0.1.0 -> 0.2.0
 ```
 
-Check the upstream release notes for CRD schema changes — if the
-`sandboxtemplates` or `sandboxwarmpools` CRD shape changes, the parent
-chart's `templates/sandbox-template.yaml` and `templates/sandbox-warm-pool.yaml`
-may need corresponding edits.
+Push to `main` — `release-agent-sandbox-chart.yaml` packages and pushes
+the new OCI tag to `ghcr.io`. Argo CD picks it up by the `targetRevision`
+in the `Application` manifest.
+
+Check upstream release notes for CRD schema changes — if `sandboxtemplates`
+or `sandboxwarmpools` shape changes, `templates/sandbox-template.yaml` and
+`templates/sandbox-warm-pool.yaml` may need corresponding edits.
 
 ## Why not an upstream Helm chart?
 
-Upstream hasn't published one. Filing a request with prior art pointing at
-this subchart is worthwhile — if it lands, this vendored copy goes away
-and the parent chart switches to `repository: oci://...` or a Helm repo.
-Not a blocker for mesh.
+Upstream hasn't published one as of v0.4.2. Filing a request with prior
+art pointing at this chart is worthwhile — if upstream ships an official
+chart, the vendored copy goes away and this chart switches to a `dependencies:`
+entry pointing at upstream's repo.
