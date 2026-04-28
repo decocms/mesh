@@ -1,54 +1,14 @@
 import { type ReactNode } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  useProjectContext,
-  useMCPClient,
-  SELF_MCP_ALIAS_ID,
-} from "@decocms/mesh-sdk";
+import { useQueryClient } from "@tanstack/react-query";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import { KEYS } from "@/web/lib/query-keys";
+import { useUpdateOrganizationSettings } from "@/web/hooks/use-organization-settings";
 import { Switch } from "@deco/ui/components/switch.tsx";
 import { toast } from "sonner";
 import { Container } from "@untitledui/icons";
 import { sourcePlugins } from "@/web/plugins";
 import { pluginSidebarGroups, pluginSettingsSidebarItems } from "@/web/index";
 import type { AnyClientPlugin } from "@decocms/bindings/plugins";
-
-type ToolTextResponse = { type?: string; text?: string };
-type ToolErrorEnvelope = {
-  isError?: boolean;
-  content?: Array<ToolTextResponse>;
-};
-
-const isToolTextError = (payload: unknown): payload is ToolTextResponse => {
-  if (!payload || typeof payload !== "object") return false;
-  const candidate = payload as ToolTextResponse;
-  return (
-    candidate.type === "text" &&
-    typeof candidate.text === "string" &&
-    candidate.text.trim().toLowerCase().startsWith("error")
-  );
-};
-
-const unwrapToolResult = <T,>(result: unknown): T => {
-  const payload =
-    (result as { structuredContent?: unknown }).structuredContent ?? result;
-  const maybeErrorEnvelope =
-    payload && typeof payload === "object"
-      ? (payload as ToolErrorEnvelope)
-      : null;
-  const contentText =
-    maybeErrorEnvelope?.content?.[0]?.text &&
-    typeof maybeErrorEnvelope.content[0].text === "string"
-      ? maybeErrorEnvelope.content[0].text
-      : null;
-  if (maybeErrorEnvelope?.isError) {
-    throw new Error(contentText ?? "Tool call failed");
-  }
-  if (isToolTextError(payload)) {
-    throw new Error(payload.text);
-  }
-  return payload as T;
-};
 
 type PluginRowProps = {
   plugin: AnyClientPlugin;
@@ -107,50 +67,26 @@ export function ProjectPluginsForm() {
   const { org, project } = useProjectContext();
   const queryClient = useQueryClient();
 
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-
   const serverPlugins = project.enabledPlugins ?? [];
 
-  const mutation = useMutation({
-    mutationFn: async (input: { enabledPlugins: string[] }) => {
-      const result = await client.callTool({
-        name: "ORGANIZATION_SETTINGS_UPDATE",
-        arguments: {
-          organizationId: org.id,
-          enabled_plugins: input.enabledPlugins,
-        },
-      });
-      return unwrapToolResult<unknown>(result);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: KEYS.project(org.id, project.slug),
-      });
-      queryClient.invalidateQueries({
-        queryKey: KEYS.projects(org.id),
-      });
-      queryClient.invalidateQueries({
-        predicate: (query) => {
-          const k = query.queryKey;
-          return (
-            k[1] === org.id && k[3] === "collection" && k[4] === "VIRTUAL_MCP"
-          );
-        },
-      });
-      queryClient.invalidateQueries({
-        queryKey: KEYS.organizationSettings(org.id),
-      });
-    },
-    onError: (error) => {
-      toast.error(
-        "Failed to update plugin: " +
-          (error instanceof Error ? error.message : "Unknown error"),
-      );
-    },
-  });
+  const mutation = useUpdateOrganizationSettings();
+
+  const invalidateDependentCaches = () => {
+    queryClient.invalidateQueries({
+      queryKey: KEYS.project(org.id, project.slug),
+    });
+    queryClient.invalidateQueries({
+      queryKey: KEYS.projects(org.id),
+    });
+    queryClient.invalidateQueries({
+      predicate: (query) => {
+        const k = query.queryKey;
+        return (
+          k[1] === org.id && k[3] === "collection" && k[4] === "VIRTUAL_MCP"
+        );
+      },
+    });
+  };
 
   const handleTogglePlugin = (pluginId: string, enabled: boolean) => {
     const current = new Set(serverPlugins);
@@ -159,7 +95,18 @@ export function ProjectPluginsForm() {
     } else {
       current.delete(pluginId);
     }
-    mutation.mutate({ enabledPlugins: Array.from(current) });
+    mutation.mutate(
+      { enabled_plugins: Array.from(current) },
+      {
+        onSuccess: invalidateDependentCaches,
+        onError: (error) => {
+          toast.error(
+            "Failed to update plugin: " +
+              (error instanceof Error ? error.message : "Unknown error"),
+          );
+        },
+      },
+    );
   };
 
   // Get plugin metadata from sidebar groups or settings sidebar items

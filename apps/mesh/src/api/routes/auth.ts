@@ -68,73 +68,51 @@ export type AuthConfig = {
   localMode: boolean;
 };
 
-/**
- * Auth Configuration Endpoint
- *
- * Returns information about available authentication methods
- *
- * Route: GET /api/auth/custom/config
- */
-app.get("/config", async (c) => {
-  try {
-    const socialProviders = Object.keys(authConfig.socialProviders ?? {});
-    const hasSocialProviders = socialProviders.length > 0;
-    const providers = socialProviders.map((name) => ({
-      name,
-      icon: KNOWN_OAUTH_PROVIDERS[name as OAuthProvider].icon,
-    }));
+export function buildAuthConfig(): AuthConfig {
+  const socialProviders = Object.keys(authConfig.socialProviders ?? {});
+  const hasSocialProviders = socialProviders.length > 0;
+  const providers = socialProviders.map((name) => ({
+    name,
+    icon: KNOWN_OAUTH_PROVIDERS[name as OAuthProvider].icon,
+  }));
 
-    // STDIO is enabled in local mode, in non-production environments,
-    // or when explicitly allowed via UNSAFE_ALLOW_STDIO_TRANSPORT
-    const settings = getSettings();
-    const stdioEnabled =
-      settings.localMode ||
-      settings.nodeEnv !== "production" ||
-      settings.unsafeAllowStdioTransport;
+  // STDIO is enabled in local mode, in non-production environments,
+  // or when explicitly allowed via UNSAFE_ALLOW_STDIO_TRANSPORT
+  const settings = getSettings();
+  const stdioEnabled =
+    settings.localMode ||
+    settings.nodeEnv !== "production" ||
+    settings.unsafeAllowStdioTransport;
 
-    const config: AuthConfig = {
-      emailAndPassword: {
-        enabled: authConfig.emailAndPassword?.enabled ?? false,
-      },
-      magicLink: {
-        enabled: authConfig.magicLinkConfig?.enabled ?? false,
-      },
-      emailOtp: {
-        enabled: authConfig.emailOtpConfig?.enabled ?? false,
-      },
-      resetPassword: {
-        enabled: resetPasswordEnabled,
-      },
-      socialProviders: {
-        enabled: hasSocialProviders,
-        providers: providers,
-      },
-      sso: authConfig.ssoConfig
-        ? {
-            enabled: true,
-            providerId: authConfig.ssoConfig.providerId,
-          }
-        : {
-            enabled: false,
-          },
-      stdioEnabled,
-      localMode: isLocalMode(),
-    };
-
-    return c.json({ success: true, config });
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Failed to load auth config";
-
-    return c.json(
-      {
-        success: false,
-        error: errorMessage,
-      },
-      500,
-    );
-  }
-});
+  return {
+    emailAndPassword: {
+      enabled: authConfig.emailAndPassword?.enabled ?? false,
+    },
+    magicLink: {
+      enabled: authConfig.magicLinkConfig?.enabled ?? false,
+    },
+    emailOtp: {
+      enabled: authConfig.emailOtpConfig?.enabled ?? false,
+    },
+    resetPassword: {
+      enabled: resetPasswordEnabled,
+    },
+    socialProviders: {
+      enabled: hasSocialProviders,
+      providers: providers,
+    },
+    sso: authConfig.ssoConfig
+      ? {
+          enabled: true,
+          providerId: authConfig.ssoConfig.providerId,
+        }
+      : {
+          enabled: false,
+        },
+    stdioEnabled,
+    localMode: isLocalMode(),
+  };
+}
 
 /**
  * Local Mode Auto-Session Endpoint

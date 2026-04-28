@@ -34,9 +34,15 @@ import type { Metadata } from "./types.ts";
 import { useChatStream, useChatTask, useChatPrefs } from "./context";
 import { ChatHighlight } from "./highlight";
 import { ModelSelector } from "./select-model";
-import { modelSupportsFiles } from "./select-model";
+import { getSupportedFileTypesLabel, modelSupportsFiles } from "./select-model";
 import type { AiProviderModel } from "@/web/hooks/collections/use-ai-providers";
-import { FileUploadButton, processFile } from "./tiptap/file";
+import {
+  FileUploadButton,
+  UnsupportedFileDialog,
+  useUnsupportedFileDialog,
+  processFile,
+  type UnsupportedFileInfo,
+} from "./tiptap/file";
 import { useCurrentEditor } from "@tiptap/react";
 import {
   TiptapInput,
@@ -135,7 +141,10 @@ function SimpleModeTierDropdown({
  *
  * Must be called inside a TiptapProvider so `useCurrentEditor()` resolves.
  */
-function useWindowFileDrop(selectedModel: AiProviderModel | null | undefined) {
+function useWindowFileDrop(
+  selectedModel: AiProviderModel | null | undefined,
+  onUnsupportedFile?: (info: UnsupportedFileInfo) => void,
+) {
   const { editor } = useCurrentEditor();
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const dragCounterRef = useRef(0);
@@ -174,7 +183,7 @@ function useWindowFileDrop(selectedModel: AiProviderModel | null | undefined) {
 
       const { from } = editor.state.selection;
       for (const file of Array.from(files)) {
-        void processFile(editor, selectedModel, file, from);
+        void processFile(editor, selectedModel, file, from, onUnsupportedFile);
       }
     };
 
@@ -188,7 +197,7 @@ function useWindowFileDrop(selectedModel: AiProviderModel | null | undefined) {
       window.removeEventListener("dragover", onDragOver);
       window.removeEventListener("drop", onDrop);
     };
-  }, [editor, selectedModel]);
+  }, [editor, selectedModel, onUnsupportedFile]);
 
   return isDraggingOver;
 }
@@ -199,10 +208,12 @@ function useWindowFileDrop(selectedModel: AiProviderModel | null | undefined) {
 
 function FileDropZone({
   selectedModel,
+  onUnsupportedFile,
 }: {
   selectedModel: AiProviderModel | null | undefined;
+  onUnsupportedFile?: (info: UnsupportedFileInfo) => void;
 }) {
-  const isDraggingOver = useWindowFileDrop(selectedModel);
+  const isDraggingOver = useWindowFileDrop(selectedModel, onUnsupportedFile);
   const supportsFiles = modelSupportsFiles(selectedModel);
 
   return (
@@ -218,13 +229,16 @@ function FileDropZone({
       {supportsFiles ? (
         <>
           <Upload01 size={24} />
-          <span className="text-sm font-medium">Drop files here</span>
+          <span className="text-sm font-medium">
+            Drop {getSupportedFileTypesLabel(selectedModel)} here
+          </span>
         </>
       ) : (
         <>
           <Lock01 size={24} />
           <span className="text-sm font-medium">
-            This model does not support files
+            This model can't read attachments — switch to one with vision or
+            file support
           </span>
         </>
       )}
@@ -266,6 +280,8 @@ export function ChatInput({
   const decopilotId = getWellKnownDecopilotVirtualMCP(org.id).id;
   const playSwitchSound = useSound(question004Sound);
   const [connectionsOpen, setConnectionsOpen] = useState(false);
+  const { unsupportedFile, onUnsupportedFile, clearUnsupportedFile } =
+    useUnsupportedFileDialog();
 
   const voice = useVoiceInput();
   const voiceBaselineDocRef = useRef<Metadata["tiptapDoc"]>(undefined);
@@ -441,7 +457,10 @@ export function ChatInput({
                 "w-full relative rounded-2xl min-h-[110px] md:min-h-[130px] flex flex-col bg-background dark:bg-muted card-shadow",
               )}
             >
-              <FileDropZone selectedModel={selectedModel} />
+              <FileDropZone
+                selectedModel={selectedModel}
+                onUnsupportedFile={onUnsupportedFile}
+              />
 
               <div className="group/input relative flex flex-col gap-2 flex-1">
                 <TiptapInput
@@ -454,6 +473,7 @@ export function ChatInput({
                   virtualMcpId={selectedVirtualMcp?.id ?? decopilotId}
                   showFileUploader={true}
                   selectedModel={selectedModel}
+                  onUnsupportedFile={onUnsupportedFile}
                 />
               </div>
 
@@ -493,6 +513,7 @@ export function ChatInput({
                         selectedModel={selectedModel}
                         isStreaming={isStreaming}
                         icon={<Plus size={16} />}
+                        onUnsupportedFile={onUnsupportedFile}
                       />
                       <ToolsPopover
                         disabled={isStreaming}
@@ -704,6 +725,11 @@ export function ChatInput({
         open={connectionsOpen}
         onOpenChange={setConnectionsOpen}
         defaultTab="all"
+      />
+
+      <UnsupportedFileDialog
+        info={unsupportedFile}
+        onClose={clearUnsupportedFile}
       />
     </>
   );

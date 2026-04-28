@@ -23,7 +23,7 @@ import {
   stepCountIs,
   streamText,
 } from "ai";
-import { getBuiltInTools } from "./built-in-tools";
+import { getBuiltInTools, type PendingImage } from "./built-in-tools";
 import { createEnableToolsTool } from "./built-in-tools/enable-tools";
 import {
   buildBasePlatformPrompt,
@@ -239,6 +239,10 @@ async function streamCoreInner(
 
     const windowSize = input.windowSize ?? DEFAULT_WINDOW_SIZE;
 
+    if (!input.taskId) {
+      throw new Error("streamCore: taskId is required");
+    }
+
     // 2. Load entities and create/load memory in parallel
     const [virtualMcp, provider, mem] = await Promise.all([
       ctx.storage.virtualMcps.findById(input.agent.id, input.organizationId),
@@ -253,11 +257,6 @@ async function streamCoreInner(
         thread_id: input.taskId,
         userId: input.userId,
         defaultWindowSize: windowSize,
-        triggerId: input.triggerId,
-        automationId: input.automationId,
-        automationName: input.automationName,
-        virtualMcpId: input.agent.id,
-        branch: input.branch ?? null,
       }),
     ]);
 
@@ -479,6 +478,7 @@ async function streamCoreInner(
     }
 
     const toolOutputMap = new Map<string, string>();
+    const pendingImages: PendingImage[] = [];
     const organization = ctx.organization!;
     const streamStartAt = Date.now();
     let aggregatedUsage: {
@@ -561,6 +561,7 @@ async function streamCoreInner(
                 toolApprovalLevel: input.toolApprovalLevel,
                 isPlanMode: modeConfig.isPlanMode,
                 toolOutputMap,
+                pendingImages,
                 passthroughClient,
                 activeVm,
               },
@@ -826,9 +827,54 @@ async function streamCoreInner(
                         : null;
                     let stepIndex = 0;
 
-                    return () => {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    return (stepArgs: any) => {
+                      const stepMessages = stepArgs.messages;
                       const isFirstStep = stepIndex === 0;
                       stepIndex++;
+
+                      // Inject pending screenshot images as a user message.
+                      // Images in tool result messages aren't supported by all
+                      // providers (e.g. OpenRouter), so we append them as user
+                      // content which is universally supported.
+                      // biome-ignore lint: complex AI SDK generic types
+                      let injectedMessages: any;
+                      if (pendingImages.length > 0) {
+                        const imageParts = pendingImages.splice(
+                          0,
+                          pendingImages.length,
+                        );
+                        const content: unknown[] = [];
+                        for (const img of imageParts) {
+                          content.push({
+                            type: "text",
+                            text: `[Screenshot of ${img.pageUrl}]`,
+                          });
+                          if (img.url.startsWith("data:")) {
+                            // data URI → send as inline image
+                            const match = img.url.match(
+                              /^data:([^;]+);base64,(.+)$/s,
+                            );
+                            if (match) {
+                              content.push({
+                                type: "image",
+                                image: match[2],
+                                mimeType: match[1],
+                              });
+                            }
+                          } else {
+                            // Presigned URL → send as image URL
+                            content.push({
+                              type: "image",
+                              image: new URL(img.url),
+                            });
+                          }
+                        }
+                        injectedMessages = [
+                          ...stepMessages,
+                          { role: "user", content },
+                        ];
+                      }
 
                       let activeToolNames = [
                         ...builtInToolNames,
@@ -860,6 +906,9 @@ async function streamCoreInner(
 
                       return {
                         activeTools: activeToolNames as (keyof typeof tools)[],
+                        ...(injectedMessages && {
+                          messages: injectedMessages,
+                        }),
                         ...(forcedToolName && {
                           toolChoice: {
                             type: "tool" as const,

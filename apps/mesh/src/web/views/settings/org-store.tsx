@@ -23,7 +23,10 @@ import { KEYS } from "@/web/lib/query-keys";
 import { Page } from "@/web/components/page";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { useRegistryConnections } from "@/web/hooks/use-registry-connections";
-import { useRegistrySettings } from "@/web/hooks/use-registry-settings";
+import {
+  useRegistryConfig,
+  useUpdateRegistryConfig,
+} from "@/web/hooks/use-organization-settings";
 import { track } from "@/web/lib/posthog-client";
 
 function ErrorFallback({ error }: { error: Error }) {
@@ -244,13 +247,19 @@ function OrgStoreContent() {
   const { org } = useProjectContext();
   const registryConnections = useRegistryConnections();
   const connectionActions = useConnectionActions();
-  const { registryConfig, isRegistryEnabled, updateRegistryConfig } =
-    useRegistrySettings();
+  const registryConfig = useRegistryConfig();
+  const { mutateAsync: updateRegistryConfig } = useUpdateRegistryConfig();
   const queryClient = useQueryClient();
 
   const [showAddForm, setShowAddForm] = useState(false);
 
   const decoStoreId = WellKnownOrgMCPId.REGISTRY(org.id);
+  const isRegistryEnabled = (connectionId: string): boolean => {
+    if (!registryConfig) return connectionId === decoStoreId;
+    const entry = registryConfig.registries[connectionId];
+    if (!entry) return connectionId === decoStoreId;
+    return entry.enabled;
+  };
   const communityRegistryId = WellKnownOrgMCPId.COMMUNITY_REGISTRY(org.id);
 
   const decoStoreConnection = registryConnections.find(
@@ -290,7 +299,9 @@ function OrgStoreContent() {
   const handleDelete = async (connectionId: string) => {
     track("store_private_registry_removed", { connection_id: connectionId });
     await connectionActions.delete.mutateAsync(connectionId);
-    queryClient.invalidateQueries({ queryKey: KEYS.registryConfig(org.id) });
+    queryClient.invalidateQueries({
+      queryKey: KEYS.organizationSettings(org.id),
+    });
   };
 
   const handleAddSuccess = async (connectionId: string) => {

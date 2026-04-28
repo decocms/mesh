@@ -1,26 +1,21 @@
 /**
  * PostHog analytics client (browser-side).
  *
- * Enabled only when `VITE_POSTHOG_KEY` is defined at build time. On
- * self-hosted / open-source builds without the env var, this module
- * exports no-op shims so call sites don't need to guard.
+ * Init is deferred until the SPA fetches /api/config and reads
+ * `posthog: { key, host } | null`. When PostHog isn't configured, the
+ * `init` call is skipped and every track/identify shim is a no-op.
  *
- * Host defaults to PostHog US cloud. Override with `VITE_POSTHOG_HOST`
- * (e.g. `https://eu.i.posthog.com`).
+ * Calls fired before `initPostHog()` runs are silently dropped — there
+ * is no in-memory queue. See the spec for the rationale.
  */
 
 import posthog from "posthog-js";
 
-const apiKey = import.meta.env.VITE_POSTHOG_KEY as string | undefined;
-const host =
-  (import.meta.env.VITE_POSTHOG_HOST as string | undefined) ??
-  "https://us.i.posthog.com";
-
 let initialized = false;
 
-export function initPostHog() {
-  if (!apiKey || initialized || typeof window === "undefined") return;
-  posthog.init(apiKey, {
+export function initPostHog(key: string, host: string) {
+  if (initialized || typeof window === "undefined") return;
+  posthog.init(key, {
     api_host: host,
     capture_pageview: "history_change",
     capture_pageleave: true,
@@ -50,17 +45,17 @@ export function identifyUser(
   userId: string,
   props?: { email?: string; name?: string },
 ) {
-  if (!apiKey || !initialized) return;
+  if (!initialized) return;
   posthog.identify(userId, props);
 }
 
 export function resetUser() {
-  if (!apiKey || !initialized) return;
+  if (!initialized) return;
   posthog.reset();
 }
 
 export function track(event: string, properties?: Record<string, unknown>) {
-  if (!apiKey || !initialized) return;
+  if (!initialized) return;
   posthog.capture(event, properties);
 }
 
@@ -76,12 +71,10 @@ export function captureException(
   error: unknown,
   properties?: Record<string, unknown>,
 ) {
-  if (!apiKey || !initialized) return;
+  if (!initialized) return;
   try {
     posthog.captureException(error, properties);
   } catch {
     // Swallow — never let analytics break the error UI.
   }
 }
-
-export const isPostHogEnabled = Boolean(apiKey);

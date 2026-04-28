@@ -1,9 +1,9 @@
 /**
  * Single SSE connection to the VM daemon, fanned out via context — one
  * EventSource instead of per-consumer (which would hit MAX_SSE_CLIENTS).
- * daemonBaseUrl is always `/api/sandbox/<vmId>/_daemon` (same origin; mesh
- * server adds the per-VM bearer server-side for both docker and freestyle).
- * Provider appends `/_decopilot_vm/events`.
+ * daemonBaseUrl is the VM's previewUrl (daemon serves /_decopilot_vm/* on
+ * the same host). Provider appends `/_decopilot_vm/events`. The daemon
+ * serves this surface unauthenticated.
  */
 
 import {

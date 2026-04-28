@@ -80,6 +80,9 @@ export function buildChildEnv(
     MESH_SANDBOX_RUNNER: process.env.MESH_SANDBOX_RUNNER,
     FREESTYLE_API_KEY: process.env.FREESTYLE_API_KEY,
 
+    // Browserless
+    BROWSERLESS_TOKEN: process.env.BROWSERLESS_TOKEN,
+
     // TLS: propagate custom CA certificates (e.g. RDS CA bundles)
     NODE_EXTRA_CA_CERTS: process.env.NODE_EXTRA_CA_CERTS,
 

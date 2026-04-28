@@ -146,8 +146,6 @@ const CORE_TOOLS = [
   AiProvidersTools.AI_PROVIDER_TOPUP_URL,
   AiProvidersTools.AI_PROVIDER_CREDITS,
   AiProvidersTools.AI_PROVIDER_CLI_ACTIVATE,
-  AiProvidersTools.AI_SIMPLE_MODE_GET,
-  AiProvidersTools.AI_SIMPLE_MODE_UPDATE,
 
   // Object Storage tools
   ObjectStorageTools.LIST_OBJECTS,

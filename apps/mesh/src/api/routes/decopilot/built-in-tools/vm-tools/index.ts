@@ -2,13 +2,13 @@
  * VM File Tools — runner-agnostic.
  *
  * Registers the six LLM-visible tools (read/write/edit/grep/glob/bash) on
- * top of any `SandboxRunner.proxyDaemonRequest`. Path scheme is Docker's
- * canonical `/_daemon/fs/<op>` + `/_daemon/bash`; non-Docker runners
- * translate inside `proxyDaemonRequest` (see Freestyle's `translateDaemonPath`).
+ * top of any `SandboxRunner.proxyDaemonRequest`. All runners speak the
+ * unified `/_decopilot_vm/*` surface with base64-wrapped JSON bodies
+ * (Cloudflare WAF bypass; harmless 33% overhead on non-CF paths).
  */
 
 import { tool, zodSchema } from "ai";
-import type { SandboxRunner } from "mesh-plugin-user-sandbox/runner";
+import type { SandboxRunner } from "@decocms/sandbox/runner";
 import { maybeTruncate } from "./common";
 import {
   BASH_DESCRIPTION,
@@ -37,10 +37,13 @@ async function daemonRequest(
 ): Promise<unknown> {
   let res: Response;
   try {
+    const b64Body = Buffer.from(JSON.stringify(body), "utf-8").toString(
+      "base64",
+    );
     res = await runner.proxyDaemonRequest(handle, path, {
       method: "POST",
       headers: new Headers({ "content-type": "application/json" }),
-      body: JSON.stringify(body),
+      body: b64Body,
     });
   } catch {
     throw new Error(
@@ -98,7 +101,7 @@ export function createVmTools(params: VmToolsParams) {
     description: READ_DESCRIPTION,
     inputSchema: zodSchema(ReadInputSchema),
     execute: async (input) => {
-      const result = await call("/_daemon/fs/read", input);
+      const result = await call("/_decopilot_vm/read", input);
       return maybeTruncate(result, toolOutputMap);
     },
   });
@@ -107,14 +110,14 @@ export function createVmTools(params: VmToolsParams) {
     needsApproval: approvalFor(TOOL_APPROVAL.write),
     description: WRITE_DESCRIPTION,
     inputSchema: zodSchema(WriteInputSchema),
-    execute: async (input) => call("/_daemon/fs/write", input),
+    execute: async (input) => call("/_decopilot_vm/write", input),
   });
 
   const edit = tool({
     needsApproval: approvalFor(TOOL_APPROVAL.edit),
     description: EDIT_DESCRIPTION,
     inputSchema: zodSchema(EditInputSchema),
-    execute: async (input) => call("/_daemon/fs/edit", input),
+    execute: async (input) => call("/_decopilot_vm/edit", input),
   });
 
   const grep = tool({
@@ -122,7 +125,7 @@ export function createVmTools(params: VmToolsParams) {
     description: GREP_DESCRIPTION,
     inputSchema: zodSchema(GrepInputSchema),
     execute: async (input) => {
-      const result = await call("/_daemon/fs/grep", input);
+      const result = await call("/_decopilot_vm/grep", input);
       return maybeTruncate(result, toolOutputMap);
     },
   });
@@ -132,7 +135,7 @@ export function createVmTools(params: VmToolsParams) {
     description: GLOB_DESCRIPTION,
     inputSchema: zodSchema(GlobInputSchema),
     execute: async (input) => {
-      const result = await call("/_daemon/fs/glob", input);
+      const result = await call("/_decopilot_vm/glob", input);
       return maybeTruncate(result, toolOutputMap);
     },
   });
@@ -142,7 +145,7 @@ export function createVmTools(params: VmToolsParams) {
     description: BASH_DESCRIPTION,
     inputSchema: zodSchema(BashInputSchema),
     execute: async (input) => {
-      const result = await call("/_daemon/bash", input);
+      const result = await call("/_decopilot_vm/bash", input);
       return maybeTruncate(result, toolOutputMap);
     },
   });

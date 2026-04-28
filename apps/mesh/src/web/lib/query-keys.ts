@@ -12,7 +12,6 @@ export const KEYS = {
   publicConfig: () => ["publicConfig"] as const,
 
   // Auth-related queries
-  authConfig: () => ["authConfig"] as const,
   session: () => ["session"] as const,
 
   // Task queries (filters scope the cache entry)
@@ -164,6 +163,10 @@ export const KEYS = {
   monitoringLogDetail: (logId: string) =>
     ["monitoring", "log-detail", logId] as const,
 
+  // Ensure-task query (load-or-create by id)
+  ensureTask: (orgId: string, id: string) =>
+    ["ensure-task", orgId, id] as const,
+
   // Thread queries (scoped by locator)
   threadsInfinite: (locator: string, paramsKey: string) =>
     ["threads", "list-infinite", locator, paramsKey] as const,
@@ -296,18 +299,11 @@ export const KEYS = {
   aiProviderCredits: (orgId: string, keyId: string) =>
     ["ai-provider-credits", orgId, keyId] as const,
 
-  // Simple Model Mode config (scoped by org)
-  aiSimpleMode: (orgId: string) => ["ai-simple-mode", orgId] as const,
-
   // Organization SSO
   orgSsoConfig: (organizationId: string) =>
     ["org-sso-config", organizationId] as const,
   orgSsoStatus: (organizationId: string) =>
     ["org-sso-status", organizationId] as const,
-
-  // Registry config (scoped by organization)
-  registryConfig: (organizationId: string) =>
-    ["registry-config", organizationId] as const,
 
   // Store discovery (per-registry infinite query)
   storeDiscovery: (orgId: string, registryId: string) =>

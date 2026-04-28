@@ -23,9 +23,7 @@ import { sanitizeProviderMetadata } from "@decocms/mesh-sdk";
 import type { ModelInfo } from "../types";
 import { createOutputPreview } from "./read-tool-output";
 import { toMeshStorageUri } from "../mesh-storage-uri";
-
-/** Results above this threshold are offloaded to blob storage. */
-const LARGE_RESULT_TOKEN_THRESHOLD = 8_000;
+import { LARGE_RESULT_TOKEN_THRESHOLD } from "./constants";
 
 const WebSearchInputSchema = z.object({
   query: z

@@ -1,6 +1,13 @@
 import { Suspense, useState, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useRouterState,
+  useSearch,
+} from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
   closestCenter,
@@ -57,7 +64,6 @@ import {
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { usePinnedAgents } from "@/web/hooks/use-pinned-agents";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
-import { useCreateTaskAndNavigate } from "@/web/hooks/use-create-task-and-navigate";
 import { track } from "@/web/lib/posthog-client";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { AgentAvatar } from "@/web/components/agent-icon";
@@ -66,9 +72,51 @@ import { usePreferences } from "@/web/hooks/use-preferences.ts";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.tsx";
 import { GitHubRepoPicker } from "@/web/components/github-repo-picker.tsx";
+import { SelfHealingRepoFlow } from "@/web/components/self-healing-repo/self-healing-repo-flow.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
 import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
+import { useTaskActions } from "@/web/hooks/use-tasks";
+import { readCachedTaskBranch } from "@/web/lib/read-cached-task-branch";
+
+/**
+ * Hook for sidebar "spawn task on this vMCP" buttons. When the user clicks
+ * a vMCP that matches the URL's current virtualmcpid, the active task's
+ * branch is carried into the new thread so the new task lands on the same
+ * warm sandbox. When the clicked vMCP differs, no branch is passed and the
+ * server picks the most-recently-touched vmMap entry for that vMCP.
+ */
+function useNavigateToNewTaskWithBranchCarry(orgSlug: string) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const taskActions = useTaskActions();
+  const { locator } = useProjectContext();
+  const params = useParams({ strict: false }) as { taskId?: string };
+  const search = useSearch({ strict: false }) as { virtualmcpid?: string };
+
+  return async (clickedVirtualMcpId: string) => {
+    const taskId = crypto.randomUUID();
+    const carryBranch =
+      clickedVirtualMcpId === search.virtualmcpid
+        ? readCachedTaskBranch(queryClient, locator, params.taskId ?? "")
+        : null;
+    try {
+      await taskActions.create.mutateAsync({
+        id: taskId,
+        virtual_mcp_id: clickedVirtualMcpId,
+        ...(carryBranch ? { branch: carryBranch } : {}),
+      });
+    } catch {
+      // Toast already fired; navigate anyway so the route loader's
+      // ensure-fallback can retry.
+    }
+    navigate({
+      to: "/$org/$taskId",
+      params: { org: orgSlug, taskId },
+      search: { virtualmcpid: clickedVirtualMcpId },
+    });
+  };
+}
 function AgentListItem({
   agent,
   org,
@@ -82,7 +130,7 @@ function AgentListItem({
 }) {
   const navigate = useNavigate();
   const { isMobile, setOpenMobile } = useSidebar();
-  const navigateToNewTask = useCreateTaskAndNavigate();
+  const navigateToNewTask = useNavigateToNewTaskWithBranchCarry(org);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isActive = pathname.startsWith(`/${org}/${agent.id}`);
   const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
@@ -290,6 +338,7 @@ function PinAgentPopoverContent({
   onClose,
   onOpenImportDeco,
   onOpenGithubImport,
+  onOpenSelfHealing,
   onOpenDiagnosticsModal,
   onOpenLeanCanvasModal,
   onOpenStudioPackModal,
@@ -297,6 +346,7 @@ function PinAgentPopoverContent({
   onClose: () => void;
   onOpenImportDeco: () => void;
   onOpenGithubImport: () => void;
+  onOpenSelfHealing: () => void;
   onOpenDiagnosticsModal: () => void;
   onOpenLeanCanvasModal: () => void;
   onOpenStudioPackModal: () => void;
@@ -311,7 +361,7 @@ function PinAgentPopoverContent({
   });
   const [preferences] = usePreferences();
 
-  const navigateToNewTask = useCreateTaskAndNavigate();
+  const navigateToNewTask = useNavigateToNewTaskWithBranchCarry(org.slug);
   const navigateToAgent = useNavigateToAgent();
 
   const lowerSearch = search.toLowerCase();
@@ -394,6 +444,31 @@ function PinAgentPopoverContent({
 
       {/* Scrollable content */}
       <div className="overflow-y-auto flex-1 min-h-0 px-3 pb-3">
+        {/* Self-healing repo — featured */}
+        {preferences.experimental_vibecode && (
+          <button
+            type="button"
+            onClick={() => {
+              onOpenSelfHealing();
+              onClose();
+            }}
+            className="mt-3 w-full flex items-center gap-3 rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent px-3 py-3 text-left transition-colors hover:border-primary/50 hover:from-primary/15 cursor-pointer group"
+          >
+            <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+              <GitHubIcon className="size-5 text-primary" />
+            </div>
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-sm font-medium text-foreground leading-tight">
+                Set up self-healing repo
+              </span>
+              <span className="text-xs text-muted-foreground line-clamp-2">
+                Connect GitHub and add specialist monitors that open issues
+                automatically.
+              </span>
+            </div>
+          </button>
+        )}
+
         {/* Agents section */}
         <div className="px-1 pt-3 pb-2">
           <span className="text-xs font-medium text-muted-foreground">
@@ -534,6 +609,7 @@ function PinAgentPopover() {
   const [open, setOpen] = useState(false);
   const [importDecoOpen, setImportDecoOpen] = useState(false);
   const [githubPickerOpen, setGithubPickerOpen] = useState(false);
+  const [selfHealingOpen, setSelfHealingOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
   const [leanCanvasModalOpen, setLeanCanvasModalOpen] = useState(false);
   const [studioPackModalOpen, setStudioPackModalOpen] = useState(false);
@@ -558,6 +634,10 @@ function PinAgentPopover() {
         onOpenImportDeco={() => setImportDecoOpen(true)}
         onOpenGithubImport={() => {
           setGithubPickerOpen(true);
+          handleClose();
+        }}
+        onOpenSelfHealing={() => {
+          setSelfHealingOpen(true);
           handleClose();
         }}
         onOpenDiagnosticsModal={() => setDiagnosticsModalOpen(true)}
@@ -626,6 +706,10 @@ function PinAgentPopover() {
       <GitHubRepoPicker
         open={githubPickerOpen}
         onOpenChange={setGithubPickerOpen}
+      />
+      <SelfHealingRepoFlow
+        open={selfHealingOpen}
+        onOpenChange={setSelfHealingOpen}
       />
       <SiteDiagnosticsRecruitModal
         open={diagnosticsModalOpen}

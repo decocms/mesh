@@ -49,7 +49,7 @@ export function TaskRow({
     >
       <McpAvatar
         virtualMcpId={task.virtual_mcp_id}
-        size="sm"
+        size="xs"
         showAutomationBadge={showAutomationBadge}
       />
       <div className="flex-1 min-w-0">
