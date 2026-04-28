@@ -2,7 +2,6 @@ import { CollectionDisplayButton } from "@/web/components/collections/collection
 import { SearchInput } from "@deco/ui/components/search-input.tsx";
 import { Page } from "@/web/components/page";
 import { CollectionTableWrapper } from "@/web/components/collections/collection-table-wrapper.tsx";
-import { ManageRolesDialog } from "@/web/components/manage-roles-dialog";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { InviteMemberDialog } from "@/web/components/invite-member-dialog";
@@ -69,7 +68,6 @@ import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { TagMultiSelect } from "@/web/components/tag-multi-select";
 
-// Role colors matching manage-roles-dialog
 const ROLE_COLORS = [
   "bg-neutral-400",
   "bg-red-500",
@@ -784,14 +782,6 @@ function OrgMembersContent() {
 
   const ctaButton = (
     <div className="flex items-center gap-2">
-      <ManageRolesDialog
-        trigger={
-          <Button variant="outline">
-            <Shield01 size={16} />
-            Manage Roles
-          </Button>
-        }
-      />
       <InviteMemberDialog trigger={<Button>Invite Member</Button>} />
     </div>
   );
@@ -874,19 +864,19 @@ function OrgMembersContent() {
           <div className="flex flex-col gap-6">
             <Page.Title>Members</Page.Title>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <SearchInput
-                value={search}
-                onChange={setSearch}
-                placeholder="Search members..."
-                className="w-full md:w-[375px]"
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") {
-                    setSearch("");
-                    (event.target as HTMLInputElement).blur();
-                  }
-                }}
-              />
               <div className="flex items-center gap-2">
+                <SearchInput
+                  value={search}
+                  onChange={setSearch}
+                  placeholder="Search members..."
+                  className="w-full md:w-[375px]"
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      setSearch("");
+                      (event.target as HTMLInputElement).blur();
+                    }
+                  }}
+                />
                 <CollectionDisplayButton
                   viewMode={viewMode}
                   onViewModeChange={setViewMode}
@@ -899,8 +889,8 @@ function OrgMembersContent() {
                     { id: "joined", label: "Joined" },
                   ]}
                 />
-                {ctaButton}
               </div>
+              {ctaButton}
             </div>
             {viewMode === "cards" ? (
               <div>

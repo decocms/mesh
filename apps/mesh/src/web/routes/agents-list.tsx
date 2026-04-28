@@ -131,57 +131,54 @@ export default function AgentsListPage() {
       <Page.Content>
         <Page.Body>
           <div className="flex flex-col gap-6">
-            <Page.Title
-              actions={
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="sm">
-                      <Plus size={14} />
-                      Create Agent
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <CreateAgentDropdownContent
-                    onCreateFromScratch={() => {
-                      track("agent_create_clicked", {
-                        source: "agents_list",
-                        method: "scratch",
-                      });
-                      createVirtualMCP();
-                    }}
-                    onImportGitHub={() => {
-                      track("agent_create_clicked", {
-                        source: "agents_list",
-                        method: "github",
-                      });
-                      setGithubPickerOpen(true);
-                    }}
-                    onImportDeco={() => {
-                      track("agent_create_clicked", {
-                        source: "agents_list",
-                        method: "deco",
-                      });
-                      setImportDecoOpen(true);
-                    }}
-                    isCreating={isCreating}
-                    align="end"
-                  />
-                </DropdownMenu>
-              }
-            >
-              Agents
-            </Page.Title>
-            <SearchInput
-              value={search}
-              onChange={setSearch}
-              placeholder="Search for an agent..."
-              className="w-full md:w-[375px]"
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  setSearch("");
-                  (event.target as HTMLInputElement).blur();
-                }
-              }}
-            />
+            <Page.Title>Agents</Page.Title>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <SearchInput
+                value={search}
+                onChange={setSearch}
+                placeholder="Search for an agent..."
+                className="w-full md:w-[375px]"
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setSearch("");
+                    (event.target as HTMLInputElement).blur();
+                  }
+                }}
+              />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm">
+                    <Plus size={14} />
+                    Create Agent
+                  </Button>
+                </DropdownMenuTrigger>
+                <CreateAgentDropdownContent
+                  onCreateFromScratch={() => {
+                    track("agent_create_clicked", {
+                      source: "agents_list",
+                      method: "scratch",
+                    });
+                    createVirtualMCP();
+                  }}
+                  onImportGitHub={() => {
+                    track("agent_create_clicked", {
+                      source: "agents_list",
+                      method: "github",
+                    });
+                    setGithubPickerOpen(true);
+                  }}
+                  onImportDeco={() => {
+                    track("agent_create_clicked", {
+                      source: "agents_list",
+                      method: "deco",
+                    });
+                    setImportDecoOpen(true);
+                  }}
+                  isCreating={isCreating}
+                  align="end"
+                />
+              </DropdownMenu>
+            </div>
           </div>
 
           {filteredAgents.length === 0 && filteredTemplates.length === 0 && (
