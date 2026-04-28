@@ -1,0 +1,13 @@
+# Kind-only overlay layered on top of `../../monitoring/values-otel-collector.yaml`.
+# Helm deep-merges these values into the base — see `local/up.sh` for the
+# `helm upgrade -f base.yaml -f local-overlay.yaml` invocation.
+#
+# Anything here is unsafe / wrong for prod.
+
+config:
+  receivers:
+    kubeletstats:
+      # kind nodes use kubelet self-signed certs; skip verify locally.
+      # Prod relies on the cluster's CA-signed kubelet certs and never
+      # sets this.
+      insecure_skip_verify: true
