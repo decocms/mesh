@@ -7,7 +7,7 @@
 set -euo pipefail
 
 CLUSTER_NAME="studio-sandbox-dev"
-IMAGE_TAG="mesh-sandbox:local"
+IMAGE_TAG="studio-sandbox:local"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"

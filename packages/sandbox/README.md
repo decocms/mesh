@@ -70,7 +70,7 @@ for this, you can remove them — they're no longer needed.
 - `FREESTYLE_API_KEY` — required for the Freestyle runner. Presence also
   auto-selects it when `STUDIO_SANDBOX_RUNNER` is unset.
 - `MESH_SANDBOX_IMAGE` — override the Docker runner image
-  (default `mesh-sandbox:local`, built from `image/Dockerfile`).
+  (default `studio-sandbox:local`, built from `image/Dockerfile`).
 - `SANDBOX_INGRESS_PORT` (default `7070`) — local Docker ingress bind port.
 - `SANDBOX_ROOT_URL` — production template for the pod URL. Either a bare
   base (`https://sandboxes.example.com` → handle becomes leading subdomain)

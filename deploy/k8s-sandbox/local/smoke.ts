@@ -14,7 +14,7 @@
  *   - `deploy/k8s-sandbox/local/up.sh` succeeded
  *   - `kubectl --context kind-studio-sandbox-dev get pods -n agent-sandbox-system`
  *     shows the controller Running
- *   - `mesh-sandbox:local` is loaded into the kind cluster
+ *   - `studio-sandbox:local` is loaded into the kind cluster
  *
  * Exit codes:
  *   0 — all steps passed

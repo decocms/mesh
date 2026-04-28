@@ -5,8 +5,5 @@ dependencies:
 - name: opentelemetry-collector
   repository: https://open-telemetry.github.io/opentelemetry-helm-charts
   version: 0.147.2
-- name: agent-sandbox
-  repository: file://./charts/agent-sandbox
-  version: 0.1.0
-digest: sha256:496ac6feb3655dbb973acf67117b2d3f03568d51178ef6048c86c93813b63436
-generated: "2026-04-28T17:44:22.721996-03:00"
+digest: sha256:304c526584beae64332d2a29dc9c0b3b6eb753533516753e39d22d4c2c052004
+generated: "2026-04-28T19:41:59.433629-03:00"

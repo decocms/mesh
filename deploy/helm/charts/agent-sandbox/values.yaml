@@ -1,6 +1,0 @@
-# Vendored from kubernetes-sigs/agent-sandbox — upstream release assets are
-# raw YAML, not templated. This subchart ships them as-is.
-#
-# To tune behavior, set values on the parent chart's `sandbox.agentSandbox.*`
-# (SandboxTemplate image/resources, NetworkPolicy toggle, WarmPool size).
-# This subchart has no knobs of its own.

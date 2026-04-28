@@ -1,7 +1,6 @@
-{{- if .Values.sandbox.agentSandbox.enabled }}
 # Shared SandboxTemplate consumed by every SandboxClaim the mesh runner
 # creates. Mirrors deploy/k8s-sandbox/local/sandbox-template.yaml with prod
-# ceilings from values.sandbox.agentSandbox.resources.
+# ceilings from values.resources.
 #
 # Hardcoded to the operator's own namespace (agent-sandbox-system) — the CRDs
 # ship with that as the install target, and the operator's RBAC watches it by
@@ -12,7 +11,7 @@ metadata:
   name: studio-sandbox
   namespace: agent-sandbox-system
   labels:
-    {{- include "chart-deco-studio.sandboxLabels" . | nindent 4 }}
+    {{- include "agent-sandbox.sandboxLabels" . | nindent 4 }}
 spec:
   # Claims inject DAEMON_TOKEN per-provision via SandboxClaim.spec.env. The
   # template carries no shared secret; leakage of the template compromises
@@ -23,8 +22,7 @@ spec:
   # `app: sandbox-router`. That's intended for Istio-style sidecar routing
   # and silently blocks the mesh → daemon path the preview-proxy depends on.
   # We surface the netpol via templates/sandbox-network-policy.yaml instead
-  # (gated by `sandbox.agentSandbox.networkPolicy.enabled`), so flag the
-  # operator's policy off.
+  # (gated by `networkPolicy.enabled`), so flag the operator's policy off.
   networkPolicyManagement: Unmanaged
   podTemplate:
     metadata:
@@ -39,19 +37,19 @@ spec:
         # dashboards filter by absence-of-handle instead.
     spec:
       automountServiceAccountToken: false
-      {{- with .Values.sandbox.agentSandbox.nodeSelector }}
+      {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.sandbox.agentSandbox.tolerations }}
+      {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.sandbox.agentSandbox.affinity }}
+      {{- with .Values.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if not .Values.sandbox.agentSandbox.hostUsers }}
+      {{- if not .Values.hostUsers }}
       # User namespace remap: UID 1000 inside the pod maps to a high
       # subordinate UID on the node, so a container escape lands as a
       # nobody-user, not as a real node UID. Requires K8s 1.30+ and a
@@ -67,8 +65,8 @@ spec:
           type: RuntimeDefault
       containers:
         - name: sandbox
-          image: "{{ .Values.sandbox.agentSandbox.image.repository }}:{{ .Values.sandbox.agentSandbox.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.sandbox.agentSandbox.image.pullPolicy }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           workingDir: /app
           env:
             - name: DAEMON_PORT
@@ -76,7 +74,7 @@ spec:
             - name: WORKDIR
               value: "/app"
             # DAEMON_TOKEN is injected per-claim via SandboxClaim.spec.env.
-            {{- if .Values.sandbox.agentSandbox.readOnlyRootFilesystem }}
+            {{- if .Values.readOnlyRootFilesystem }}
             # With RO rootfs + emptyDir on /app, the mount root is owned
             # root:1000 (fsGroup). Git 2.35+'s "dubious ownership" check
             # would refuse to operate. Disable the check inside the
@@ -96,13 +94,13 @@ spec:
               containerPort: 3000
               protocol: TCP
           resources:
-            {{- toYaml .Values.sandbox.agentSandbox.resources | nindent 12 }}
+            {{- toYaml .Values.resources | nindent 12 }}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
-            readOnlyRootFilesystem: {{ .Values.sandbox.agentSandbox.readOnlyRootFilesystem }}
-          {{- if .Values.sandbox.agentSandbox.readOnlyRootFilesystem }}
+            readOnlyRootFilesystem: {{ .Values.readOnlyRootFilesystem }}
+          {{- if .Values.readOnlyRootFilesystem }}
           volumeMounts:
             - name: workdir
               mountPath: /app
@@ -111,7 +109,7 @@ spec:
             - name: home
               mountPath: /home/sandbox
           {{- end }}
-      {{- if .Values.sandbox.agentSandbox.readOnlyRootFilesystem }}
+      {{- if .Values.readOnlyRootFilesystem }}
       volumes:
         # Sized to match the per-container ephemeral-storage limit shape;
         # individual mounts get a slice. Adjust if a workload needs more.
@@ -125,4 +123,3 @@ spec:
           emptyDir:
             sizeLimit: 2Gi
       {{- end }}
-{{- end }}

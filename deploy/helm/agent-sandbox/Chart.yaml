@@ -1,0 +1,13 @@
+apiVersion: v2
+name: agent-sandbox
+description: |
+  kubernetes-sigs/agent-sandbox operator + CRDs (vendored), plus the
+  Studio-side SandboxTemplate, RBAC, NetworkPolicy, optional WarmPool, and
+  optional preview Gateway/Certificate. Deployed independently of the
+  studio (chart-deco-studio) chart — typically as its own ArgoCD Application.
+type: application
+# Chart version is independent of upstream agent-sandbox. Bump on any change.
+version: 0.1.0
+# Tracks the upstream agent-sandbox release pinned by vendor.sh.
+appVersion: "0.4.2"
+kubeVersion: ">=1.30.0-0"

@@ -83,11 +83,13 @@ apps/mesh/playwright-report/
 # Local dev data directory
 .deco
 
-# `helm dependency update` caches local file:// subcharts as .tgz next to
-# the unpacked dir. The unpacked tree under deploy/helm/charts/agent-sandbox/
-# is the source of truth (vendored from kubernetes-sigs/agent-sandbox via
-# vendor.sh) and `helm package` consumes it directly — the .tgz is
-# redundant and would just drift. Remote deps' .tgz cache (nats-*.tgz,
-# opentelemetry-collector-*.tgz) is still tracked because those repos
-# aren't vendored locally.
-deploy/helm/charts/agent-sandbox-*.tgz
+# `helm package deploy/helm/agent-sandbox` produces a .tgz that is published
+# to ghcr.io as an OCI artifact by .github/workflows/release-agent-sandbox-chart.yaml.
+# The unpacked tree at deploy/helm/agent-sandbox/ is the source of truth;
+# the packaged .tgz is redundant in-repo and would just drift.
+deploy/helm/agent-sandbox-*.tgz
+deploy/helm/agent-sandbox/charts/
+# `helm dependency update` for the studio chart caches remote subcharts
+# (nats, opentelemetry-collector) as .tgz under charts/. They stay tracked
+# because the chart pins specific versions and offline installs depend on
+# them being present.

@@ -9,11 +9,11 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/mesh-sandbox
+  IMAGE_NAME: ${{ github.repository }}/studio-sandbox
 
 jobs:
   build-push:
-    name: Build & Push mesh-sandbox image
+    name: Build & Push studio-sandbox image
     runs-on: ubuntu-latest
     # `[release]:` commits come from the auto-bump bot and don't actually
     # change the sandbox source — skip them to avoid republishing the same
@@ -117,7 +117,7 @@ jobs:
       # Keyless cosign signing — verifies provenance via Sigstore's public
       # transparency log without requiring long-lived signing keys. Verify
       # downstream with:
-      #   cosign verify ghcr.io/decocms/studio/mesh-sandbox:<tag> \
+      #   cosign verify ghcr.io/decocms/studio/studio-sandbox:<tag> \
       #     --certificate-identity-regexp 'https://github.com/decocms/studio/.*' \
       #     --certificate-oidc-issuer https://token.actions.githubusercontent.com
       - name: Install cosign

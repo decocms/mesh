@@ -319,165 +319,20 @@ opentelemetry-collector:
           processors: [memory_limiter, batch]
           exporters: [debug]
 
-# Agent-sandbox runner. Requires STUDIO_SANDBOX_RUNNER=agent-sandbox in mesh env.
-# Disabled by default — self-hosters on the Docker runner (simpler, no
-# cluster needed) leave this off and don't pay the agent-sandbox operator
-# install cost.
+# Agent-sandbox runner is now a separate Helm chart, deployed independently
+# (typically as its own ArgoCD Application). To switch mesh from the Docker
+# runner to the K8s runner, set:
+#   configMap.meshConfig.STUDIO_SANDBOX_RUNNER: "agent-sandbox"
+#   configMap.meshConfig.STUDIO_SANDBOX_PREVIEW_URL_PATTERN: "https://{handle}.preview.example.com"
 #
-# When enabled, installs:
-#   - agent-sandbox operator + CRDs (vendored in charts/agent-sandbox/)
-#   - SandboxTemplate used by every SandboxClaim mesh creates
-#   - NetworkPolicy locking down sandbox-pod ingress/egress
-#   - (optional) SandboxWarmPool for cold-start mitigation
+# Then install the agent-sandbox chart, pointing it at this release's mesh
+# Service / ServiceAccount via its `mesh.*` values:
+#   helm install agent-sandbox oci://ghcr.io/decocms/studio/charts/agent-sandbox \
+#     --version 0.1.0 \
+#     --namespace agent-sandbox-system --create-namespace \
+#     --set mesh.namespace=<this-release-namespace> \
+#     --set mesh.serviceAccountName=<this-release-name> \
+#     --set mesh.serviceName=<this-release-name> \
+#     --set mesh.servicePort=80
 #
-# See deploy/helm/README.md for the enable/upgrade procedure.
-sandbox:
-  agentSandbox:
-    enabled: false
-    image:
-      repository: ghcr.io/decocms/mesh-sandbox
-      # Pinned to a specific image version so chart upgrades pull a matching
-      # image instead of silently moving with `:latest`. Bump in lockstep
-      # with packages/sandbox/package.json — the release workflow tags
-      # images using that version. NEVER set this to "latest" in prod.
-      tag: "0.1.0"
-      # Default IfNotPresent; override to Never for local kind clusters that
-      # load the image via `kind load docker-image`.
-      pullPolicy: IfNotPresent
-    # Prod ceilings. Adjust per measured workload.
-    resources:
-      requests:
-        cpu: 500m
-        memory: 1Gi
-      limits:
-        cpu: "2"
-        memory: 4Gi
-        ephemeral-storage: 10Gi
-    networkPolicy:
-      enabled: true
-      # Legacy/standby — kept for setups whose external gateway terminates
-      # *directly* on the sandbox's port 3000 (dev server). The default
-      # preview path goes through mesh and lands on port 9000 (daemon)
-      # instead, so most installs leave this empty. See
-      # `previewGateway` below for the standard Istio Gateway API path.
-      previewGatewayNamespace: ""
-      # Operator-supplied egress rules (NetworkPolicyEgressRule[]) merged
-      # into the sandbox NetworkPolicy. The base policy denies in-cluster
-      # egress; use this to grant *specific* exceptions (e.g. an in-cluster
-      # OTel collector if the daemon ever emits OTLP). Empty = no extra
-      # egress.
-      #
-      # extraEgress:
-      #   - to:
-      #       - namespaceSelector:
-      #           matchLabels:
-      #             kubernetes.io/metadata.name: monitoring
-      #         podSelector:
-      #           matchLabels:
-      #             app.kubernetes.io/name: opentelemetry-collector
-      #     ports:
-      #       - protocol: TCP
-      #         port: 4318
-      extraEgress: []
-    # Public URL pattern that ingress terminates on for sandbox previews.
-    # The runner substitutes {handle} (or whatever applyPreviewPattern
-    # supports) with the per-claim handle. Set in prod once a wildcard
-    # gateway + cert is in place; leave empty in local dev so the runner
-    # falls back to the 127.0.0.1 port-forward URL. Surfaced into the
-    # mesh container as STUDIO_SANDBOX_PREVIEW_URL_PATTERN.
-    #
-    # Should match `previewGateway.domain` below — e.g. when
-    # previewGateway.domain="preview.decocms.com", set this to
-    # "https://{handle}.preview.decocms.com".
-    previewUrlPattern: ""
-    # previewUrlPattern: "https://{handle}.preview.example.com"
-    # Wildcard preview-URL ingress (Approach B in the K8s sandbox plan).
-    # Renders an Istio Gateway + HTTPRoute that send all
-    # *.preview.<domain> traffic to the mesh Service; mesh recognises the
-    # Host header and reverse-proxies to the matching sandbox's daemon at
-    # port 9000 (daemon, not dev port 3000 — the daemon's reverse proxy
-    # injects the HMR bootstrap + strips CSP that the iframe needs).
-    #
-    # Manual prerequisites (not templated):
-    #   1. DNS: Cloudflare (or other) wildcard `*.preview.<domain>` →
-    #      cluster external LB hostname.
-    #   2. cert-manager ClusterIssuer for the wildcard cert. DNS-01 is
-    #      required (HTTP-01 doesn't work for wildcards). Set
-    #      `clusterIssuer` to that issuer's name.
-    previewGateway:
-      enabled: false
-      # gatewayClassName for the Gateway. EKS clusters running Istio
-      # ambient/sidecar default to "istio". Confirm with
-      # `kubectl get gatewayclasses` before flipping enabled=true.
-      gatewayClassName: "istio"
-      # Namespace where the Gateway + HTTPRoute land. Mesh's existing
-      # gateway typically lives in `istio-system`; some setups use a
-      # dedicated `gateway` ns. The cert Secret is created in the same ns.
-      namespace: "istio-system"
-      # Wildcard domain for previews — e.g. "preview.decocms.com" yields
-      # `*.preview.decocms.com`. Required when enabled=true.
-      domain: ""
-      # cert-manager ClusterIssuer that issues the wildcard cert. Required
-      # when enabled=true. The chart does NOT template the ClusterIssuer
-      # itself — that is per-cluster infrastructure (a Cloudflare DNS-01
-      # issuer, for example, needs your API token in a Secret).
-      clusterIssuer: ""
-      # PEM-format secret name created by cert-manager. Defaults to
-      # `<release>-sandbox-preview-tls`. Override only if the cert lives
-      # under a name dictated by external tooling.
-      tlsSecretName: ""
-    # Pin sandbox pods to a dedicated NodePool so a container escape lands
-    # on a node that has no mesh / postgres / NATS / OTel pods on it. Pair
-    # with a Karpenter NodePool that taints + labels matching nodes; see
-    # deploy/helm/README.md for the snippet. Empty defaults run sandbox
-    # pods on whatever the scheduler picks (current behavior).
-    nodeSelector: {}
-    # nodeSelector:
-    #   workload: sandbox
-    tolerations: []
-    # tolerations:
-    #   - key: workload
-    #     operator: Equal
-    #     value: sandbox
-    #     effect: NoSchedule
-    # Affinity rules merged into the sandbox PodSpec. Use podAffinity to
-    # co-locate sandbox pods on the same node (cheaper warm-pool packing,
-    # shared image cache); use nodeAffinity for soft node preferences that
-    # nodeSelector can't express. Empty default = scheduler picks.
-    affinity: {}
-    # affinity:
-    #   podAffinity:
-    #     preferredDuringSchedulingIgnoredDuringExecution:
-    #       - weight: 100
-    #         podAffinityTerm:
-    #           labelSelector:
-    #             matchLabels:
-    #               app.kubernetes.io/name: studio-sandbox
-    #           topologyKey: kubernetes.io/hostname
-    # User namespace remap (`spec.hostUsers: false`): UID 1000 inside the
-    # pod maps to a high, unprivileged subordinate UID on the node, so a
-    # container escape doesn't land as a real node UID. Requires K8s
-    # 1.30+ with a containerd/kernel that support userns (EKS default
-    # AMIs from late 2024 onward are fine; kind nodes vary).
-    #
-    # Defaults to the secure-by-default path because this chart runs
-    # untrusted user code. Override to true (back to host users) ONLY on
-    # clusters whose kernel/containerd doesn't support userns — symptoms
-    # of unsupported runtime are pod scheduling failures with messages
-    # like "user namespaces are not enabled".
-    hostUsers: false
-    # Read-only root filesystem. When true, /app + /tmp + /home/sandbox
-    # are remounted as emptyDirs and `safe.directory '*'` is set so git
-    # works against the chowned mount.
-    #
-    # Defaults to true (secure path). Override to false ONLY if a
-    # workload writes outside the three covered emptyDirs and you've
-    # measured the resulting failure mode. Validate end-to-end (clone +
-    # bun/npm install + dev server start) on staging before merging an
-    # override.
-    readOnlyRootFilesystem: true
-    warmPool:
-      # Enable only after measuring cold-start pain; every warm pod costs
-      # the full resources.requests above.
-      enabled: false
-      size: 0
+# See deploy/helm/agent-sandbox/README.md for the full set of values.

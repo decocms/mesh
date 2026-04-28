@@ -46,50 +46,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Selector labels for sandbox pods. Uses a fixed `studio-sandbox` name (not
-the chart name) because the sandbox runner stamps this same label onto
-every pod it creates via SandboxClaim.additionalPodMetadata, and the
-runner has no easy way to read the chart name. The NetworkPolicy
-podSelector targets these labels.
-*/}}
-{{- define "chart-deco-studio.sandboxSelectorLabels" -}}
-app.kubernetes.io/name: studio-sandbox
-app.kubernetes.io/instance: {{ .Release.Name }}
-{{- end }}
-
-{{/*
-Common labels for sandbox-* resources. Matches `chart-deco-studio.labels`
-shape but with the sandbox name (see sandboxSelectorLabels) and an
-explicit component=sandbox tag so dashboards/queries can split by role.
-*/}}
-{{- define "chart-deco-studio.sandboxLabels" -}}
-helm.sh/chart: {{ include "chart-deco-studio.chart" . }}
-{{ include "chart-deco-studio.sandboxSelectorLabels" . }}
-app.kubernetes.io/component: sandbox
-{{- if .Chart.AppVersion }}
-app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
-{{- end }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-{{- end }}
-
-{{/*
-Common labels for the sandbox-preview Gateway/HTTPRoute/Certificate. Same
-shape as sandboxLabels but with name=studio-sandbox-preview and
-component=sandbox-preview so dashboards can split traffic-edge resources
-from runtime sandbox pods.
-*/}}
-{{- define "chart-deco-studio.sandboxPreviewLabels" -}}
-helm.sh/chart: {{ include "chart-deco-studio.chart" . }}
-app.kubernetes.io/name: studio-sandbox-preview
-app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/component: sandbox-preview
-{{- if .Chart.AppVersion }}
-app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
-{{- end }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-{{- end }}
-
-{{/*
 Create the name of the service account to use
 */}}
 {{- define "chart-deco-studio.serviceAccountName" -}}
@@ -219,25 +175,6 @@ Validate OTel collector/S3 configuration.
 {{- end }}
 {{- if and .Values.otel.collector.enabled (not .Values.otel.enabled) }}
 {{- fail "chart-deco-studio: otel.collector.enabled=true requires otel.enabled=true" -}}
-{{- end }}
-{{- end }}
-
-{{/*
-Validate that Gateway API + cert-manager CRDs are present when the sandbox
-preview gateway is enabled. Without this check, `helm install` would push
-Gateway/HTTPRoute/Certificate to an API server that doesn't know those
-kinds — the failure mode is an opaque "no matches for kind" rejection,
-sometimes after partial-apply. Failing at template time keeps the release
-atomic and gives a pointer to the right install command.
-*/}}
-{{- define "chart-deco-studio.validateSandboxPreviewGateway" -}}
-{{- if and .Values.sandbox.agentSandbox.enabled .Values.sandbox.agentSandbox.previewGateway.enabled }}
-{{- if not (.Capabilities.APIVersions.Has "gateway.networking.k8s.io/v1") }}
-{{- fail "chart-deco-studio: sandbox.agentSandbox.previewGateway.enabled=true requires the Gateway API CRDs (gateway.networking.k8s.io/v1). Install: kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.1.0/standard-install.yaml — and a Gateway controller (Istio, Envoy Gateway, Cilium, ...) implementing the chosen gatewayClassName." -}}
-{{- end }}
-{{- if not (.Capabilities.APIVersions.Has "cert-manager.io/v1") }}
-{{- fail "chart-deco-studio: sandbox.agentSandbox.previewGateway.enabled=true requires cert-manager (cert-manager.io/v1). Install: helm install cert-manager jetstack/cert-manager -n cert-manager --create-namespace --set crds.enabled=true" -}}
-{{- end }}
 {{- end }}
 {{- end }}
 

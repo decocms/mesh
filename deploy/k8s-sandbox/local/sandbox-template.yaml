@@ -51,7 +51,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: sandbox
-          image: mesh-sandbox:local
+          image: studio-sandbox:local
           # Local only: kind loads the image manually via `kind load
           # docker-image`. Prevents accidental ghcr pulls.
           imagePullPolicy: Never

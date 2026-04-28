@@ -1,4 +1,4 @@
-{{- if and .Values.sandbox.agentSandbox.enabled .Values.sandbox.agentSandbox.networkPolicy.enabled }}
+{{- if .Values.networkPolicy.enabled }}
 # NetworkPolicy for mesh sandbox pods.
 #
 # Scope: selects pods in agent-sandbox-system labeled
@@ -14,15 +14,15 @@
 # OTel side note: the sandbox image does not currently emit OTLP traffic.
 # If a future daemon revision pushes telemetry out-of-pod, add an explicit
 # egress rule for the in-cluster collector (or use
-# `sandbox.agentSandbox.networkPolicy.extraEgress`); the default-deny
-# stance here will otherwise silently drop it.
+# `networkPolicy.extraEgress`); the default-deny stance here will
+# otherwise silently drop it.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: studio-sandbox
   namespace: agent-sandbox-system
   labels:
-    {{- include "chart-deco-studio.sandboxLabels" . | nindent 4 }}
+    {{- include "agent-sandbox.sandboxLabels" . | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
@@ -35,19 +35,19 @@ spec:
     # logs, etc. Also the *preview* request path: when previewGateway is
     # enabled, mesh reverse-proxies `*.preview.<domain>` traffic to the
     # daemon here so the daemon's CSP/HMR rewrites apply (port 3000 would
-    # bypass them). Matches the chart's own selectorLabels so self-hosters
-    # who use the default deployment get the rule automatically.
+    # bypass them). Selectors point at the studio release identified via
+    # `mesh.namespace` + `mesh.podSelectorLabels`.
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+              kubernetes.io/metadata.name: {{ .Values.mesh.namespace }}
           podSelector:
             matchLabels:
-              {{- include "chart-deco-studio.selectorLabels" . | nindent 14 }}
+              {{- toYaml .Values.mesh.podSelectorLabels | nindent 14 }}
       ports:
         - protocol: TCP
           port: 9000
-    {{- with .Values.sandbox.agentSandbox.networkPolicy.previewGatewayNamespace }}
+    {{- with .Values.networkPolicy.previewGatewayNamespace }}
     # Legacy/standby — direct ingress on dev port 3000 from a configured
     # gateway namespace. Only needed for setups that route preview traffic
     # *around* mesh (no daemon CSP/HMR rewrites). The standard Istio
@@ -115,10 +115,10 @@ spec:
           port: 443
         - protocol: TCP
           port: 80
-    {{- with .Values.sandbox.agentSandbox.networkPolicy.extraEgress }}
+    {{- with .Values.networkPolicy.extraEgress }}
     # Operator-supplied egress rules. Use to grant the sandbox controlled
     # access to in-cluster services it shouldn't reach by default — for
-    # example, the OTel collector at
+    # example, an in-cluster OTel collector at
     # `<release>-opentelemetry-collector.<release-ns>.svc:4318` if a future
     # daemon revision emits OTLP. Each entry is a NetworkPolicyEgressRule.
     {{- toYaml . | nindent 4 }}
