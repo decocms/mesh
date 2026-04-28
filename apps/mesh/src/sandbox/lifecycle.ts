@@ -1,6 +1,6 @@
 /**
  * Runner singletons, one per kind. VM_DELETE dispatches on the entry's
- * recorded runnerKind (not env), so a pod that flipped MESH_SANDBOX_RUNNER
+ * recorded runnerKind (not env), so a pod whose runner choice flipped
  * between start and stop still tears down the right kind of VM.
  * Boot/shutdown sweeps are Docker-only — other runners' sandboxes outlive
  * mesh by design, so a generic sweep would nuke active user VMs.
