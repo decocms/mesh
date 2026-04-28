@@ -77,14 +77,11 @@ export function buildChildEnv(
     FIRECRAWL_API_KEY: settings.firecrawlApiKey,
 
     // Sandbox runner: read from env by resolveRunnerKindFromEnv() in workers
+    STUDIO_SANDBOX_RUNNER: process.env.STUDIO_SANDBOX_RUNNER,
     FREESTYLE_API_KEY: process.env.FREESTYLE_API_KEY,
 
     // Browserless
     BROWSERLESS_TOKEN: process.env.BROWSERLESS_TOKEN,
-
-    // PostHog analytics (server-side capture + exposed to UI via /api/config)
-    POSTHOG_KEY: process.env.POSTHOG_KEY,
-    POSTHOG_HOST: process.env.POSTHOG_HOST,
 
     // TLS: propagate custom CA certificates (e.g. RDS CA bundles)
     NODE_EXTRA_CA_CERTS: process.env.NODE_EXTRA_CA_CERTS,

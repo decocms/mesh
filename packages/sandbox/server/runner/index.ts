@@ -1,7 +1,8 @@
 /**
  * Public surface. Ships `DockerSandboxRunner` only via the default entry;
- * Freestyle sits behind its own subpath export (./runner/freestyle) because
- * its SDK is heavy and not every deploy needs it.
+ * Freestyle and agent-sandbox sit behind their own subpath exports (./runner/
+ * freestyle, ./runner/agent-sandbox) because their SDKs are heavy and not
+ * every deploy needs them.
  */
 
 import { spawnSync } from "node:child_process";
@@ -79,10 +80,23 @@ function isDockerInstalled(): boolean {
 
 /**
  * Rules:
- *   1. `FREESTYLE_API_KEY` set — pick freestyle.
- *   2. Otherwise — docker if CLI present, else null.
+ *   1. `STUDIO_SANDBOX_RUNNER=docker|freestyle|agent-sandbox` — honored.
+ *   2. No explicit value, `FREESTYLE_API_KEY` set — pick freestyle.
+ *   3. Otherwise — docker if CLI present, else null.
+ *
+ * agent-sandbox is explicit-only: never auto-selected — callers must opt in
+ * with `STUDIO_SANDBOX_RUNNER=agent-sandbox` so docker-only dev stays the default.
  */
 export function tryResolveRunnerKindFromEnv(): RunnerKind | null {
+  const raw = process.env.STUDIO_SANDBOX_RUNNER;
+  if (raw === "docker" || raw === "freestyle" || raw === "agent-sandbox") {
+    return raw;
+  }
+  if (raw && raw.length > 0) {
+    throw new Error(
+      `Unknown STUDIO_SANDBOX_RUNNER="${raw}" — expected "docker", "freestyle", or "agent-sandbox".`,
+    );
+  }
   if (process.env.FREESTYLE_API_KEY) return "freestyle";
   return isDockerInstalled() ? "docker" : null;
 }
@@ -93,6 +107,6 @@ export function resolveRunnerKindFromEnv(): RunnerKind {
   if (kind) return kind;
   throw new Error(
     `No sandbox runner available: Docker CLI not found on PATH. ` +
-      `Install Docker or set FREESTYLE_API_KEY.`,
+      `Install Docker, set FREESTYLE_API_KEY, or set STUDIO_SANDBOX_RUNNER explicitly.`,
   );
 }

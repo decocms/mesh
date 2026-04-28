@@ -137,6 +137,8 @@ export type GithubRepo = z.infer<typeof GithubRepoSchema>;
  * `runnerKind` lets the UI construct daemon URLs correctly:
  *  - docker: daemon is reached via the mesh proxy at `/api/sandbox/<vmId>/_daemon/*`
  *  - freestyle: daemon lives at `${previewUrl}/_decopilot_vm/*` on the VM domain
+ *  - agent-sandbox: daemon is reached via the mesh proxy (same transport as docker);
+ *    preview URL is the per-claim HTTPRoute host (in-cluster) or a local port-forward (kind dev).
  *
  * `previewUrl` is nullable: blank / tool sandboxes (no `workload`, no dev
  * server) have nothing to render. UI code MUST check before constructing
@@ -152,7 +154,7 @@ export const VmMapEntrySchema = z.object({
     .describe(
       "URL where the VM's iframe-proxied UI is served, or null when the sandbox has no dev server (blank / tool sandboxes).",
     ),
-  runnerKind: z.enum(["docker", "freestyle"]).optional(),
+  runnerKind: z.enum(["docker", "freestyle", "agent-sandbox"]).optional(),
   createdAt: z
     .number()
     .optional()

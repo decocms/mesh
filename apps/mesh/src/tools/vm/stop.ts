@@ -1,7 +1,7 @@
 /**
  * VM_DELETE. Dispatches on the entry's persisted `runnerKind` (not env),
- * so a pod whose runner choice flipped between start and stop still tears
- * down the right kind of VM.
+ * so a pod that flipped STUDIO_SANDBOX_RUNNER between start and stop still
+ * tears down the right kind of VM.
  */
 
 import { z } from "zod";

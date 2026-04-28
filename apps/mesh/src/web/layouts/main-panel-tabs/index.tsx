@@ -32,10 +32,11 @@ export function MainPanelContent({
   taskId: string;
   virtualMcpId: string;
 }) {
-  const { activeTab, layoutTabs, automationTabParsed } = useMainPanelTabs({
-    virtualMcpId,
-    taskId,
-  });
+  const { activeTab, layoutTabs, expandedTools, automationTabParsed } =
+    useMainPanelTabs({
+      virtualMcpId,
+      taskId,
+    });
 
   if (isLegacySettingsTab(activeTab)) {
     return <SettingsTab virtualMcpId={virtualMcpId} />;
@@ -58,6 +59,11 @@ export function MainPanelContent({
 
   const pinnedView = parsePinnedViewTabId(activeTab);
   if (pinnedView) {
+    const expandedTool = expandedTools.find(
+      (t) =>
+        t.appId === pinnedView.connectionId &&
+        t.toolName === pinnedView.toolName,
+    );
     return (
       <Suspense
         fallback={
@@ -73,6 +79,7 @@ export function MainPanelContent({
           key={activeTab}
           connectionId={pinnedView.connectionId}
           toolName={pinnedView.toolName}
+          args={expandedTool?.args}
         />
       </Suspense>
     );
@@ -95,6 +102,7 @@ export function MainPanelContent({
           key={activeTab}
           connectionId={agentTab.view.appId}
           toolName={agentTab.id}
+          args={agentTab.view.args}
         />
       </Suspense>
     );

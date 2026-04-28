@@ -3,7 +3,11 @@ import { sseFormat } from "./sse-format";
 
 export interface SseHandshakeDeps {
   broadcaster: Broadcaster;
-  getLastStatus: () => { ready: boolean; htmlSupport: boolean };
+  getLastStatus: () => {
+    ready: boolean;
+    htmlSupport: boolean;
+    port: number | null;
+  };
   getDiscoveredScripts: () => string[] | null;
   getActiveProcesses: () => string[];
   getLastBranchStatus: () => unknown | null;

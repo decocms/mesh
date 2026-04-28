@@ -9,10 +9,9 @@ import type {
 } from "@decocms/sandbox/runner";
 import { composeSandboxRef } from "@decocms/sandbox/runner";
 
-// Pin runner kind — VM_START resolves the runner at handler time. Setting
-// FREESTYLE_API_KEY routes resolution to freestyle; tests that need docker
-// clear it locally.
-process.env.FREESTYLE_API_KEY = "test-freestyle-key";
+// Pin runner kind — the dev env flips STUDIO_SANDBOX_RUNNER and VM_START
+// reads it at handler time.
+process.env.STUDIO_SANDBOX_RUNNER = "freestyle";
 
 // Mock runner BEFORE importing VM_START — handler is runner-agnostic
 // and we don't want to pull the real freestyle SDK.
@@ -518,8 +517,8 @@ describe("VM_START", () => {
   });
 
   it("skips freestyle teardown on runner flip — freestyle idles out on its own", async () => {
-    const original = process.env.FREESTYLE_API_KEY;
-    delete process.env.FREESTYLE_API_KEY;
+    const original = process.env.STUDIO_SANDBOX_RUNNER;
+    process.env.STUDIO_SANDBOX_RUNNER = "docker";
     try {
       const staleEntry: VmMapEntry = {
         vmId: "mh3fx1hmxzdz1h1agx4m",
@@ -544,8 +543,8 @@ describe("VM_START", () => {
       expect(result.runnerKind).toBe("docker");
       expect(result.isNewVm).toBe(true);
     } finally {
-      if (original === undefined) delete process.env.FREESTYLE_API_KEY;
-      else process.env.FREESTYLE_API_KEY = original;
+      if (original === undefined) delete process.env.STUDIO_SANDBOX_RUNNER;
+      else process.env.STUDIO_SANDBOX_RUNNER = original;
     }
   });
 
