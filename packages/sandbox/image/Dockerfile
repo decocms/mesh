@@ -8,7 +8,8 @@ ARG DENO_VERSION=v1.46.3
 # `embedded-postgres` refuse to init without it.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-       bash ca-certificates curl git gnupg locales python3 ripgrep unzip \
+       bash ca-certificates curl git gnupg locales python3 python3-pip \
+       ripgrep unzip \
   && sed -i 's/^#\s*en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
   && locale-gen \
   && curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
@@ -20,6 +21,25 @@ RUN apt-get update \
   && corepack enable \
   && corepack prepare yarn@stable --activate \
   && corepack prepare pnpm@latest --activate
+
+# Office tooling used by /mnt/skills/public/* document skills:
+# - LibreOffice headless for pptx/xlsx/docx → PDF conversion (rasterization,
+#   formula recalc, accept-tracked-changes).
+# - Poppler suite for PDF inspection and page-image extraction (pdftoppm,
+#   pdfinfo, pdftotext, pdfimages, pdfdetach, pdffonts).
+# - dbus + a generated /etc/machine-id so soffice doesn't warn on every call.
+# - DejaVu + Liberation fonts so soffice renders text instead of fallback
+#   tofu glyphs.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+       libreoffice-impress poppler-utils dbus \
+       fonts-dejavu-core fonts-liberation \
+  && rm -rf /var/lib/apt/lists/* \
+  && dbus-uuidgen > /etc/machine-id
+
+# Python libraries used by /mnt/skills/public/* helper scripts.
+RUN pip3 install --break-system-packages --no-cache-dir \
+      python-pptx python-docx openpyxl pypdf Pillow
 
 ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8
@@ -33,6 +53,13 @@ RUN userdel --remove bun \
 
 WORKDIR /app
 COPY --chown=sandbox:sandbox daemon/dist/daemon.js /opt/sandbox-daemon/daemon.js
+COPY --chown=sandbox:sandbox image/skills /mnt/skills/public
+
+# Expose skill helper scripts as bare commands. Wrappers in skills/_bin/
+# are tiny shell shims; symlinking them into /usr/local/bin lets the model
+# run e.g. `pptx-thumbnail deck.pptx` instead of typing the full python path.
+RUN chmod +x /mnt/skills/public/_bin/* \
+  && ln -s /mnt/skills/public/_bin/* /usr/local/bin/
 
 ENV IS_SANDBOX=1
 USER sandbox

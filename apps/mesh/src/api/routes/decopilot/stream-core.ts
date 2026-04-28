@@ -466,33 +466,31 @@ async function streamCoreInner(
                 { ctx, isPlanMode: modeConfig.isPlanMode },
               );
 
-        // Resolve active VM for (user, branch). Per-entry `runnerKind` drives
-        // transport dispatch inside `getBuiltInTools`.
+        // VM file tools bind to (virtualMcpId, branch, userId). The VM is
+        // provisioned lazily on the first tool call inside getBuiltInTools.
+        //
+        // Two keying regimes:
+        // - GitHub-linked agents (githubRepo set) need per-branch isolation
+        //   so PR/branch workflows don't trample each other. Falls back to a
+        //   `thread:<taskId>` synthetic branch when no explicit branch is
+        //   supplied yet.
+        // - Ephemeral agents (no githubRepo) share one VM per (user, agent)
+        //   across threads. The skills work is mostly read-heavy and
+        //   sharing a sandbox cuts the VM count linearly with thread count.
+        //   Tradeoff: concurrent threads share /app, /home/sandbox, /tmp —
+        //   parallel writes to overlapping filenames can race. Fine for
+        //   reads and scoped outputs; revisit if it bites.
         const vmMetadata = virtualMcp.metadata as {
-          vmMap?: Record<
-            string,
-            Record<
-              string,
-              {
-                vmId: string;
-                previewUrl: string;
-                runnerKind?: "docker" | "freestyle" | "agent-sandbox";
-              }
-            >
-          >;
           githubRepo?: GithubRepo | null;
         };
-        const activeVmEntry =
-          input.branch && input.userId
-            ? vmMetadata?.vmMap?.[input.userId]?.[input.branch]
-            : undefined;
-        const activeVm = activeVmEntry
+        const isEphemeralAgent = !vmMetadata.githubRepo;
+        const vmContext = input.userId
           ? {
-              runnerKind: (activeVmEntry.runnerKind ?? "freestyle") as
-                | "docker"
-                | "freestyle"
-                | "agent-sandbox",
-              vmId: activeVmEntry.vmId,
+              virtualMcpId: input.agent.id,
+              branch: isEphemeralAgent
+                ? "ephemeral"
+                : (input.branch ?? `thread:${mem.thread.id}`),
+              userId: input.userId,
             }
           : null;
 
@@ -509,7 +507,7 @@ async function streamCoreInner(
                 toolOutputMap,
                 pendingImages,
                 passthroughClient,
-                activeVm,
+                vmContext,
               },
               ctx,
             );
@@ -794,7 +792,11 @@ async function streamCoreInner(
                         for (const img of imageParts) {
                           content.push({
                             type: "text",
-                            text: `[Screenshot of ${img.pageUrl}]`,
+                            text:
+                              img.label ??
+                              (img.pageUrl
+                                ? `[Screenshot of ${img.pageUrl}]`
+                                : "[Image]"),
                           });
                           if (img.url.startsWith("data:")) {
                             // data URI → send as inline image

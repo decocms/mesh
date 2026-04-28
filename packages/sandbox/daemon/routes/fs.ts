@@ -20,6 +20,66 @@ function spawnOpts(
     : { ...extra };
 }
 
+/** Cap on bytes returned for image responses. ~5MB matches Anthropic's
+ * vision input ceiling and keeps tool result payloads bounded. */
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/** Magic-byte sniffer for the image types Claude vision accepts.
+ * Returns null for everything else; we don't try to be clever about
+ * arbitrary binary formats. */
+function sniffImageMediaType(probe: Buffer): string | null {
+  if (
+    probe.length >= 3 &&
+    probe[0] === 0xff &&
+    probe[1] === 0xd8 &&
+    probe[2] === 0xff
+  )
+    return "image/jpeg";
+  if (
+    probe.length >= 8 &&
+    probe[0] === 0x89 &&
+    probe[1] === 0x50 &&
+    probe[2] === 0x4e &&
+    probe[3] === 0x47 &&
+    probe[4] === 0x0d &&
+    probe[5] === 0x0a &&
+    probe[6] === 0x1a &&
+    probe[7] === 0x0a
+  )
+    return "image/png";
+  if (
+    probe.length >= 6 &&
+    probe[0] === 0x47 &&
+    probe[1] === 0x49 &&
+    probe[2] === 0x46 &&
+    probe[3] === 0x38
+  )
+    return "image/gif";
+  if (
+    probe.length >= 12 &&
+    probe[0] === 0x52 &&
+    probe[1] === 0x49 &&
+    probe[2] === 0x46 &&
+    probe[3] === 0x46 &&
+    probe[8] === 0x57 &&
+    probe[9] === 0x45 &&
+    probe[10] === 0x42 &&
+    probe[11] === 0x50
+  )
+    return "image/webp";
+  return null;
+}
+
+/**
+ * Resolves a user-supplied path. Absolute paths pass through as-is — OS
+ * permissions already gate what the sandbox user can read. Relative paths
+ * are resolved against `appRoot` for the project-relative UX.
+ */
+function resolveReadPath(appRoot: string, userPath: string): string | null {
+  if (path.isAbsolute(userPath)) return userPath;
+  return safePath(appRoot, userPath);
+}
+
 export function makeReadHandler(deps: FsDeps) {
   return async (req: Request): Promise<Response> => {
     let body: { path?: string; offset?: number; limit?: number };
@@ -28,8 +88,9 @@ export function makeReadHandler(deps: FsDeps) {
     } catch (e) {
       return jsonResponse({ error: (e as Error).message }, 400);
     }
-    const filePath = safePath(deps.appRoot, body.path ?? "");
-    if (!filePath) return jsonResponse({ error: "Path escapes /app" }, 400);
+    const filePath = resolveReadPath(deps.appRoot, body.path ?? "");
+    if (!filePath)
+      return jsonResponse({ error: "Path escapes project root" }, 400);
 
     let stat: fs.Stats;
     try {
@@ -44,8 +105,34 @@ export function makeReadHandler(deps: FsDeps) {
     const probe = Buffer.alloc(Math.min(8192, stat.size));
     fs.readSync(fd, probe, 0, probe.length, 0);
     fs.closeSync(fd);
+
+    const imageMediaType = sniffImageMediaType(probe);
+    if (imageMediaType) {
+      if (stat.size > MAX_IMAGE_BYTES) {
+        return jsonResponse(
+          {
+            error: `Image too large (${stat.size} bytes; cap is ${MAX_IMAGE_BYTES})`,
+          },
+          400,
+        );
+      }
+      const bytes = fs.readFileSync(filePath);
+      return jsonResponse({
+        kind: "image",
+        mediaType: imageMediaType,
+        size: stat.size,
+        base64: bytes.toString("base64"),
+      });
+    }
+
     if (probe.includes(0))
-      return jsonResponse({ error: "File appears to be binary" }, 400);
+      return jsonResponse(
+        {
+          error:
+            "File appears to be binary and is not a supported image format (jpeg/png/gif/webp).",
+        },
+        400,
+      );
 
     const raw = fs.readFileSync(filePath, "utf-8");
     const lines = raw.split("\n");
@@ -53,7 +140,11 @@ export function makeReadHandler(deps: FsDeps) {
     const limit = body.limit ?? 2000;
     const slice = lines.slice(offset - 1, offset - 1 + limit);
     const numbered = slice.map((l, i) => `${offset + i}\t${l}`).join("\n");
-    return jsonResponse({ content: numbered, lineCount: lines.length });
+    return jsonResponse({
+      kind: "text",
+      content: numbered,
+      lineCount: lines.length,
+    });
   };
 }
 

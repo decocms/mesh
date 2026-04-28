@@ -8,12 +8,19 @@ import { z } from "zod";
 export const ReadInputSchema = z.object({
   path: z
     .string()
-    .describe("File path relative to project root (e.g. 'src/index.ts')"),
+    .describe(
+      "File path. Relative paths resolve against the project root (e.g. " +
+        "'src/index.ts'); absolute paths are accepted for files outside the " +
+        "project (e.g. '/home/sandbox/deck.thumbnail.jpg').",
+    ),
   offset: z
     .number()
     .optional()
-    .describe("Starting line number (1-based, default 1)"),
-  limit: z.number().optional().describe("Max lines to return (default 2000)"),
+    .describe("Starting line number for text files (1-based, default 1)"),
+  limit: z
+    .number()
+    .optional()
+    .describe("Max lines to return for text files (default 2000)"),
 });
 
 export const WriteInputSchema = z.object({
@@ -80,8 +87,12 @@ export type GlobInput = z.infer<typeof GlobInputSchema>;
 export type BashInput = z.infer<typeof BashInputSchema>;
 
 export const READ_DESCRIPTION =
-  "Read a file from the VM's project directory. Returns content with line numbers. " +
-  "Use offset and limit for large files.";
+  "Read a file. For text files, returns content with line numbers (use offset " +
+  "and limit for large files). For images (jpeg, png, gif, webp), the image " +
+  "is injected into the next turn as a vision input — do NOT describe what " +
+  "you 'expect' to see, just call read and look at the next message. Other " +
+  "binary formats are not supported; use a format-specific skill " +
+  "(e.g. pptx-extract for .pptx).";
 
 export const WRITE_DESCRIPTION =
   "Write content to a file in the VM's project directory. " +

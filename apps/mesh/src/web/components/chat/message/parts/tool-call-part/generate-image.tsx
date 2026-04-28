@@ -90,7 +90,9 @@ export function GenerateImagePart({ part, latency }: GenerateImagePartProps) {
   const images = result?.images;
   const usage = extractUsage(result);
   const modelLabel = result?.model;
-  const refImages = input?.referenceImages?.filter((r) => r.uri ?? r.url);
+  const refImages = Array.isArray(input?.referenceImages)
+    ? input.referenceImages.filter((r) => r.uri ?? r.url)
+    : undefined;
   const latencyLabel =
     latency != null && latency > 0 ? (
       <span className="text-[11px] font-mono tabular-nums text-muted-foreground/60">
