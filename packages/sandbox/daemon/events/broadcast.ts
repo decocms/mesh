@@ -26,6 +26,10 @@ export class Broadcaster {
   broadcastChunk(source: string, data: string): void {
     if (!data) return;
     this.replay.append(source, data);
+    // Tee to stdout so `kubectl logs` / k9s show the same output that SSE
+    // subscribers see. The structured events (broadcastEvent below) stay
+    // SSE-only — they're machine-readable JSON and would be noise here.
+    process.stdout.write(`[${source}] ${data}`);
     const bytes = sseFormat("log", JSON.stringify({ source, data }));
     this.fan(bytes);
   }

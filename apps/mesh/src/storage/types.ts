@@ -148,12 +148,17 @@ export interface SimpleModeConfig {
   webResearch: SimpleModeModelSlot | null;
 }
 
+export interface DefaultHomeAgentsConfig {
+  ids: string[];
+}
+
 export interface OrganizationSettingsTable {
   organizationId: string;
   sidebar_items: JsonArray<SidebarItem[]> | null;
   enabled_plugins: JsonArray<string[]> | null;
   registry_config: JsonObject<RegistryConfig> | null;
   simple_mode: JsonObject<SimpleModeConfig> | null;
+  default_home_agents: JsonObject<DefaultHomeAgentsConfig> | null;
   createdAt: ColumnType<Date, Date | string, never>;
   updatedAt: ColumnType<Date, Date | string, Date | string>;
 }
@@ -164,6 +169,7 @@ export interface OrganizationSettings {
   enabled_plugins: string[] | null;
   registry_config: RegistryConfig | null;
   simple_mode: SimpleModeConfig | null;
+  default_home_agents: DefaultHomeAgentsConfig | null;
   createdAt: Date | string;
   updatedAt: Date | string;
 }

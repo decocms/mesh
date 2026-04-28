@@ -155,6 +155,7 @@ interface AuthenticatedUser {
   email?: string;
   emailVerified?: boolean;
   name?: string;
+  image?: string;
   role?: string;
 }
 
@@ -710,7 +711,13 @@ async function authenticateRequest(
     const session = (await timings.measure("auth_get_session", () =>
       auth.api.getSession({ headers: sessionHeaders }),
     )) as {
-      user: { id: string; email: string; emailVerified: boolean };
+      user: {
+        id: string;
+        email: string;
+        emailVerified: boolean;
+        name?: string;
+        image?: string | null;
+      };
       session: { activeOrganizationId?: string };
     } | null;
 
@@ -768,6 +775,8 @@ async function authenticateRequest(
           id: session.user.id,
           email: session.user.email,
           emailVerified: !!session.user.emailVerified,
+          name: session.user.name,
+          image: session.user.image ?? undefined,
           role,
         },
         role,
