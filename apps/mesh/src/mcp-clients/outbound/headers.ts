@@ -167,12 +167,20 @@ export async function buildRequestHeaders(
 
           accessToken = refreshResult.accessToken;
         } else {
-          // Refresh failed - token is invalid
-          // Delete the cached token so user gets prompted to re-auth
-          await tokenStorage.delete(connectionId);
-          console.error(
-            `[Proxy] Token refresh failed for ${connectionId}: ${refreshResult.error}`,
-          );
+          // Only delete on a definitive `400 invalid_grant`. Transient
+          // failures (5xx, network, non-spec status codes) leave the cached
+          // row intact so the next request retries instead of forcing a
+          // manual reconnect.
+          if (refreshResult.permanent === true) {
+            await tokenStorage.delete(connectionId);
+          }
+          console.error("[Proxy] token refresh failed", {
+            connectionId,
+            status: refreshResult.status,
+            errorCode: refreshResult.errorCode,
+            permanent: refreshResult.permanent === true,
+            deleted: refreshResult.permanent === true,
+          });
         }
       } else {
         // Token expired but no refresh capability - delete it
