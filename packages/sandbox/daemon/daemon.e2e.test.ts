@@ -8,6 +8,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
@@ -36,17 +37,41 @@ let daemonProc: ChildProcess | null = null;
 let daemonPort = 0;
 let appDir = "";
 
-function freePort(): number {
-  // 50000-59999 range to avoid clashing with dev servers
-  return 50000 + Math.floor(Math.random() * 10000);
+/**
+ * Ask the OS for a free port via a transient bind on port 0. Far less flaky
+ * than picking a random number in a fixed range, which collides with other
+ * runner processes or with sockets the previous test left in TIME_WAIT.
+ */
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = createServer();
+    srv.unref();
+    srv.once("error", reject);
+    srv.listen(0, "127.0.0.1", () => {
+      const addr = srv.address();
+      if (typeof addr === "object" && addr && typeof addr.port === "number") {
+        const { port } = addr;
+        srv.close(() => resolve(port));
+      } else {
+        srv.close(() => reject(new Error("freePort: bad address")));
+      }
+    });
+  });
 }
 
 async function waitForPort(
   port: number,
+  proc: ChildProcess,
+  stderrBuf: { value: string },
   timeoutMs = PORT_WAIT_TIMEOUT_MS,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    if (proc.exitCode !== null || proc.signalCode !== null) {
+      throw new Error(
+        `daemon exited before /health responded (code=${proc.exitCode} signal=${proc.signalCode}) stderr=${stderrBuf.value.slice(-2000)}`,
+      );
+    }
     try {
       const res = await fetch(`http://localhost:${port}/health`);
       if (res.ok) return;
@@ -60,7 +85,7 @@ async function waitForPort(
 
 async function startDaemon(extraEnv: Record<string, string> = {}) {
   appDir = mkdtempSync(join(tmpdir(), "daemon-e2e-"));
-  daemonPort = freePort();
+  daemonPort = await freePort();
   daemonProc = spawn("bun", [DAEMON_BUNDLE], {
     stdio: ["ignore", "pipe", "pipe"],
     env: {
@@ -75,19 +100,31 @@ async function startDaemon(extraEnv: Record<string, string> = {}) {
       ...extraEnv,
     },
   });
+  // Capture stderr so a port-bind crash (or any startup error) is surfaced
+  // in the assertion instead of presenting as a silent 20s timeout.
+  const stderrBuf = { value: "" };
   daemonProc.stdout?.on("data", (c) =>
     process.stderr.write(`[daemon:out] ${c}`),
   );
-  daemonProc.stderr?.on("data", (c) =>
-    process.stderr.write(`[daemon:err] ${c}`),
-  );
-  await waitForPort(daemonPort);
+  daemonProc.stderr?.on("data", (c) => {
+    stderrBuf.value += c.toString();
+    process.stderr.write(`[daemon:err] ${c}`);
+  });
+  await waitForPort(daemonPort, daemonProc, stderrBuf);
 }
 
 async function stopDaemon() {
   if (daemonProc) {
-    daemonProc.kill("SIGKILL");
+    const proc = daemonProc;
     daemonProc = null;
+    if (proc.exitCode === null && proc.signalCode === null) {
+      // Wait for OS to reap the process so its bound port is released before
+      // the next startDaemon picks a fresh one.
+      await new Promise<void>((resolve) => {
+        proc.once("exit", () => resolve());
+        proc.kill("SIGKILL");
+      });
+    }
   }
   if (appDir) {
     rmSync(appDir, { recursive: true, force: true });
@@ -201,8 +238,10 @@ describe("daemon e2e (runs generated script under Bun)", () => {
     expect(firstText).toContain("event: status");
 
     // Trigger a new log line by hitting the proxy fallthrough, and confirm
-    // we see it live on the SSE stream within a deadline.
-    const deadline = Date.now() + 3000;
+    // we see it live on the SSE stream within a deadline. Headroom on shared
+    // CI runners — the proxy round-trip + SSE chunk delivery occasionally
+    // exceeds 3s under load.
+    const deadline = Date.now() + 8000;
     let saw = false;
     await fetch(`http://localhost:${daemonPort}/something-live`).catch(() => {
       /* proxy upstream likely 502 — we only care about the log side-effect */
@@ -488,7 +527,7 @@ describe("daemon e2e (reverse proxy)", () => {
 
   async function startWithoutUpstream() {
     // Point upstream at a port where nothing is listening.
-    upstreamPort = freePort();
+    upstreamPort = await freePort();
     await startDaemon({ DEV_PORT: String(upstreamPort) });
   }
 

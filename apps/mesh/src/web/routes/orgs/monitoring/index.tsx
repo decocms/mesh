@@ -117,7 +117,7 @@ function FiltersPopover({
 }: FiltersPopoverProps) {
   const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
   const [propertyFilterMode, setPropertyFilterMode] = useState<"raw" | "form">(
-    "raw",
+    "form",
   );
 
   const [localTool, setLocalTool] = useState(tool);

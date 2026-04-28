@@ -57,6 +57,9 @@ interface MCPAppRendererProps {
     params: McpUiUpdateModelContextRequest["params"],
   ) => void;
   onTeardown?: () => void;
+  onRequestDisplayMode?: (
+    mode: McpUiDisplayMode,
+  ) => McpUiDisplayMode | Promise<McpUiDisplayMode>;
   className?: string;
 }
 
@@ -77,6 +80,7 @@ export function MCPAppRenderer({
   onMessage,
   onUpdateModelContext,
   onTeardown,
+  onRequestDisplayMode,
   className,
 }: MCPAppRendererProps) {
   const { data } = useMCPReadResource({ client, uri, staleTime: 30_000 });
@@ -106,6 +110,7 @@ export function MCPAppRenderer({
     onMessage,
     onUpdateModelContext,
     onTeardown,
+    onRequestDisplayMode,
   });
 
   if (!html) return null;

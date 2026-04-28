@@ -50,6 +50,20 @@ const PORT_READBACK_ATTEMPTS = 15;
 const PORT_READBACK_INTERVAL_MS = 200;
 const LOG_LABEL = "DockerSandboxRunner";
 
+type PhaseLog = (msg: string, fields?: Record<string, unknown>) => void;
+
+function makePhaseLog(scope: string): PhaseLog {
+  const t0 = Date.now();
+  return (msg, fields = {}) => {
+    const tail = Object.entries(fields)
+      .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
+      .join(" ");
+    console.log(
+      `[${scope}] +${Date.now() - t0}ms ${msg}${tail ? ` ${tail}` : ""}`,
+    );
+  };
+}
+
 export type ExecResult = DockerResult;
 export type DockerExec = DockerExecFn;
 
@@ -225,20 +239,31 @@ export class DockerSandboxRunner implements SandboxRunner {
     opts: EnsureOptions,
     ops: RunnerStateStoreOps | null,
   ): Promise<Sandbox> {
+    const log = makePhaseLog(LOG_LABEL);
+    log("ensure start", { labelId });
     // 1. State-store resume.
     if (ops) {
       const persisted = await ops.get(id, RUNNER_KIND);
       if (persisted) {
         const rec = await this.rehydrate(id, persisted);
-        if (rec) return this.finish(rec, ops, /* persistNow */ false);
+        if (rec) {
+          log("ensure ok via=resume", { handle: rec.handle });
+          return this.finish(rec, ops, /* persistNow */ false);
+        }
         await ops.delete(id, RUNNER_KIND);
+        log("resume rejected, falling through");
       }
     }
     // 2. Side-channel adopt: container with our label still running.
     const adopted = await this.adoptByLabel(id, labelId, opts);
-    if (adopted) return this.finish(adopted, ops, /* persistNow */ true);
+    if (adopted) {
+      log("ensure ok via=adopt", { handle: adopted.handle });
+      return this.finish(adopted, ops, /* persistNow */ true);
+    }
     // 3. Fresh provision.
-    const fresh = await this.provision(id, labelId, opts);
+    log("provision start");
+    const fresh = await this.provision(id, labelId, opts, log);
+    log("ensure ok via=provision", { handle: fresh.handle });
     return this.finish(fresh, ops, /* persistNow */ true);
   }
 
@@ -256,6 +281,7 @@ export class DockerSandboxRunner implements SandboxRunner {
     id: SandboxId,
     labelId: string,
     opts: EnsureOptions,
+    log: PhaseLog,
   ): Promise<DockerRecord> {
     const token = randomBytes(24).toString("hex");
     const daemonBootId = randomUUID();
@@ -293,7 +319,13 @@ export class DockerSandboxRunner implements SandboxRunner {
     };
 
     // Shared singleton; awaits any background build kicked off by the CLI.
-    await ensureSandboxImage({ image, exec: this.exec_ });
+    log("ensureSandboxImage start");
+    await ensureSandboxImage({
+      image,
+      exec: this.exec_,
+      onLog: (line) => log("image build", { line }),
+    });
+    log("ensureSandboxImage ok");
 
     // Hardening: drop caps + block privilege escalation; cap processes/memory/
     // cpu against runaway user scripts. Read-only root removes most write-based
@@ -333,6 +365,7 @@ export class DockerSandboxRunner implements SandboxRunner {
         ],
       });
 
+    log("docker run start", { handle, image });
     try {
       await tryStart();
     } catch (err) {
@@ -342,19 +375,26 @@ export class DockerSandboxRunner implements SandboxRunner {
       // cleanup will collide on `--name`. Force-remove the orphan and retry
       // once; if the retry still fails, surface the original error.
       if (msg.includes("is already in use")) {
+        log("docker run name conflict, retrying after rm", { handle });
         await this.exec_(["rm", "-f", handle]).catch(() => undefined);
         await tryStart();
       } else {
         throw err;
       }
     }
+    log("docker run ok", { handle });
 
     const daemonPort = await this.readPort(handle, DAEMON_PORT);
     const daemonUrl = `http://127.0.0.1:${daemonPort}`;
     const devPort = await this.readPort(handle, devContainerPort);
+    log("ports read", { daemonPort, devPort });
+    log("waitForDaemonReady start", { daemonUrl });
     try {
       await waitForDaemonReady(daemonUrl);
     } catch (err) {
+      log("waitForDaemonReady failed", {
+        err: err instanceof Error ? err.message : String(err),
+      });
       await this.stopContainer(handle).catch((stopErr) =>
         console.warn(
           `[${LOG_LABEL}] cleanup stop after waitForDaemonReady failure (${handle}) itself failed:`,
@@ -363,6 +403,7 @@ export class DockerSandboxRunner implements SandboxRunner {
       );
       throw err;
     }
+    log("daemon ready", { handle });
     return {
       id,
       handle,

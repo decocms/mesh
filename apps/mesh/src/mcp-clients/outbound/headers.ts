@@ -65,8 +65,9 @@ export async function buildRequestHeaders(
     connection.configuration_scopes,
   );
 
+  const ctxUser = ctx.auth.user;
   const userId =
-    ctx.auth.user?.id ??
+    ctxUser?.id ??
     ctx.auth.apiKey?.userId ??
     (superUser ? connection.created_by : undefined);
 
@@ -80,7 +81,13 @@ export async function buildRequestHeaders(
   const [configurationToken, error] = userId
     ? await issueMeshToken({
         sub: userId,
-        user: { id: userId },
+        user: {
+          id: userId,
+          email: ctxUser?.email,
+          name: ctxUser?.name,
+          image: ctxUser?.image,
+          role: ctxUser?.role,
+        },
         metadata: {
           state: stripBindingMetadata(
             connection.configuration_state as Record<string, unknown> | null,
@@ -167,12 +174,20 @@ export async function buildRequestHeaders(
 
           accessToken = refreshResult.accessToken;
         } else {
-          // Refresh failed - token is invalid
-          // Delete the cached token so user gets prompted to re-auth
-          await tokenStorage.delete(connectionId);
-          console.error(
-            `[Proxy] Token refresh failed for ${connectionId}: ${refreshResult.error}`,
-          );
+          // Only delete on a definitive `400 invalid_grant`. Transient
+          // failures (5xx, network, non-spec status codes) leave the cached
+          // row intact so the next request retries instead of forcing a
+          // manual reconnect.
+          if (refreshResult.permanent === true) {
+            await tokenStorage.delete(connectionId);
+          }
+          console.error("[Proxy] token refresh failed", {
+            connectionId,
+            status: refreshResult.status,
+            errorCode: refreshResult.errorCode,
+            permanent: refreshResult.permanent === true,
+            deleted: refreshResult.permanent === true,
+          });
         }
       } else {
         // Token expired but no refresh capability - delete it

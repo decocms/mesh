@@ -35,8 +35,11 @@ import { AiImageRecruitModal } from "@/web/components/home/ai-image-recruit-moda
 import { AiResearchRecruitModal } from "@/web/components/home/ai-research-recruit-modal.tsx";
 import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
 import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
+import { SelfHealingRepoFlow } from "@/web/components/self-healing-repo/self-healing-repo-flow.tsx";
+import { GitHubIcon } from "@/web/components/icons/github-icon";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
+import { usePreferences } from "@/web/hooks/use-preferences.ts";
 import { Suspense, useState } from "react";
 import { track } from "@/web/lib/posthog-client";
 
@@ -247,6 +250,8 @@ function AgentsListContent() {
   const [aiResearchModalOpen, setAiResearchModalOpen] = useState(false);
   const [leanCanvasModalOpen, setLeanCanvasModalOpen] = useState(false);
   const [studioPackModalOpen, setStudioPackModalOpen] = useState(false);
+  const [selfHealingOpen, setSelfHealingOpen] = useState(false);
+  const [preferences] = usePreferences();
   const navigateToAgent = useNavigateToAgent();
 
   const siteEditorAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
@@ -494,6 +499,28 @@ function AgentsListContent() {
 
   return (
     <>
+      {preferences.experimental_vibecode && (
+        <div className="w-full flex justify-center mb-4">
+          <button
+            type="button"
+            onClick={() => setSelfHealingOpen(true)}
+            className="w-full max-w-[560px] flex items-center gap-3 rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent px-4 py-3 text-left transition-colors hover:border-primary/50 hover:from-primary/15 cursor-pointer group"
+          >
+            <div className="size-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+              <GitHubIcon className="size-5 text-primary" />
+            </div>
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-sm font-medium text-foreground leading-tight">
+                Set up self-healing repo
+              </span>
+              <span className="text-xs text-muted-foreground line-clamp-2">
+                Connect GitHub and add specialist monitors that open issues
+                automatically.
+              </span>
+            </div>
+          </button>
+        </div>
+      )}
       <div className="w-full max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
         <div className="flex flex-wrap justify-center gap-1.5 max-md:flex-nowrap max-md:justify-start md:max-h-52 md:overflow-hidden">
           {tiles.map(renderTile)}
@@ -534,6 +561,11 @@ function AgentsListContent() {
       <StudioPackRecruitModal
         open={studioPackModalOpen}
         onOpenChange={setStudioPackModalOpen}
+      />
+
+      <SelfHealingRepoFlow
+        open={selfHealingOpen}
+        onOpenChange={setSelfHealingOpen}
       />
     </>
   );

@@ -62,6 +62,7 @@ export interface MetadataModelInfo {
     text?: boolean;
     tools?: boolean;
     reasoning?: boolean;
+    file?: boolean;
   };
   limits?: { contextWindow?: number; maxOutputTokens?: number };
 }

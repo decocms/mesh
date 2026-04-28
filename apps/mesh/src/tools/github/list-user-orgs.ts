@@ -93,10 +93,12 @@ export const GITHUB_LIST_USER_ORGS = defineTool({
       // expired before our clock said so). Try one refresh + retry before
       // giving up. Applies to any page — a token can be invalidated
       // between pages of a long installations listing.
+      // Deletion of the cached row is delegated to `refreshAndStore`, which
+      // only deletes on a definitive `400 invalid_grant`. Transient OAuth
+      // failures leave the row intact so a later request can recover.
       if (res.status === 401) {
         const current = await tokenStorage.get(input.connectionId);
         if (!current || !canRefresh(current)) {
-          await tokenStorage.delete(input.connectionId);
           throw new Error(RECONNECT_ERROR);
         }
         const refreshed = await refreshAndStore(current, tokenStorage);
@@ -106,7 +108,6 @@ export const GITHUB_LIST_USER_ORGS = defineTool({
         accessToken = refreshed;
         res = await fetchPage(accessToken);
         if (res.status === 401) {
-          await tokenStorage.delete(input.connectionId);
           throw new Error(RECONNECT_ERROR);
         }
       }
