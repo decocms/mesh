@@ -404,10 +404,12 @@ function SubProviderGroup({
   subProviderName,
   groupLogo,
   models,
+  allConnectionModelIds,
   selectedModels,
   allowAllModels,
   allConnectionModelsSelected,
   onToggleModel,
+  onExitAllowAll,
   readOnly,
   defaultExpanded,
 }: {
@@ -416,10 +418,16 @@ function SubProviderGroup({
   subProviderName: string;
   groupLogo: string | null;
   models: GroupedModel[];
+  allConnectionModelIds: string[];
   selectedModels: string[];
   allowAllModels: boolean;
   allConnectionModelsSelected: boolean;
   onToggleModel: (keyId: string, modelId: string) => void;
+  onExitAllowAll: (
+    keyId: string,
+    allModelIds: string[],
+    excludeModelId: string,
+  ) => void;
   readOnly: boolean;
   defaultExpanded: boolean;
 }) {
@@ -470,19 +478,22 @@ function SubProviderGroup({
         <div className="border-t border-border bg-muted/20">
           {visibleModels.map((model) => {
             const isEnabled = isModelEnabled(model.id);
+            const handleToggle = () => {
+              if (readOnly) return;
+              if (allowAllModels) {
+                onExitAllowAll(connectionId, allConnectionModelIds, model.id);
+                return;
+              }
+              onToggleModel(connectionId, model.id);
+            };
             return (
               <div
                 key={model.id}
                 className={cn(
                   "flex items-center justify-between gap-3 px-4 py-3 border-b border-border last:border-b-0",
-                  !readOnly &&
-                    !allowAllModels &&
-                    "hover:bg-muted/50 cursor-pointer",
+                  !readOnly && "hover:bg-muted/50 cursor-pointer",
                 )}
-                onClick={() => {
-                  if (readOnly || allowAllModels) return;
-                  onToggleModel(connectionId, model.id);
-                }}
+                onClick={handleToggle}
               >
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <span className="text-sm truncate">{model.title}</span>
@@ -508,11 +519,7 @@ function SubProviderGroup({
                   ) : (
                     <Switch
                       checked={isEnabled}
-                      disabled={allowAllModels}
-                      onCheckedChange={() => {
-                        if (allowAllModels) return;
-                        onToggleModel(connectionId, model.id);
-                      }}
+                      onCheckedChange={handleToggle}
                     />
                   )}
                 </div>
@@ -539,6 +546,7 @@ function ConnectionModelsSection({
   selectedModels,
   allowAllModels,
   onToggleModel,
+  onExitAllowAll,
   allConnectionModelsSelected,
   searchQuery,
   readOnly,
@@ -547,6 +555,11 @@ function ConnectionModelsSection({
   selectedModels: string[];
   allowAllModels: boolean;
   onToggleModel: (keyId: string, modelId: string) => void;
+  onExitAllowAll: (
+    keyId: string,
+    allModelIds: string[],
+    excludeModelId: string,
+  ) => void;
   allConnectionModelsSelected: boolean;
   searchQuery: string;
   readOnly: boolean;
@@ -622,10 +635,12 @@ function ConnectionModelsSection({
             subProviderName={group.name}
             groupLogo={group.logo}
             models={group.models}
+            allConnectionModelIds={models.map((m) => m.id)}
             selectedModels={selectedModels}
             allowAllModels={allowAllModels}
             allConnectionModelsSelected={allConnectionModelsSelected}
             onToggleModel={onToggleModel}
+            onExitAllowAll={onExitAllowAll}
             readOnly={readOnly}
             defaultExpanded={autoExpand}
           />
@@ -660,6 +675,20 @@ function ModelsPermissionsTab({
       newModelSet[connectionId] = [...current, modelId];
     }
     onModelSetChange(newModelSet);
+  };
+
+  // Switch from "all models" to a specific selection while preserving every
+  // model in the clicked connection except the one the user just turned off.
+  const exitAllowAll = (
+    connectionId: string,
+    allModelIds: string[],
+    excludeModelId: string,
+  ) => {
+    onAllowAllChange(false);
+    onModelSetChange({
+      ...modelSet,
+      [connectionId]: allModelIds.filter((id) => id !== excludeModelId),
+    });
   };
 
   return (
@@ -728,6 +757,7 @@ function ModelsPermissionsTab({
               selectedModels={modelSet[conn.id] ?? []}
               allowAllModels={allowAllModels}
               onToggleModel={toggleModel}
+              onExitAllowAll={exitAllowAll}
               allConnectionModelsSelected={(modelSet[conn.id] ?? []).includes(
                 "*",
               )}
