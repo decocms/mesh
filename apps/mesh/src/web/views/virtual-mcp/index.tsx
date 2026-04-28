@@ -611,8 +611,15 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
 
   const serverDefaultMainKey = (() => {
     if (!serverDefaultMain || serverDefaultMain.type === "chat") return "chat";
-    // Legacy: "settings" used to be its own tab; map onto Layout.
-    if (serverDefaultMain.type === "settings") return "layout";
+    // Legacy: instructions/connections/layout were separate tabs that have
+    // since been unified into the Settings tab.
+    if (
+      serverDefaultMain.type === "instructions" ||
+      serverDefaultMain.type === "connections" ||
+      serverDefaultMain.type === "layout"
+    ) {
+      return "settings";
+    }
     if (fixedTabTypeSet.has(serverDefaultMain.type)) {
       return serverDefaultMain.type;
     }
@@ -846,9 +853,8 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   // matching the gating in main-panel-tabs/index.tsx.
   const defaultMainOptions: { value: string; label: string }[] = [
     { value: "chat", label: "Chat" },
-    { value: "instructions", label: "Instructions" },
-    { value: "connections", label: "Connections" },
-    { value: "layout", label: "Layout" },
+    { value: "settings", label: "Settings" },
+    { value: "automations", label: "Automations" },
   ];
   if (hasGithubRepo) {
     defaultMainOptions.push({ value: "env", label: "Terminal" });
