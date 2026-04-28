@@ -16,6 +16,15 @@ export class ProcessManager {
     return Array.from(this.children.keys());
   }
 
+  /** Pids of every child currently tracked — used to scope port discovery. */
+  allPids(): number[] {
+    const out: number[] = [];
+    for (const child of this.children.values()) {
+      if (typeof child.pid === "number") out.push(child.pid);
+    }
+    return out;
+  }
+
   run(source: string, cmd: string, label: string): ChildProcess {
     const existing = this.children.get(source);
     if (existing) {
@@ -29,8 +38,14 @@ export class ProcessManager {
       this.children.delete(source);
     }
     this.deps.broadcaster.broadcastChunk(source, `${label}\r\n`);
+    // stdin is `pipe` (not `ignore`) so it's an open writable that never
+    // closes. Vite's CLI shortcuts call setRawMode then watch stdin for EOF;
+    // with stdin closed at spawn the child sees EOF immediately and exits
+    // right after announcing it's ready. Keeping the pipe open without ever
+    // writing to it is the cheapest way to keep long-running dev servers
+    // alive under the `script` PTY wrapper.
     const opts: Parameters<typeof spawn>[2] = {
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
       env: this.deps.env,
     };
     if (this.deps.dropPrivileges) {

@@ -48,6 +48,17 @@ export interface EnsureOptions {
   workload?: Workload;
   /** Frozen for the sandbox's lifetime — changing requires recreate. */
   env?: Record<string, string>;
+  /**
+   * Tenant identity for cost attribution. Runners MAY surface these as
+   * platform-native metadata (k8s pod labels, Docker container labels) so
+   * downstream metrics pipelines can attribute resource usage to the owning
+   * org/user. Optional — callers without an org context (smoke tests, internal
+   * tool sandboxes) leave it unset and pods get only platform-level labels.
+   */
+  tenant?: {
+    orgId: string;
+    userId: string;
+  };
 }
 
 export interface ExecInput {
@@ -75,7 +86,7 @@ export interface ProxyRequestInit {
  * Persisted on `vmMap` and `sandbox_runner_state.runner_kind`. When widening,
  * keep `VmMapEntry.runnerKind` in sync.
  */
-export type RunnerKind = "docker" | "freestyle";
+export type RunnerKind = "docker" | "freestyle" | "agent-sandbox";
 
 export interface SandboxRunner {
   readonly kind: RunnerKind;

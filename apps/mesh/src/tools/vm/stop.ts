@@ -1,6 +1,6 @@
 /**
  * VM_DELETE. Dispatches on the entry's persisted `runnerKind` (not env),
- * so a pod that flipped MESH_SANDBOX_RUNNER between start and stop still
+ * so a pod that flipped STUDIO_SANDBOX_RUNNER between start and stop still
  * tears down the right kind of VM.
  */
 

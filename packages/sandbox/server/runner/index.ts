@@ -1,7 +1,8 @@
 /**
  * Public surface. Ships `DockerSandboxRunner` only via the default entry;
- * Freestyle sits behind its own subpath export (./runner/freestyle) because
- * its SDK is heavy and not every deploy needs it.
+ * Freestyle and agent-sandbox sit behind their own subpath exports (./runner/
+ * freestyle, ./runner/agent-sandbox) because their SDKs are heavy and not
+ * every deploy needs them.
  */
 
 import { spawnSync } from "node:child_process";
@@ -79,17 +80,22 @@ function isDockerInstalled(): boolean {
 
 /**
  * Rules:
- *   1. `MESH_SANDBOX_RUNNER=docker|freestyle` — honored.
+ *   1. `STUDIO_SANDBOX_RUNNER=docker|freestyle|agent-sandbox` — honored.
  *   2. No explicit value, `FREESTYLE_API_KEY` set — pick freestyle.
  *   3. Production w/o explicit value and no freestyle key — null.
  *   4. Dev w/o explicit value — docker if CLI present, else null.
+ *
+ * agent-sandbox is explicit-only: never auto-selected — callers must opt in
+ * with `STUDIO_SANDBOX_RUNNER=agent-sandbox` so docker-only dev stays the default.
  */
 export function tryResolveRunnerKindFromEnv(): RunnerKind | null {
-  const raw = process.env.MESH_SANDBOX_RUNNER;
-  if (raw === "docker" || raw === "freestyle") return raw;
+  const raw = process.env.STUDIO_SANDBOX_RUNNER;
+  if (raw === "docker" || raw === "freestyle" || raw === "agent-sandbox") {
+    return raw;
+  }
   if (raw && raw.length > 0) {
     throw new Error(
-      `Unknown MESH_SANDBOX_RUNNER="${raw}" — expected "docker" or "freestyle".`,
+      `Unknown STUDIO_SANDBOX_RUNNER="${raw}" — expected "docker", "freestyle", or "agent-sandbox".`,
     );
   }
   if (process.env.FREESTYLE_API_KEY) return "freestyle";
@@ -103,12 +109,12 @@ export function resolveRunnerKindFromEnv(): RunnerKind {
   if (kind) return kind;
   if (process.env.NODE_ENV === "production") {
     throw new Error(
-      `MESH_SANDBOX_RUNNER must be set explicitly in production — ` +
-        `choose "docker" or "freestyle" (or set FREESTYLE_API_KEY).`,
+      `STUDIO_SANDBOX_RUNNER must be set explicitly in production — ` +
+        `choose "docker", "freestyle", or "agent-sandbox" (or set FREESTYLE_API_KEY).`,
     );
   }
   throw new Error(
     `No sandbox runner available: Docker CLI not found on PATH. ` +
-      `Install Docker for local dev, or set MESH_SANDBOX_RUNNER explicitly.`,
+      `Install Docker for local dev, or set STUDIO_SANDBOX_RUNNER explicitly.`,
   );
 }
