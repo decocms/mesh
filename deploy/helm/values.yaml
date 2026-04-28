@@ -352,6 +352,34 @@ sandbox:
       # that terminate preview URLs. Leave empty to skip the rule (sandbox
       # previews are then unreachable from outside the cluster).
       previewGatewayNamespace: ""
+    # Pin sandbox pods to a dedicated NodePool so a container escape lands
+    # on a node that has no mesh / postgres / NATS / OTel pods on it. Pair
+    # with a Karpenter NodePool that taints + labels matching nodes; see
+    # deploy/helm/README.md for the snippet. Empty defaults run sandbox
+    # pods on whatever the scheduler picks (current behavior).
+    nodeSelector: {}
+    # nodeSelector:
+    #   workload: sandbox
+    tolerations: []
+    # tolerations:
+    #   - key: workload
+    #     operator: Equal
+    #     value: sandbox
+    #     effect: NoSchedule
+    # User namespace remap (`spec.hostUsers: false`): UID 1000 inside the
+    # pod maps to a high, unprivileged subordinate UID on the node, so a
+    # container escape doesn't land as a real node UID. Requires K8s
+    # 1.30+ with a containerd/kernel that support userns (EKS default
+    # AMIs from late 2024 onward are fine). Defaults to current behavior
+    # (host users); flip to false to opt in.
+    hostUsers: true
+    # Read-only root filesystem. When true, /app + /tmp + /home/sandbox
+    # are remounted as emptyDirs and `safe.directory '*'` is set so git
+    # works against the chowned mount. Validate end-to-end (clone +
+    # bun/npm install + dev server start) on staging before flipping; the
+    # daemon may write to paths we haven't covered. Defaults to false to
+    # preserve current behavior on upgrade.
+    readOnlyRootFilesystem: false
     warmPool:
       # Enable only after measuring cold-start pain; every warm pod costs
       # the full resources.requests above.

@@ -1,10 +1,25 @@
 # Vendored from kubernetes-sigs/agent-sandbox v0.4.2 via vendor.sh.
 # Do not edit by hand — re-run vendor.sh to refresh.
 # Contains: controller Deployments, RBAC, Namespace, Service, ServiceAccount.
+#
+# LOCAL EDIT — preserve when re-running vendor.sh:
+#   PodSecurity admission labels added to the Namespace below. `baseline`
+#   is enforced (operator controller pod runs without an explicit
+#   securityContext; `restricted` would block it until that's patched).
+#   `restricted` is set as warn/audit so violations from sandbox pods or
+#   the controller surface in audit logs without rejecting admission.
+#   When the operator's pod spec hardens to `restricted`, flip enforce.
 kind: Namespace
 apiVersion: v1
 metadata:
   name: agent-sandbox-system
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest
 
 ---
 

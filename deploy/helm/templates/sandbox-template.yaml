@@ -26,6 +26,21 @@ spec:
         app.kubernetes.io/name: mesh-sandbox
     spec:
       automountServiceAccountToken: false
+      {{- with .Values.sandbox.kubernetes.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.sandbox.kubernetes.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if not .Values.sandbox.kubernetes.hostUsers }}
+      # User namespace remap: UID 1000 inside the pod maps to a high
+      # subordinate UID on the node, so a container escape lands as a
+      # nobody-user, not as a real node UID. Requires K8s 1.30+ and a
+      # containerd/kernel that support userns (EKS default AMIs are fine).
+      hostUsers: false
+      {{- end }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -44,6 +59,18 @@ spec:
             - name: WORKDIR
               value: "/app"
             # DAEMON_TOKEN is injected per-claim via SandboxClaim.spec.env.
+            {{- if .Values.sandbox.kubernetes.readOnlyRootFilesystem }}
+            # With RO rootfs + emptyDir on /app, the mount root is owned
+            # root:1000 (fsGroup). Git 2.35+'s "dubious ownership" check
+            # would refuse to operate. Disable the check inside the
+            # sandbox — single-tenant pod, no untrusted same-pod user.
+            - name: GIT_CONFIG_COUNT
+              value: "1"
+            - name: GIT_CONFIG_KEY_0
+              value: "safe.directory"
+            - name: GIT_CONFIG_VALUE_0
+              value: "*"
+            {{- end }}
           ports:
             - name: daemon
               containerPort: 9000
@@ -57,5 +84,28 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
-            readOnlyRootFilesystem: false
+            readOnlyRootFilesystem: {{ .Values.sandbox.kubernetes.readOnlyRootFilesystem }}
+          {{- if .Values.sandbox.kubernetes.readOnlyRootFilesystem }}
+          volumeMounts:
+            - name: workdir
+              mountPath: /app
+            - name: tmp
+              mountPath: /tmp
+            - name: home
+              mountPath: /home/sandbox
+          {{- end }}
+      {{- if .Values.sandbox.kubernetes.readOnlyRootFilesystem }}
+      volumes:
+        # Sized to match the per-container ephemeral-storage limit shape;
+        # individual mounts get a slice. Adjust if a workload needs more.
+        - name: workdir
+          emptyDir:
+            sizeLimit: 5Gi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: home
+          emptyDir:
+            sizeLimit: 2Gi
+      {{- end }}
 {{- end }}
