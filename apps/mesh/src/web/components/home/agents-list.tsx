@@ -33,6 +33,7 @@ import { AiResearchRecruitModal } from "@/web/components/home/ai-research-recrui
 import { SelfHealingRepoFlow } from "@/web/components/self-healing-repo/self-healing-repo-flow.tsx";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
+import { usePreferences } from "@/web/hooks/use-preferences.ts";
 import { Suspense, useState } from "react";
 import { track } from "@/web/lib/posthog-client";
 
@@ -186,6 +187,7 @@ function AgentsListContent() {
   const [aiImageModalOpen, setAiImageModalOpen] = useState(false);
   const [aiResearchModalOpen, setAiResearchModalOpen] = useState(false);
   const [selfHealingOpen, setSelfHealingOpen] = useState(false);
+  const [preferences] = usePreferences();
   const navigateToAgent = useNavigateToAgent();
 
   const siteEditorAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
@@ -267,16 +269,18 @@ function AgentsListContent() {
               action: "open_modal",
             }}
           />
-          <AgentPreview
-            key={selfHealingStorefrontAgent.id}
-            agent={selfHealingStorefrontAgent}
-            onSpecialClick={() => setSelfHealingOpen(true)}
-            tracking={{
-              template_id: selfHealingStorefrontAgent.id,
-              tile_kind: "template",
-              action: "open_modal",
-            }}
-          />
+          {preferences.experimental_vibecode && (
+            <AgentPreview
+              key={selfHealingStorefrontAgent.id}
+              agent={selfHealingStorefrontAgent}
+              onSpecialClick={() => setSelfHealingOpen(true)}
+              tracking={{
+                template_id: selfHealingStorefrontAgent.id,
+                tile_kind: "template",
+                action: "open_modal",
+              }}
+            />
+          )}
           <AgentPreview
             key={siteDiagnosticsAgent.id}
             agent={existingDiagnostics ?? siteDiagnosticsAgent}
