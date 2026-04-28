@@ -50,9 +50,9 @@ ports:
     servicePort: 8889
     protocol: TCP
 
-# Auto-creates a ServiceMonitor that kube-prometheus-stack's Prometheus
-# (with serviceMonitorSelectorNilUsesHelmValues=false) picks up.
-serviceMonitor:
+# DaemonSet mode: no Service is created (pods are per-node), so ServiceMonitor
+# has nothing to scrape. PodMonitor matches pods directly.
+podMonitor:
   enabled: true
   metricsEndpoints:
     - port: metrics
@@ -103,12 +103,13 @@ config:
             - from: resource_attribute
               name: k8s.namespace.name
       extract:
+        # k8s.deployment.name intentionally omitted — would require watching
+        # ReplicaSets cluster-wide, and we don't use the value.
         metadata:
           - k8s.pod.name
           - k8s.pod.uid
           - k8s.namespace.name
           - k8s.node.name
-          - k8s.deployment.name
         labels:
           - tag_name: org_id
             key: mesh.decocms.com/org-id
@@ -121,6 +122,13 @@ config:
             from: pod
           - tag_name: sandbox_role
             key: mesh.decocms.com/role
+            from: pod
+          # `app.kubernetes.io/name=mesh-sandbox` is set by the SandboxTemplate
+          # on every sandbox pod (warm-pool + claimed). Lets the warm-pool
+          # query distinguish sandbox pods from operator/other pods in the
+          # namespace by app_name + absence-of-handle.
+          - tag_name: app_name
+            key: app.kubernetes.io/name
             from: pod
     batch:
       send_batch_size: 1024

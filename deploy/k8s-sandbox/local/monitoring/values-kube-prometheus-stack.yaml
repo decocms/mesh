@@ -48,10 +48,13 @@ prometheus:
 alertmanager:
   enabled: false
 
+# camelCase: kube-prometheus-stack's own toggles for the bundled subcharts.
+# (The dashed-name forms `nodeExporter:` and `kube-state-metrics:` would be
+# subchart values, not the parent toggle — silently ignored.)
 nodeExporter:
   enabled: false
 
-kube-state-metrics:
+kubeStateMetrics:
   enabled: false
 
 # Trim default dashboards/rules — we only care about sandbox-overview here.
