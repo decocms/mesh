@@ -129,12 +129,12 @@ terminationGracePeriodSeconds: 60
 # Optional lifecycle hooks (preStop, postStart)
 # lifecycle: {}
 
-nodeSelector: {}
-# Pin arch in your prod values override if your node groups are heterogeneous.
-# Default is unset so the chart works on arm64 (Apple Silicon kind, ARM EKS,
-# bare-metal RPi clusters). Example for AWS amd64 node groups:
-#   nodeSelector:
-#     kubernetes.io/arch: amd64
+nodeSelector:
+  kubernetes.io/arch: amd64
+# arm64 clusters (Apple Silicon kind, ARM EKS, bare-metal RPi) should override
+# this — set `nodeSelector: {}` or pin to `arm64`. Mesh's own image is
+# multi-arch, but the s3-sync sidecar and some upstream subchart images may
+# be amd64-only.
 
 tolerations: []
 # Example:
