@@ -558,6 +558,31 @@ export const auth = betterAuth({
         },
       },
     },
+    session: {
+      create: {
+        // Re-identify on every successful login (email/password, OTP,
+        // magic link, SSO). PostHog merges person properties server-side,
+        // so this is idempotent and provides automatic backfill for
+        // existing users whose person records were created before
+        // posthog.identify was wired into the auth flow.
+        after: async (session) => {
+          const row = await getDb()
+            .db.selectFrom("user")
+            .select(["id", "email", "name", "emailVerified"])
+            .where("id", "=", session.userId)
+            .executeTakeFirst();
+
+          if (!row) return;
+
+          identifyAuthenticatedUser({
+            id: row.id,
+            email: row.email,
+            name: row.name ?? null,
+            emailVerified: !!row.emailVerified,
+          });
+        },
+      },
+    },
   },
 });
 
