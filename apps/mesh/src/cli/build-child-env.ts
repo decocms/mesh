@@ -83,6 +83,10 @@ export function buildChildEnv(
     // Browserless
     BROWSERLESS_TOKEN: process.env.BROWSERLESS_TOKEN,
 
+    // PostHog analytics (server-side capture + exposed to UI via /api/config)
+    POSTHOG_KEY: process.env.POSTHOG_KEY,
+    POSTHOG_HOST: process.env.POSTHOG_HOST,
+
     // TLS: propagate custom CA certificates (e.g. RDS CA bundles)
     NODE_EXTRA_CA_CERTS: process.env.NODE_EXTRA_CA_CERTS,
 
