@@ -6,7 +6,7 @@
 # cluster + operator. Re-run up.sh to reinstall.
 set -euo pipefail
 
-CLUSTER_NAME="mesh-sandbox-dev"
+CLUSTER_NAME="studio-sandbox-dev"
 KCTX="kind-${CLUSTER_NAME}"
 
 log() { printf "\033[1;34m[down]\033[0m %s\n" "$*"; }

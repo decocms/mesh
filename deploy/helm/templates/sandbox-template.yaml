@@ -9,10 +9,10 @@
 apiVersion: extensions.agents.x-k8s.io/v1alpha1
 kind: SandboxTemplate
 metadata:
-  name: mesh-sandbox
+  name: studio-sandbox
   namespace: agent-sandbox-system
   labels:
-    app.kubernetes.io/name: mesh-sandbox
+    app.kubernetes.io/name: studio-sandbox
     app.kubernetes.io/managed-by: {{ .Release.Service }}
     helm.sh/chart: {{ include "chart-deco-studio.chart" . }}
 spec:
@@ -31,8 +31,8 @@ spec:
   podTemplate:
     metadata:
       labels:
-        app.kubernetes.io/name: mesh-sandbox
-        # Do NOT set `mesh.decocms.com/role` here. The operator (v0.4.2+)
+        app.kubernetes.io/name: studio-sandbox
+        # Do NOT set `studio.decocms.com/role` here. The operator (v0.4.2+)
         # rejects claims whose additionalPodMetadata defines a label key
         # already present in the template — even when the values differ —
         # with "metadata override conflict". The runner sets role=claimed
@@ -47,6 +47,10 @@ spec:
       {{- end }}
       {{- with .Values.sandbox.kubernetes.tolerations }}
       tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.sandbox.kubernetes.affinity }}
+      affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- if not .Values.sandbox.kubernetes.hostUsers }}

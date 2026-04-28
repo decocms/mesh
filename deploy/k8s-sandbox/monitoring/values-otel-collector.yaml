@@ -116,18 +116,18 @@ config:
           - k8s.node.name
         labels:
           - tag_name: org_id
-            key: mesh.decocms.com/org-id
+            key: studio.decocms.com/org-id
             from: pod
           - tag_name: user_id
-            key: mesh.decocms.com/user-id
+            key: studio.decocms.com/user-id
             from: pod
           - tag_name: sandbox_handle
-            key: mesh.decocms.com/sandbox-handle
+            key: studio.decocms.com/sandbox-handle
             from: pod
           - tag_name: sandbox_role
-            key: mesh.decocms.com/role
+            key: studio.decocms.com/role
             from: pod
-          # `app.kubernetes.io/name=mesh-sandbox` is set by the SandboxTemplate
+          # `app.kubernetes.io/name=studio-sandbox` is set by the SandboxTemplate
           # on every sandbox pod (warm-pool + claimed). Lets the warm-pool
           # query distinguish sandbox pods from operator/other pods in the
           # namespace by app_name + absence-of-handle.

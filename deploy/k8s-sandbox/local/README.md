@@ -28,7 +28,7 @@ Pins:
 - agent-sandbox operator: `v0.4.2` (matches prod; hardcoded in `up.sh`)
 - kube-prometheus-stack: `65.5.1`
 - opentelemetry-collector: `0.108.0`
-- cluster name: `mesh-sandbox-dev`
+- cluster name: `studio-sandbox-dev`
 - namespace: `agent-sandbox-system` (sandboxes), `monitoring` (Prom/Grafana/OTel)
 - image tag: `mesh-sandbox:local`
 
@@ -59,7 +59,7 @@ Pins:
    scrapes per-node kubelet, enriches with tenant labels, and exposes
    `/metrics` for Prometheus. Skip with `MONITORING=0 ./up.sh`.
 
-All `kubectl` calls pass `--context kind-mesh-sandbox-dev` so an ambient
+All `kubectl` calls pass `--context kind-studio-sandbox-dev` so an ambient
 `KUBECONFIG` can't accidentally hit a real cluster.
 
 ## Local Grafana
@@ -67,10 +67,10 @@ All `kubectl` calls pass `--context kind-mesh-sandbox-dev` so an ambient
 After `up.sh`:
 
 ```bash
-kubectl --context kind-mesh-sandbox-dev port-forward \
+kubectl --context kind-studio-sandbox-dev port-forward \
   -n monitoring svc/kube-prometheus-stack-grafana 3001:80
 # → http://localhost:3001  (admin / admin)
-# → Dashboards → "Mesh Sandbox Overview"
+# → Dashboards → "Studio Sandbox Overview"
 ```
 
 Dashboard panels (per-org, per-sandbox-handle):
@@ -87,7 +87,7 @@ The pipeline:
 kubelet (cAdvisor) ──► OTel collector daemonset
                         │  - kubeletstats receiver
                         │  - k8sattributes processor (reads pod labels:
-                        │      mesh.decocms.com/{org-id,user-id,sandbox-handle,role}
+                        │      studio.decocms.com/{org-id,user-id,sandbox-handle,role}
                         │      → series labels: org_id, user_id, sandbox_handle, sandbox_role)
                         │  - prometheus exporter on :8889
                         ▼
@@ -99,8 +99,8 @@ populated in `KubernetesSandboxRunner.provision()` from the `tenant` field
 on `EnsureOptions`. Verify they're landing:
 
 ```bash
-kubectl --context kind-mesh-sandbox-dev \
-  get pod -n agent-sandbox-system --show-labels | grep mesh.decocms.com
+kubectl --context kind-studio-sandbox-dev \
+  get pod -n agent-sandbox-system --show-labels | grep studio.decocms.com
 ```
 
 To iterate on dashboards/values without rebuilding the cluster:
@@ -140,7 +140,7 @@ has to carry one — any string works, just keep it consistent with the
 curl call below.
 
 ```bash
-CTX=kind-mesh-sandbox-dev
+CTX=kind-studio-sandbox-dev
 TOKEN="smoke-$(openssl rand -hex 16)"
 
 cat <<EOF | kubectl --context "$CTX" apply -f -
@@ -151,7 +151,7 @@ metadata:
   namespace: agent-sandbox-system
 spec:
   sandboxTemplateRef:
-    name: mesh-sandbox
+    name: studio-sandbox
   env:
     - name: DAEMON_TOKEN
       value: "${TOKEN}"

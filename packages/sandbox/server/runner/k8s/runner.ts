@@ -77,7 +77,7 @@ const LOG_LABEL = "KubernetesSandboxRunner";
 // Shared-namespace topology for MVP; tenancy enforced by unguessable claim
 // names (sha256(userId:projectRef)). Per-org namespaces are deferred.
 const DEFAULT_NAMESPACE = "agent-sandbox-system";
-const DEFAULT_TEMPLATE_NAME = "mesh-sandbox";
+const DEFAULT_TEMPLATE_NAME = "studio-sandbox";
 
 const DAEMON_CONTAINER_PORT = 9000;
 // In-pod port the daemon's reverse proxy targets. Mesh never connects here
@@ -117,7 +117,7 @@ const RESERVED_ENV_KEYS = new Set([
 const DEFAULT_IDLE_TTL_MS = 15 * 60 * 1000;
 
 /** Handle prefix + 16-hex hash = 24 chars, well under K8s's 63-char label cap. */
-export const HANDLE_PREFIX = "mesh-sb-";
+export const HANDLE_PREFIX = "studio-sb-";
 const HANDLE_HASH_LEN = 16;
 
 /**
@@ -205,6 +205,15 @@ interface K8sRecord {
    * adopt fallback when claim labels were absent).
    */
   tenant: RunnerTenant | null;
+  /**
+   * The original options the caller passed to `ensure()`. Persisted so
+   * `resurrectByHandle` can re-provision an evicted sandbox autonomously
+   * (15-min idle TTL deletes the claim — without these we'd come back as
+   * an empty pod with no repo cloned). Null on adopt paths where we can't
+   * recover the original opts; resurrection falls back to throwing/404 in
+   * that case so the caller's normal VM_START flow can repopulate them.
+   */
+  ensureOpts: EnsureOptions | null;
 }
 
 interface PersistedK8sState {
@@ -214,6 +223,14 @@ interface PersistedK8sState {
   workload?: Workload | null;
   daemonBootId?: string;
   tenant?: RunnerTenant | null;
+  /**
+   * Original `EnsureOptions`. Persisted so `resurrectByHandle` can re-ensure
+   * after the operator deletes the claim on idle TTL. Optional for
+   * back-compat: rows written before this field existed lack it; resurrection
+   * returns null in that case and the caller surfaces 404 (UI's existing
+   * VM_START reprovision flow then runs with full opts).
+   */
+  ensureOpts?: EnsureOptions;
   [k: string]: unknown;
 }
 
@@ -386,11 +403,21 @@ export class KubernetesSandboxRunner implements SandboxRunner {
    */
   async resolvePreviewUpstreamUrl(handle: string): Promise<string | null> {
     if (this.previewUrlPattern) {
+      // Production mode: synthesize the in-cluster Service URL from the
+      // handle. We deliberately don't pre-validate that the claim is still
+      // alive — every preview request would pay a K8s API call. When the
+      // sandbox has been evicted, the downstream fetch fails and
+      // `proxyPreviewRequest` catches it + drives resurrection from there.
       return `http://${handle}.${this.namespace}.svc.cluster.local:${DAEMON_CONTAINER_PORT}`;
     }
     const rec = await this.getRecord(handle);
-    if (!rec) return null;
-    return rec.daemonUrl;
+    if (rec) return rec.daemonUrl;
+    // Dev mode: cold cache + state-store miss. Try resurrection before
+    // surfacing 404 — the pod may have been operator-evicted on idle TTL
+    // and the caller (preview iframe, SSE EventSource probe) needs the
+    // sandbox back to make any progress.
+    const resurrected = await this.resurrectByHandle(handle);
+    return resurrected ? resurrected.daemonUrl : null;
   }
 
   /**
@@ -438,7 +465,8 @@ export class KubernetesSandboxRunner implements SandboxRunner {
         return jsonResponse(404, { error: "not found" });
       }
 
-      const target = `${upstreamBase}${reqUrl.pathname}${reqUrl.search}`;
+      const reqTarget = (base: string) =>
+        `${base}${reqUrl.pathname}${reqUrl.search}`;
       const headers = new Headers(request.headers);
       for (const h of PREVIEW_STRIP_REQUEST_HEADERS) headers.delete(h);
 
@@ -454,7 +482,7 @@ export class KubernetesSandboxRunner implements SandboxRunner {
 
       let upstream: Response;
       try {
-        upstream = await fetch(target, init as RequestInit);
+        upstream = await fetch(reqTarget(upstreamBase), init as RequestInit);
       } catch (err) {
         // Truncate to host+pathname — query strings can carry secrets
         // (magic-link tokens, signed URLs) and would otherwise end up in
@@ -463,6 +491,56 @@ export class KubernetesSandboxRunner implements SandboxRunner {
         console.warn(
           `[${LOG_LABEL}] preview fetch to ${safeTarget} failed: ${err instanceof Error ? err.message : String(err)}`,
         );
+
+        // Recover from operator-driven eviction (15-min idle TTL): the
+        // claim + Service are gone but our records cache (or the
+        // synthesized prod-mode URL) still pointed at the stale endpoint.
+        // Drop the cache and resurrect via state-store. Retry only for
+        // replay-safe methods — `init.body` is a stream that's been
+        // consumed by the failed fetch; replaying a POST would silently
+        // send an empty body. The browser/caller can retry the mutating
+        // request after this 502 surfaces; the resurrected sandbox will
+        // be ready for that next attempt.
+        if (request.method === "GET" || request.method === "HEAD") {
+          this.invalidateRecord(handle);
+          const resurrected = await this.resurrectByHandle(handle).catch(
+            () => null,
+          );
+          if (resurrected) {
+            const retryBase = await this.resolvePreviewUpstreamUrl(handle);
+            if (retryBase) {
+              try {
+                upstream = await fetch(
+                  reqTarget(retryBase),
+                  init as RequestInit,
+                );
+                const responseHeaders = new Headers();
+                for (const [k, v] of upstream.headers.entries()) {
+                  if (
+                    !PREVIEW_STRIP_RESPONSE_HEADERS.includes(k.toLowerCase())
+                  ) {
+                    responseHeaders.set(k, v);
+                  }
+                }
+                status = upstream.status;
+                return new Response(upstream.body, {
+                  status: upstream.status,
+                  statusText: upstream.statusText,
+                  headers: responseHeaders,
+                });
+              } catch (retryErr) {
+                console.warn(
+                  `[${LOG_LABEL}] preview fetch retry to ${safeTarget} failed: ${retryErr instanceof Error ? retryErr.message : String(retryErr)}`,
+                );
+              }
+            }
+          }
+        } else {
+          // Non-replay-safe method: still drop the stale cache so the next
+          // request goes through fresh validation.
+          this.invalidateRecord(handle);
+        }
+
         status = 502;
         return jsonResponse(502, { error: "sandbox daemon unreachable" });
       }
@@ -663,8 +741,8 @@ export class KubernetesSandboxRunner implements SandboxRunner {
         // adopt path can recover orgId/userId after a state-store wipe;
         // adopt() reads claim.metadata.labels, not pod labels.
         labels: {
-          "app.kubernetes.io/name": "mesh-sandbox",
-          "app.kubernetes.io/managed-by": "mesh",
+          "app.kubernetes.io/name": "studio-sandbox",
+          "app.kubernetes.io/managed-by": "studio",
           ...buildTenantLabels(opts.tenant),
         },
       },
@@ -746,6 +824,7 @@ export class KubernetesSandboxRunner implements SandboxRunner {
       workload: opts.workload ?? null,
       daemonBootId,
       tenant: opts.tenant ?? null,
+      ensureOpts: stripEnsureOpts(opts),
     };
   }
 
@@ -796,6 +875,7 @@ export class KubernetesSandboxRunner implements SandboxRunner {
       workload: state.workload ?? null,
       daemonBootId: live.bootId,
       tenant: state.tenant ?? null,
+      ensureOpts: state.ensureOpts ?? null,
     };
   }
 
@@ -827,6 +907,13 @@ export class KubernetesSandboxRunner implements SandboxRunner {
       // claim pre-dates tenant labelling (back-compat with already-running
       // sandboxes when this code rolls out).
       tenant: readClaimTenant(claim),
+      // Adopt happens when the state-store is empty but a claim with our
+      // deterministic name still exists in the cluster (e.g. mesh restart
+      // without state-store, or state-store wipe). The original opts aren't
+      // recoverable from the claim alone, so resurrection on this record
+      // can't autonomously re-provision; falls back to the caller's
+      // VM_START path.
+      ensureOpts: null,
     };
   }
 
@@ -874,10 +961,53 @@ export class KubernetesSandboxRunner implements SandboxRunner {
     return rec;
   }
 
+  /**
+   * Re-ensure a sandbox after operator-driven eviction (15-min idle TTL deletes
+   * claim + pod). Looks up the SandboxId from the state-store by handle, then
+   * runs the standard `ensure()` path with the persisted `EnsureOptions` so the
+   * fresh provision rehydrates with the same repo/env/workload.
+   *
+   * Returns null when:
+   *  - no state-store (test runners) — caller surfaces 404,
+   *  - handle has no row (truly unknown) — caller surfaces 404,
+   *  - row predates `ensureOpts` persistence (back-compat: rows from before
+   *    this change). Resurrecting with empty opts would create an empty pod
+   *    with no repo cloned, which is worse than 404. UI's existing
+   *    notFound→VM_START flow re-supplies opts in that case.
+   */
+  private async resurrectByHandle(handle: string): Promise<K8sRecord | null> {
+    if (!this.stateStore) return null;
+    const row = await this.stateStore.getByHandle(RUNNER_KIND, handle);
+    if (!row) return null;
+    const persistedOpts = (row.state as Partial<PersistedK8sState>).ensureOpts;
+    if (!persistedOpts) return null;
+    // ensure() is idempotent + advisory-locked, so concurrent resurrections
+    // for the same handle collapse to a single provision. The lock is keyed
+    // on (userId, projectRef, kind), the same identity our state-store row
+    // is keyed on.
+    await this.ensure(row.id, persistedOpts);
+    return this.records.get(handle) ?? null;
+  }
+
   private async requireRecord(handle: string): Promise<K8sRecord> {
     const rec = await this.getRecord(handle);
-    if (!rec) throw new Error(`unknown sandbox handle ${handle}`);
-    return rec;
+    if (rec) return rec;
+    const resurrected = await this.resurrectByHandle(handle);
+    if (resurrected) return resurrected;
+    throw new Error(`unknown sandbox handle ${handle}`);
+  }
+
+  /**
+   * Drop the in-memory record cache for `handle`. Called when the cached
+   * `daemonUrl` proves stale (e.g. fetch fails with connection refused after
+   * the operator deleted the underlying pod). The next access goes through
+   * the state-store + rehydrate or resurrection path.
+   */
+  private invalidateRecord(handle: string): void {
+    const rec = this.records.get(handle);
+    if (!rec) return;
+    this.records.delete(handle);
+    this.closeForwarder(rec.daemonForward);
   }
 
   // ---- Metric helpers -------------------------------------------------------
@@ -940,6 +1070,7 @@ export class KubernetesSandboxRunner implements SandboxRunner {
       workload: rec.workload,
       daemonBootId: rec.daemonBootId,
       tenant: rec.tenant,
+      ...(rec.ensureOpts ? { ensureOpts: rec.ensureOpts } : {}),
     };
     await ops.put(rec.id, RUNNER_KIND, { handle: rec.handle, state });
   }
@@ -1086,17 +1217,17 @@ interface RunnerMetrics {
 
 function buildRunnerMetrics(meter: Meter): RunnerMetrics {
   return {
-    active: meter.createUpDownCounter("mesh.sandbox.active", {
+    active: meter.createUpDownCounter("studio.sandbox.active", {
       description:
         "Active sandbox count, by runner kind and owning org. Cross-checks the cAdvisor-derived count from the cluster — divergence between the two indicates orphaned claims (mesh deleted but K8s didn't reap) or unattributed pods.",
       unit: "{sandbox}",
     }),
-    ensureOutcome: meter.createCounter("mesh.sandbox.ensure.outcome", {
+    ensureOutcome: meter.createCounter("studio.sandbox.ensure.outcome", {
       description:
         "Outcome of each ensure() call: fresh provision, resume from state-store after restart, or adopt of a cluster-side claim mesh didn't know about. Cold-start ratio is the primary input for warm-pool sizing.",
       unit: "{call}",
     }),
-    proxyDurationMs: meter.createHistogram("mesh.sandbox.proxy.duration_ms", {
+    proxyDurationMs: meter.createHistogram("studio.sandbox.proxy.duration_ms", {
       description:
         "Wall-clock latency of mesh-mediated requests to the sandbox daemon: tool exec proxies (source=daemon) and preview iframe traffic (source=preview).",
       unit: "ms",
@@ -1162,10 +1293,10 @@ function jsonResponse(status: number, body: unknown): Response {
 // K8s label keys mesh attaches. Centralized so writers (buildTenantLabels)
 // and the reader (readClaimTenant) can't drift.
 const LABEL_KEYS = {
-  role: "mesh.decocms.com/role",
-  sandboxHandle: "mesh.decocms.com/sandbox-handle",
-  orgId: "mesh.decocms.com/org-id",
-  userId: "mesh.decocms.com/user-id",
+  role: "studio.decocms.com/role",
+  sandboxHandle: "studio.decocms.com/sandbox-handle",
+  orgId: "studio.decocms.com/org-id",
+  userId: "studio.decocms.com/user-id",
 } as const;
 
 // K8s label values: ≤63 chars, must match `(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?`.
@@ -1226,6 +1357,20 @@ function tenantAttrs(tenant: RunnerTenant | null): {
     user_id: tenant?.userId ?? "",
     runner_kind: RUNNER_KIND,
   };
+}
+
+/**
+ * Subset of `EnsureOptions` worth persisting for resurrection. Drops `image`
+ * (k8s ignores it — template pins the image) and any nullish entries so the
+ * persisted blob stays small.
+ */
+function stripEnsureOpts(opts: EnsureOptions): EnsureOptions | null {
+  const out: EnsureOptions = {};
+  if (opts.repo) out.repo = opts.repo;
+  if (opts.workload) out.workload = opts.workload;
+  if (opts.env && Object.keys(opts.env).length > 0) out.env = opts.env;
+  if (opts.tenant) out.tenant = opts.tenant;
+  return Object.keys(out).length > 0 ? out : null;
 }
 
 /** Fallback for when callers don't provide `repo.displayName`. */

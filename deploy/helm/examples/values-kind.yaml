@@ -140,7 +140,7 @@ sandbox:
     # `*.localhost` is special — browsers resolve every subdomain of
     # localhost to 127.0.0.1 without /etc/hosts entries. Combined with the
     # user's `kubectl port-forward svc/deco-studio 8080:80`, this means
-    # browser → `mesh-sb-XXX.preview.localhost:8080` → kube port-forward →
+    # browser → `studio-sb-XXX.preview.localhost:8080` → kube port-forward →
     # mesh edge → preview-proxy → sandbox daemon Service. No ingress, no DNS,
     # no certs. Match the port to whatever the user port-forwards to.
     previewUrlPattern: "http://{handle}.preview.localhost:8080"

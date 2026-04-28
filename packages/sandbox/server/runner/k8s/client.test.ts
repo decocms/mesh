@@ -104,7 +104,7 @@ function makeClaim(name: string): SandboxClaim {
     kind: "SandboxClaim",
     metadata: { name, namespace: NS },
     spec: {
-      sandboxTemplateRef: { name: "mesh-sandbox" },
+      sandboxTemplateRef: { name: "studio-sandbox" },
       lifecycle: { shutdownPolicy: "Delete" },
     },
   };
@@ -115,7 +115,7 @@ function makeClaim(name: string): SandboxClaim {
 describe("createSandboxClaim", () => {
   it("POSTs the claim body verbatim to the plural endpoint", async () => {
     fetchImpl = async () => jsonResponse(201, { kind: "SandboxClaim" });
-    const claim = makeClaim("mesh-sb-abc");
+    const claim = makeClaim("studio-sb-abc");
     await createSandboxClaim(makeKc(), NS, claim);
 
     expect(fetchCalls).toHaveLength(1);
@@ -139,9 +139,9 @@ describe("createSandboxClaim", () => {
     const claim: SandboxClaim = {
       apiVersion: `${K8S_CONSTANTS.CLAIM_API_GROUP}/${K8S_CONSTANTS.CLAIM_API_VERSION}`,
       kind: "SandboxClaim",
-      metadata: { name: "mesh-sb-tok", namespace: NS },
+      metadata: { name: "studio-sb-tok", namespace: NS },
       spec: {
-        sandboxTemplateRef: { name: "mesh-sandbox" },
+        sandboxTemplateRef: { name: "studio-sandbox" },
         env: [{ name: "DAEMON_TOKEN", value: "abc123" }],
         warmpool: "none",
         lifecycle: { shutdownPolicy: "Delete" },
@@ -230,7 +230,7 @@ describe("patchSandboxClaimShutdown", () => {
     await patchSandboxClaimShutdown(
       makeKc(),
       NS,
-      "mesh-sb-x",
+      "studio-sb-x",
       "2026-04-01T12:00:00.000Z",
     );
     expect(fetchCalls).toHaveLength(1);

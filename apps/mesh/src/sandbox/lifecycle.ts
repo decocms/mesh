@@ -52,7 +52,7 @@ function resolveOnce(
 // 127.0.0.1 port-forward path and emits a URL the user's browser can
 // actually reach. Empty/unset = local forwarder fallback (dev).
 function readPreviewUrlPattern(): string | undefined {
-  const raw = process.env.MESH_SANDBOX_PREVIEW_URL_PATTERN;
+  const raw = process.env.STUDIO_SANDBOX_PREVIEW_URL_PATTERN;
   return raw && raw.trim() !== "" ? raw : undefined;
 }
 

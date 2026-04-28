@@ -12,7 +12,7 @@
  *
  * Preconditions (see README.md):
  *   - `deploy/k8s-sandbox/local/up.sh` succeeded
- *   - `kubectl --context kind-mesh-sandbox-dev get pods -n agent-sandbox-system`
+ *   - `kubectl --context kind-studio-sandbox-dev get pods -n agent-sandbox-system`
  *     shows the controller Running
  *   - `mesh-sandbox:local` is loaded into the kind cluster
  *
@@ -32,7 +32,7 @@ import {
 } from "../../../packages/sandbox/server/runner/k8s";
 import type { SandboxId } from "../../../packages/sandbox/server/runner/types";
 
-const KIND_CONTEXT = "kind-mesh-sandbox-dev";
+const KIND_CONTEXT = "kind-studio-sandbox-dev";
 const NAMESPACE = "agent-sandbox-system";
 
 // Unique per run so repeated invocations don't collide on stale state.
@@ -91,7 +91,7 @@ async function run(): Promise<void> {
     const sandboxA = await runnerA.ensure(ID, {});
     handle = sandboxA.handle;
     log("    created", `handle=${handle} (${Date.now() - t0}ms)`);
-    if (!handle.startsWith("mesh-sb-")) {
+    if (!handle.startsWith("studio-sb-")) {
       throw new Error(`handle missing expected prefix: ${handle}`);
     }
 

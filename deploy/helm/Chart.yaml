@@ -4,6 +4,7 @@ description: A Helm chart for deco Studio self-hosted deployment
 type: application
 version: 0.6.2
 appVersion: "latest"
+kubeVersion: ">=1.30.0-0"
 
 dependencies:
   - name: nats

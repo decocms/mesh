@@ -79,7 +79,7 @@ function withSecurityHeaders(res: Response): Response {
 let ingressServers: import("node:net").Server[] = [];
 
 // Sandbox preview reverse-proxy (K8s only). The base domain is parsed at
-// boot from MESH_SANDBOX_PREVIEW_URL_PATTERN; null disables the proxy and
+// boot from STUDIO_SANDBOX_PREVIEW_URL_PATTERN; null disables the proxy and
 // preview-host requests fall through to the normal mesh routing (which 404s
 // because nothing matches). The Bun-level WS handler is registered
 // unconditionally — when previewBaseDomain is null, no upgrade path runs it.
@@ -94,7 +94,7 @@ const { getOrInitSharedRunner: getOrInitRunnerForPreview } = await import(
   "./sandbox/lifecycle"
 );
 const previewBaseDomain = parsePreviewBaseDomain(
-  process.env.MESH_SANDBOX_PREVIEW_URL_PATTERN,
+  process.env.STUDIO_SANDBOX_PREVIEW_URL_PATTERN,
 );
 const previewProxyDeps = {
   baseDomain: previewBaseDomain ?? "",

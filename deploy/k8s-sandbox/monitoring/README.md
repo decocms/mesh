@@ -6,7 +6,7 @@ Per-org / per-sandbox cost-attribution metrics. Pipeline:
 kubelet (cAdvisor) ──► OTel collector daemonset
                         │  - kubeletstats receiver
                         │  - k8sattributes processor (reads pod labels:
-                        │      mesh.decocms.com/{org-id,user-id,sandbox-handle,role}
+                        │      studio.decocms.com/{org-id,user-id,sandbox-handle,role}
                         │      → series labels: org_id, user_id, sandbox_handle, sandbox_role)
                         │  - prometheus exporter on :8889
                         ▼
@@ -57,10 +57,10 @@ helm upgrade --install otel-collector-sandbox \
   --wait
 
 # 3. Grafana dashboard ConfigMap (sidecar auto-imports it)
-kubectl -n monitoring create configmap mesh-sandbox-dashboard \
+kubectl -n monitoring create configmap studio-sandbox-dashboard \
   --from-file=deploy/k8s-sandbox/monitoring/dashboards/sandbox-overview.json \
   --dry-run=client -o yaml | kubectl apply -f -
-kubectl -n monitoring label configmap mesh-sandbox-dashboard grafana_dashboard=1 --overwrite
+kubectl -n monitoring label configmap studio-sandbox-dashboard grafana_dashboard=1 --overwrite
 ```
 
 ## Prod overlay examples
@@ -123,7 +123,7 @@ config:
 Confirm tenant labels are landing on sandbox pods:
 
 ```bash
-kubectl get pod -n agent-sandbox-system --show-labels | grep mesh.decocms.com
+kubectl get pod -n agent-sandbox-system --show-labels | grep studio.decocms.com
 ```
 
 Confirm the collector's `/metrics` endpoint is being scraped: in the

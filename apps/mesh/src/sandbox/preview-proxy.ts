@@ -32,7 +32,7 @@ const MAX_PENDING_FRAMES = 256;
 
 /**
  * Parses the base preview hostname (e.g. `preview.decocms.com`) out of the
- * `MESH_SANDBOX_PREVIEW_URL_PATTERN` value. The pattern has the form
+ * `STUDIO_SANDBOX_PREVIEW_URL_PATTERN` value. The pattern has the form
  * `https://{handle}.preview.example.com` (or `https://{handle}.<base>`),
  * matching what the K8s runner's `applyPreviewPattern` produces. Returns
  * null when the pattern is empty/missing/malformed — preview proxying is
@@ -71,7 +71,7 @@ export function parsePreviewBaseDomain(
 /**
  * Pulls the sandbox handle out of a request Host header. Returns null when
  * the host doesn't match `<handle>.<baseDomain>` or the handle doesn't carry
- * the K8s runner's `mesh-sb-` prefix (anything else means the request isn't
+ * the K8s runner's `studio-sb-` prefix (anything else means the request isn't
  * for a mesh sandbox preview and should fall through to the rest of the
  * mesh API).
  */

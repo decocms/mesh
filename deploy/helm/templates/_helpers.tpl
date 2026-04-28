@@ -179,6 +179,25 @@ Validate OTel collector/S3 configuration.
 {{- end }}
 
 {{/*
+Validate that Gateway API + cert-manager CRDs are present when the sandbox
+preview gateway is enabled. Without this check, `helm install` would push
+Gateway/HTTPRoute/Certificate to an API server that doesn't know those
+kinds — the failure mode is an opaque "no matches for kind" rejection,
+sometimes after partial-apply. Failing at template time keeps the release
+atomic and gives a pointer to the right install command.
+*/}}
+{{- define "chart-deco-studio.validateSandboxPreviewGateway" -}}
+{{- if and .Values.sandbox.kubernetes.enabled .Values.sandbox.kubernetes.previewGateway.enabled }}
+{{- if not (.Capabilities.APIVersions.Has "gateway.networking.k8s.io/v1") }}
+{{- fail "chart-deco-studio: sandbox.kubernetes.previewGateway.enabled=true requires the Gateway API CRDs (gateway.networking.k8s.io/v1). Install: kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.1.0/standard-install.yaml — and a Gateway controller (Istio, Envoy Gateway, Cilium, ...) implementing the chosen gatewayClassName." -}}
+{{- end }}
+{{- if not (.Capabilities.APIVersions.Has "cert-manager.io/v1") }}
+{{- fail "chart-deco-studio: sandbox.kubernetes.previewGateway.enabled=true requires cert-manager (cert-manager.io/v1). Install: helm install cert-manager jetstack/cert-manager -n cert-manager --create-namespace --set crds.enabled=true" -}}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
 Formats OTEL headers map as key=value,key2=value2 format.
 */}}
 {{- define "chart-deco-studio.otelHeaders" -}}

@@ -22,6 +22,6 @@ data:
   MESH_SANDBOX_RUNNER: "kubernetes"
   {{- end }}
   {{- with .Values.sandbox.kubernetes.previewUrlPattern }}
-  MESH_SANDBOX_PREVIEW_URL_PATTERN: {{ . | quote }}
+  STUDIO_SANDBOX_PREVIEW_URL_PATTERN: {{ . | quote }}
   {{- end }}
   {{- end }}

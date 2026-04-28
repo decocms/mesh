@@ -1364,7 +1364,7 @@ installs, in order:
   — operator Deployment + four `v1alpha1` CRDs (`Sandbox`, `SandboxClaim`,
   `SandboxTemplate`, `SandboxWarmPool`) in the `agent-sandbox-system`
   namespace.
-- A `SandboxTemplate` named `mesh-sandbox` — the shared pod template every
+- A `SandboxTemplate` named `studio-sandbox` — the shared pod template every
   `SandboxClaim` references. Image, pull policy, and resources come from
   `sandbox.kubernetes.*`.
 - A `NetworkPolicy` that scopes sandbox-pod ingress/egress (see

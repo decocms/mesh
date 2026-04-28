@@ -1,4 +1,4 @@
-name: Release Mesh Sandbox Image
+name: Release Studio Sandbox Image
 
 on:
   push:

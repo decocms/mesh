@@ -362,7 +362,7 @@ sandbox:
     # supports) with the per-claim handle. Set in prod once a wildcard
     # gateway + cert is in place; leave empty in local dev so the runner
     # falls back to the 127.0.0.1 port-forward URL. Surfaced into the
-    # mesh container as MESH_SANDBOX_PREVIEW_URL_PATTERN.
+    # mesh container as STUDIO_SANDBOX_PREVIEW_URL_PATTERN.
     #
     # Should match `previewGateway.domain` below — e.g. when
     # previewGateway.domain="preview.decocms.com", set this to
@@ -418,6 +418,20 @@ sandbox:
     #     operator: Equal
     #     value: sandbox
     #     effect: NoSchedule
+    # Affinity rules merged into the sandbox PodSpec. Use podAffinity to
+    # co-locate sandbox pods on the same node (cheaper warm-pool packing,
+    # shared image cache); use nodeAffinity for soft node preferences that
+    # nodeSelector can't express. Empty default = scheduler picks.
+    affinity: {}
+    # affinity:
+    #   podAffinity:
+    #     preferredDuringSchedulingIgnoredDuringExecution:
+    #       - weight: 100
+    #         podAffinityTerm:
+    #           labelSelector:
+    #             matchLabels:
+    #               app.kubernetes.io/name: studio-sandbox
+    #           topologyKey: kubernetes.io/hostname
     # User namespace remap (`spec.hostUsers: false`): UID 1000 inside the
     # pod maps to a high, unprivileged subordinate UID on the node, so a
     # container escape doesn't land as a real node UID. Requires K8s

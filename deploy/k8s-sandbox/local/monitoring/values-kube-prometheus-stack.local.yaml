@@ -18,10 +18,10 @@ prometheus:
     # Prod replaces this with a ServiceMonitor on the in-cluster mesh
     # Deployment.
     additionalScrapeConfigs:
-      - job_name: mesh-host
+      - job_name: studio-host
         scrape_interval: 30s
         metrics_path: /metrics
         static_configs:
           - targets: ["host.docker.internal:3000"]
             labels:
-              source: mesh-runner
+              source: studio-runner

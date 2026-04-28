@@ -9,14 +9,14 @@
 apiVersion: extensions.agents.x-k8s.io/v1alpha1
 kind: SandboxWarmPool
 metadata:
-  name: mesh-sandbox
+  name: studio-sandbox
   namespace: agent-sandbox-system
   labels:
-    app.kubernetes.io/name: mesh-sandbox
+    app.kubernetes.io/name: studio-sandbox
     app.kubernetes.io/managed-by: {{ .Release.Service }}
     helm.sh/chart: {{ include "chart-deco-studio.chart" . }}
 spec:
   replicas: {{ .Values.sandbox.kubernetes.warmPool.size }}
   sandboxTemplateRef:
-    name: mesh-sandbox
+    name: studio-sandbox
 {{- end }}

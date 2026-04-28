@@ -6,7 +6,7 @@
 # re-run up.sh. This script is strictly for iterating on image contents.
 set -euo pipefail
 
-CLUSTER_NAME="mesh-sandbox-dev"
+CLUSTER_NAME="studio-sandbox-dev"
 IMAGE_TAG="mesh-sandbox:local"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -37,7 +37,7 @@ kind load docker-image "${IMAGE_TAG}" --name "${CLUSTER_NAME}"
 log "evicting running sandbox pods"
 kubectl --context "${KCTX}" delete pod \
   -n agent-sandbox-system \
-  -l app.kubernetes.io/name=mesh-sandbox \
+  -l app.kubernetes.io/name=studio-sandbox \
   --ignore-not-found
 
 log "done"

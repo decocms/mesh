@@ -1,11 +1,11 @@
 {
-  "title": "Mesh Sandbox Overview",
-  "uid": "mesh-sandbox-overview",
+  "title": "Studio Sandbox Overview",
+  "uid": "studio-sandbox-overview",
   "schemaVersion": 39,
   "version": 1,
   "refresh": "30s",
   "time": { "from": "now-1h", "to": "now" },
-  "tags": ["mesh", "sandbox"],
+  "tags": ["studio", "sandbox"],
   "templating": {
     "list": [
       {
@@ -77,7 +77,7 @@
       },
       "targets": [
         {
-          "expr": "count(k8s_pod_cpu_utilization_ratio{k8s_namespace_name=\"$namespace\",app_name=\"mesh-sandbox\",sandbox_handle=\"\"}) or vector(0)",
+          "expr": "count(k8s_pod_cpu_utilization_ratio{k8s_namespace_name=\"$namespace\",app_name=\"studio-sandbox\",sandbox_handle=\"\"}) or vector(0)",
           "refId": "A",
           "instant": true,
           "range": false
@@ -173,7 +173,7 @@
       "fieldConfig": { "defaults": { "unit": "ops" } },
       "targets": [
         {
-          "expr": "sum by (outcome) (rate(mesh_sandbox_ensure_outcome_total{runner_kind=\"kubernetes\"}[5m]))",
+          "expr": "sum by (outcome) (rate(studio_sandbox_ensure_outcome_total{runner_kind=\"kubernetes\"}[5m]))",
           "legendFormat": "{{outcome}}",
           "refId": "A"
         }
@@ -188,7 +188,7 @@
       "fieldConfig": { "defaults": { "unit": "ms" } },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le, source) (rate(mesh_sandbox_proxy_duration_ms_bucket{runner_kind=\"kubernetes\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le, source) (rate(studio_sandbox_proxy_duration_ms_bucket{runner_kind=\"kubernetes\"}[5m])))",
           "legendFormat": "{{source}}",
           "refId": "A"
         }
@@ -210,7 +210,7 @@
       "fieldConfig": { "defaults": { "unit": "none" } },
       "targets": [
         {
-          "expr": "sum(mesh_sandbox_active{runner_kind=\"kubernetes\"})",
+          "expr": "sum(studio_sandbox_active{runner_kind=\"kubernetes\"})",
           "legendFormat": "mesh",
           "refId": "A"
         },

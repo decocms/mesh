@@ -2,7 +2,7 @@
 # Bring up the local kind cluster used by KubernetesSandboxRunner.
 #
 # Idempotent: re-running re-applies the operator + template and reloads the
-# sandbox image. Cluster creation is skipped if mesh-sandbox-dev already
+# sandbox image. Cluster creation is skipped if studio-sandbox-dev already
 # exists.
 #
 # Pins agent-sandbox to v0.4.2 (matches prod in
@@ -10,7 +10,7 @@
 # Bumping here means bumping prod too.
 set -euo pipefail
 
-CLUSTER_NAME="mesh-sandbox-dev"
+CLUSTER_NAME="studio-sandbox-dev"
 OPERATOR_VERSION="v0.4.2"
 IMAGE_TAG="mesh-sandbox:local"
 
@@ -116,15 +116,15 @@ if [[ "${MONITORING:-1}" == "1" ]]; then
 
     log "applying sandbox dashboard ConfigMap"
     # `--dry-run | apply` so re-runs replace the ConfigMap idempotently.
-    kubectl --context "${KCTX}" -n monitoring create configmap mesh-sandbox-dashboard \
+    kubectl --context "${KCTX}" -n monitoring create configmap studio-sandbox-dashboard \
       --from-file="${MONITORING_DIR}/dashboards/sandbox-overview.json" \
       --dry-run=client -o yaml | \
       kubectl --context "${KCTX}" apply -f -
-    kubectl --context "${KCTX}" -n monitoring label configmap mesh-sandbox-dashboard \
+    kubectl --context "${KCTX}" -n monitoring label configmap studio-sandbox-dashboard \
       grafana_dashboard=1 --overwrite >/dev/null
 
     log "monitoring ready: kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3001:80"
-    log "  → http://localhost:3001 (admin / admin) → Dashboards → 'Mesh Sandbox Overview'"
+    log "  → http://localhost:3001 (admin / admin) → Dashboards → 'Studio Sandbox Overview'"
   fi
 fi
 

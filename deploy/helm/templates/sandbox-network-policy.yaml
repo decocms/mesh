@@ -6,7 +6,7 @@
 # shape.
 #
 # Scope: selects pods in agent-sandbox-system labeled
-# app.kubernetes.io/name=mesh-sandbox. Applies both ingress and egress rules,
+# app.kubernetes.io/name=studio-sandbox. Applies both ingress and egress rules,
 # so egress is deny-by-default (policyType Egress with only allowed rules).
 #
 # Threat model: workload is arbitrary user code. Egress must not reach IMDS
@@ -16,16 +16,16 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: mesh-sandbox
+  name: studio-sandbox
   namespace: agent-sandbox-system
   labels:
-    app.kubernetes.io/name: mesh-sandbox
+    app.kubernetes.io/name: studio-sandbox
     app.kubernetes.io/managed-by: {{ .Release.Service }}
     helm.sh/chart: {{ include "chart-deco-studio.chart" . }}
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: mesh-sandbox
+      app.kubernetes.io/name: studio-sandbox
   policyTypes:
     - Ingress
     - Egress
