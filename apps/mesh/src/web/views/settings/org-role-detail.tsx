@@ -695,7 +695,7 @@ function ModelsPermissionsTab({
     <div className="flex flex-col h-full overflow-auto gap-4 px-2 pt-2 pb-6">
       <div
         className={cn(
-          "flex items-center justify-between px-4 py-2 rounded-lg",
+          "flex items-center justify-between px-4 py-3 rounded-lg border border-border",
           !readOnly && "hover:bg-muted/50 cursor-pointer",
         )}
         onClick={() => {
