@@ -28,6 +28,7 @@ function AppRenderer({
   tool,
   connectionId,
   orgId,
+  args,
 }: {
   client: ReturnType<typeof useMCPClient>;
   resourceURI: string;
@@ -39,6 +40,7 @@ function AppRenderer({
   };
   connectionId: string;
   orgId?: string;
+  args?: Record<string, unknown>;
 }) {
   const { sendMessage } = useChatBridge();
   const { setAppContext, clearAppContext } = useChatPrefs();
@@ -54,10 +56,11 @@ function AppRenderer({
     }
     return "fullscreen";
   };
+  const toolInput = args ?? EMPTY_TOOL_INPUT;
   const { data: toolResult } = useMCPToolCall({
     client,
     toolName: tool.name,
-    toolArguments: EMPTY_TOOL_INPUT,
+    toolArguments: toolInput,
   });
 
   const clientId = getGatewayClientId(tool._meta);
@@ -83,7 +86,7 @@ function AppRenderer({
       resourceURI={resourceURI}
       orgId={orgId}
       toolInfo={{ tool: strippedTool }}
-      toolInput={EMPTY_TOOL_INPUT}
+      toolInput={toolInput}
       toolResult={toolResult}
       displayMode="fullscreen"
       minHeight={MCP_APP_DISPLAY_MODES.fullscreen.minHeight}
@@ -101,9 +104,11 @@ function AppRenderer({
 export function AppViewContent({
   connectionId,
   toolName,
+  args,
 }: {
   connectionId: string;
   toolName: string;
+  args?: Record<string, unknown>;
 }) {
   const { org } = useProjectContext();
   const client = useMCPClient({ connectionId, orgId: org.id });
@@ -132,6 +137,7 @@ export function AppViewContent({
       tool={tool}
       connectionId={connectionId}
       orgId={org.id}
+      args={args}
     />
   );
 }
