@@ -31,8 +31,11 @@ spec:
     - Egress
   ingress:
     # Daemon port (9000) — mesh server pods call this to exec tools, stream
-    # logs, etc. Matches the chart's own selectorLabels so self-hosters who
-    # use the default deployment get the rule automatically.
+    # logs, etc. Also the *preview* request path: when previewGateway is
+    # enabled, mesh reverse-proxies `*.preview.<domain>` traffic to the
+    # daemon here so the daemon's CSP/HMR rewrites apply (port 3000 would
+    # bypass them). Matches the chart's own selectorLabels so self-hosters
+    # who use the default deployment get the rule automatically.
     - from:
         - namespaceSelector:
             matchLabels:
@@ -44,8 +47,10 @@ spec:
         - protocol: TCP
           port: 9000
     {{- with .Values.sandbox.kubernetes.networkPolicy.previewGatewayNamespace }}
-    # Dev server port (3000) — preview URLs terminate on an ingress gateway
-    # (Istio / Gateway API / NGINX) in the configured namespace.
+    # Legacy/standby — direct ingress on dev port 3000 from a configured
+    # gateway namespace. Only needed for setups that route preview traffic
+    # *around* mesh (no daemon CSP/HMR rewrites). The standard Istio
+    # Gateway API path lands on port 9000 via mesh and doesn't need this.
     - from:
         - namespaceSelector:
             matchLabels:

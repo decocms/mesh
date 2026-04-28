@@ -1,0 +1,59 @@
+# kube-prometheus-stack overrides for the local kind cluster.
+#
+# Scope: just Prometheus + Grafana + the operator (so ServiceMonitor CRs work).
+# Disabled the parts we don't need for sandbox-cost dashboards:
+#   - alertmanager: nothing to alert on yet
+#   - node-exporter: per-node OS metrics aren't on the customer bill
+#   - kube-state-metrics: the OTel collector pipeline already enriches with
+#     pod labels, so we don't need KSM's parallel `kube_pod_labels` series.
+#     Re-enable later if we want pod-state info we can't get from kubeletstats.
+#
+# Prod swap: keep this same shape; replace the bundled Prometheus with Mimir
+# remote-write or VictoriaMetrics. The collector + dashboards stay identical.
+
+grafana:
+  # Local dev only. Prod uses SSO via the cluster's identity provider.
+  adminPassword: admin
+  defaultDashboardsTimezone: browser
+  service:
+    type: ClusterIP
+  # Sidecar watches for ConfigMaps with `grafana_dashboard=1` and auto-imports
+  # them as dashboards. up.sh creates one for sandbox-overview.json.
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: ALL
+  # Datasource is auto-wired to the bundled Prometheus.
+
+prometheus:
+  prometheusSpec:
+    # Pick up ServiceMonitors created by the OTel collector chart, regardless
+    # of helm-managed labels. Without these, the operator only matches its own
+    # release's monitors and our collector's monitor is invisible.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    # Local kind nodes are tiny — keep retention short and resources modest.
+    retention: 7d
+    resources:
+      requests:
+        memory: "400Mi"
+        cpu: "100m"
+      limits:
+        memory: "1Gi"
+
+alertmanager:
+  enabled: false
+
+nodeExporter:
+  enabled: false
+
+kube-state-metrics:
+  enabled: false
+
+# Trim default dashboards/rules — we only care about sandbox-overview here.
+defaultRules:
+  create: false

@@ -1383,10 +1383,105 @@ emits zero sandbox-related resources.
 - Cluster capacity for sandbox pods. Defaults request `500m` CPU / `1Gi`
   memory per sandbox and cap at `2` CPU / `4Gi` / `10Gi` ephemeral. Tune
   via `sandbox.kubernetes.resources.*`.
-- If you run previews through an ingress gateway (Istio, NGINX, Gateway
-  API), set `sandbox.kubernetes.networkPolicy.previewGatewayNamespace` to
-  the namespace holding the gateway controller's pods so port 3000 ingress
-  is allowed.
+- For preview URLs (`*.preview.<domain>`), see
+  [Sandbox preview ingress](#sandbox-preview-ingress) below — this is the
+  standard path and uses the Gateway API + cert-manager.
+- The legacy
+  `sandbox.kubernetes.networkPolicy.previewGatewayNamespace` knob is only
+  needed for setups that route preview traffic *around* mesh, terminating
+  directly on the sandbox's port 3000. The standard path lands on port
+  9000 via mesh, where the daemon's CSP/HMR rewrites apply.
+
+### Sandbox preview ingress
+
+When `sandbox.kubernetes.previewGateway.enabled=true`, the chart renders
+an Istio Gateway + HTTPRoute + cert-manager Certificate that send
+`*.preview.<domain>` traffic to the mesh Service. Mesh recognises the
+Host header and reverse-proxies to the matching sandbox's daemon at
+port 9000 — including WebSocket upgrades, so vite HMR works.
+
+Required values:
+
+```yaml
+sandbox:
+  kubernetes:
+    enabled: true
+    previewUrlPattern: "https://{handle}.preview.example.com"
+    previewGateway:
+      enabled: true
+      domain: "preview.example.com"
+      clusterIssuer: "cloudflare-dns01"  # name of an existing ClusterIssuer
+      # Optional overrides:
+      # gatewayClassName: "istio"
+      # namespace: "istio-system"
+```
+
+Two things are *not* templated and have to be done by hand once per
+cluster — the chart will not work end-to-end without these:
+
+#### 1. DNS — wildcard A/CNAME
+
+In your DNS provider (Cloudflare, Route53, etc.), add a wildcard record
+pointing at the cluster's external load balancer:
+
+```
+*.preview.example.com   →   <LB hostname or IP>
+```
+
+For Cloudflare, set the record to **DNS only** (grey-cloud, not orange)
+so cert-manager's DNS-01 challenge can update TXT records under the
+zone. Cloudflare proxy mode (orange-cloud) blocks DNS-01.
+
+To find the LB hostname for an Istio Gateway:
+
+```bash
+kubectl get svc -n istio-system   # look for the LoadBalancer service
+```
+
+#### 2. cert-manager DNS-01 ClusterIssuer
+
+DNS-01 is the only solver that works for wildcard certs. The chart does
+not template the ClusterIssuer because the API token is per-cluster
+infrastructure. Example for Cloudflare:
+
+```yaml
+# Apply to the cluster ONCE — outside the chart.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflare-api-token
+  namespace: cert-manager
+type: Opaque
+stringData:
+  api-token: "<your Cloudflare API token with Zone:DNS:Edit>"
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: cloudflare-dns01
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: admin@example.com
+    privateKeySecretRef:
+      name: cloudflare-dns01-account-key
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token
+```
+
+Verify the cert provisions after `helm upgrade`:
+
+```bash
+kubectl get certificate -n istio-system
+kubectl describe certificate <release>-sandbox-preview -n istio-system
+```
+
+cert-manager logs in `cert-manager` namespace are the place to look if
+the cert hangs in `Pending` for more than a few minutes.
 
 ### Local kind
 

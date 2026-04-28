@@ -14,6 +14,12 @@ CLUSTER_NAME="mesh-sandbox-dev"
 OPERATOR_VERSION="v0.4.2"
 IMAGE_TAG="mesh-sandbox:local"
 
+# Monitoring stack pins. Bumping these is fine but verify the dashboard
+# queries still work (kubeletstats metric names occasionally rename across
+# OTel collector contrib releases).
+KUBE_PROM_STACK_VERSION="65.5.1"
+OTEL_COLLECTOR_VERSION="0.108.0"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 SANDBOX_PKG="${REPO_ROOT}/packages/sandbox"
@@ -67,5 +73,54 @@ kind load docker-image "${IMAGE_TAG}" --name "${CLUSTER_NAME}"
 # 7. mesh SandboxTemplate (shared by every SandboxClaim)
 log "applying SandboxTemplate"
 kubectl --context "${KCTX}" apply -f "${SCRIPT_DIR}/sandbox-template.yaml"
+
+# 8. monitoring stack: kube-prometheus-stack (Prom + Grafana + the operator
+# whose CRDs the OTel collector's ServiceMonitor depends on) followed by
+# the OTel daemonset that scrapes kubelet → enriches with tenant labels →
+# exposes /metrics for Prometheus to scrape.
+#
+# Helm enters the local stack only for these third-party charts; SandboxTemplate
+# and operator stay raw kubectl. Skip via `MONITORING=0 ./up.sh` if you want
+# the cluster without dashboards.
+if [[ "${MONITORING:-1}" == "1" ]]; then
+  if ! command -v helm >/dev/null 2>&1; then
+    log "helm not installed; skipping monitoring stack (set MONITORING=0 to silence)"
+  else
+    log "adding helm repos"
+    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
+    helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts >/dev/null 2>&1 || true
+    helm repo update >/dev/null
+
+    log "installing kube-prometheus-stack ${KUBE_PROM_STACK_VERSION}"
+    helm upgrade --install kube-prometheus-stack \
+      prometheus-community/kube-prometheus-stack \
+      --kube-context "${KCTX}" \
+      --namespace monitoring --create-namespace \
+      --version "${KUBE_PROM_STACK_VERSION}" \
+      -f "${SCRIPT_DIR}/monitoring/values-kube-prometheus-stack.yaml" \
+      --wait --timeout 5m
+
+    log "installing opentelemetry-collector ${OTEL_COLLECTOR_VERSION} (daemonset)"
+    helm upgrade --install otel-collector-sandbox \
+      open-telemetry/opentelemetry-collector \
+      --kube-context "${KCTX}" \
+      --namespace monitoring \
+      --version "${OTEL_COLLECTOR_VERSION}" \
+      -f "${SCRIPT_DIR}/monitoring/values-otel-collector.yaml" \
+      --wait --timeout 3m
+
+    log "applying sandbox dashboard ConfigMap"
+    # `--dry-run | apply` so re-runs replace the ConfigMap idempotently.
+    kubectl --context "${KCTX}" -n monitoring create configmap mesh-sandbox-dashboard \
+      --from-file="${SCRIPT_DIR}/monitoring/dashboards/sandbox-overview.json" \
+      --dry-run=client -o yaml | \
+      kubectl --context "${KCTX}" apply -f -
+    kubectl --context "${KCTX}" -n monitoring label configmap mesh-sandbox-dashboard \
+      grafana_dashboard=1 --overwrite >/dev/null
+
+    log "monitoring ready: kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3001:80"
+    log "  → http://localhost:3001 (admin / admin) → Dashboards → 'Mesh Sandbox Overview'"
+  fi
+fi
 
 log "ready. smoke test: see README.md"

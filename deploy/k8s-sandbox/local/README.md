@@ -4,20 +4,26 @@ Scripted local bring-up for `KubernetesSandboxRunner`. One-command cluster +
 agent-sandbox operator + mesh `SandboxTemplate`, loaded with the same
 sandbox image the Docker runner uses.
 
-This is **dev ergonomics only** — no Helm, no Terraform, no `kubectl apply`
-outside the scripts here. Prod/staging installs the operator via the deco
-infrastructure repo, not these scripts.
+This is **dev ergonomics only** — no Terraform. Prod/staging installs the
+operator via the deco infrastructure repo, not these scripts. Helm is used
+for upstream third-party stacks (Prometheus, Grafana, OpenTelemetry
+Collector) since that's their canonical install path; mesh-owned manifests
+(SandboxTemplate, agent-sandbox operator) stay raw `kubectl apply`.
 
 ## Prereqs
 
 - [`docker`](https://docs.docker.com/engine/install/) — running
 - [`kind`](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)
 - [`kubectl`](https://kubernetes.io/docs/tasks/tools/)
+- [`helm`](https://helm.sh/docs/intro/install/) — required only for the
+  monitoring stack; skip with `MONITORING=0 ./up.sh` if not installed.
 
 Pins:
 - agent-sandbox operator: `v0.4.2` (matches prod; hardcoded in `up.sh`)
+- kube-prometheus-stack: `65.5.1`
+- opentelemetry-collector: `0.108.0`
 - cluster name: `mesh-sandbox-dev`
-- namespace: `agent-sandbox-system`
+- namespace: `agent-sandbox-system` (sandboxes), `monitoring` (Prom/Grafana/OTel)
 - image tag: `mesh-sandbox:local`
 
 ## Usage
@@ -42,9 +48,71 @@ Pins:
 5. Builds the daemon bundle (`bun run --cwd packages/sandbox build`), then `packages/sandbox/image/Dockerfile` as `mesh-sandbox:local`
 6. Loads the image into kind (required because the template pins `imagePullPolicy: Never`)
 7. Applies `sandbox-template.yaml`
+8. Installs `kube-prometheus-stack` (Prom + Grafana + the operator that
+   discovers `ServiceMonitor`s) and the OTel Collector daemonset that
+   scrapes per-node kubelet, enriches with tenant labels, and exposes
+   `/metrics` for Prometheus. Skip with `MONITORING=0 ./up.sh`.
 
 All `kubectl` calls pass `--context kind-mesh-sandbox-dev` so an ambient
 `KUBECONFIG` can't accidentally hit a real cluster.
+
+## Local Grafana
+
+After `up.sh`:
+
+```bash
+kubectl --context kind-mesh-sandbox-dev port-forward \
+  -n monitoring svc/kube-prometheus-stack-grafana 3001:80
+# → http://localhost:3001  (admin / admin)
+# → Dashboards → "Mesh Sandbox Overview"
+```
+
+Dashboard panels (per-org, per-sandbox-handle):
+
+- Active sandboxes by org
+- Egress rate by org
+- CPU / memory by org
+- Top 10 sandboxes by 1-hour egress
+- Warm-pool overhead pod count (no owning org)
+
+The pipeline:
+
+```
+kubelet (cAdvisor) ──► OTel collector daemonset
+                        │  - kubeletstats receiver
+                        │  - k8sattributes processor (reads pod labels:
+                        │      mesh.decocms.com/{org-id,user-id,sandbox-handle,role}
+                        │      → series labels: org_id, user_id, sandbox_handle, sandbox_role)
+                        │  - prometheus exporter on :8889
+                        ▼
+                   ServiceMonitor → kube-prometheus-stack Prometheus → Grafana
+```
+
+Pod labels come from `SandboxClaim.spec.additionalPodMetadata.labels`,
+populated in `KubernetesSandboxRunner.provision()` from the `tenant` field
+on `EnsureOptions`. Verify they're landing:
+
+```bash
+kubectl --context kind-mesh-sandbox-dev \
+  get pod -n agent-sandbox-system --show-labels | grep mesh.decocms.com
+```
+
+To iterate on dashboards/values without rebuilding the cluster:
+
+```bash
+MONITORING_ONLY=1 ./deploy/k8s-sandbox/local/down.sh
+./deploy/k8s-sandbox/local/up.sh
+```
+
+### Production swap
+
+The pipeline shape carries to prod with two changes:
+1. Replace bundled Prometheus with remote-write to Mimir/VictoriaMetrics
+   (`prometheus.prometheusSpec.remoteWrite` in the values).
+2. Restrict the k8sattributes processor's `filter.namespaces` to the
+   sandbox namespace once you're not also debugging system pods.
+
+Dashboards, label names, and metric names stay identical.
 
 ## Smoke test
 

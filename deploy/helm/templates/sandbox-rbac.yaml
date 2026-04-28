@@ -30,7 +30,13 @@ rules:
     verbs: ["get"]
   - apiGroups: [""]
     resources: ["pods/portforward"]
-    verbs: ["create"]
+    # `get` is required for the WebSocket-based port-forward path used by
+    # @kubernetes/client-node v1.x (and Bun's native WS, and any newer
+    # client-go-equivalent). The legacy SPDY path only needed `create`, but
+    # all modern clients use the WS upgrade — which the API server enforces
+    # as a `GET` against the subresource. Without `get`, the upgrade returns
+    # 403 and the runner sees `[object ErrorEvent]`.
+    verbs: ["get", "create"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

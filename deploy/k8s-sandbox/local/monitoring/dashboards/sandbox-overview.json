@@ -1,0 +1,115 @@
+{
+  "title": "Mesh Sandbox Overview",
+  "uid": "mesh-sandbox-overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "tags": ["mesh", "sandbox"],
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "type": "constant",
+        "current": {
+          "value": "agent-sandbox-system",
+          "text": "agent-sandbox-system"
+        },
+        "query": "agent-sandbox-system",
+        "hide": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Active sandboxes (by org)",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "none" } },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "count by (org_id) (k8s_pod_cpu_usage{k8s_namespace_name=\"$namespace\",sandbox_role=\"claimed\"})",
+          "legendFormat": "{{org_id}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Warm-pool overhead pods (no org)",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "none" } },
+      "targets": [
+        {
+          "expr": "count(k8s_pod_cpu_usage{k8s_namespace_name=\"$namespace\",sandbox_role=\"sandbox-pod\"}) or vector(0)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Egress rate by org (bytes/sec)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "Bps" } },
+      "targets": [
+        {
+          "expr": "sum by (org_id) (rate(k8s_pod_network_io{k8s_namespace_name=\"$namespace\",direction=\"transmit\",sandbox_role=\"claimed\"}[5m]))",
+          "legendFormat": "{{org_id}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "CPU usage by org (cores)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "none" } },
+      "targets": [
+        {
+          "expr": "sum by (org_id) (k8s_pod_cpu_usage{k8s_namespace_name=\"$namespace\",sandbox_role=\"claimed\"})",
+          "legendFormat": "{{org_id}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Memory (working set) by org",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "targets": [
+        {
+          "expr": "sum by (org_id) (k8s_pod_memory_working_set_bytes{k8s_namespace_name=\"$namespace\",sandbox_role=\"claimed\"})",
+          "legendFormat": "{{org_id}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Top 10 sandboxes by egress (last 1h, MB)",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 16 },
+      "fieldConfig": { "defaults": { "unit": "decmbytes" } },
+      "options": { "showHeader": true },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (org_id, user_id, sandbox_handle) (increase(k8s_pod_network_io{k8s_namespace_name=\"$namespace\",direction=\"transmit\",sandbox_role=\"claimed\"}[1h])) / 1024 / 1024)",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

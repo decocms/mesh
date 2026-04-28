@@ -15,5 +15,5 @@ export type {
   SandboxResource,
   WaitForSandboxReadyResult,
 } from "./client";
-export { KubernetesSandboxRunner } from "./runner";
+export { KubernetesSandboxRunner, HANDLE_PREFIX } from "./runner";
 export type { KubernetesRunnerOptions } from "./runner";

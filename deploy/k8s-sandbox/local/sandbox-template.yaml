@@ -26,10 +26,20 @@ spec:
   # env. Once per-claim git credentials land (later in Stage 2+), the same
   # mechanism carries them.
   envVarsInjectionPolicy: Allowed
+  # The CRD defaults to Managed, which makes the operator install its own
+  # NetworkPolicy that only allows ingress from `app: sandbox-router` pods.
+  # That blocks the mesh → daemon path the preview-proxy uses. Mark the
+  # netpol Unmanaged so a real CNI (kindnet on recent kind, Calico/Cilium
+  # in prod) lets mesh reach the sandbox Service on port 9000.
+  networkPolicyManagement: Unmanaged
   podTemplate:
     metadata:
       labels:
         app.kubernetes.io/name: mesh-sandbox
+        # Do NOT set `mesh.decocms.com/role` here. Operator v0.4.2+ rejects
+        # claims whose additionalPodMetadata defines a label key the template
+        # already declared, even when values differ. The runner sets
+        # role=claimed via additionalPodMetadata, so this key must be absent.
     spec:
       automountServiceAccountToken: false
       securityContext:

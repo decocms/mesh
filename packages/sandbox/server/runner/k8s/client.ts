@@ -52,6 +52,15 @@ export interface SandboxClaim {
     sandboxTemplateRef: { name: string };
     env?: SandboxClaimEnvVar[];
     /**
+     * Pod-level metadata the operator merges onto the spawned Pod (CRD field,
+     * see sandboxclaims.extensions.agents.x-k8s.io v1alpha1). Used to attach
+     * tenant labels for downstream metrics attribution.
+     */
+    additionalPodMetadata?: {
+      labels?: Record<string, string>;
+      annotations?: Record<string, string>;
+    };
+    /**
      * `"none"` forces a fresh pod per claim — required when `spec.env` is
      * set because the operator rejects custom env when the claim would
      * come from a warm pool (warm pods are pre-started, can't take new

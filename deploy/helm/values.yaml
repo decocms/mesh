@@ -129,8 +129,12 @@ terminationGracePeriodSeconds: 60
 # Optional lifecycle hooks (preStop, postStart)
 # lifecycle: {}
 
-nodeSelector:
-  kubernetes.io/arch: amd64
+nodeSelector: {}
+# Pin arch in your prod values override if your node groups are heterogeneous.
+# Default is unset so the chart works on arm64 (Apple Silicon kind, ARM EKS,
+# bare-metal RPi clusters). Example for AWS amd64 node groups:
+#   nodeSelector:
+#     kubernetes.io/arch: amd64
 
 tolerations: []
 # Example:
@@ -347,10 +351,11 @@ sandbox:
         ephemeral-storage: 10Gi
     networkPolicy:
       enabled: true
-      # If set, ingress from this namespace on port 3000 (dev server) is
-      # allowed — this is where the Istio / Gateway API controller pods live
-      # that terminate preview URLs. Leave empty to skip the rule (sandbox
-      # previews are then unreachable from outside the cluster).
+      # Legacy/standby — kept for setups whose external gateway terminates
+      # *directly* on the sandbox's port 3000 (dev server). The default
+      # preview path goes through mesh and lands on port 9000 (daemon)
+      # instead, so most installs leave this empty. See
+      # `previewGateway` below for the standard Istio Gateway API path.
       previewGatewayNamespace: ""
     # Public URL pattern that ingress terminates on for sandbox previews.
     # The runner substitutes {handle} (or whatever applyPreviewPattern
@@ -358,8 +363,47 @@ sandbox:
     # gateway + cert is in place; leave empty in local dev so the runner
     # falls back to the 127.0.0.1 port-forward URL. Surfaced into the
     # mesh container as MESH_SANDBOX_PREVIEW_URL_PATTERN.
+    #
+    # Should match `previewGateway.domain` below — e.g. when
+    # previewGateway.domain="preview.decocms.com", set this to
+    # "https://{handle}.preview.decocms.com".
     previewUrlPattern: ""
     # previewUrlPattern: "https://{handle}.preview.example.com"
+    # Wildcard preview-URL ingress (Approach B in the K8s sandbox plan).
+    # Renders an Istio Gateway + HTTPRoute that send all
+    # *.preview.<domain> traffic to the mesh Service; mesh recognises the
+    # Host header and reverse-proxies to the matching sandbox's daemon at
+    # port 9000 (daemon, not dev port 3000 — the daemon's reverse proxy
+    # injects the HMR bootstrap + strips CSP that the iframe needs).
+    #
+    # Manual prerequisites (not templated):
+    #   1. DNS: Cloudflare (or other) wildcard `*.preview.<domain>` →
+    #      cluster external LB hostname.
+    #   2. cert-manager ClusterIssuer for the wildcard cert. DNS-01 is
+    #      required (HTTP-01 doesn't work for wildcards). Set
+    #      `clusterIssuer` to that issuer's name.
+    previewGateway:
+      enabled: false
+      # gatewayClassName for the Gateway. EKS clusters running Istio
+      # ambient/sidecar default to "istio". Confirm with
+      # `kubectl get gatewayclasses` before flipping enabled=true.
+      gatewayClassName: "istio"
+      # Namespace where the Gateway + HTTPRoute land. Mesh's existing
+      # gateway typically lives in `istio-system`; some setups use a
+      # dedicated `gateway` ns. The cert Secret is created in the same ns.
+      namespace: "istio-system"
+      # Wildcard domain for previews — e.g. "preview.decocms.com" yields
+      # `*.preview.decocms.com`. Required when enabled=true.
+      domain: ""
+      # cert-manager ClusterIssuer that issues the wildcard cert. Required
+      # when enabled=true. The chart does NOT template the ClusterIssuer
+      # itself — that is per-cluster infrastructure (a Cloudflare DNS-01
+      # issuer, for example, needs your API token in a Secret).
+      clusterIssuer: ""
+      # PEM-format secret name created by cert-manager. Defaults to
+      # `<release>-sandbox-preview-tls`. Override only if the cert lives
+      # under a name dictated by external tooling.
+      tlsSecretName: ""
     # Pin sandbox pods to a dedicated NodePool so a container escape lands
     # on a node that has no mesh / postgres / NATS / OTel pods on it. Pair
     # with a Karpenter NodePool that taints + labels matching nodes; see

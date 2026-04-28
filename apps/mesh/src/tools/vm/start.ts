@@ -230,6 +230,7 @@ async function provisionSandbox(
         displayName: `${githubRepo.owner}/${githubRepo.name}`,
       },
       workload,
+      tenant: { orgId, userId },
     },
   );
 

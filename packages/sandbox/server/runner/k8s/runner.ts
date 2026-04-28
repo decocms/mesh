@@ -91,8 +91,43 @@ const DAEMON_TOKEN_BYTES = 32;
 const DEFAULT_IDLE_TTL_MS = 15 * 60 * 1000;
 
 /** Handle prefix + 16-hex hash = 24 chars, well under K8s's 63-char label cap. */
-const HANDLE_PREFIX = "mesh-sb-";
+export const HANDLE_PREFIX = "mesh-sb-";
 const HANDLE_HASH_LEN = 16;
+
+/**
+ * Headers stripped before re-issuing the preview proxy fetch. Hop-by-hop per
+ * RFC 7230 + cookies (preview is per-handle, not per-user — no callee session
+ * leak) + accept-encoding (Bun fetch auto-decompresses, so a downstream
+ * content-encoding would mismatch the actual body).
+ */
+const PREVIEW_STRIP_REQUEST_HEADERS = [
+  "cookie",
+  "host",
+  "connection",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "accept-encoding",
+  "content-length",
+  "upgrade",
+];
+
+/**
+ * Stripped from the proxied response. content-encoding/length would mismatch
+ * after Bun fetch auto-decompresses; CSP/X-Frame-Options the daemon already
+ * rewrote — re-passing them defeats the iframe-embedding fix the daemon
+ * installed.
+ */
+const PREVIEW_STRIP_RESPONSE_HEADERS = [
+  "connection",
+  "keep-alive",
+  "transfer-encoding",
+  "content-encoding",
+  "content-length",
+];
 
 // Deterministic local-port range for port-forward listeners. Same
 // (handle, containerPort) pair → same host port across mesh restarts, so
@@ -250,6 +285,108 @@ export class KubernetesSandboxRunner implements SandboxRunner {
     return proxyDaemonRequest(rec.daemonUrl, rec.token, path, init);
   }
 
+  /**
+   * Resolves the HTTP base URL for a sandbox's daemon. Used by the preview
+   * reverse-proxy at the mesh edge.
+   *
+   * Two modes:
+   * 1. `previewUrlPattern` set (Stage 3 / in-cluster mesh): synthesize the
+   *    in-cluster Service URL straight from the handle. No record lookup, no
+   *    port-forward, no health probe — the cluster DNS + downstream fetch
+   *    are the source of truth. Crucially this means a cold mesh pod (or one
+   *    that just restarted with an empty records map) still serves preview
+   *    traffic without first having to rehydrate every claim. If the Service
+   *    doesn't exist for that handle, the downstream fetch fails and the
+   *    caller surfaces a 502.
+   * 2. `previewUrlPattern` unset (dev / mesh-outside-cluster): fall back to
+   *    the 127.0.0.1 port-forwarder opened by `getRecord`. Returns null when
+   *    the record can't be found or rehydrated — the caller surfaces 404.
+   *
+   * Preview must always land on port 9000 (daemon) — never 3000 (dev server)
+   * — because the daemon's reverse proxy strips CSP/X-Frame headers and
+   * injects the HMR bootstrap script that vite needs to function inside the
+   * studio iframe. Bypassing it breaks SSE + iframe embedding.
+   */
+  async resolvePreviewUpstreamUrl(handle: string): Promise<string | null> {
+    if (this.previewUrlPattern) {
+      return `http://${handle}.${this.namespace}.svc.cluster.local:${DAEMON_CONTAINER_PORT}`;
+    }
+    const rec = await this.getRecord(handle);
+    if (!rec) return null;
+    return rec.daemonUrl;
+  }
+
+  /**
+   * Reverse-proxies an inbound preview HTTP request to the sandbox's daemon.
+   * Unauthenticated by design — preview URLs are open the same way Vercel
+   * preview URLs are; the *handle* is the secret.
+   *
+   * `/_decopilot_vm/*` access policy at the edge:
+   *   - **GET** is allowed through. The daemon's `/events` SSE and `/scripts`
+   *     are intentionally unauthenticated and CORS-enabled (`Allow-Origin: *`)
+   *     because the studio UI consumes them cross-origin from the preview
+   *     URL — that's the only path it has to live setup state. Stripping
+   *     them here would break the studio UI's setup tab and SSE event feed.
+   *   - **Non-GET** (POST/PUT/DELETE/etc) is rejected as defense-in-depth.
+   *     The daemon enforces bearer auth on the mutating endpoints
+   *     (read/write/edit/grep/glob/bash/exec/kill), but the only legitimate
+   *     caller for those is mesh itself via the internal port-forward; the
+   *     preview surface should never see them.
+   */
+  async proxyPreviewRequest(
+    handle: string,
+    request: Request,
+  ): Promise<Response> {
+    const upstreamBase = await this.resolvePreviewUpstreamUrl(handle);
+    if (!upstreamBase) {
+      return jsonResponse(404, { error: "sandbox not found" });
+    }
+
+    const reqUrl = new URL(request.url);
+    const isAdminPath =
+      reqUrl.pathname === "/_decopilot_vm" ||
+      reqUrl.pathname.startsWith("/_decopilot_vm/");
+    if (isAdminPath && request.method !== "GET") {
+      return jsonResponse(404, { error: "not found" });
+    }
+
+    const target = `${upstreamBase}${reqUrl.pathname}${reqUrl.search}`;
+    const headers = new Headers(request.headers);
+    for (const h of PREVIEW_STRIP_REQUEST_HEADERS) headers.delete(h);
+
+    const hasBody = request.method !== "GET" && request.method !== "HEAD";
+    const init: RequestInit & { duplex?: string } = {
+      method: request.method,
+      headers,
+      body: hasBody ? request.body : undefined,
+      redirect: "manual",
+      signal: request.signal,
+      duplex: hasBody ? "half" : undefined,
+    };
+
+    let upstream: Response;
+    try {
+      upstream = await fetch(target, init as RequestInit);
+    } catch (err) {
+      console.warn(
+        `[${LOG_LABEL}] preview fetch to ${target} failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return jsonResponse(502, { error: "sandbox daemon unreachable" });
+    }
+
+    const responseHeaders = new Headers();
+    for (const [k, v] of upstream.headers.entries()) {
+      if (!PREVIEW_STRIP_RESPONSE_HEADERS.includes(k.toLowerCase())) {
+        responseHeaders.set(k, v);
+      }
+    }
+    return new Response(upstream.body, {
+      status: upstream.status,
+      statusText: upstream.statusText,
+      headers: responseHeaders,
+    });
+  }
+
   // ---- Ensure flow ----------------------------------------------------------
 
   private async ensureLocked(
@@ -390,6 +527,14 @@ export class KubernetesSandboxRunner implements SandboxRunner {
       },
       spec: {
         sandboxTemplateRef: { name: this.sandboxTemplateName },
+        // additionalPodMetadata.labels is the operator's pod-label propagation
+        // hook (CRD field, not a generic patch). Tenant labels here flow to
+        // the pod and become joinable in cAdvisor/kubelet metrics. `role`
+        // distinguishes claimed pods from warm-pool pods (template sets
+        // role=sandbox-pod by default).
+        additionalPodMetadata: {
+          labels: buildTenantPodLabels(handle, opts.tenant),
+        },
         // `valueFrom.secretKeyRef` isn't supported on SandboxClaim env; RBAC
         // on the namespace is the secrecy boundary. Warm-pool off because the
         // operator rejects custom env on warm-pooled claims.
@@ -764,6 +909,58 @@ function deterministicLocalPort(handle: string, containerPort: number): number {
     .update(`${handle}:${containerPort}`)
     .digest();
   return PORT_RANGE_START + (hash.readUInt32BE(0) % PORT_RANGE_SIZE);
+}
+
+// CORS headers on synthesized preview-proxy responses. The studio iframe
+// renders under the studio origin and fetches the preview origin cross-site
+// (SSE at `/_decopilot_vm/events`, plus the EventSource probeMissing fetch);
+// without ACAO the browser blocks the response *and* hides the actual status,
+// so a 404 from us looks like an opaque CORS failure in devtools. The daemon
+// already sets ACAO on its own responses — these headers only fire on errors
+// we synthesize before reaching the daemon.
+function jsonResponse(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "content-type": "application/json",
+      "access-control-allow-origin": "*",
+    },
+  });
+}
+
+// K8s label values: ≤63 chars, must match `(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?`.
+// Org/user IDs are UUIDs in mesh and pass through unchanged; the regex check
+// + truncation is defensive against future ID-shape changes (the operator will
+// reject the claim outright if a label value is invalid).
+const LABEL_VALUE_RE = /^([A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?)?$/;
+const MAX_LABEL_VALUE_LEN = 63;
+
+function sanitizeLabelValue(value: string): string {
+  const truncated = value.slice(0, MAX_LABEL_VALUE_LEN);
+  return LABEL_VALUE_RE.test(truncated) ? truncated : "";
+}
+
+/**
+ * Pod labels for cost attribution. `role=claimed` distinguishes these from
+ * warm-pool pods (template sets `role=sandbox-pod` as the default). Sandbox
+ * handle is included so dashboards can drill from per-org aggregates down to
+ * a specific sandbox without needing a join table.
+ */
+function buildTenantPodLabels(
+  handle: string,
+  tenant: EnsureOptions["tenant"],
+): Record<string, string> {
+  const labels: Record<string, string> = {
+    "mesh.decocms.com/role": "claimed",
+    "mesh.decocms.com/sandbox-handle": handle,
+  };
+  if (tenant) {
+    const orgId = sanitizeLabelValue(tenant.orgId);
+    const userId = sanitizeLabelValue(tenant.userId);
+    if (orgId) labels["mesh.decocms.com/org-id"] = orgId;
+    if (userId) labels["mesh.decocms.com/user-id"] = userId;
+  }
+  return labels;
 }
 
 /** Fallback for when callers don't provide `repo.displayName`. */

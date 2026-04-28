@@ -20,10 +20,25 @@ spec:
   # template carries no shared secret; leakage of the template compromises
   # nothing on its own.
   envVarsInjectionPolicy: Allowed
+  # The CRD defaults to Managed, which makes the operator install its own
+  # NetworkPolicy that only allows ingress from pods labeled
+  # `app: sandbox-router`. That's intended for Istio-style sidecar routing
+  # and silently blocks the mesh → daemon path the preview-proxy depends on.
+  # We surface the netpol via templates/sandbox-network-policy.yaml instead
+  # (gated by `sandbox.kubernetes.networkPolicy.enabled`), so flag the
+  # operator's policy off.
+  networkPolicyManagement: Unmanaged
   podTemplate:
     metadata:
       labels:
         app.kubernetes.io/name: mesh-sandbox
+        # Do NOT set `mesh.decocms.com/role` here. The operator (v0.4.2+)
+        # rejects claims whose additionalPodMetadata defines a label key
+        # already present in the template — even when the values differ —
+        # with "metadata override conflict". The runner sets role=claimed
+        # via additionalPodMetadata, so the template must leave that key
+        # undefined. Warm-pool pods end up without the role label;
+        # dashboards filter by absence-of-handle instead.
     spec:
       automountServiceAccountToken: false
       {{- with .Values.sandbox.kubernetes.nodeSelector }}

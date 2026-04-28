@@ -1,0 +1,157 @@
+# OpenTelemetry Collector (DaemonSet) — scrapes per-node kubelet for
+# cAdvisor/pod metrics, enriches with our tenant labels, exposes
+# /metrics for kube-prometheus-stack's Prometheus to scrape.
+#
+# DaemonSet (not Deployment) because kubeletstats reads from each node's
+# kubelet at https://${K8S_NODE_IP}:10250 — needs one collector per node.
+#
+# Why not the existing mesh OTel collector subchart: that one is a
+# Deployment, scoped to mesh app traces/logs/metrics (OTLP receiver).
+# Different pipeline, different topology, different concern.
+
+mode: daemonset
+
+image:
+  # contrib has kubeletstats + k8sattributes; the core image doesn't.
+  repository: otel/opentelemetry-collector-contrib
+
+# Downward API: kubeletstats needs the host IP, k8sattributes' pod_association
+# needs the pod's namespace. Auto-injected by the chart's `presets.kubeletMetrics`
+# but we set explicit config below, so wire env vars directly.
+extraEnvs:
+  - name: K8S_NODE_IP
+    valueFrom:
+      fieldRef:
+        fieldPath: status.hostIP
+  - name: K8S_NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+
+# RBAC: kubeletstats hits nodes/stats + nodes/proxy on the local kubelet;
+# k8sattributes watches pods + namespaces cluster-wide to enrich on label
+# lookup. Replicas-set/deployment perms are not needed since we filter to
+# the agent-sandbox-system namespace.
+clusterRole:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["nodes/stats", "nodes/proxy"]
+      verbs: ["get"]
+    - apiGroups: [""]
+      resources: ["pods", "namespaces", "nodes"]
+      verbs: ["get", "list", "watch"]
+
+# Container-level :8889/metrics for Prometheus to scrape.
+ports:
+  metrics:
+    enabled: true
+    containerPort: 8889
+    servicePort: 8889
+    protocol: TCP
+
+# Auto-creates a ServiceMonitor that kube-prometheus-stack's Prometheus
+# (with serviceMonitorSelectorNilUsesHelmValues=false) picks up.
+serviceMonitor:
+  enabled: true
+  metricsEndpoints:
+    - port: metrics
+      interval: 30s
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 200Mi
+  limits:
+    memory: 500Mi
+
+config:
+  receivers:
+    # Suppress the OTLP receivers the chart enables by default — this
+    # collector is metrics-only, kubeletstats-fed.
+    otlp: null
+    jaeger: null
+    zipkin: null
+    prometheus: null
+    kubeletstats:
+      collection_interval: 30s
+      auth_type: serviceAccount
+      endpoint: "https://${env:K8S_NODE_IP}:10250"
+      # kind nodes use kubelet self-signed certs; skip verify locally.
+      # Prod: rotate to a CA-signed kubelet cert and remove this.
+      insecure_skip_verify: true
+      # `volume` group requires the PV CSI metrics endpoint which kind
+      # doesn't expose. node/pod/container is what we need anyway.
+      metric_groups: [node, pod, container]
+
+  processors:
+    # Resource enrichment: read the pod's labels via the API server and
+    # surface them as resource attributes. resource_to_telemetry_conversion
+    # on the prometheus exporter then promotes them to series labels.
+    k8sattributes:
+      auth_type: serviceAccount
+      passthrough: false
+      filter:
+        # Watch all namespaces (otherwise we miss the kube-system pods our
+        # node metrics are tagged against). Filtering happens at the
+        # exporter/dashboard layer, not here.
+        node_from_env_var: K8S_NODE_NAME
+      pod_association:
+        - sources:
+            - from: resource_attribute
+              name: k8s.pod.name
+            - from: resource_attribute
+              name: k8s.namespace.name
+      extract:
+        metadata:
+          - k8s.pod.name
+          - k8s.pod.uid
+          - k8s.namespace.name
+          - k8s.node.name
+          - k8s.deployment.name
+        labels:
+          - tag_name: org_id
+            key: mesh.decocms.com/org-id
+            from: pod
+          - tag_name: user_id
+            key: mesh.decocms.com/user-id
+            from: pod
+          - tag_name: sandbox_handle
+            key: mesh.decocms.com/sandbox-handle
+            from: pod
+          - tag_name: sandbox_role
+            key: mesh.decocms.com/role
+            from: pod
+    batch:
+      send_batch_size: 1024
+      timeout: 10s
+    memory_limiter:
+      check_interval: 1s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+
+  exporters:
+    debug: null
+    # Promotes resource attributes (org_id, user_id, sandbox_handle, …) to
+    # Prometheus series labels. Without this they stay as metadata and
+    # dashboards can't filter on them.
+    prometheus:
+      endpoint: "0.0.0.0:8889"
+      resource_to_telemetry_conversion:
+        enabled: true
+      send_timestamps: true
+      enable_open_metrics: true
+
+  service:
+    telemetry:
+      logs:
+        level: info
+    pipelines:
+      # Drop the chart's default traces/logs pipelines — this collector is
+      # metrics-only.
+      traces: null
+      logs: null
+      metrics:
+        receivers: [kubeletstats]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [prometheus]

@@ -14,6 +14,9 @@ import {
   type RunnerKind,
   type SandboxRunner,
 } from "@decocms/sandbox/runner";
+import { getDb } from "@/database";
+import type { Kysely } from "kysely";
+import type { Database as DatabaseSchema } from "@/storage/types";
 import { KyselySandboxRunnerStateStore } from "@/storage/sandbox-runner-state";
 
 const runners: Partial<Record<RunnerKind, SandboxRunner>> = {};
@@ -28,9 +31,9 @@ function readPreviewUrlPattern(): string | undefined {
 
 async function instantiate(
   kind: RunnerKind,
-  ctx: MeshContext,
+  db: Kysely<DatabaseSchema>,
 ): Promise<SandboxRunner> {
-  const stateStore = new KyselySandboxRunnerStateStore(ctx.db);
+  const stateStore = new KyselySandboxRunnerStateStore(db);
   const previewUrlPattern = readPreviewUrlPattern();
   switch (kind) {
     case "docker":
@@ -70,7 +73,24 @@ export async function getRunnerByKind(
 ): Promise<SandboxRunner> {
   const cached = runners[kind];
   if (cached) return cached;
-  const runner = await instantiate(kind, ctx);
+  const runner = await instantiate(kind, ctx.db);
+  runners[kind] = runner;
+  return runner;
+}
+
+/**
+ * Eager runner accessor for paths that need the runner before any user
+ * request — preview-host proxying at the Bun.serve layer is the only caller
+ * today. Reads the runner kind from env and constructs without a
+ * MeshContext (the state store only needs a Kysely instance). Returns null
+ * when no runner kind is configured.
+ */
+export async function getOrInitSharedRunner(): Promise<SandboxRunner | null> {
+  const kind = tryResolveRunnerKindFromEnv();
+  if (!kind) return null;
+  const cached = runners[kind];
+  if (cached) return cached;
+  const runner = await instantiate(kind, getDb().db);
   runners[kind] = runner;
   return runner;
 }

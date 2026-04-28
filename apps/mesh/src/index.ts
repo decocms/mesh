@@ -78,6 +78,35 @@ function withSecurityHeaders(res: Response): Response {
 // Closed early in gracefulShutdown so the port frees before the Hono drain.
 let ingressServers: import("node:net").Server[] = [];
 
+// Sandbox preview reverse-proxy (K8s only). The base domain is parsed at
+// boot from MESH_SANDBOX_PREVIEW_URL_PATTERN; null disables the proxy and
+// preview-host requests fall through to the normal mesh routing (which 404s
+// because nothing matches). The Bun-level WS handler is registered
+// unconditionally — when previewBaseDomain is null, no upgrade path runs it.
+const {
+  parsePreviewBaseDomain,
+  tryHandlePreviewHttp,
+  tryUpgradePreviewWs,
+  previewWebSocketHandler,
+  isPreviewWsData,
+} = await import("./sandbox/preview-proxy");
+const { getOrInitSharedRunner: getOrInitRunnerForPreview } = await import(
+  "./sandbox/lifecycle"
+);
+const previewBaseDomain = parsePreviewBaseDomain(
+  process.env.MESH_SANDBOX_PREVIEW_URL_PATTERN,
+);
+const previewProxyDeps = {
+  baseDomain: previewBaseDomain ?? "",
+  getRunner: async () => {
+    const runner = await getOrInitRunnerForPreview();
+    if (!runner || runner.kind !== "kubernetes") return null;
+    // The K8s runner is the only one that exposes proxyPreviewRequest /
+    // resolvePreviewUpstreamUrl; cast is safe after the kind check.
+    return runner as unknown as import("@decocms/sandbox/runner/k8s").KubernetesSandboxRunner;
+  },
+};
+
 // Docker-only boot/dev wiring. Both hooks (boot sweep + local ingress) are
 // intimate with Docker-specific primitives (labels, host-port mappings);
 // other runners manage their own VM/ingress lifecycle.
@@ -140,11 +169,47 @@ const server = Bun.serve({
   hostname: "0.0.0.0", // Listen on all network interfaces (required for K8s)
   reusePort,
   fetch: async (request, server) => {
+    // Sandbox preview proxy: matched by Host header. Runs *before* assets
+    // and the Hono app so a `<handle>.preview.<base>` request never hits
+    // mesh's static-file handler (which would 404 on the dev server's
+    // bundle paths). WS upgrades short-circuit Bun.serve's fetch by
+    // returning undefined; HTTP returns a Response.
+    if (previewBaseDomain) {
+      // Bun's Server type defaults T=undefined for upgrade<T>(); cast widens
+      // to our PreviewWsData carrier so the WS handler can stash it. Bun
+      // doesn't enforce data-type consistency at runtime, only via generics.
+      const upgradeRes = await tryUpgradePreviewWs(
+        request,
+        server as unknown as Parameters<typeof tryUpgradePreviewWs>[1],
+        previewProxyDeps,
+      );
+      if (upgradeRes === undefined) return; // upgraded
+      if (upgradeRes) return upgradeRes; // pre-upgrade error
+      const httpRes = await tryHandlePreviewHttp(request, previewProxyDeps);
+      if (httpRes) return httpRes;
+    }
+
     // Try assets first (static files or dev proxy), then API
     // Pass server as env so Hono's getConnInfo can access requestIP
     const assetRes = await handleAssets(request);
     if (assetRes) return withSecurityHeaders(assetRes);
     return app.fetch(request, { server });
+  },
+  // Multiplexed WebSocket handler. `ws.data.kind` discriminates which
+  // upgrader stashed the payload — preview is the only producer today; new
+  // upgraders should add a tagged `kind` and a branch here.
+  websocket: {
+    open(ws) {
+      if (isPreviewWsData(ws.data)) previewWebSocketHandler.open(ws);
+    },
+    message(ws, message) {
+      if (isPreviewWsData(ws.data)) {
+        previewWebSocketHandler.message(ws, message);
+      }
+    },
+    close(ws) {
+      if (isPreviewWsData(ws.data)) previewWebSocketHandler.close(ws);
+    },
   },
   development: settings.nodeEnv !== "production",
 });
