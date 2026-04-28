@@ -1339,7 +1339,6 @@ kubectl top pods -l app.kubernetes.io/instance=deco-studio -n deco-studio
 - **Liveness**: Kills and recreates pods with problems
 - **Readiness**: Removes pods from Service when not ready
 
-
 ## License
 
 This chart is part of the deco-studio project.
