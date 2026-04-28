@@ -404,7 +404,14 @@ describe("DockerSandboxRunner.ensure() — in-process dedupe", () => {
     });
     installFetch(() => healthOkResponse());
 
-    const runner = new DockerSandboxRunner({ exec });
+    // Pass a non-default image so `ensureSandboxImage` short-circuits — otherwise
+    // the runner spawns a real `docker build` (not honoring the injected exec)
+    // and the test times out on the cold cache. Matches the pattern used by the
+    // tests above.
+    const runner = new DockerSandboxRunner({
+      image: "test-image:latest",
+      exec,
+    });
 
     const [a, b] = await Promise.all([runner.ensure(ID), runner.ensure(ID)]);
     expect(a.handle).toBe(b.handle);
@@ -456,7 +463,10 @@ describe("DockerSandboxRunner.ensure() — env contract for unified daemon", () 
     const { exec, calls } = makeExec(defaultResponder);
     installFetch(() => healthOkResponse());
 
-    const runner = new DockerSandboxRunner({ exec });
+    const runner = new DockerSandboxRunner({
+      image: "test-image:latest",
+      exec,
+    });
     await runner.ensure(ID, {
       repo: {
         cloneUrl: "https://x-access-token:TOKEN@github.com/o/r.git",
@@ -515,7 +525,10 @@ describe("DockerSandboxRunner.ensure() — env contract for unified daemon", () 
     const { exec, calls } = makeExec(defaultResponder);
     installFetch(() => healthOkResponse());
 
-    const runner = new DockerSandboxRunner({ exec });
+    const runner = new DockerSandboxRunner({
+      image: "test-image:latest",
+      exec,
+    });
     await runner.ensure(ID);
 
     const runCall = calls.find((c) => c.args[0] === "run")!;
@@ -608,7 +621,11 @@ describe("DockerSandboxRunner.delete()", () => {
         : new Response("", { status: 204 }),
     );
 
-    const runner = new DockerSandboxRunner({ exec, stateStore: store });
+    const runner = new DockerSandboxRunner({
+      image: "test-image:latest",
+      exec,
+      stateStore: store,
+    });
     const sb = await runner.ensure(ID);
 
     // Clear fetch calls so we only see what delete() triggers.
@@ -657,6 +674,7 @@ describe("DockerSandboxRunner — sanity: preview URL & port resolvers", () => {
     installFetch(() => healthOkResponse());
 
     const runner = new DockerSandboxRunner({
+      image: "test-image:latest",
       exec,
       previewUrlPattern: "https://preview.example.com/{handle}",
     });

@@ -42,6 +42,9 @@ import { userAskTool } from "./user-ask";
 import { proposePlanTool } from "./propose-plan";
 import { createGenerateImageTool } from "./generate-image";
 import { createWebSearchTool } from "./web-search";
+import { createTakeScreenshotTool, type PendingImage } from "./take-screenshot";
+import { createScrapeUrlTool } from "./scrape-url";
+import { createInspectPageTool } from "./inspect-page";
 import type { ModelsConfig } from "../types";
 import type { MeshProvider } from "@/ai-providers/types";
 
@@ -61,12 +64,21 @@ export interface BuiltinToolParams {
   toolOutputMap: Map<string, string>;
   passthroughClient: VirtualClient;
   /**
+   * Images captured by take_screenshot, queued for injection as user
+   * messages by prepareStep in stream-core.ts. This approach works
+   * across all providers (including OpenRouter) since images in tool
+   * result messages aren't universally supported.
+   */
+  pendingImages: PendingImage[];
+  /**
    * When set, VM file tools replace the QuickJS sandbox tool. Provisioning
    * already happened in `VM_START` — tools read the handle directly from
    * the vmMap entry.
    */
   activeVm?: ActiveVm | null;
 }
+
+export type { PendingImage };
 
 /**
  * Full tool set type — always includes propose_plan so that ChatMessage
@@ -87,6 +99,7 @@ async function buildAllTools(
     toolApprovalLevel = "auto",
     isPlanMode = false,
     toolOutputMap,
+    pendingImages,
     passthroughClient,
     activeVm,
   } = params;
@@ -173,6 +186,22 @@ async function buildAllTools(
       toolOutputMap,
     });
   }
+  // take_screenshot and scrape_url require Browserless API token
+  if (process.env.BROWSERLESS_TOKEN) {
+    tools.take_screenshot = createTakeScreenshotTool(writer, {
+      ctx,
+      toolOutputMap,
+      pendingImages,
+    });
+    tools.scrape_url = createScrapeUrlTool(writer, {
+      ctx,
+      toolOutputMap,
+    });
+    tools.inspect_page = createInspectPageTool(writer, {
+      ctx,
+      toolOutputMap,
+    });
+  }
   return tools as {
     user_ask: typeof userAskTool;
     propose_plan: typeof proposePlanTool;
@@ -184,6 +213,9 @@ async function buildAllTools(
     read_prompt: ReturnType<typeof createReadPromptTool>;
     generate_image: ReturnType<typeof createGenerateImageTool>;
     web_search: ReturnType<typeof createWebSearchTool>;
+    take_screenshot: ReturnType<typeof createTakeScreenshotTool>;
+    scrape_url: ReturnType<typeof createScrapeUrlTool>;
+    inspect_page: ReturnType<typeof createInspectPageTool>;
   };
 }
 
