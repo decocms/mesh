@@ -2,7 +2,9 @@
  * Agents List Component for Home Page
  *
  * Displays a compact list of agents (Virtual MCPs) with their icon and name.
- * Only shows when the organization has agents.
+ * Order is controlled by the org's `default_home_agents` setting when present;
+ * otherwise falls back to the legacy mix of well-known templates + most-recent
+ * custom agents.
  */
 
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
@@ -14,7 +16,8 @@ import {
   useProjectContext,
   useVirtualMCPs,
 } from "@decocms/mesh-sdk";
-import type { ProjectLocator } from "@decocms/mesh-sdk";
+import type { ProjectLocator, VirtualMCPEntity } from "@decocms/mesh-sdk";
+import { useDefaultHomeAgents } from "@/web/hooks/use-organization-settings";
 
 function readRecentAgentIds(locator: ProjectLocator): string[] {
   try {
@@ -30,10 +33,18 @@ import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.t
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { AiImageRecruitModal } from "@/web/components/home/ai-image-recruit-modal.tsx";
 import { AiResearchRecruitModal } from "@/web/components/home/ai-research-recruit-modal.tsx";
+import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
+import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { Suspense, useState } from "react";
 import { track } from "@/web/lib/posthog-client";
+
+/**
+ * Max tiles rendered on the home view. Keep in sync with the form copy in
+ * `default-home-agents-form.tsx`.
+ */
+const HOME_VIEW_DISPLAY_LIMIT = 8;
 
 type TileKind = "template" | "existing" | "recent";
 type TileAction = "new_chat" | "open_modal" | "navigate";
@@ -177,13 +188,65 @@ function CreateAgentButton() {
   );
 }
 
+/**
+ * Tile = either an existing custom agent that already lives in the org, or a
+ * not-yet-recruited template that opens its specific recruit/import flow.
+ */
+type RecruitModalKey =
+  | "import-deco"
+  | "diagnostics"
+  | "ai-image"
+  | "ai-research"
+  | "lean-canvas"
+  | "studio-pack";
+
+type HomeTile =
+  | {
+      key: string;
+      kind: "template-recruit";
+      templateId:
+        | "site-editor"
+        | "site-diagnostics"
+        | "ai-image"
+        | "ai-research"
+        | "lean-canvas"
+        | "studio-pack";
+      agent: { id: string; title: string; icon?: string | null };
+      onClick: RecruitModalKey;
+    }
+  | {
+      key: string;
+      kind: "existing";
+      templateId: string | null;
+      agent: VirtualMCPEntity & { id: string };
+    };
+
+/**
+ * Match a vMCP to a known template by metadata.type or title.
+ */
+function findExistingForTemplate(
+  agents: VirtualMCPEntity[],
+  templateId: string,
+  templateTitle: string,
+): (VirtualMCPEntity & { id: string }) | undefined {
+  return agents.find(
+    (a): a is typeof a & { id: string } =>
+      a.id !== null &&
+      ((a as { metadata?: { type?: string } }).metadata?.type === templateId ||
+        a.title === templateTitle),
+  );
+}
+
 function AgentsListContent() {
   const virtualMcps = useVirtualMCPs();
   const { locator } = useProjectContext();
+  const orgDefaults = useDefaultHomeAgents();
   const [importDecoOpen, setImportDecoOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
   const [aiImageModalOpen, setAiImageModalOpen] = useState(false);
   const [aiResearchModalOpen, setAiResearchModalOpen] = useState(false);
+  const [leanCanvasModalOpen, setLeanCanvasModalOpen] = useState(false);
+  const [studioPackModalOpen, setStudioPackModalOpen] = useState(false);
   const navigateToAgent = useNavigateToAgent();
 
   const siteEditorAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
@@ -198,131 +261,242 @@ function AgentsListContent() {
   const aiResearchAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
     (t) => t.id === "ai-research",
   )!;
+  const leanCanvasAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "lean-canvas",
+  )!;
+  const studioPackAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "studio-pack",
+  )!;
 
-  const recentIds = readRecentAgentIds(locator);
+  const existingDiagnostics = findExistingForTemplate(
+    virtualMcps,
+    siteDiagnosticsAgent.id,
+    siteDiagnosticsAgent.title,
+  );
+  const existingAiImage = findExistingForTemplate(
+    virtualMcps,
+    aiImageAgent.id,
+    aiImageAgent.title,
+  );
+  const existingAiResearch = findExistingForTemplate(
+    virtualMcps,
+    aiResearchAgent.id,
+    aiResearchAgent.title,
+  );
+  const existingLeanCanvas = findExistingForTemplate(
+    virtualMcps,
+    leanCanvasAgent.id,
+    leanCanvasAgent.title,
+  );
 
-  // Filter out Decopilot, sort by most recently used (from localStorage), then take top 5
-  const agents = virtualMcps
-    .filter(
-      (agent): agent is typeof agent & { id: string } =>
-        agent.id !== null && !isDecopilot(agent.id),
-    )
-    .sort((a, b) => {
-      const aIdx = recentIds.indexOf(a.id);
-      const bIdx = recentIds.indexOf(b.id);
-      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
-      if (aIdx !== -1) return -1;
-      if (bIdx !== -1) return 1;
-      return (
-        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+  /**
+   * Resolve a single id (template id OR custom UUID) into a renderable tile.
+   * Returns null if the id doesn't match any known template or live custom
+   * agent (e.g. the agent was deleted after the admin saved).
+   */
+  const resolveTile = (id: string): HomeTile | null => {
+    if (id === siteEditorAgent.id) {
+      return {
+        key: id,
+        kind: "template-recruit",
+        templateId: "site-editor",
+        agent: siteEditorAgent,
+        onClick: "import-deco",
+      };
+    }
+    if (id === siteDiagnosticsAgent.id) {
+      if (existingDiagnostics) {
+        return {
+          key: existingDiagnostics.id,
+          kind: "existing",
+          templateId: "site-diagnostics",
+          agent: existingDiagnostics,
+        };
+      }
+      return {
+        key: id,
+        kind: "template-recruit",
+        templateId: "site-diagnostics",
+        agent: siteDiagnosticsAgent,
+        onClick: "diagnostics",
+      };
+    }
+    if (id === aiImageAgent.id) {
+      if (existingAiImage) {
+        return {
+          key: existingAiImage.id,
+          kind: "existing",
+          templateId: "ai-image",
+          agent: existingAiImage,
+        };
+      }
+      return {
+        key: id,
+        kind: "template-recruit",
+        templateId: "ai-image",
+        agent: aiImageAgent,
+        onClick: "ai-image",
+      };
+    }
+    if (id === leanCanvasAgent.id) {
+      if (existingLeanCanvas) {
+        return {
+          key: existingLeanCanvas.id,
+          kind: "existing",
+          templateId: "lean-canvas",
+          agent: existingLeanCanvas,
+        };
+      }
+      return {
+        key: id,
+        kind: "template-recruit",
+        templateId: "lean-canvas",
+        agent: leanCanvasAgent,
+        onClick: "lean-canvas",
+      };
+    }
+    if (id === studioPackAgent.id) {
+      return {
+        key: id,
+        kind: "template-recruit",
+        templateId: "studio-pack",
+        agent: studioPackAgent,
+        onClick: "studio-pack",
+      };
+    }
+    if (id === aiResearchAgent.id) {
+      if (existingAiResearch) {
+        return {
+          key: existingAiResearch.id,
+          kind: "existing",
+          templateId: "ai-research",
+          agent: existingAiResearch,
+        };
+      }
+      return {
+        key: id,
+        kind: "template-recruit",
+        templateId: "ai-research",
+        agent: aiResearchAgent,
+        onClick: "ai-research",
+      };
+    }
+    const custom = virtualMcps.find(
+      (a): a is typeof a & { id: string } =>
+        a.id !== null && a.id === id && !isDecopilot(a.id),
+    );
+    if (custom) {
+      return {
+        key: custom.id,
+        kind: "existing",
+        templateId: null,
+        agent: custom,
+      };
+    }
+    return null;
+  };
+
+  let tiles: HomeTile[];
+
+  if (orgDefaults?.ids) {
+    // Admin-controlled order. Resolve in order and drop unresolvable ids.
+    tiles = orgDefaults.ids
+      .map(resolveTile)
+      .filter((t): t is HomeTile => t !== null)
+      .slice(0, HOME_VIEW_DISPLAY_LIMIT);
+  } else {
+    // Legacy fallback: 4 templates + up to 4 most-recent custom agents.
+    const templateIds = [
+      siteEditorAgent.id,
+      siteDiagnosticsAgent.id,
+      aiImageAgent.id,
+      aiResearchAgent.id,
+    ];
+    const templateTiles = templateIds
+      .map(resolveTile)
+      .filter((t): t is HomeTile => t !== null);
+
+    const recentIds = readRecentAgentIds(locator);
+    const recentCustom = virtualMcps
+      .filter(
+        (agent): agent is typeof agent & { id: string } =>
+          agent.id !== null && !isDecopilot(agent.id),
+      )
+      .filter(
+        (a) =>
+          a.id !== existingDiagnostics?.id &&
+          a.id !== existingAiImage?.id &&
+          a.id !== existingAiResearch?.id,
+      )
+      .sort((a, b) => {
+        const aIdx = recentIds.indexOf(a.id);
+        const bIdx = recentIds.indexOf(b.id);
+        if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+        if (aIdx !== -1) return -1;
+        if (bIdx !== -1) return 1;
+        return (
+          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        );
+      })
+      .slice(0, 4)
+      .map(
+        (agent): HomeTile => ({
+          key: agent.id,
+          kind: "existing",
+          templateId: null,
+          agent,
+        }),
       );
-    })
-    .slice(0, 4);
 
-  // Check if Site Diagnostics agent already exists (search full list, not just top-5)
-  const existingDiagnostics = virtualMcps.find(
-    (a): a is typeof a & { id: string } =>
-      a.id !== null &&
-      ((a as { metadata?: { type?: string } }).metadata?.type ===
-        siteDiagnosticsAgent.id ||
-        a.title === siteDiagnosticsAgent.title),
+    tiles = [...templateTiles, ...recentCustom];
+  }
+
+  const hasAgents = tiles.some(
+    (tile) => tile.kind === "existing" && tile.templateId === null,
   );
 
-  // Check if AI Image agent already exists
-  const existingAiImage = virtualMcps.find(
-    (a): a is typeof a & { id: string } =>
-      a.id !== null &&
-      ((a as { metadata?: { type?: string } }).metadata?.type ===
-        aiImageAgent.id ||
-        a.title === aiImageAgent.title),
-  );
-
-  // Check if AI Research agent already exists
-  const existingAiResearch = virtualMcps.find(
-    (a): a is typeof a & { id: string } =>
-      a.id !== null &&
-      ((a as { metadata?: { type?: string } }).metadata?.type ===
-        aiResearchAgent.id ||
-        a.title === aiResearchAgent.title),
-  );
-
-  const hasAgents = agents.length > 0;
+  const renderTile = (tile: HomeTile) => {
+    if (tile.kind === "template-recruit") {
+      const handler = {
+        "import-deco": () => setImportDecoOpen(true),
+        diagnostics: () => setDiagnosticsModalOpen(true),
+        "ai-image": () => setAiImageModalOpen(true),
+        "ai-research": () => setAiResearchModalOpen(true),
+        "lean-canvas": () => setLeanCanvasModalOpen(true),
+        "studio-pack": () => setStudioPackModalOpen(true),
+      }[tile.onClick];
+      return (
+        <AgentPreview
+          key={tile.key}
+          agent={tile.agent}
+          onSpecialClick={handler}
+          tracking={{
+            template_id: tile.templateId,
+            tile_kind: "template",
+            action: "open_modal",
+          }}
+        />
+      );
+    }
+    return (
+      <AgentPreview
+        key={tile.key}
+        agent={tile.agent}
+        onSpecialClick={() => navigateToAgent(tile.agent.id)}
+        tracking={{
+          template_id: tile.templateId,
+          tile_kind: tile.templateId ? "existing" : "recent",
+          action: "navigate",
+        }}
+      />
+    );
+  };
 
   return (
     <>
       <div className="w-full max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
         <div className="flex flex-wrap justify-center gap-1.5 max-md:flex-nowrap max-md:justify-start md:max-h-52 md:overflow-hidden">
-          <AgentPreview
-            key={siteEditorAgent.id}
-            agent={siteEditorAgent}
-            onSpecialClick={() => setImportDecoOpen(true)}
-            tracking={{
-              template_id: siteEditorAgent.id,
-              tile_kind: "template",
-              action: "open_modal",
-            }}
-          />
-          <AgentPreview
-            key={siteDiagnosticsAgent.id}
-            agent={existingDiagnostics ?? siteDiagnosticsAgent}
-            onSpecialClick={
-              existingDiagnostics
-                ? () => navigateToAgent(existingDiagnostics.id)
-                : () => setDiagnosticsModalOpen(true)
-            }
-            tracking={{
-              template_id: siteDiagnosticsAgent.id,
-              tile_kind: existingDiagnostics ? "existing" : "template",
-              action: existingDiagnostics ? "navigate" : "open_modal",
-            }}
-          />
-          <AgentPreview
-            key={aiImageAgent.id}
-            agent={existingAiImage ?? aiImageAgent}
-            onSpecialClick={
-              existingAiImage
-                ? () => navigateToAgent(existingAiImage.id)
-                : () => setAiImageModalOpen(true)
-            }
-            tracking={{
-              template_id: aiImageAgent.id,
-              tile_kind: existingAiImage ? "existing" : "template",
-              action: existingAiImage ? "navigate" : "open_modal",
-            }}
-          />
-          <AgentPreview
-            key={aiResearchAgent.id}
-            agent={existingAiResearch ?? aiResearchAgent}
-            onSpecialClick={
-              existingAiResearch
-                ? () => navigateToAgent(existingAiResearch.id)
-                : () => setAiResearchModalOpen(true)
-            }
-            tracking={{
-              template_id: aiResearchAgent.id,
-              tile_kind: existingAiResearch ? "existing" : "template",
-              action: existingAiResearch ? "navigate" : "open_modal",
-            }}
-          />
-          {agents
-            .filter(
-              (a) =>
-                a.id !== existingDiagnostics?.id &&
-                a.id !== existingAiImage?.id &&
-                a.id !== existingAiResearch?.id,
-            )
-            .map((agent) => (
-              <AgentPreview
-                key={agent.id ?? "default"}
-                agent={agent}
-                onSpecialClick={() => navigateToAgent(agent.id)}
-                tracking={{
-                  template_id: null,
-                  tile_kind: "recent",
-                  action: "navigate",
-                }}
-              />
-            ))}
+          {tiles.map(renderTile)}
           <CreateAgentButton />
           {hasAgents && <SeeAllButton />}
         </div>
@@ -349,6 +523,17 @@ function AgentsListContent() {
         open={aiResearchModalOpen}
         onOpenChange={setAiResearchModalOpen}
         existingAgent={existingAiResearch}
+      />
+
+      <LeanCanvasRecruitModal
+        open={leanCanvasModalOpen}
+        onOpenChange={setLeanCanvasModalOpen}
+        existingAgent={existingLeanCanvas}
+      />
+
+      <StudioPackRecruitModal
+        open={studioPackModalOpen}
+        onOpenChange={setStudioPackModalOpen}
       />
     </>
   );

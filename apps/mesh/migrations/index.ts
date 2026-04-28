@@ -69,6 +69,7 @@ import * as migration067threadsmetadata from "./067-threads-metadata.ts";
 import * as migration068threadsbranch from "./068-threads-branch.ts";
 import * as migration069sandboxrunnerstate from "./069-sandbox-runner-state.ts";
 import * as migration070modelcategories from "./070-model-categories.ts";
+import * as migration071defaulthomeagents from "./071-default-home-agents.ts";
 
 /**
  * Core migrations for the Mesh application.
@@ -152,6 +153,7 @@ const migrations: Record<string, Migration> = {
   "068-threads-branch": migration068threadsbranch,
   "069-sandbox-runner-state": migration069sandboxrunnerstate,
   "070-model-categories": migration070modelcategories,
+  "071-default-home-agents": migration071defaulthomeagents,
 };
 
 export default migrations;

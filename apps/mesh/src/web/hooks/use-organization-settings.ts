@@ -37,12 +37,17 @@ export interface RegistryConfig {
   blockedMcps: string[];
 }
 
+export interface DefaultHomeAgentsConfig {
+  ids: string[];
+}
+
 export interface OrganizationSettings {
   organizationId: string;
   sidebar_items: unknown[] | null;
   enabled_plugins: string[] | null;
   registry_config: RegistryConfig | null;
   simple_mode: SimpleModeConfig | null;
+  default_home_agents: DefaultHomeAgentsConfig | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -53,6 +58,7 @@ const EMPTY_SETTINGS: OrganizationSettings = {
   enabled_plugins: null,
   registry_config: null,
   simple_mode: null,
+  default_home_agents: null,
 };
 
 const EMPTY_SIMPLE_MODE: SimpleModeConfig = {
@@ -134,7 +140,11 @@ export function useOrganizationSettingsSuspense(
 type OrgSettingsUpdateInput = Partial<
   Pick<
     OrganizationSettings,
-    "sidebar_items" | "enabled_plugins" | "registry_config" | "simple_mode"
+    | "sidebar_items"
+    | "enabled_plugins"
+    | "registry_config"
+    | "simple_mode"
+    | "default_home_agents"
   >
 >;
 
@@ -260,6 +270,26 @@ export function useUpdateRegistryConfig() {
  * registry. Falls back to "Deco Store is the default" when no registry_config
  * is set.
  */
+export function useDefaultHomeAgents(): DefaultHomeAgentsConfig | null {
+  const { data } = useOrganizationSettings((s) => s.default_home_agents);
+  return data ?? null;
+}
+
+export function useUpdateDefaultHomeAgents() {
+  const mutation = useUpdateOrganizationSettings();
+  return {
+    ...mutation,
+    mutate: (
+      config: DefaultHomeAgentsConfig,
+      options?: OrgSettingsMutateOptions,
+    ) => mutation.mutate({ default_home_agents: config }, options),
+    mutateAsync: (
+      config: DefaultHomeAgentsConfig,
+      options?: OrgSettingsMutateOptions,
+    ) => mutation.mutateAsync({ default_home_agents: config }, options),
+  };
+}
+
 export function useIsRegistryEnabled(): (connectionId: string) => boolean {
   const { org } = useProjectContext();
   const registryConfig = useRegistryConfig();
