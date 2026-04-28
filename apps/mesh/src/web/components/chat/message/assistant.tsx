@@ -19,6 +19,7 @@ import {
   ProposePlanPart,
   SubtaskPart,
   UserAskPart,
+  RenderHtmlPart,
 } from "./parts/tool-call-part/index.ts";
 import { SmartAutoScroll } from "./smart-auto-scroll.tsx";
 import {
@@ -437,6 +438,8 @@ function MessagePart({
           streamingText={dataParts.webSearchStreaming.get(part.toolCallId)}
         />
       );
+    case "tool-render_html":
+      return <RenderHtmlPart part={part} />;
     case "tool-subtask":
       return (
         <SubtaskPart

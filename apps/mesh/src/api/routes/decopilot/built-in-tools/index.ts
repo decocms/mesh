@@ -28,6 +28,7 @@ const BUILTIN_TOOL_ANNOTATIONS: Record<
   user_ask: { readOnly: true, destructive: false },
   propose_plan: { readOnly: true, destructive: false },
   enable_tools: { readOnly: true, destructive: false },
+  render_html: { readOnly: true, destructive: false },
 };
 import { createAgentSearchTool } from "./agent-search";
 import { createReadToolOutputTool } from "./read-tool-output";
@@ -46,6 +47,7 @@ import { createTakeScreenshotTool, type PendingImage } from "./take-screenshot";
 import { createScrapeUrlTool } from "./scrape-url";
 import { createInspectPageTool } from "./inspect-page";
 import type { ModelsConfig } from "../types";
+import { createRenderHtmlTool } from "./render-html";
 import type { MeshProvider } from "@/ai-providers/types";
 
 export type ActiveVm = {
@@ -128,6 +130,7 @@ async function buildAllTools(
       passthroughClient,
       toolOutputMap,
     }),
+    render_html: createRenderHtmlTool(),
   };
   // VM file tools — same six LLM-visible tools across runners (schemas in
   // vm-tools/schemas.ts). Dispatch resolves through `getRunnerByKind` so
@@ -216,6 +219,7 @@ async function buildAllTools(
     take_screenshot: ReturnType<typeof createTakeScreenshotTool>;
     scrape_url: ReturnType<typeof createScrapeUrlTool>;
     inspect_page: ReturnType<typeof createInspectPageTool>;
+    render_html: ReturnType<typeof createRenderHtmlTool>;
   };
 }
 

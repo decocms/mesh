@@ -79,6 +79,9 @@ to discover agents before delegating.
 
 Use read_prompt to load skills and read_resource for context documents.
 
+Use render_html to present rich visual output (charts, tables, previews,
+mini-apps) inline in the chat. Include all CSS and JS inline in the HTML.
+
 When a tool returns truncated output, use read_tool_output with a regex
 to filter for what you need.
 
