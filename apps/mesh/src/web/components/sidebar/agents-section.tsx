@@ -414,11 +414,9 @@ function PinAgentPopoverContent({
   );
   const existingAiImage = aiImageTemplate
     ? allAgents.find(
-        (a): a is typeof a & { id: string } =>
-          a.id !== null &&
-          ((a as { metadata?: { type?: string } }).metadata?.type ===
-            aiImageTemplate.id ||
-            a.title === aiImageTemplate.title),
+        (a) =>
+          (a as { metadata?: { type?: string } }).metadata?.type ===
+          aiImageTemplate.id,
       )
     : undefined;
 
@@ -427,11 +425,9 @@ function PinAgentPopoverContent({
   );
   const existingAiResearch = aiResearchTemplate
     ? allAgents.find(
-        (a): a is typeof a & { id: string } =>
-          a.id !== null &&
-          ((a as { metadata?: { type?: string } }).metadata?.type ===
-            aiResearchTemplate.id ||
-            a.title === aiResearchTemplate.title),
+        (a) =>
+          (a as { metadata?: { type?: string } }).metadata?.type ===
+          aiResearchTemplate.id,
       )
     : undefined;
 
