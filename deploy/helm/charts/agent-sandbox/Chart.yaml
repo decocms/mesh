@@ -1,0 +1,8 @@
+apiVersion: v2
+name: agent-sandbox
+description: kubernetes-sigs/agent-sandbox operator + CRDs, vendored for mesh
+type: application
+# Subchart version is independent of upstream. Bump on any vendored change.
+version: 0.1.0
+# Tracks the upstream release pinned by vendor.sh.
+appVersion: "0.4.2"

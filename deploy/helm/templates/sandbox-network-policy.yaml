@@ -1,0 +1,93 @@
+{{- if and .Values.sandbox.agentSandbox.enabled .Values.sandbox.agentSandbox.networkPolicy.enabled }}
+# NetworkPolicy for mesh sandbox pods. Derived from PLAN-K8S-REMAINING.md
+# section 2.1 — the prior 2.1 PR that was meant to land a local/prod network
+# policy had not merged at the time this chart was authored, so the spec
+# below tracks the plan directly. Reconcile if the 2.1 PR lands a different
+# shape.
+#
+# Scope: selects pods in agent-sandbox-system labeled
+# app.kubernetes.io/name=studio-sandbox. Applies both ingress and egress rules,
+# so egress is deny-by-default (policyType Egress with only allowed rules).
+#
+# Threat model: workload is arbitrary user code. Egress must not reach IMDS
+# (169.254.169.254), in-cluster RFC1918 services, or link-local addresses.
+# Combine with EKS IMDSv2 hop-limit=1 at the node level — this policy alone
+# is not sufficient on clouds where IMDS is reachable via hop.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: studio-sandbox
+  namespace: agent-sandbox-system
+  labels:
+    app.kubernetes.io/name: studio-sandbox
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ include "chart-deco-studio.chart" . }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: studio-sandbox
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Daemon port (9000) — mesh server pods call this to exec tools, stream
+    # logs, etc. Also the *preview* request path: when previewGateway is
+    # enabled, mesh reverse-proxies `*.preview.<domain>` traffic to the
+    # daemon here so the daemon's CSP/HMR rewrites apply (port 3000 would
+    # bypass them). Matches the chart's own selectorLabels so self-hosters
+    # who use the default deployment get the rule automatically.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector:
+            matchLabels:
+              {{- include "chart-deco-studio.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 9000
+    {{- with .Values.sandbox.agentSandbox.networkPolicy.previewGatewayNamespace }}
+    # Legacy/standby — direct ingress on dev port 3000 from a configured
+    # gateway namespace. Only needed for setups that route preview traffic
+    # *around* mesh (no daemon CSP/HMR rewrites). The standard Istio
+    # Gateway API path lands on port 9000 via mesh and doesn't need this.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . }}
+      ports:
+        - protocol: TCP
+          port: 3000
+    {{- end }}
+  egress:
+    # CoreDNS — UDP + TCP 53.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Public internet on 80/443 with IMDS, RFC1918, and link-local blocked.
+    # Covers bun install, git clone, external APIs without opening the
+    # sandbox to in-cluster services.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 169.254.0.0/16   # link-local + IMDSv2
+              - 10.0.0.0/8       # RFC1918
+              - 172.16.0.0/12    # RFC1918
+              - 192.168.0.0/16   # RFC1918
+              - 100.64.0.0/10    # carrier-grade NAT / EKS VPC CNI pods
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+{{- end }}

@@ -4,6 +4,7 @@ description: A Helm chart for deco Studio self-hosted deployment
 type: application
 version: 0.6.2
 appVersion: "latest"
+kubeVersion: ">=1.30.0-0"
 
 dependencies:
   - name: nats
@@ -14,3 +15,10 @@ dependencies:
     version: "0.147.2"
     repository: "https://open-telemetry.github.io/opentelemetry-helm-charts"
     condition: otel.collector.enabled
+  # Local subchart — vendors kubernetes-sigs/agent-sandbox operator + CRDs for
+  # the mesh k8s sandbox runner. Upstream doesn't publish a Helm chart, so we
+  # pin and ship release YAML here. See charts/agent-sandbox/README.md.
+  - name: agent-sandbox
+    version: "0.1.0"
+    repository: "file://./charts/agent-sandbox"
+    condition: sandbox.agentSandbox.enabled

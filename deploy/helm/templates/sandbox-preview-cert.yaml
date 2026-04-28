@@ -1,0 +1,34 @@
+{{- if and .Values.sandbox.agentSandbox.enabled .Values.sandbox.agentSandbox.previewGateway.enabled }}
+{{- $domain := required "sandbox.agentSandbox.previewGateway.domain is required when previewGateway.enabled=true" .Values.sandbox.agentSandbox.previewGateway.domain }}
+{{- $issuer := required "sandbox.agentSandbox.previewGateway.clusterIssuer is required when previewGateway.enabled=true" .Values.sandbox.agentSandbox.previewGateway.clusterIssuer }}
+{{- $gwNamespace := .Values.sandbox.agentSandbox.previewGateway.namespace }}
+{{- $tlsSecretName := default (printf "%s-sandbox-preview-tls" (include "chart-deco-studio.fullname" .)) .Values.sandbox.agentSandbox.previewGateway.tlsSecretName }}
+{{- $meshServiceName := include "chart-deco-studio.fullname" . }}
+# Wildcard cert for the sandbox preview Gateway. cert-manager places the
+# Secret in the gateway namespace so the Gateway listener can mount it
+# without a cross-namespace reference.
+#
+# DNS-01 is the only solver that can validate a wildcard SAN, so the
+# referenced ClusterIssuer must be DNS-01 (e.g. Cloudflare, Route53). The
+# chart does not template the ClusterIssuer itself — the API tokens
+# required to provision DNS records are per-cluster infra, not chart
+# config. See deploy/helm/README.md for a Cloudflare DNS-01 ClusterIssuer
+# template.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ $meshServiceName }}-sandbox-preview
+  namespace: {{ $gwNamespace }}
+  labels:
+    app.kubernetes.io/name: studio-sandbox-preview
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ include "chart-deco-studio.chart" . }}
+spec:
+  secretName: {{ $tlsSecretName }}
+  issuerRef:
+    kind: ClusterIssuer
+    name: {{ $issuer | quote }}
+  commonName: {{ printf "*.%s" $domain | quote }}
+  dnsNames:
+    - {{ printf "*.%s" $domain | quote }}
+{{- end }}
