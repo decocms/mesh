@@ -402,6 +402,7 @@ function SubProviderGroup({
   connectionId,
   subProviderId,
   subProviderName,
+  groupLogo,
   models,
   selectedModels,
   allowAllModels,
@@ -413,6 +414,7 @@ function SubProviderGroup({
   connectionId: string;
   subProviderId: string;
   subProviderName: string;
+  groupLogo: string | null;
   models: GroupedModel[];
   selectedModels: string[];
   allowAllModels: boolean;
@@ -442,7 +444,7 @@ function SubProviderGroup({
       >
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <IntegrationIcon
-            icon={PROVIDER_LOGOS[subProviderId] ?? DEFAULT_LOGO}
+            icon={groupLogo ?? PROVIDER_LOGOS[subProviderId] ?? DEFAULT_LOGO}
             name={subProviderName}
             size="sm"
           />
@@ -566,18 +568,27 @@ function ConnectionModelsSection({
 
   if (filteredModels.length === 0) return null;
 
-  const groupsMap = new Map<string, GroupedModel[]>();
+  const groupsMap = new Map<
+    string,
+    { models: GroupedModel[]; logo: string | null }
+  >();
   for (const m of filteredModels) {
     const subId = getSubProviderId(m.id, connection.providerId);
-    const list = groupsMap.get(subId) ?? [];
-    list.push({ id: m.id, title: stripTitlePrefix(m.title), logo: m.logo });
-    groupsMap.set(subId, list);
+    const entry = groupsMap.get(subId) ?? { models: [], logo: null };
+    entry.models.push({
+      id: m.id,
+      title: stripTitlePrefix(m.title),
+      logo: m.logo,
+    });
+    if (!entry.logo && m.logo) entry.logo = m.logo;
+    groupsMap.set(subId, entry);
   }
   const groups = Array.from(groupsMap.entries())
-    .map(([id, items]) => ({
+    .map(([id, entry]) => ({
       id,
       name: getSubProviderDisplayName(id),
-      models: items,
+      logo: entry.logo,
+      models: entry.models,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -609,6 +620,7 @@ function ConnectionModelsSection({
             connectionId={connection.id}
             subProviderId={group.id}
             subProviderName={group.name}
+            groupLogo={group.logo}
             models={group.models}
             selectedModels={selectedModels}
             allowAllModels={allowAllModels}
