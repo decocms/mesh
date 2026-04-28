@@ -12,7 +12,7 @@
   "exports": {
     "./shared": "./shared.ts",
     "./runner": "./server/runner/index.ts",
-    "./runner/k8s": "./server/runner/k8s/index.ts",
+    "./runner/agent-sandbox": "./server/runner/agent-sandbox/index.ts",
     "./runner/freestyle": "./server/runner/freestyle/index.ts"
   },
   "dependencies": {

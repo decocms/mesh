@@ -19,8 +19,8 @@ Three runner backends live behind the common `SandboxRunner` interface
   Freestyle-provided HTTPS domain; daemon traffic is base64-wrapped to clear
   Cloudflare WAF. SDKs are `optionalDependencies` and only pulled in when this
   runner is selected.
-- **Kubernetes** (`./runner/k8s`) — one `SandboxClaim` per sandbox against the
-  [kubernetes-sigs/agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox)
+- **agent-sandbox** (`./runner/agent-sandbox`) — one `SandboxClaim` per sandbox
+  against the [kubernetes-sigs/agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox)
   operator. Mesh talks to pods via apiserver port-forward in dev; in prod,
   `previewUrlPattern` switches the preview URL to real ingress and skips the
   dev forward.
@@ -30,12 +30,12 @@ Three runner backends live behind the common `SandboxRunner` interface
 The host app calls `resolveRunnerKindFromEnv()` / `tryResolveRunnerKindFromEnv()`
 from `./runner`:
 
-1. `MESH_SANDBOX_RUNNER=docker|freestyle|kubernetes` wins when set.
+1. `STUDIO_SANDBOX_RUNNER=docker|freestyle|agent-sandbox` wins when set.
 2. Otherwise, `FREESTYLE_API_KEY` present → `freestyle`.
 3. Otherwise, in `NODE_ENV=production` → unresolved (strict variant throws).
 4. Otherwise (dev) → `docker` if the CLI is on `PATH`, else unresolved.
 
-Kubernetes is **explicit-only** — it's never auto-selected, so docker-only
+agent-sandbox is **explicit-only** — it's never auto-selected, so docker-only
 deploys don't accidentally need a kubeconfig.
 
 ## URL shape
@@ -65,10 +65,10 @@ for this, you can remove them — they're no longer needed.
 
 ## Environment
 
-- `MESH_SANDBOX_RUNNER` — pin the runner: `docker`, `freestyle`, or
-  `kubernetes`. Leave unset in dev to let auto-detect pick docker.
+- `STUDIO_SANDBOX_RUNNER` — pin the runner: `docker`, `freestyle`, or
+  `agent-sandbox`. Leave unset in dev to let auto-detect pick docker.
 - `FREESTYLE_API_KEY` — required for the Freestyle runner. Presence also
-  auto-selects it when `MESH_SANDBOX_RUNNER` is unset.
+  auto-selects it when `STUDIO_SANDBOX_RUNNER` is unset.
 - `MESH_SANDBOX_IMAGE` — override the Docker runner image
   (default `mesh-sandbox:local`, built from `image/Dockerfile`).
 - `SANDBOX_INGRESS_PORT` (default `7070`) — local Docker ingress bind port.

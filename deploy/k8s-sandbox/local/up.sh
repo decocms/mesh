@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bring up the local kind cluster used by KubernetesSandboxRunner.
+# Bring up the local kind cluster used by AgentSandboxRunner.
 #
 # Idempotent: re-running re-applies the operator + template and reloads the
 # sandbox image. Cluster creation is skipped if studio-sandbox-dev already

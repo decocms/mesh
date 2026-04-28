@@ -201,11 +201,11 @@ describe("VM_DELETE", () => {
   });
 
   // Regression guard for the invariant called out in stop.ts:1–5: a pod that
-  // flipped MESH_SANDBOX_RUNNER between start and stop must still tear down
+  // flipped STUDIO_SANDBOX_RUNNER between start and stop must still tear down
   // the runner that the entry was created against.
-  it("dispatches on the entry's runnerKind even when MESH_SANDBOX_RUNNER env disagrees", async () => {
-    const original = process.env.MESH_SANDBOX_RUNNER;
-    process.env.MESH_SANDBOX_RUNNER = "freestyle";
+  it("dispatches on the entry's runnerKind even when STUDIO_SANDBOX_RUNNER env disagrees", async () => {
+    const original = process.env.STUDIO_SANDBOX_RUNNER;
+    process.env.STUDIO_SANDBOX_RUNNER = "freestyle";
     try {
       const metadata: Metadata = {
         vmMap: { "user-1": { [BRANCH]: DOCKER_ENTRY } },
@@ -218,8 +218,8 @@ describe("VM_DELETE", () => {
       expect(mockDelete).toHaveBeenCalledWith(DOCKER_ENTRY.vmId);
       expect(lastRequestedKind.value).toBe("docker");
     } finally {
-      if (original === undefined) delete process.env.MESH_SANDBOX_RUNNER;
-      else process.env.MESH_SANDBOX_RUNNER = original;
+      if (original === undefined) delete process.env.STUDIO_SANDBOX_RUNNER;
+      else process.env.STUDIO_SANDBOX_RUNNER = original;
     }
   });
 

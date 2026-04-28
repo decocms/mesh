@@ -1,4 +1,4 @@
-{{- if and .Values.sandbox.kubernetes.enabled .Values.sandbox.kubernetes.warmPool.enabled }}
+{{- if and .Values.sandbox.agentSandbox.enabled .Values.sandbox.agentSandbox.warmPool.enabled }}
 # Pre-warms N sandbox pods against the shared SandboxTemplate so new claims
 # bind instantly rather than waiting on image pull + kubelet start. Disabled
 # by default — enable only after measuring cold-start pain; every pool
@@ -16,7 +16,7 @@ metadata:
     app.kubernetes.io/managed-by: {{ .Release.Service }}
     helm.sh/chart: {{ include "chart-deco-studio.chart" . }}
 spec:
-  replicas: {{ .Values.sandbox.kubernetes.warmPool.size }}
+  replicas: {{ .Values.sandbox.agentSandbox.warmPool.size }}
   sandboxTemplateRef:
     name: studio-sandbox
 {{- end }}

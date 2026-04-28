@@ -21,4 +21,4 @@ dependencies:
   - name: agent-sandbox
     version: "0.1.0"
     repository: "file://./charts/agent-sandbox"
-    condition: sandbox.kubernetes.enabled
+    condition: sandbox.agentSandbox.enabled

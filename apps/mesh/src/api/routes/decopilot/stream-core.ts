@@ -476,7 +476,7 @@ async function streamCoreInner(
               {
                 vmId: string;
                 previewUrl: string;
-                runnerKind?: "docker" | "freestyle" | "kubernetes";
+                runnerKind?: "docker" | "freestyle" | "agent-sandbox";
               }
             >
           >;
@@ -491,7 +491,7 @@ async function streamCoreInner(
               runnerKind: (activeVmEntry.runnerKind ?? "freestyle") as
                 | "docker"
                 | "freestyle"
-                | "kubernetes",
+                | "agent-sandbox",
               vmId: activeVmEntry.vmId,
             }
           : null;

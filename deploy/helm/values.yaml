@@ -319,7 +319,7 @@ opentelemetry-collector:
           processors: [memory_limiter, batch]
           exporters: [debug]
 
-# K8s sandbox runner. Requires MESH_SANDBOX_RUNNER=kubernetes in mesh env.
+# Agent-sandbox runner. Requires STUDIO_SANDBOX_RUNNER=agent-sandbox in mesh env.
 # Disabled by default — self-hosters on the Docker runner (simpler, no
 # cluster needed) leave this off and don't pay the agent-sandbox operator
 # install cost.
@@ -332,7 +332,7 @@ opentelemetry-collector:
 #
 # See deploy/helm/README.md for the enable/upgrade procedure.
 sandbox:
-  kubernetes:
+  agentSandbox:
     enabled: false
     image:
       repository: ghcr.io/decocms/mesh-sandbox

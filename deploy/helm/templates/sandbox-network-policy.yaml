@@ -1,4 +1,4 @@
-{{- if and .Values.sandbox.kubernetes.enabled .Values.sandbox.kubernetes.networkPolicy.enabled }}
+{{- if and .Values.sandbox.agentSandbox.enabled .Values.sandbox.agentSandbox.networkPolicy.enabled }}
 # NetworkPolicy for mesh sandbox pods. Derived from PLAN-K8S-REMAINING.md
 # section 2.1 — the prior 2.1 PR that was meant to land a local/prod network
 # policy had not merged at the time this chart was authored, so the spec
@@ -46,7 +46,7 @@ spec:
       ports:
         - protocol: TCP
           port: 9000
-    {{- with .Values.sandbox.kubernetes.networkPolicy.previewGatewayNamespace }}
+    {{- with .Values.sandbox.agentSandbox.networkPolicy.previewGatewayNamespace }}
     # Legacy/standby — direct ingress on dev port 3000 from a configured
     # gateway namespace. Only needed for setups that route preview traffic
     # *around* mesh (no daemon CSP/HMR rewrites). The standard Istio

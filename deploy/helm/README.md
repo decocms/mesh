@@ -1339,10 +1339,10 @@ kubectl top pods -l app.kubernetes.io/instance=deco-studio -n deco-studio
 - **Liveness**: Kills and recreates pods with problems
 - **Readiness**: Removes pods from Service when not ready
 
-## K8s sandbox runner
+## Agent-sandbox runner
 
-Mesh ships with three sandbox runners (Docker, Freestyle, Kubernetes) for
-isolating user code execution. The Kubernetes runner uses
+Mesh ships with three sandbox runners (Docker, Freestyle, agent-sandbox) for
+isolating user code execution. The agent-sandbox runner uses
 [`kubernetes-sigs/agent-sandbox`](https://github.com/kubernetes-sigs/agent-sandbox)
 as its control loop. For self-hosters on Kubernetes it's the most scalable
 option; for single-node or dev setups the Docker runner is simpler and the
@@ -1352,11 +1352,11 @@ default.
 
 ```bash
 helm install deco-studio deploy/helm/ \
-  --set sandbox.kubernetes.enabled=true \
+  --set sandbox.agentSandbox.enabled=true \
   --namespace deco-studio --create-namespace
 ```
 
-Then set `MESH_SANDBOX_RUNNER=kubernetes` in the mesh server environment
+Then set `STUDIO_SANDBOX_RUNNER=agent-sandbox` in the mesh server environment
 (`configMap.meshConfig` or `env:` in values). With `enabled=true` the chart
 installs, in order:
 
@@ -1366,11 +1366,11 @@ installs, in order:
   namespace.
 - A `SandboxTemplate` named `studio-sandbox` — the shared pod template every
   `SandboxClaim` references. Image, pull policy, and resources come from
-  `sandbox.kubernetes.*`.
+  `sandbox.agentSandbox.*`.
 - A `NetworkPolicy` that scopes sandbox-pod ingress/egress (see
   [Security](#security)).
 - Optionally a `SandboxWarmPool` (disabled unless
-  `sandbox.kubernetes.warmPool.enabled=true`).
+  `sandbox.agentSandbox.warmPool.enabled=true`).
 
 With `enabled=false` (default) none of the above renders — `helm template`
 emits zero sandbox-related resources.
@@ -1382,19 +1382,19 @@ emits zero sandbox-related resources.
   there's no out-of-chart install step.
 - Cluster capacity for sandbox pods. Defaults request `500m` CPU / `1Gi`
   memory per sandbox and cap at `2` CPU / `4Gi` / `10Gi` ephemeral. Tune
-  via `sandbox.kubernetes.resources.*`.
+  via `sandbox.agentSandbox.resources.*`.
 - For preview URLs (`*.preview.<domain>`), see
   [Sandbox preview ingress](#sandbox-preview-ingress) below — this is the
   standard path and uses the Gateway API + cert-manager.
 - The legacy
-  `sandbox.kubernetes.networkPolicy.previewGatewayNamespace` knob is only
+  `sandbox.agentSandbox.networkPolicy.previewGatewayNamespace` knob is only
   needed for setups that route preview traffic *around* mesh, terminating
   directly on the sandbox's port 3000. The standard path lands on port
   9000 via mesh, where the daemon's CSP/HMR rewrites apply.
 
 ### Sandbox preview ingress
 
-When `sandbox.kubernetes.previewGateway.enabled=true`, the chart renders
+When `sandbox.agentSandbox.previewGateway.enabled=true`, the chart renders
 an Istio Gateway + HTTPRoute + cert-manager Certificate that send
 `*.preview.<domain>` traffic to the mesh Service. Mesh recognises the
 Host header and reverse-proxies to the matching sandbox's daemon at
@@ -1404,7 +1404,7 @@ Required values:
 
 ```yaml
 sandbox:
-  kubernetes:
+  agentSandbox:
     enabled: true
     previewUrlPattern: "https://{handle}.preview.example.com"
     previewGateway:
@@ -1490,8 +1490,8 @@ where the image is loaded via `kind load docker-image`, override:
 
 ```bash
 helm install deco-studio deploy/helm/ \
-  --set sandbox.kubernetes.enabled=true \
-  --set sandbox.kubernetes.image.pullPolicy=Never \
+  --set sandbox.agentSandbox.enabled=true \
+  --set sandbox.agentSandbox.image.pullPolicy=Never \
   --kube-context kind-<your-cluster> \
   --namespace deco-studio --create-namespace
 ```
@@ -1524,7 +1524,7 @@ the full story.
 
 ### Security
 
-The default `NetworkPolicy` (`sandbox.kubernetes.networkPolicy.enabled=true`):
+The default `NetworkPolicy` (`sandbox.agentSandbox.networkPolicy.enabled=true`):
 
 - **Ingress**: allows mesh server pods (chart's own selector labels) to
   reach port 9000 (daemon) on sandbox pods; optionally allows the

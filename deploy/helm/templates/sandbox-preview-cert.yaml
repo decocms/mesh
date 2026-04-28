@@ -1,8 +1,8 @@
-{{- if and .Values.sandbox.kubernetes.enabled .Values.sandbox.kubernetes.previewGateway.enabled }}
-{{- $domain := required "sandbox.kubernetes.previewGateway.domain is required when previewGateway.enabled=true" .Values.sandbox.kubernetes.previewGateway.domain }}
-{{- $issuer := required "sandbox.kubernetes.previewGateway.clusterIssuer is required when previewGateway.enabled=true" .Values.sandbox.kubernetes.previewGateway.clusterIssuer }}
-{{- $gwNamespace := .Values.sandbox.kubernetes.previewGateway.namespace }}
-{{- $tlsSecretName := default (printf "%s-sandbox-preview-tls" (include "chart-deco-studio.fullname" .)) .Values.sandbox.kubernetes.previewGateway.tlsSecretName }}
+{{- if and .Values.sandbox.agentSandbox.enabled .Values.sandbox.agentSandbox.previewGateway.enabled }}
+{{- $domain := required "sandbox.agentSandbox.previewGateway.domain is required when previewGateway.enabled=true" .Values.sandbox.agentSandbox.previewGateway.domain }}
+{{- $issuer := required "sandbox.agentSandbox.previewGateway.clusterIssuer is required when previewGateway.enabled=true" .Values.sandbox.agentSandbox.previewGateway.clusterIssuer }}
+{{- $gwNamespace := .Values.sandbox.agentSandbox.previewGateway.namespace }}
+{{- $tlsSecretName := default (printf "%s-sandbox-preview-tls" (include "chart-deco-studio.fullname" .)) .Values.sandbox.agentSandbox.previewGateway.tlsSecretName }}
 {{- $meshServiceName := include "chart-deco-studio.fullname" . }}
 # Wildcard cert for the sandbox preview Gateway. cert-manager places the
 # Secret in the gateway namespace so the Gateway listener can mount it

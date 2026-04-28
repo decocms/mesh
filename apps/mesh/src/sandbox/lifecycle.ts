@@ -1,6 +1,6 @@
 /**
  * Runner singletons, one per kind. VM_DELETE dispatches on the entry's
- * recorded runnerKind (not env), so a pod that flipped MESH_SANDBOX_RUNNER
+ * recorded runnerKind (not env), so a pod that flipped STUDIO_SANDBOX_RUNNER
  * between start and stop still tears down the right kind of VM.
  * Boot/shutdown sweeps are Docker-only — other runners' sandboxes outlive
  * mesh by design, so a generic sweep would nuke active user VMs.
@@ -73,17 +73,17 @@ async function instantiate(
       );
       return new FreestyleSandboxRunner({ stateStore });
     }
-    case "kubernetes": {
+    case "agent-sandbox": {
       // Dynamic import — @kubernetes/client-node is heavy and only needed
-      // when MESH_SANDBOX_RUNNER=kubernetes. Docker/Freestyle deploys never
+      // when STUDIO_SANDBOX_RUNNER=agent-sandbox. Docker/Freestyle deploys never
       // load it.
-      const { KubernetesSandboxRunner } = await import(
-        "@decocms/sandbox/runner/k8s"
+      const { AgentSandboxRunner } = await import(
+        "@decocms/sandbox/runner/agent-sandbox"
       );
       // `meter` is reassigned by initObservability() after sdk.start(); read
       // it at runner construction (post-init) so we get the real instruments
       // not the no-op evaluated at module load.
-      return new KubernetesSandboxRunner({
+      return new AgentSandboxRunner({
         stateStore,
         previewUrlPattern,
         meter,

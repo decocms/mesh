@@ -13,7 +13,7 @@ kubelet (cAdvisor) ──► OTel collector daemonset
                    PodMonitor → kube-prometheus-stack Prometheus → Grafana
 ```
 
-Pod labels are populated by `KubernetesSandboxRunner.provision()` from the
+Pod labels are populated by `AgentSandboxRunner.provision()` from the
 `tenant` field on `EnsureOptions` and surface on every sandbox pod via
 `SandboxClaim.spec.additionalPodMetadata.labels`.
 

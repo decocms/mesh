@@ -78,7 +78,7 @@ function withSecurityHeaders(res: Response): Response {
 // Closed early in gracefulShutdown so the port frees before the Hono drain.
 let ingressServers: import("node:net").Server[] = [];
 
-// Sandbox preview reverse-proxy (K8s only). The base domain is parsed at
+// Sandbox preview reverse-proxy (agent-sandbox only). The base domain is parsed at
 // boot from STUDIO_SANDBOX_PREVIEW_URL_PATTERN; null disables the proxy and
 // preview-host requests fall through to the normal mesh routing (which 404s
 // because nothing matches). The Bun-level WS handler is registered
@@ -100,10 +100,10 @@ const previewProxyDeps = {
   baseDomain: previewBaseDomain ?? "",
   getRunner: async () => {
     const runner = await getOrInitRunnerForPreview();
-    if (!runner || runner.kind !== "kubernetes") return null;
-    // The K8s runner is the only one that exposes proxyPreviewRequest /
+    if (!runner || runner.kind !== "agent-sandbox") return null;
+    // The agent-sandbox runner is the only one that exposes proxyPreviewRequest /
     // resolvePreviewUpstreamUrl; cast is safe after the kind check.
-    return runner as unknown as import("@decocms/sandbox/runner/k8s").KubernetesSandboxRunner;
+    return runner as unknown as import("@decocms/sandbox/runner/agent-sandbox").AgentSandboxRunner;
   },
 };
 

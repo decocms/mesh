@@ -1,7 +1,7 @@
 /**
  * Stage 1 exit-criterion smoke test (see PLAN-K8S-MVP.md § 1.5/1.6).
  *
- * Runs KubernetesSandboxRunner end-to-end against a live kind cluster:
+ * Runs AgentSandboxRunner end-to-end against a live kind cluster:
  *   ensure → exec → preview fetch → delete → recreate (cold) → ensure (warm)
  *   → alive → delete.
  *
@@ -28,8 +28,8 @@
 // naturally.
 import {
   KubeConfig,
-  KubernetesSandboxRunner,
-} from "../../../packages/sandbox/server/runner/k8s";
+  AgentSandboxRunner,
+} from "../../../packages/sandbox/server/runner/agent-sandbox";
 import type { SandboxId } from "../../../packages/sandbox/server/runner/types";
 
 const KIND_CONTEXT = "kind-studio-sandbox-dev";
@@ -72,11 +72,11 @@ async function run(): Promise<void> {
   // Two runner instances with disjoint in-process maps — simulates a mesh
   // restart between steps (1st provision → 2nd ensure after delete).
   // No stateStore: the K8s API is the source of truth for the smoke test.
-  const runnerA = new KubernetesSandboxRunner({
+  const runnerA = new AgentSandboxRunner({
     kubeConfig,
     namespace: NAMESPACE,
   });
-  const runnerB = new KubernetesSandboxRunner({
+  const runnerB = new AgentSandboxRunner({
     kubeConfig,
     namespace: NAMESPACE,
   });

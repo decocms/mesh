@@ -19,8 +19,8 @@
 
 import {
   HANDLE_PREFIX,
-  type KubernetesSandboxRunner,
-} from "@decocms/sandbox/runner/k8s";
+  type AgentSandboxRunner,
+} from "@decocms/sandbox/runner/agent-sandbox";
 
 /**
  * Cap on frames buffered between client upgrade and upstream WS open. Vite
@@ -96,10 +96,10 @@ export function extractHandleFromHost(
 export interface PreviewProxyDeps {
   /**
    * Lazy runner accessor. Returns null when the mesh isn't configured for
-   * the K8s runner — the caller treats null as "not a preview deployment"
-   * and falls through.
+   * the agent-sandbox runner — the caller treats null as "not a preview
+   * deployment" and falls through.
    */
-  getRunner: () => Promise<KubernetesSandboxRunner | null>;
+  getRunner: () => Promise<AgentSandboxRunner | null>;
   baseDomain: string;
 }
 

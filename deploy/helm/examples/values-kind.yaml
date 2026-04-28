@@ -5,7 +5,7 @@
 # without changes — no nodeSelector pins, default StorageClass.
 #
 # Pairs with:
-#   - sandbox.kubernetes.enabled=true → installs the agent-sandbox subchart
+#   - sandbox.agentSandbox.enabled=true → installs the agent-sandbox subchart
 #     so the helm release fully owns the operator + CRDs (no separate
 #     deploy/k8s-sandbox/local/up.sh step).
 #   - mesh-sandbox:local image built locally and `kind load`ed into the cluster
@@ -19,7 +19,7 @@ replicaCount: 1
 # image:
 #   1. `ghcr.io/decocms/studio/studio` is private — anonymous pull returns 403.
 #   2. The published `decocms` npm package may lag the current branch (e.g.
-#      MESH_SANDBOX_RUNNER=kubernetes wasn't recognized in 2.281.2). Building
+#      STUDIO_SANDBOX_RUNNER=agent-sandbox wasn't recognized in 2.281.2). Building
 #      from source guarantees we're testing the code under development.
 image:
   repository: deco-studio
@@ -45,7 +45,7 @@ image:
 # option, so the WS handshake fails TLS validation against the kind API
 # server's self-signed cert. Plain HTTPS calls (claim CRUD) work fine —
 # only WS-backed port-forward breaks. Symptom: studio sees
-# `[KubernetesSandboxRunner] port-forward to <pod>:9000 failed: [object
+# `[AgentSandboxRunner] port-forward to <pod>:9000 failed: [object
 # ErrorEvent]` and the daemon /health probe times out.
 #
 # Workaround for kind dev only: disable TLS verification globally for the
@@ -103,9 +103,9 @@ persistence:
 # Keep enabled (mesh's event bus needs it). PVC storageClassName is
 # already empty in the parent default; that resolves to local-path on kind.
 
-# ── k8s sandbox runner ────────────────────────────────────────────────
+# ── agent-sandbox runner ──────────────────────────────────────────────
 sandbox:
-  kubernetes:
+  agentSandbox:
     enabled: true
     image:
       # Built locally via packages/sandbox + `kind load docker-image`.

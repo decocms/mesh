@@ -62,7 +62,7 @@ export const VM_START = defineTool({
     vmId: z.string(),
     branch: z.string(),
     isNewVm: z.boolean(),
-    runnerKind: z.enum(["docker", "freestyle", "kubernetes"]),
+    runnerKind: z.enum(["docker", "freestyle", "agent-sandbox"]),
   }),
 
   handler: async (input, ctx) => {

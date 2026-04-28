@@ -1,6 +1,6 @@
 # Local k8s sandbox (kind)
 
-Scripted local bring-up for `KubernetesSandboxRunner`. One-command cluster +
+Scripted local bring-up for `AgentSandboxRunner`. One-command cluster +
 agent-sandbox operator + mesh `SandboxTemplate`, loaded with the same
 sandbox image the Docker runner uses.
 
@@ -95,7 +95,7 @@ kubelet (cAdvisor) ──► OTel collector daemonset
 ```
 
 Pod labels come from `SandboxClaim.spec.additionalPodMetadata.labels`,
-populated in `KubernetesSandboxRunner.provision()` from the `tenant` field
+populated in `AgentSandboxRunner.provision()` from the `tenant` field
 on `EnsureOptions`. Verify they're landing:
 
 ```bash
@@ -120,7 +120,7 @@ k8sattributes filter, ServiceMonitor for the in-cluster mesh Deployment).
 ## Smoke test
 
 Stage 1 exit criterion from PLAN-K8S-MVP.md. Exercises
-`KubernetesSandboxRunner` end-to-end against the live kind cluster:
+`AgentSandboxRunner` end-to-end against the live kind cluster:
 ensure → exec → preview fetch → delete → recreate → ensure (warm) →
 alive → delete.
 

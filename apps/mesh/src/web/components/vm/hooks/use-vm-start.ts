@@ -34,7 +34,7 @@ export interface VmStartResult {
   vmId: string;
   branch: string;
   isNewVm: boolean;
-  runnerKind?: "docker" | "freestyle" | "kubernetes";
+  runnerKind?: "docker" | "freestyle" | "agent-sandbox";
 }
 
 const inflightStarts = new Map<string, Promise<VmStartResult>>();

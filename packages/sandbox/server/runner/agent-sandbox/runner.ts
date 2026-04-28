@@ -1,5 +1,5 @@
 /**
- * Kubernetes sandbox runner.
+ * Agent-sandbox runner.
  *
  * Provisions one SandboxClaim per (user, projectRef) against the
  * kubernetes-sigs/agent-sandbox operator. Mesh runs outside the cluster
@@ -71,8 +71,8 @@ import {
 } from "./client";
 import { K8S_CONSTANTS } from "./constants";
 
-const RUNNER_KIND = "kubernetes" as const;
-const LOG_LABEL = "KubernetesSandboxRunner";
+const RUNNER_KIND = "agent-sandbox" as const;
+const LOG_LABEL = "AgentSandboxRunner";
 
 // Shared-namespace topology for MVP; tenancy enforced by unguessable claim
 // names (sha256(userId:projectRef)). Per-org namespaces are deferred.
@@ -234,7 +234,7 @@ interface PersistedK8sState {
   [k: string]: unknown;
 }
 
-export interface KubernetesRunnerOptions {
+export interface AgentSandboxRunnerOptions {
   stateStore?: RunnerStateStore;
   previewUrlPattern?: string;
   /** Defaults to `new KubeConfig().loadFromDefault()`. Tests pass a stub. */
@@ -263,7 +263,7 @@ export interface KubernetesRunnerOptions {
   meter?: Meter;
 }
 
-export class KubernetesSandboxRunner implements SandboxRunner {
+export class AgentSandboxRunner implements SandboxRunner {
   readonly kind = RUNNER_KIND;
 
   private readonly records = new Map<string, K8sRecord>();
@@ -283,7 +283,7 @@ export class KubernetesSandboxRunner implements SandboxRunner {
    */
   private readonly metrics: RunnerMetrics | null;
 
-  constructor(opts: KubernetesRunnerOptions = {}) {
+  constructor(opts: AgentSandboxRunnerOptions = {}) {
     this.stateStore = opts.stateStore ?? null;
     this.previewUrlPattern = opts.previewUrlPattern ?? null;
     this.kubeConfig = opts.kubeConfig ?? loadDefaultKubeConfig();
