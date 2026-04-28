@@ -1,13 +1,13 @@
 import { BOOTSTRAP_SCRIPT } from "./constants";
 import type { Broadcaster } from "./events/broadcast";
-import type { Config } from "./types";
 
 export interface ProxyDeps {
-  config: Config;
   broadcaster: Broadcaster;
+  /** Resolved each request — follows the dev process's actual listening port. */
+  getDevPort: () => number;
 }
 
-export function makeProxyHandler({ config, broadcaster }: ProxyDeps) {
+export function makeProxyHandler({ broadcaster, getDevPort }: ProxyDeps) {
   function log(...args: string[]) {
     const msg = `[daemon] ${new Date().toISOString()} ${args.join(" ")}`;
     broadcaster.broadcastChunk("daemon", msg + "\r\n");
@@ -16,7 +16,7 @@ export function makeProxyHandler({ config, broadcaster }: ProxyDeps) {
   return async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
     log("proxy", req.method, url.pathname);
-    const target = `http://localhost:${config.devPort}${url.pathname}${url.search}`;
+    const target = `http://localhost:${getDevPort()}${url.pathname}${url.search}`;
     const outHeaders = new Headers(req.headers);
     outHeaders.delete("accept-encoding");
     outHeaders.delete("host");
