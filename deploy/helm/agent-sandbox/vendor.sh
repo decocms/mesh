@@ -86,6 +86,86 @@ verify_checksum "${WORK}/manifest.yaml"   "${MANIFEST_SHA}"
 verify_checksum "${WORK}/extensions.yaml" "${EXTENSIONS_SHA}"
 log "checksums verified"
 
+# Merge the two upstream files' controller Deployments into one.
+#
+# Upstream ships manifest.yaml + extensions.yaml as two install paths:
+# manifest.yaml alone for base mode (Sandbox reconciler only), or both
+# files applied in order, where extensions.yaml's Deployment overwrites
+# manifest.yaml's same-named Deployment to add `--extensions` and pull in
+# the SandboxClaim / SandboxTemplate / SandboxWarmPool reconcilers.
+# Concatenating them into one chart breaks that override: helm/kubectl
+# applies one of the duplicates and the other silently disappears, so
+# only one controller mode actually runs. The leader-election lock is
+# hardcoded in the binary (no flag to override the lock name), so running
+# them as two distinct Deployments doesn't work either — only one would
+# ever be the leader. Running a single binary with `--extensions=true`
+# enables ALL reconcilers in one process, which is what we want.
+#
+# Two transformations, both fail-loud if the input shape changes:
+#   1. Drop the `kind: Deployment` doc from extensions.yaml — keep its
+#      ClusterRole / ClusterRoleBinding (those are the extensions RBAC).
+#   2. Insert `- --extensions` after `- --leader-elect=true` in manifest.yaml's
+#      Deployment args.
+#
+# Done after checksum verification on purpose: the checksum proves what
+# upstream shipped; this transformation is an intentional downstream patch.
+log "dropping duplicate Deployment from extensions.yaml"
+awk '
+  function flush(   i, is_dep) {
+    if (n == 0) return
+    is_dep = 0
+    for (i = 1; i <= n; i++) {
+      if (buf[i] ~ /^kind:[[:space:]]*Deployment[[:space:]]*$/) { is_dep = 1; break }
+    }
+    if (!is_dep) {
+      for (i = 1; i <= n; i++) print buf[i]
+      print "---"
+    }
+    n = 0
+  }
+  /^---[[:space:]]*$/ { flush(); next }
+  { buf[++n] = $0 }
+  END { flush() }
+' "${WORK}/extensions.yaml" > "${WORK}/extensions.patched.yaml"
+sed -i.bak -e '$d' "${WORK}/extensions.patched.yaml" && rm "${WORK}/extensions.patched.yaml.bak"
+mv "${WORK}/extensions.patched.yaml" "${WORK}/extensions.yaml"
+if grep -q '^kind:[[:space:]]*Deployment' "${WORK}/extensions.yaml"; then
+  err "post-patch: a Deployment doc still exists in extensions.yaml"
+  err "  inspect ${WORK}/extensions.yaml and update the awk patch in this script"
+  exit 1
+fi
+
+log "adding --extensions to manifest.yaml Deployment args"
+awk '
+  function flush(   i, is_dep, indent) {
+    if (n == 0) return
+    is_dep = 0
+    for (i = 1; i <= n; i++) {
+      if (buf[i] ~ /^kind:[[:space:]]*Deployment[[:space:]]*$/) { is_dep = 1; break }
+    }
+    for (i = 1; i <= n; i++) {
+      print buf[i]
+      if (is_dep && buf[i] ~ /^[[:space:]]*-[[:space:]]*"?--leader-elect=true"?[[:space:]]*$/) {
+        match(buf[i], /^[[:space:]]*/)
+        indent = substr(buf[i], RSTART, RLENGTH)
+        print indent "- --extensions"
+      }
+    }
+    print "---"
+    n = 0
+  }
+  /^---[[:space:]]*$/ { flush(); next }
+  { buf[++n] = $0 }
+  END { flush() }
+' "${WORK}/manifest.yaml" > "${WORK}/manifest.patched.yaml"
+sed -i.bak -e '$d' "${WORK}/manifest.patched.yaml" && rm "${WORK}/manifest.patched.yaml.bak"
+mv "${WORK}/manifest.patched.yaml" "${WORK}/manifest.yaml"
+if ! grep -q '^[[:space:]]*-[[:space:]]*--extensions[[:space:]]*$' "${WORK}/manifest.yaml"; then
+  err "post-patch: --extensions arg was not added to manifest.yaml Deployment"
+  err "  inspect ${WORK}/manifest.yaml and update the awk patch in this script"
+  exit 1
+fi
+
 # Split each multi-doc YAML by `---` boundaries, classify each doc by kind.
 # awk is portable (no yq dependency) and good enough for manifests that only
 # need a kind: line scanned.

@@ -89,6 +89,7 @@ spec:
         image: registry.k8s.io/agent-sandbox/agent-sandbox-controller:v0.4.2
         args:
         - --leader-elect=true
+        - --extensions
         ports:
         - name: metrics
           containerPort: 8080
@@ -245,38 +246,6 @@ rules:
   - patch
   - update
   - watch
----
-kind: Deployment
-apiVersion: apps/v1
-metadata:
-  name: agent-sandbox-controller
-  namespace: agent-sandbox-system
-  labels:
-    app: agent-sandbox-controller
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: agent-sandbox-controller
-  template:
-    metadata:
-      labels:
-        app: agent-sandbox-controller
-    spec:
-      serviceAccountName: agent-sandbox-controller
-      containers:
-      - name: agent-sandbox-controller
-        image: registry.k8s.io/agent-sandbox/agent-sandbox-controller:v0.4.2
-        args:
-        - "--leader-elect=true"
-        - "--extensions"
-        ports:
-        - name: metrics
-          containerPort: 8080
-          protocol: TCP
-        - name: healthz
-          containerPort: 8081
-          protocol: TCP
 ---
 
 apiVersion: rbac.authorization.k8s.io/v1
