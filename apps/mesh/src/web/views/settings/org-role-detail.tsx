@@ -50,7 +50,15 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { SearchInput } from "@deco/ui/components/search-input.tsx";
 import { Page } from "@/web/components/page";
-import { Key01, Loading01, Lock01, Plus, X } from "@untitledui/icons";
+import {
+  ChevronDown,
+  ChevronRight,
+  Key01,
+  Loading01,
+  Lock01,
+  Plus,
+  X,
+} from "@untitledui/icons";
 
 // ============================================================================
 // Types
@@ -326,6 +334,49 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   openrouter: "OpenRouter",
 };
 
+const SUB_PROVIDER_DISPLAY_NAMES: Record<string, string> = {
+  openai: "OpenAI",
+  anthropic: "Anthropic",
+  google: "Google",
+  "meta-llama": "Meta",
+  mistralai: "Mistral",
+  "x-ai": "xAI",
+  deepseek: "DeepSeek",
+  qwen: "Qwen",
+  moonshotai: "MoonshotAI",
+  nvidia: "NVIDIA",
+  perplexity: "Perplexity",
+  cohere: "Cohere",
+  amazon: "Amazon",
+  microsoft: "Microsoft",
+  "z-ai": "Z.ai",
+  "ibm-granite": "IBM Granite",
+  alibaba: "Alibaba",
+  baidu: "Baidu",
+  bytedance: "ByteDance",
+  tencent: "Tencent",
+  minimax: "MiniMax",
+  nousresearch: "Nous Research",
+  allenai: "Allen AI",
+  inception: "Inception",
+};
+
+function getSubProviderId(modelId: string, fallback: string): string {
+  const slash = modelId.indexOf("/");
+  return slash > 0 ? modelId.slice(0, slash) : fallback;
+}
+
+function getSubProviderDisplayName(id: string): string {
+  return SUB_PROVIDER_DISPLAY_NAMES[id] ?? PROVIDER_DISPLAY_NAMES[id] ?? id;
+}
+
+function stripTitlePrefix(title: string): string {
+  // OpenRouter titles look like "Anthropic: Claude Haiku Latest" — strip the
+  // "<sub-provider>: " prefix since it's redundant under a grouped header.
+  const colon = title.indexOf(": ");
+  return colon > 0 && colon < 32 ? title.slice(colon + 2) : title;
+}
+
 interface ModelsPermissionsTabProps {
   allowAllModels: boolean;
   modelSet: Record<string, string[]>;
@@ -337,12 +388,169 @@ interface ModelsPermissionsTabProps {
 
 const MODELS_PAGE_SIZE = 30;
 
+type GroupedModel = {
+  id: string;
+  title: string;
+  logo: string | null;
+};
+
+function SubProviderGroup({
+  connectionId,
+  subProviderId,
+  subProviderName,
+  models,
+  selectedModels,
+  allowAllModels,
+  allConnectionModelsSelected,
+  onToggleModel,
+  readOnly,
+  defaultExpanded,
+}: {
+  connectionId: string;
+  subProviderId: string;
+  subProviderName: string;
+  models: GroupedModel[];
+  selectedModels: string[];
+  allowAllModels: boolean;
+  allConnectionModelsSelected: boolean;
+  onToggleModel: (keyId: string, modelId: string) => void;
+  readOnly: boolean;
+  defaultExpanded: boolean;
+}) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const [visibleCount, setVisibleCount] = useState(MODELS_PAGE_SIZE);
+
+  const isModelEnabled = (modelId: string) =>
+    allowAllModels ||
+    allConnectionModelsSelected ||
+    selectedModels.includes("*") ||
+    selectedModels.includes(modelId);
+
+  const enabledCount = models.filter((m) => isModelEnabled(m.id)).length;
+  const allSelected = enabledCount === models.length;
+  const visibleModels = models.slice(0, visibleCount);
+  const hasMore = models.length > visibleCount;
+
+  const toggleAll = () => {
+    if (readOnly || allowAllModels) return;
+    const target = !allSelected;
+    for (const m of models) {
+      const enabled = isModelEnabled(m.id);
+      if (enabled !== target) onToggleModel(connectionId, m.id);
+    }
+  };
+
+  return (
+    <div className="border-b border-border last:border-b-0">
+      <div
+        className={cn(
+          "flex items-center justify-between gap-3 px-4 py-3",
+          "hover:bg-muted/50 cursor-pointer",
+        )}
+        onClick={() => setExpanded((e) => !e)}
+      >
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          {expanded ? (
+            <ChevronDown size={14} className="text-muted-foreground shrink-0" />
+          ) : (
+            <ChevronRight
+              size={14}
+              className="text-muted-foreground shrink-0"
+            />
+          )}
+          <img
+            src={PROVIDER_LOGOS[subProviderId] ?? DEFAULT_LOGO}
+            alt={subProviderId}
+            className="w-4 h-4 rounded-sm dark:bg-white dark:rounded-sm dark:p-px"
+          />
+          <span className="text-sm font-medium truncate">
+            {subProviderName}
+          </span>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <Badge variant="secondary" className="text-xs">
+            {enabledCount}/{models.length} enabled
+          </Badge>
+          {!readOnly && !allowAllModels && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <Switch checked={allSelected} onCheckedChange={toggleAll} />
+            </div>
+          )}
+        </div>
+      </div>
+      {expanded && (
+        <div className="border-t border-border bg-muted/20">
+          {visibleModels.map((model) => {
+            const isEnabled = isModelEnabled(model.id);
+            return (
+              <div
+                key={model.id}
+                className={cn(
+                  "flex items-center justify-between gap-3 pl-10 pr-4 py-3 border-b border-border last:border-b-0",
+                  !readOnly &&
+                    !allowAllModels &&
+                    "hover:bg-muted/50 cursor-pointer",
+                )}
+                onClick={() => {
+                  if (readOnly || allowAllModels) return;
+                  onToggleModel(connectionId, model.id);
+                }}
+              >
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <span className="text-sm truncate">{model.title}</span>
+                </div>
+                <div onClick={(e) => e.stopPropagation()}>
+                  {readOnly ? (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div>
+                            <Switch
+                              checked={isEnabled}
+                              disabled
+                              onCheckedChange={() => {}}
+                            />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Built-in role permissions cannot be changed</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : (
+                    <Switch
+                      checked={isEnabled}
+                      disabled={allowAllModels}
+                      onCheckedChange={() => {
+                        if (allowAllModels) return;
+                        onToggleModel(connectionId, model.id);
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {hasMore && (
+            <button
+              type="button"
+              className="w-full px-4 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              onClick={() => setVisibleCount((c) => c + MODELS_PAGE_SIZE)}
+            >
+              Show more ({models.length - visibleCount} remaining)
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ConnectionModelsSection({
   connection,
   selectedModels,
   allowAllModels,
   onToggleModel,
-  onToggleConnectionAll,
   allConnectionModelsSelected,
   searchQuery,
   readOnly,
@@ -356,127 +564,75 @@ function ConnectionModelsSection({
   searchQuery: string;
   readOnly: boolean;
 }) {
-  const [visibleCount, setVisibleCount] = useState(MODELS_PAGE_SIZE);
   const rawModels = useSuspenseAiProviderModels(connection.id);
   const models = rawModels
     .filter((m, i, arr) => arr.findIndex((x) => x.modelId === m.modelId) === i)
     .map((m) => ({ ...m, id: m.modelId, provider: connection.label }));
 
-  const filteredModels = searchQuery.trim()
+  const q = searchQuery.trim().toLowerCase();
+  const filteredModels = q
     ? models.filter(
         (m) =>
-          m.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          m.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          m.provider?.toLowerCase().includes(searchQuery.toLowerCase()),
+          m.title.toLowerCase().includes(q) ||
+          m.id.toLowerCase().includes(q) ||
+          m.provider?.toLowerCase().includes(q),
       )
     : models;
 
   if (filteredModels.length === 0) return null;
 
-  const visibleModels = filteredModels.slice(0, visibleCount);
-  const hasMore = filteredModels.length > visibleCount;
-  const allSelected =
-    allowAllModels ||
-    allConnectionModelsSelected ||
-    filteredModels.every(
-      (m) => selectedModels.includes(m.id) || selectedModels.includes("*"),
-    );
+  const groupsMap = new Map<string, GroupedModel[]>();
+  for (const m of filteredModels) {
+    const subId = getSubProviderId(m.id, connection.providerId);
+    const list = groupsMap.get(subId) ?? [];
+    list.push({ id: m.id, title: stripTitlePrefix(m.title), logo: m.logo });
+    groupsMap.set(subId, list);
+  }
+  const groups = Array.from(groupsMap.entries())
+    .map(([id, items]) => ({
+      id,
+      name: getSubProviderDisplayName(id),
+      models: items,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  // Auto-expand when there's only one group, or when actively searching.
+  const autoExpand = groups.length === 1 || q.length > 0;
 
   return (
     <div className="mb-6 last:mb-0">
-      <div className="flex items-center justify-between px-4 py-2">
-        <div className="flex items-center gap-2">
-          <img
-            src={PROVIDER_LOGOS[connection.providerId] ?? DEFAULT_LOGO}
-            alt={connection.providerId}
-            className="w-4 h-4 rounded-sm dark:bg-white dark:rounded-sm dark:p-px"
-          />
-          <div className="flex flex-col">
-            <h4 className="text-sm font-medium text-muted-foreground/75">
-              {PROVIDER_DISPLAY_NAMES[connection.providerId] ??
-                connection.providerId}
-            </h4>
-            <span className="text-xs text-muted-foreground/50">
-              {connection.label}
-            </span>
-          </div>
+      <div className="flex items-center gap-2 px-4 py-2">
+        <img
+          src={PROVIDER_LOGOS[connection.providerId] ?? DEFAULT_LOGO}
+          alt={connection.providerId}
+          className="w-4 h-4 rounded-sm dark:bg-white dark:rounded-sm dark:p-px"
+        />
+        <div className="flex flex-col">
+          <h4 className="text-sm font-medium text-muted-foreground/75">
+            {PROVIDER_DISPLAY_NAMES[connection.providerId] ??
+              connection.providerId}
+          </h4>
+          <span className="text-xs text-muted-foreground/50">
+            {connection.label}
+          </span>
         </div>
-        {!readOnly && !allowAllModels && (
-          <Switch
-            checked={allSelected}
-            onCheckedChange={() => onToggleConnectionAll(connection.id, models)}
-          />
-        )}
       </div>
-      <div className="space-y-1">
-        {visibleModels.map((model) => {
-          const isEnabled =
-            allowAllModels ||
-            selectedModels.includes("*") ||
-            selectedModels.includes(model.id);
-          return (
-            <div
-              key={model.id}
-              className={cn(
-                "flex items-center justify-between gap-3 px-4 py-3",
-                !readOnly && "hover:bg-muted/50 cursor-pointer",
-              )}
-              onClick={() => {
-                if (readOnly || allowAllModels) return;
-                onToggleModel(connection.id, model.id);
-              }}
-            >
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                {model.logo && (
-                  <img
-                    src={model.logo}
-                    className="w-4 h-4 shrink-0 rounded-sm dark:bg-white dark:rounded-sm dark:p-px"
-                    alt={model.title}
-                  />
-                )}
-                <span className="text-sm truncate">{model.title}</span>
-              </div>
-              <div onClick={(e) => e.stopPropagation()}>
-                {readOnly ? (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div>
-                          <Switch
-                            checked={isEnabled}
-                            disabled
-                            onCheckedChange={() => {}}
-                          />
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Built-in role permissions cannot be changed</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ) : (
-                  <Switch
-                    checked={isEnabled}
-                    disabled={allowAllModels}
-                    onCheckedChange={() => {
-                      if (allowAllModels) return;
-                      onToggleModel(connection.id, model.id);
-                    }}
-                  />
-                )}
-              </div>
-            </div>
-          );
-        })}
-        {hasMore && (
-          <button
-            type="button"
-            className="w-full px-4 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-            onClick={() => setVisibleCount((c) => c + MODELS_PAGE_SIZE)}
-          >
-            Show more ({filteredModels.length - visibleCount} remaining)
-          </button>
-        )}
+      <div className="border border-border rounded-lg mx-2 overflow-hidden">
+        {groups.map((group) => (
+          <SubProviderGroup
+            key={group.id}
+            connectionId={connection.id}
+            subProviderId={group.id}
+            subProviderName={group.name}
+            models={group.models}
+            selectedModels={selectedModels}
+            allowAllModels={allowAllModels}
+            allConnectionModelsSelected={allConnectionModelsSelected}
+            onToggleModel={onToggleModel}
+            readOnly={readOnly}
+            defaultExpanded={autoExpand}
+          />
+        ))}
       </div>
     </div>
   );
