@@ -431,7 +431,12 @@ function SubProviderGroup({
   readOnly: boolean;
   defaultExpanded: boolean;
 }) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
+  const [userExpanded, setUserExpanded] = useState(defaultExpanded);
+  // Honor `defaultExpanded` whenever it's true (e.g. active search) so
+  // matching groups expand automatically even after the user collapsed them
+  // earlier.
+  const expanded = defaultExpanded || userExpanded;
+  const setExpanded = setUserExpanded;
   const [visibleCount, setVisibleCount] = useState(MODELS_PAGE_SIZE);
 
   const isModelEnabled = (modelId: string) =>
