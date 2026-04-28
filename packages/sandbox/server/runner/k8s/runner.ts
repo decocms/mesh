@@ -3,13 +3,19 @@
  *
  * Provisions one SandboxClaim per (user, projectRef) against the
  * kubernetes-sigs/agent-sandbox operator. Mesh runs outside the cluster
- * (Stage 1 / local-dev via kind), so daemon and dev traffic both reach the
- * pod via a lazily-opened 127.0.0.1 TCP listener that tunnels each inbound
- * connection through the apiserver as a fresh WebSocket.
+ * (Stage 1 / local-dev via kind), so traffic reaches the pod via a single
+ * lazily-opened 127.0.0.1 TCP listener that tunnels each inbound connection
+ * to the daemon container port through the apiserver as a fresh WebSocket.
+ *
+ * The daemon owns the public surface: it serves `/_decopilot_vm/*` + `/health`
+ * in-process and reverse-proxies everything else to in-pod localhost:DEV_PORT
+ * (CSP/X-Frame stripping + HMR bootstrap injection live in that proxy). One
+ * port-forward per pod is therefore enough; opening a second forwarder for
+ * the dev port would bypass the daemon and break SSE + iframe embedding.
  *
  * Stage 3 replaces the port-forward path with real ingress: when
- * `previewUrlPattern` is set, no dev port-forward is opened and the preview
- * URL is synthesized from the handle.
+ * `previewUrlPattern` is set, no forwarder is opened for preview traffic and
+ * the preview URL is synthesized from the handle.
  *
  * Token model: each claim carries a freshly-generated DAEMON_TOKEN injected
  * via `SandboxClaim.spec.env`. One leak compromises one sandbox.
@@ -68,7 +74,11 @@ const DEFAULT_NAMESPACE = "agent-sandbox-system";
 const DEFAULT_TEMPLATE_NAME = "mesh-sandbox";
 
 const DAEMON_CONTAINER_PORT = 9000;
-const DEV_CONTAINER_PORT = 3000;
+// In-pod port the daemon's reverse proxy targets. Mesh never connects here
+// directly — everything funnels through the daemon container port — but the
+// value is propagated to the daemon via DEV_PORT so it knows where the dev
+// server will bind.
+const DEFAULT_DEV_PORT = 3000;
 const DEFAULT_WORKDIR = "/app";
 
 // 32 bytes matches Docker's generation so audit logs don't vary by runner.
@@ -114,7 +124,6 @@ interface K8sRecord {
   workdir: string;
   daemonUrl: string;
   daemonForward: PortForwarder;
-  devForward: PortForwarder | null;
   workload: Workload | null;
   /**
    * Per-boot UUID the daemon reports on /health. Generated mesh-side and
@@ -203,10 +212,7 @@ export class KubernetesSandboxRunner implements SandboxRunner {
   async delete(handle: string): Promise<void> {
     const rec = await this.getRecord(handle);
     this.records.delete(handle);
-    if (rec) {
-      this.closeForwarder(rec.daemonForward);
-      if (rec.devForward) this.closeForwarder(rec.devForward);
-    }
+    if (rec) this.closeForwarder(rec.daemonForward);
     await deleteSandboxClaim(this.kubeConfig, this.namespace, handle);
     if (this.stateStore) {
       if (rec) await this.stateStore.delete(rec.id, RUNNER_KIND);
@@ -226,21 +232,7 @@ export class KubernetesSandboxRunner implements SandboxRunner {
   async getPreviewUrl(handle: string): Promise<string | null> {
     const rec = await this.getRecord(handle);
     if (!rec) return null;
-    if (this.previewUrlPattern) {
-      return applyPreviewPattern(this.previewUrlPattern, handle);
-    }
-    // rehydrate() already opens devForward in local mode; if it's still null,
-    // the opener failed earlier and we try again now.
-    if (!rec.devForward) {
-      rec.devForward = await this.openForwarder(
-        rec.podName,
-        DEV_CONTAINER_PORT,
-        rec.handle,
-      ).catch(() => null);
-    }
-    return rec.devForward
-      ? `http://127.0.0.1:${rec.devForward.localPort}/`
-      : null;
+    return this.composePreviewUrl(rec);
   }
 
   async proxyDaemonRequest(
@@ -355,7 +347,7 @@ export class KubernetesSandboxRunner implements SandboxRunner {
     const token = this.tokenGenerator();
     const daemonBootId = randomUUID();
     const workdir = DEFAULT_WORKDIR;
-    const devContainerPort = opts.workload?.devPort ?? DEV_CONTAINER_PORT;
+    const devContainerPort = opts.workload?.devPort ?? DEFAULT_DEV_PORT;
     const runtime = opts.workload?.runtime ?? "node";
     const packageManager = opts.workload?.packageManager ?? null;
     const repo = opts.repo ?? null;
@@ -433,19 +425,6 @@ export class KubernetesSandboxRunner implements SandboxRunner {
       throw err;
     }
 
-    // Local-mode (Stage 1): eagerly open the dev port-forward so VM_START
-    // returns a preview URL that actually resolves, matching Docker.
-    const devForward = this.previewUrlPattern
-      ? null
-      : await this.openForwarder(podName, DEV_CONTAINER_PORT, handle).catch(
-          (err) => {
-            console.warn(
-              `[${LOG_LABEL}] dev port-forward for ${handle} failed: ${err instanceof Error ? err.message : String(err)}`,
-            );
-            return null;
-          },
-        );
-
     return {
       id,
       handle,
@@ -454,7 +433,6 @@ export class KubernetesSandboxRunner implements SandboxRunner {
       workdir,
       daemonUrl,
       daemonForward,
-      devForward,
       workload: opts.workload ?? null,
       daemonBootId,
     };
@@ -462,9 +440,9 @@ export class KubernetesSandboxRunner implements SandboxRunner {
 
   /**
    * Reconstruct a record from persisted state. After this returns, the record
-   * is ready for any of the six methods — daemon + dev port-forwards are
-   * open (local mode). Returns null on any mismatch; caller purges and falls
-   * through to adopt/provision.
+   * is ready for any of the six methods — the daemon port-forward is open and
+   * its `/health` has been re-probed. Returns null on any mismatch; caller
+   * purges and falls through to adopt/provision.
    */
   private async rehydrate(
     id: SandboxId,
@@ -509,21 +487,6 @@ export class KubernetesSandboxRunner implements SandboxRunner {
       );
     }
 
-    // Local-mode: warm the dev forwarder so `previewUrl` cached in vmMap
-    // resolves immediately after mesh restart. Stage 3 skips this.
-    const devForward = this.previewUrlPattern
-      ? null
-      : await this.openForwarder(
-          currentPodName,
-          DEV_CONTAINER_PORT,
-          handle,
-        ).catch((err) => {
-          console.warn(
-            `[${LOG_LABEL}] dev port-forward for ${handle} failed: ${err instanceof Error ? err.message : String(err)}`,
-          );
-          return null;
-        });
-
     return {
       id,
       handle,
@@ -532,7 +495,6 @@ export class KubernetesSandboxRunner implements SandboxRunner {
       workdir: state.workdir ?? DEFAULT_WORKDIR,
       daemonUrl,
       daemonForward,
-      devForward,
       workload: state.workload ?? null,
       daemonBootId: health.bootId,
     };
@@ -561,12 +523,6 @@ export class KubernetesSandboxRunner implements SandboxRunner {
       return null;
     }
 
-    const devForward = this.previewUrlPattern
-      ? null
-      : await this.openForwarder(podName, DEV_CONTAINER_PORT, handle).catch(
-          () => null,
-        );
-
     return {
       id,
       handle,
@@ -575,7 +531,6 @@ export class KubernetesSandboxRunner implements SandboxRunner {
       workdir: DEFAULT_WORKDIR,
       daemonUrl,
       daemonForward,
-      devForward,
       workload: null,
       daemonBootId: health.bootId,
     };
@@ -606,13 +561,18 @@ export class KubernetesSandboxRunner implements SandboxRunner {
     return `${HANDLE_PREFIX}${hashSandboxId(id, HANDLE_HASH_LEN)}`;
   }
 
-  private composePreviewUrl(rec: K8sRecord): string | null {
+  // Local mode: route preview traffic through the daemon port-forward, not
+  // a separate dev forwarder. The daemon serves /_decopilot_vm/* + /health
+  // in-process and reverse-proxies everything else to in-pod localhost:DEV_PORT
+  // (with CSP/X-Frame stripping + HMR bootstrap injection). Pointing the URL
+  // straight at the dev port would bypass that proxy and break SSE + iframe
+  // embedding. Production mode (previewUrlPattern set) goes through the
+  // ingress-terminated URL the operator emits.
+  private composePreviewUrl(rec: K8sRecord): string {
     if (this.previewUrlPattern) {
       return applyPreviewPattern(this.previewUrlPattern, rec.handle);
     }
-    return rec.devForward
-      ? `http://127.0.0.1:${rec.devForward.localPort}/`
-      : null;
+    return `http://127.0.0.1:${rec.daemonForward.localPort}/`;
   }
 
   private toSandbox(rec: K8sRecord): Sandbox {
