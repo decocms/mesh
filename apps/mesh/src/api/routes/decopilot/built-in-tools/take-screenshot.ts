@@ -14,8 +14,7 @@ import { z } from "zod";
 import type { MeshContext } from "@/core/mesh-context";
 import { toMeshStorageUri } from "../mesh-storage-uri";
 import { generatePresignedGetUrl } from "../file-materializer";
-
-const BROWSERLESS_BASE_URL = "https://chrome.browserless.io";
+import { BROWSERLESS_BASE_URL } from "./constants";
 
 /**
  * Default viewport for screenshots. 1280x800 gives a reasonable desktop

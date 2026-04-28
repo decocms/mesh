@@ -15,11 +15,10 @@ import { z } from "zod";
 import type { MeshContext } from "@/core/mesh-context";
 import { createOutputPreview, estimateJsonTokens } from "./read-tool-output";
 import { toMeshStorageUri } from "../mesh-storage-uri";
-
-const BROWSERLESS_BASE_URL = "https://chrome.browserless.io";
-
-/** Results above this threshold are offloaded to blob storage. */
-const LARGE_RESULT_TOKEN_THRESHOLD = 8_000;
+import {
+  BROWSERLESS_BASE_URL,
+  LARGE_RESULT_TOKEN_THRESHOLD,
+} from "./constants";
 
 const ScrapeUrlInputSchema = z.object({
   url: z.string().url().describe("The URL of the web page to scrape."),
