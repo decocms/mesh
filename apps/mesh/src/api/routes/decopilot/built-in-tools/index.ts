@@ -77,7 +77,7 @@ export interface BuiltinToolParams {
    */
   pendingImages: PendingImage[];
   /**
-   * When set, the six VM file tools (view/write/edit/grep/glob/bash) are
+   * When set, the six VM file tools (read/write/edit/grep/glob/bash) are
    * registered with a memoized lazy provisioner: the first tool call
    * triggers `ensureVmForBranch`, subsequent calls reuse the same handle.
    * When null, no VM-backed code execution tool is included.

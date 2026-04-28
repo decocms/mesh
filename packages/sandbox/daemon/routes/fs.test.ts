@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import {
-  makeViewHandler,
+  makeReadHandler,
   makeWriteHandler,
   makeEditHandler,
   makeGrepHandler,
@@ -30,10 +30,10 @@ describe("fs handlers", () => {
     rmSync(appRoot, { recursive: true, force: true });
   });
 
-  it("view: returns numbered content for text", async () => {
+  it("read: returns numbered content for text", async () => {
     writeFileSync(join(appRoot, "a.txt"), "one\ntwo\nthree\n");
-    const h = makeViewHandler({ appRoot });
-    const res = await h(post("/_decopilot_vm/view", { path: "a.txt" }));
+    const h = makeReadHandler({ appRoot });
+    const res = await h(post("/_decopilot_vm/read", { path: "a.txt" }));
     const body = (await res.json()) as {
       kind: string;
       content: string;
@@ -45,12 +45,12 @@ describe("fs handlers", () => {
     expect(body.lineCount).toBeGreaterThanOrEqual(3);
   });
 
-  it("view: returns base64 + mediaType for jpeg", async () => {
+  it("read: returns base64 + mediaType for jpeg", async () => {
     // Minimal JPEG: SOI + EOI markers, enough to pass the magic-byte sniff.
     const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0xff, 0xd9]);
     writeFileSync(join(appRoot, "img.jpg"), jpeg);
-    const h = makeViewHandler({ appRoot });
-    const res = await h(post("/_decopilot_vm/view", { path: "img.jpg" }));
+    const h = makeReadHandler({ appRoot });
+    const res = await h(post("/_decopilot_vm/read", { path: "img.jpg" }));
     const body = (await res.json()) as {
       kind: string;
       mediaType: string;
@@ -63,36 +63,36 @@ describe("fs handlers", () => {
     expect(Buffer.from(body.base64, "base64")).toEqual(jpeg);
   });
 
-  it("view: returns base64 + mediaType for png", async () => {
+  it("read: returns base64 + mediaType for png", async () => {
     const png = Buffer.from([
       0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00,
     ]);
     writeFileSync(join(appRoot, "img.png"), png);
-    const h = makeViewHandler({ appRoot });
-    const res = await h(post("/_decopilot_vm/view", { path: "img.png" }));
+    const h = makeReadHandler({ appRoot });
+    const res = await h(post("/_decopilot_vm/read", { path: "img.png" }));
     const body = (await res.json()) as { kind: string; mediaType: string };
     expect(body.kind).toBe("image");
     expect(body.mediaType).toBe("image/png");
   });
 
-  it("view: rejects non-image binary files", async () => {
+  it("read: rejects non-image binary files", async () => {
     writeFileSync(join(appRoot, "bin"), Buffer.from([0, 1, 2, 3]));
-    const h = makeViewHandler({ appRoot });
-    const res = await h(post("/_decopilot_vm/view", { path: "bin" }));
+    const h = makeReadHandler({ appRoot });
+    const res = await h(post("/_decopilot_vm/read", { path: "bin" }));
     expect(res.status).toBe(400);
   });
 
-  it("view: rejects relative path escape", async () => {
-    const h = makeViewHandler({ appRoot });
-    const res = await h(post("/_decopilot_vm/view", { path: "../etc/passwd" }));
+  it("read: rejects relative path escape", async () => {
+    const h = makeReadHandler({ appRoot });
+    const res = await h(post("/_decopilot_vm/read", { path: "../etc/passwd" }));
     expect(res.status).toBe(400);
   });
 
-  it("view: accepts absolute paths", async () => {
+  it("read: accepts absolute paths", async () => {
     writeFileSync(join(appRoot, "abs.txt"), "hello");
-    const h = makeViewHandler({ appRoot });
+    const h = makeReadHandler({ appRoot });
     const res = await h(
-      post("/_decopilot_vm/view", { path: join(appRoot, "abs.txt") }),
+      post("/_decopilot_vm/read", { path: join(appRoot, "abs.txt") }),
     );
     const body = (await res.json()) as { kind: string; content: string };
     expect(body.kind).toBe("text");

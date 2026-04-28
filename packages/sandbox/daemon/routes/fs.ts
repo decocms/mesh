@@ -75,12 +75,12 @@ function sniffImageMediaType(probe: Buffer): string | null {
  * permissions already gate what the sandbox user can read. Relative paths
  * are resolved against `appRoot` for the project-relative UX.
  */
-function resolveViewPath(appRoot: string, userPath: string): string | null {
+function resolveReadPath(appRoot: string, userPath: string): string | null {
   if (path.isAbsolute(userPath)) return userPath;
   return safePath(appRoot, userPath);
 }
 
-export function makeViewHandler(deps: FsDeps) {
+export function makeReadHandler(deps: FsDeps) {
   return async (req: Request): Promise<Response> => {
     let body: { path?: string; offset?: number; limit?: number };
     try {
@@ -88,7 +88,7 @@ export function makeViewHandler(deps: FsDeps) {
     } catch (e) {
       return jsonResponse({ error: (e as Error).message }, 400);
     }
-    const filePath = resolveViewPath(deps.appRoot, body.path ?? "");
+    const filePath = resolveReadPath(deps.appRoot, body.path ?? "");
     if (!filePath)
       return jsonResponse({ error: "Path escapes project root" }, 400);
 
@@ -147,9 +147,6 @@ export function makeViewHandler(deps: FsDeps) {
     });
   };
 }
-
-/** @deprecated Use makeViewHandler. Kept as alias during one release cycle. */
-export const makeReadHandler = makeViewHandler;
 
 export function makeWriteHandler(deps: FsDeps) {
   return async (req: Request): Promise<Response> => {

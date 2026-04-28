@@ -1,7 +1,7 @@
 /**
  * VM File Tools — runner-agnostic.
  *
- * Registers the six LLM-visible tools (view/write/edit/grep/glob/bash) on
+ * Registers the six LLM-visible tools (read/write/edit/grep/glob/bash) on
  * top of any `SandboxRunner.proxyDaemonRequest`. All runners speak the
  * unified `/_decopilot_vm/*` surface with base64-wrapped JSON bodies
  * (Cloudflare WAF bypass; harmless 33% overhead on non-CF paths).
@@ -19,9 +19,9 @@ import {
   GREP_DESCRIPTION,
   GlobInputSchema,
   GrepInputSchema,
+  READ_DESCRIPTION,
+  ReadInputSchema,
   TOOL_APPROVAL,
-  VIEW_DESCRIPTION,
-  ViewInputSchema,
   WRITE_DESCRIPTION,
   WriteInputSchema,
 } from "./schemas";
@@ -97,12 +97,12 @@ export function createVmTools(params: VmToolsParams) {
     return daemonRequest(runner, handle, path, input);
   };
 
-  const view = tool({
-    needsApproval: approvalFor(TOOL_APPROVAL.view),
-    description: VIEW_DESCRIPTION,
-    inputSchema: zodSchema(ViewInputSchema),
+  const read = tool({
+    needsApproval: approvalFor(TOOL_APPROVAL.read),
+    description: READ_DESCRIPTION,
+    inputSchema: zodSchema(ReadInputSchema),
     execute: async (input) => {
-      const result = (await call("/_decopilot_vm/view", input)) as
+      const result = (await call("/_decopilot_vm/read", input)) as
         | { kind: "text"; content: string; lineCount: number }
         | {
             kind: "image";
@@ -175,5 +175,5 @@ export function createVmTools(params: VmToolsParams) {
     },
   });
 
-  return { view, write, edit, grep, glob, bash };
+  return { read, write, edit, grep, glob, bash };
 }

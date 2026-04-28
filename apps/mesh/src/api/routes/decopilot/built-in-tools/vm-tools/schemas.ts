@@ -5,7 +5,7 @@
 
 import { z } from "zod";
 
-export const ViewInputSchema = z.object({
+export const ReadInputSchema = z.object({
   path: z
     .string()
     .describe(
@@ -79,18 +79,18 @@ export const BashInputSchema = z.object({
     .describe("Timeout in milliseconds (default 30000, max 120000)"),
 });
 
-export type ViewInput = z.infer<typeof ViewInputSchema>;
+export type ReadInput = z.infer<typeof ReadInputSchema>;
 export type WriteInput = z.infer<typeof WriteInputSchema>;
 export type EditInput = z.infer<typeof EditInputSchema>;
 export type GrepInput = z.infer<typeof GrepInputSchema>;
 export type GlobInput = z.infer<typeof GlobInputSchema>;
 export type BashInput = z.infer<typeof BashInputSchema>;
 
-export const VIEW_DESCRIPTION =
-  "View a file. For text files, returns content with line numbers (use offset " +
+export const READ_DESCRIPTION =
+  "Read a file. For text files, returns content with line numbers (use offset " +
   "and limit for large files). For images (jpeg, png, gif, webp), the image " +
   "is injected into the next turn as a vision input — do NOT describe what " +
-  "you 'expect' to see, just call view and look at the next message. Other " +
+  "you 'expect' to see, just call read and look at the next message. Other " +
   "binary formats are not supported; use a format-specific skill " +
   "(e.g. pptx-extract for .pptx).";
 
@@ -114,9 +114,9 @@ export const BASH_DESCRIPTION =
   "Execute a shell command in the VM's project directory. " +
   "Working directory is the project root. Timeout default 30s, max 2min.";
 
-// view/grep/glob are non-mutating; write/edit/bash mutate.
+// read/grep/glob are non-mutating; write/edit/bash mutate.
 export const TOOL_APPROVAL = {
-  view: false,
+  read: false,
   write: true,
   edit: true,
   grep: false,

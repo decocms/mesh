@@ -31,14 +31,14 @@ include them under a `### Notes` subsection per slide.
   with a small slide-number overlay on each cell. Suitable for a single
   multimodal read to get the shape of the deck.
 - A directory `<input-stem>.slides/` containing per-slide JPGs at the
-  same resolution. When a slide in the grid looks interesting, view
+  same resolution. When a slide in the grid looks interesting, read
   `slide-NNN.jpg` directly instead of re-running `pptx-thumbnail`.
 
-To actually see the rendered image, call the `view` tool on the path
+To actually see the rendered image, call the `read` tool on the path
 `pptx-thumbnail` printed:
 
 ```
-view /home/sandbox/deck.thumbnail.jpg
+read /home/sandbox/deck.thumbnail.jpg
 ```
 
 The image is injected into the next turn as a vision input.
@@ -49,7 +49,7 @@ The image is injected into the next turn as a vision input.
 `<input-stem>.rasterized/slide-NNN.jpg`. Use `--pages 3` for a single
 slide or `--pages 1,3-5` for a selection. Override DPI with `--dpi`.
 
-Pass the resulting path to the `view` tool to actually see the slide.
+Pass the resulting path to the `read` tool to actually see the slide.
 
 ## Raw XML
 
