@@ -36,6 +36,7 @@ export interface UseTasksParams {
   userId?: string;
   virtualMcpId?: string;
   hasTrigger?: boolean;
+  hasMessages?: boolean;
 }
 
 // ============================================================================
@@ -56,6 +57,7 @@ export function useTasks(params: UseTasksParams) {
       virtualMcpId: params.virtualMcpId,
       userId: params.owner === "me" ? (params.userId ?? null) : null,
       hasTrigger: params.hasTrigger ?? null,
+      hasMessages: params.hasMessages ?? null,
     }),
     queryFn: async () => {
       if (!client) {
@@ -69,6 +71,8 @@ export function useTasks(params: UseTasksParams) {
       if (params.owner === "automation") where.has_trigger = true;
       if (params.hasTrigger !== undefined)
         where.has_trigger = params.hasTrigger;
+      if (params.hasMessages !== undefined)
+        where.has_messages = params.hasMessages;
 
       const input = {
         limit: TASK_CONSTANTS.TASKS_PAGE_SIZE,

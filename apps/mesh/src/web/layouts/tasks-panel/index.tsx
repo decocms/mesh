@@ -34,6 +34,7 @@ function TasksPanelContent() {
     owner: "me",
     status: "open",
     hasTrigger: false,
+    hasMessages: true,
   });
   const { tasks: automationTasks } = useTasks({
     owner: "all",

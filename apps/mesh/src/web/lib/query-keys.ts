@@ -24,6 +24,7 @@ export const KEYS = {
       virtualMcpId?: string;
       userId?: string | null;
       hasTrigger?: boolean | null;
+      hasMessages?: boolean | null;
     },
   ) =>
     [
@@ -34,6 +35,7 @@ export const KEYS = {
       filters.virtualMcpId ?? null,
       filters.userId ?? null,
       filters.hasTrigger ?? null,
+      filters.hasMessages ?? null,
     ] as const,
   // Prefix for broad invalidation of all task queries for a locator
   tasksPrefix: (locator: string) => ["tasks", locator] as const,

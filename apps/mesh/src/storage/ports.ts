@@ -57,6 +57,7 @@ export interface ThreadStoragePort {
       agentId?: string;
       includeArchived?: boolean;
       hasTrigger?: boolean;
+      hasMessages?: boolean;
     },
   ): Promise<{ threads: Thread[]; total: number }>;
   listByTriggerIds(

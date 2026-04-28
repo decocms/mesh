@@ -84,6 +84,7 @@ export class OrgScopedThreadStorage {
       agentId?: string;
       includeArchived?: boolean;
       hasTrigger?: boolean;
+      hasMessages?: boolean;
     },
   ): Promise<{ threads: Thread[]; total: number }> {
     return this.inner.list(this.requireOrg(), createdBy, options);
@@ -288,6 +289,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
       agentId?: string;
       includeArchived?: boolean;
       hasTrigger?: boolean;
+      hasMessages?: boolean;
     },
   ): Promise<{ threads: Thread[]; total: number }> {
     const archived = options?.includeArchived === true;
@@ -309,6 +311,29 @@ export class SqlThreadStorage implements ThreadStoragePort {
       query = query.where("trigger_id", "is not", null);
     } else if (options?.hasTrigger === false) {
       query = query.where("trigger_id", "is", null);
+    }
+    if (options?.hasMessages === true) {
+      query = query.where((eb) =>
+        eb.exists(
+          eb
+            .selectFrom("thread_messages")
+            .select("thread_messages.id")
+            .whereRef("thread_messages.thread_id", "=", "threads.id")
+            .limit(1),
+        ),
+      );
+    } else if (options?.hasMessages === false) {
+      query = query.where((eb) =>
+        eb.not(
+          eb.exists(
+            eb
+              .selectFrom("thread_messages")
+              .select("thread_messages.id")
+              .whereRef("thread_messages.thread_id", "=", "threads.id")
+              .limit(1),
+          ),
+        ),
+      );
     }
     if (options?.startDate) {
       // updated_at is stored as ISO text — string comparison is correct for ISO dates
@@ -348,6 +373,29 @@ export class SqlThreadStorage implements ThreadStoragePort {
       countQuery = countQuery.where("trigger_id", "is not", null);
     } else if (options?.hasTrigger === false) {
       countQuery = countQuery.where("trigger_id", "is", null);
+    }
+    if (options?.hasMessages === true) {
+      countQuery = countQuery.where((eb) =>
+        eb.exists(
+          eb
+            .selectFrom("thread_messages")
+            .select("thread_messages.id")
+            .whereRef("thread_messages.thread_id", "=", "threads.id")
+            .limit(1),
+        ),
+      );
+    } else if (options?.hasMessages === false) {
+      countQuery = countQuery.where((eb) =>
+        eb.not(
+          eb.exists(
+            eb
+              .selectFrom("thread_messages")
+              .select("thread_messages.id")
+              .whereRef("thread_messages.thread_id", "=", "threads.id")
+              .limit(1),
+          ),
+        ),
+      );
     }
     if (options?.startDate) {
       countQuery = countQuery.where(

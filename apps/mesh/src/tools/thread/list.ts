@@ -25,6 +25,8 @@ const ThreadListInputSchema = CollectionListInputSchema.extend({
       hidden: z.boolean().optional(),
       /** Filter by presence of a trigger_id (automation-owned) */
       has_trigger: z.boolean().optional(),
+      /** Filter by presence of at least one message in the thread */
+      has_messages: z.boolean().optional(),
     })
     .optional(),
   startDate: z
@@ -107,6 +109,7 @@ export const COLLECTION_THREADS_LIST = defineTool({
           agentId: input.agentId,
           includeArchived: input.where?.hidden,
           hasTrigger: input.where?.has_trigger,
+          hasMessages: input.where?.has_messages,
         });
 
     const hasMore = offset + limit < total;
