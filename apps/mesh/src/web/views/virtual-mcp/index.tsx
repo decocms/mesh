@@ -89,6 +89,7 @@ import { VirtualMcpFormSchema, type VirtualMcpFormData } from "./types";
 import { VirtualMCPShareModal } from "./virtual-mcp-share-modal";
 import { getActiveGithubRepo } from "@/web/lib/github-repo";
 import { FIXED_SYSTEM_TABS } from "@/web/layouts/main-panel-tabs/tab-id";
+import { toTitleCase } from "@/web/components/chat/message/parts/tool-call-part/utils";
 
 type DialogState = {
   shareDialogOpen: boolean;
@@ -787,7 +788,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
         {
           connectionId,
           toolName,
-          label: toolName.replace(/_/g, " "),
+          label: toTitleCase(toolName),
           icon: null,
         },
       ];
@@ -1012,7 +1013,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
                                   value={
                                     pinned && pinnedView
                                       ? pinnedView.label
-                                      : tool.name.replace(/_/g, " ")
+                                      : toTitleCase(tool.name)
                                   }
                                   onChange={(e) =>
                                     handleLabelChange(
@@ -1022,7 +1023,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
                                     )
                                   }
                                   onBlur={handleLabelBlur}
-                                  className="h-7 text-sm w-40 capitalize"
+                                  className="h-7 text-sm w-40"
                                   disabled={!pinned || isSaving}
                                   readOnly={!pinned}
                                 />
