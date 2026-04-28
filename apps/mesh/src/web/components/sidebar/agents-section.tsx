@@ -412,7 +412,9 @@ function PinAgentPopoverContent({
   const handleTemplateClick = (templateId: string) => {
     onClose();
     setSearch("");
-    if (templateId === "site-editor") {
+    if (templateId === "self-healing-storefront") {
+      onOpenSelfHealing();
+    } else if (templateId === "site-editor") {
       onOpenImportDeco();
     } else if (templateId === "site-diagnostics") {
       if (existingDiagnostics) {
@@ -444,31 +446,6 @@ function PinAgentPopoverContent({
 
       {/* Scrollable content */}
       <div className="overflow-y-auto flex-1 min-h-0 px-3 pb-3">
-        {/* Self-healing repo — featured */}
-        {preferences.experimental_vibecode && (
-          <button
-            type="button"
-            onClick={() => {
-              onOpenSelfHealing();
-              onClose();
-            }}
-            className="mt-3 w-full flex items-center gap-3 rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent px-3 py-3 text-left transition-colors hover:border-primary/50 hover:from-primary/15 cursor-pointer group"
-          >
-            <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
-              <GitHubIcon className="size-5 text-primary" />
-            </div>
-            <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-sm font-medium text-foreground leading-tight">
-                Set up self-healing repo
-              </span>
-              <span className="text-xs text-muted-foreground line-clamp-2">
-                Connect GitHub and add specialist monitors that open issues
-                automatically.
-              </span>
-            </div>
-          </button>
-        )}
-
         {/* Agents section */}
         <div className="px-1 pt-3 pb-2">
           <span className="text-xs font-medium text-muted-foreground">
@@ -492,27 +469,6 @@ function PinAgentPopoverContent({
             </div>
             <span className="text-xs leading-tight text-center text-muted-foreground group-hover:text-foreground">
               Create new
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              track("agent_import_clicked", { source: "deco_cx" });
-              onOpenImportDeco();
-              onClose();
-            }}
-            className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group"
-          >
-            <div className="w-12 h-12 rounded-xl border-2 border-border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
-              <img
-                src="/logos/deco%20logo.svg"
-                alt="deco.cx"
-                className="size-5"
-              />
-            </div>
-            <span className="text-xs leading-tight text-center text-muted-foreground group-hover:text-foreground">
-              Import deco.cx
             </span>
           </button>
 
