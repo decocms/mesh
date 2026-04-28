@@ -71,6 +71,25 @@ export const SimpleModeConfigSchema = z.object({
 export type SimpleModeConfig = z.infer<typeof SimpleModeConfigSchema>;
 
 /**
+ * Default home agents config schema - matches DefaultHomeAgentsConfig from storage/types.ts.
+ *
+ * Each entry is either a `WELL_KNOWN_AGENT_TEMPLATES` template id (e.g. "site-editor",
+ * "ai-image") or a custom virtual MCP agent id (UUID). The home view renders these
+ * tiles in order, capped at the home view's display limit.
+ */
+export const DefaultHomeAgentsConfigSchema = z.object({
+  ids: z
+    .array(z.string())
+    .describe(
+      "Ordered list of agent ids to show on the home view. Mix of well-known template ids and custom virtual MCP ids.",
+    ),
+});
+
+export type DefaultHomeAgentsConfig = z.infer<
+  typeof DefaultHomeAgentsConfigSchema
+>;
+
+/**
  * Brand context schema - org-scoped company profile
  */
 export const BrandContextSchema = z.object({
