@@ -1,0 +1,78 @@
+{{- if and .Values.sandbox.agentSandbox.enabled .Values.sandbox.agentSandbox.previewGateway.enabled }}
+{{- $domain := required "sandbox.agentSandbox.previewGateway.domain is required when previewGateway.enabled=true" .Values.sandbox.agentSandbox.previewGateway.domain }}
+{{- $issuer := required "sandbox.agentSandbox.previewGateway.clusterIssuer is required when previewGateway.enabled=true" .Values.sandbox.agentSandbox.previewGateway.clusterIssuer }}
+{{- $gwNamespace := .Values.sandbox.agentSandbox.previewGateway.namespace }}
+{{- $tlsSecretName := default (printf "%s-sandbox-preview-tls" (include "chart-deco-studio.fullname" .)) .Values.sandbox.agentSandbox.previewGateway.tlsSecretName }}
+{{- $hostname := printf "*.%s" $domain }}
+{{- $meshServiceName := include "chart-deco-studio.fullname" . }}
+# Wildcard preview-URL ingress: Approach B from the K8s sandbox plan. A
+# single Gateway + HTTPRoute terminate `*.preview.<domain>` and forward to
+# the mesh Service; mesh inspects the Host header and reverse-proxies to
+# the matching sandbox's daemon at port 9000 (daemon owns the public
+# surface; routing browsers straight at dev port 3000 would bypass the
+# daemon's CSP/HMR rewrites and break iframe embedding + SSE).
+#
+# Mesh stays in the request path for the first ship; the longer-term plan
+# is per-claim HTTPRoutes that bypass mesh entirely. Switching to that
+# requires per-Service routing + RBAC for mesh to mint HTTPRoutes, which
+# is deferred.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ $meshServiceName }}-sandbox-preview
+  namespace: {{ $gwNamespace }}
+  labels:
+    app.kubernetes.io/name: studio-sandbox-preview
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ include "chart-deco-studio.chart" . }}
+  annotations:
+    # cert-manager picks up the cert from the listener's TLS secret ref;
+    # this annotation tells it which ClusterIssuer to use when minting
+    # the wildcard. Required because Gateway listeners don't have a
+    # built-in `issuerRef` field.
+    cert-manager.io/cluster-issuer: {{ $issuer | quote }}
+spec:
+  gatewayClassName: {{ .Values.sandbox.agentSandbox.previewGateway.gatewayClassName | quote }}
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: {{ $hostname | quote }}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: {{ $tlsSecretName }}
+            namespace: {{ $gwNamespace }}
+      allowedRoutes:
+        namespaces:
+          # HTTPRoute lives in the release namespace (next to mesh), so
+          # we have to explicitly allow cross-namespace attachment from
+          # there. Without `from: All` plus a tight selector this would
+          # silently drop the route.
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ $meshServiceName }}-sandbox-preview
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: studio-sandbox-preview
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ include "chart-deco-studio.chart" . }}
+spec:
+  parentRefs:
+    - kind: Gateway
+      name: {{ $meshServiceName }}-sandbox-preview
+      namespace: {{ $gwNamespace }}
+  hostnames:
+    - {{ $hostname | quote }}
+  rules:
+    - backendRefs:
+        - name: {{ $meshServiceName }}
+          port: {{ .Values.service.port }}
+{{- end }}

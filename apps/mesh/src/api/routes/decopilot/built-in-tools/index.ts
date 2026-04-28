@@ -132,7 +132,7 @@ async function buildAllTools(
   // VM file tools — same six LLM-visible tools across runners (schemas in
   // vm-tools/schemas.ts). Dispatch resolves through `getRunnerByKind` so
   // the entry's recorded runnerKind drives the routing, regardless of the
-  // current MESH_SANDBOX_RUNNER env value. When no entry exists, fall back
+  // current STUDIO_SANDBOX_RUNNER env value. When no entry exists, fall back
   // to the QuickJS `sandbox` tool — VM_START must run first for file tools.
   const vmNeedsApproval =
     toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false;

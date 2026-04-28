@@ -1,0 +1,152 @@
+# Local kind cluster overrides for chart-deco-studio.
+#
+# Use with the runbook in deploy/helm/examples/README-kind.md (or paste from
+# the chat). Designed to work on macOS (arm64 / Apple Silicon) AND linux/amd64
+# without changes — no nodeSelector pins, default StorageClass.
+#
+# Pairs with:
+#   - sandbox.agentSandbox.enabled=true → installs the agent-sandbox subchart
+#     so the helm release fully owns the operator + CRDs (no separate
+#     deploy/k8s-sandbox/local/up.sh step).
+#   - mesh-sandbox:local image built locally and `kind load`ed into the cluster
+#     before `helm install`.
+
+# ── single replica, SQLite, no autoscaling ─────────────────────────────
+replicaCount: 1
+
+# Studio image: built from current branch source via tests/resilience/
+# Dockerfile.studio and `kind load`ed. Two reasons not to use the published
+# image:
+#   1. `ghcr.io/decocms/studio/studio` is private — anonymous pull returns 403.
+#   2. The published `decocms` npm package may lag the current branch (e.g.
+#      STUDIO_SANDBOX_RUNNER=agent-sandbox wasn't recognized in 2.281.2). Building
+#      from source guarantees we're testing the code under development.
+image:
+  repository: deco-studio
+  tag: local
+  pullPolicy: Never
+  # Source build doesn't install the `decocms` npm package, so the default
+  # chart command (`bun run deco …`) won't resolve. Use cli.ts directly:
+  # it goes through buildSettings → ensureServices, which spawns embedded
+  # postgres + runs Better Auth + Kysely migrations end-to-end. The
+  # `dist/server/migrate.js` path the chart's sqlite branch wires up
+  # bypasses ensureServices and tries to pg-connect to DATABASE_URL
+  # literally, which fails on the chart's `/app/data/mesh.db` placeholder.
+  command:
+    - bun
+    - run
+    - src/cli.ts
+    - --no-tui
+    - --no-local-mode
+
+# ── extra env: TLS workaround for Bun + K8s port-forward ─────────────
+# @kubernetes/client-node's PortForward uses the `ws` package for the
+# WebSocket upgrade. Bun's `ws` build doesn't honor the Node-style `ca`
+# option, so the WS handshake fails TLS validation against the kind API
+# server's self-signed cert. Plain HTTPS calls (claim CRUD) work fine —
+# only WS-backed port-forward breaks. Symptom: studio sees
+# `[AgentSandboxRunner] port-forward to <pod>:9000 failed: [object
+# ErrorEvent]` and the daemon /health probe times out.
+#
+# Workaround for kind dev only: disable TLS verification globally for the
+# pod. NEVER set this in prod — it disables all cert validation on the
+# studio process. Track upstream Bun fix or switch the studio image to
+# Node.js if you need to run @kubernetes/client-node port-forward
+# securely in production.
+env:
+  - name: NODE_TLS_REJECT_UNAUTHORIZED
+    value: "0"
+
+# ── database ──────────────────────────────────────────────────────────
+# Use the in-cluster postgres deployed via examples/postgres-kind.yaml.
+# The chart's `sqlite` mode is incompatible with the current branch (the
+# bundled migrate.js opens pg-pool against DATABASE_URL literally and
+# crashes when handed `/app/data/mesh.db`).
+database:
+  engine: postgresql
+  url: "postgresql://postgres:postgres@postgres.deco-studio.svc.cluster.local:5432/postgres"
+
+# Single-node kind cluster has no zones. Drop the spread constraint to
+# keep `kubectl describe` output clean.
+topologySpreadConstraints: []
+
+# Tighten requests so the cluster fits comfortably in Docker Desktop's
+# default ~4Gi. Bump back up when stress-testing.
+resources:
+  requests:
+    memory: "1Gi"
+    cpu: "500m"
+  limits:
+    memory: "2Gi"
+
+# ── storage ───────────────────────────────────────────────────────────
+# kind ships rancher.io/local-path as the default StorageClass.
+# Empty string = use whatever the cluster marks default (= local-path here).
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  # Empty = chart omits storageClassName, K8s falls back to the default
+  # StorageClass (`standard` / rancher.io/local-path on kind).
+  storageClass: ""
+  size: 5Gi
+  distributed: false
+
+# SQLite + ReadWriteOnce → chart auto-detects Recreate strategy. Leave
+# strategy unset.
+
+# ── secrets (override on the command line, NOT here) ──────────────────
+# Pass via --set at install time:
+#   --set secret.BETTER_AUTH_SECRET="$(openssl rand -base64 32)"
+#   --set secret.ENCRYPTION_KEY="$(openssl rand -base64 32)"
+
+# ── NATS subchart ─────────────────────────────────────────────────────
+# Keep enabled (mesh's event bus needs it). PVC storageClassName is
+# already empty in the parent default; that resolves to local-path on kind.
+
+# ── agent-sandbox runner ──────────────────────────────────────────────
+sandbox:
+  agentSandbox:
+    enabled: true
+    image:
+      # Built locally via packages/sandbox + `kind load docker-image`.
+      # See runbook for the exact build command.
+      repository: mesh-sandbox
+      tag: local
+      pullPolicy: Never
+    # Modest sandbox limits to fit alongside studio + NATS on a laptop
+    # kind cluster. Mirrors deploy/k8s-sandbox/local/sandbox-template.yaml.
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "512Mi"
+      limits:
+        cpu: "1"
+        memory: "3Gi"
+    networkPolicy:
+      # kindnet enforces NetworkPolicy as of kind v0.27 (kindnetd v1.x).
+      # Leave the chart's policy on so studio → sandbox traffic on port
+      # 9000 is explicitly allow-listed; otherwise the operator-managed
+      # default (only `app: sandbox-router` ingress, locked off via
+      # `networkPolicyManagement: Unmanaged` in the chart's SandboxTemplate)
+      # would have re-blocked everything. Older kindnet builds (pre-0.27)
+      # ignore the policy and the rule is inert — safe either way.
+      enabled: true
+    # No Istio in kind → no preview gateway. Mesh's HTTP edge handles preview
+    # routing in-process via apps/mesh/src/sandbox/preview-proxy.ts: it reads
+    # the Host header, extracts the sandbox handle, and reverse-proxies to
+    # the in-cluster daemon Service.
+    previewGateway:
+      enabled: false
+    # `*.localhost` is special — browsers resolve every subdomain of
+    # localhost to 127.0.0.1 without /etc/hosts entries. Combined with the
+    # user's `kubectl port-forward svc/deco-studio 8080:80`, this means
+    # browser → `studio-sb-XXX.preview.localhost:8080` → kube port-forward →
+    # mesh edge → preview-proxy → sandbox daemon Service. No ingress, no DNS,
+    # no certs. Match the port to whatever the user port-forwards to.
+    previewUrlPattern: "http://{handle}.preview.localhost:8080"
+    # Plain host-users mode. userns remap requires K8s 1.30+ on a kernel
+    # that supports it; kind nodes can vary. Keep simple for local dev.
+    hostUsers: true
+    readOnlyRootFilesystem: false
+    warmPool:
+      enabled: false

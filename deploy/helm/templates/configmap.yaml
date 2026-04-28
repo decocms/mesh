@@ -17,3 +17,11 @@ data:
   {{- if ne (lower (default "sqlite" .Values.database.engine)) "postgresql" }}
   DATABASE_URL: {{ include "chart-deco-studio.databaseUrl" . | trim | quote }}
   {{- end }}
+  {{- if .Values.sandbox.agentSandbox.enabled }}
+  {{- if not (hasKey .Values.configMap.meshConfig "STUDIO_SANDBOX_RUNNER") }}
+  STUDIO_SANDBOX_RUNNER: "agent-sandbox"
+  {{- end }}
+  {{- with .Values.sandbox.agentSandbox.previewUrlPattern }}
+  STUDIO_SANDBOX_PREVIEW_URL_PATTERN: {{ . | quote }}
+  {{- end }}
+  {{- end }}

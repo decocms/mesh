@@ -18,9 +18,11 @@ import { makeScriptsHandler } from "./routes/scripts";
 import { makeHealthHandler } from "./routes/health";
 import { makeEventsHandler } from "./routes/events-stream";
 import { makeProxyHandler } from "./proxy";
+import { makeWsUpgrader, type WsProxyData } from "./ws-proxy";
 import { jsonResponse } from "./routes/body-parser";
 import { startUpstreamProbe } from "./probe";
 import { BranchStatusMonitor } from "./git/branch-status";
+import { discoverDescendantListeningPorts } from "./process/port-discovery";
 
 // Auto-generate DAEMON_BOOT_ID when not provided (dev/test). In production
 // the runner supplies a per-container UUID via env.
@@ -46,12 +48,45 @@ const orchestrator = new SetupOrchestrator({
 const branchStatus = new BranchStatusMonitor(config, broadcaster);
 
 let discoveredScripts: string[] | null = null;
+
+// Build the ordered candidate-port list each tick:
+//   1. Ports any descendant of a daemon-managed dev process is listening on
+//      (Vite v7 / Next / Astro / etc. mostly ignore PORT=$DEV_PORT, so this
+//      is the source of truth.)
+//   2. config.devPort — the env-hint fallback. Honored by frameworks that
+//      respect PORT, and used by the e2e tests where there's no managed
+//      dev process and the upstream is started externally.
+const excludeFromDiscovery = new Set<number>([config.proxyPort]);
+const getCandidatePorts = (): number[] => {
+  const ordered: number[] = [];
+  const seen = new Set<number>();
+  const push = (p: number) => {
+    if (!seen.has(p)) {
+      seen.add(p);
+      ordered.push(p);
+    }
+  };
+  const rootPids = processManager.allPids();
+  if (rootPids.length > 0) {
+    for (const port of discoverDescendantListeningPorts({
+      rootPids,
+      excludePorts: excludeFromDiscovery,
+    })) {
+      push(port);
+    }
+  }
+  push(config.devPort);
+  return ordered;
+};
+
 const lastStatus = startUpstreamProbe({
   upstreamHost: "localhost",
-  upstreamPort: config.devPort,
+  getCandidatePorts,
   onChange: (s) =>
     broadcaster.broadcastEvent("status", { type: "status", ...s }),
 });
+
+const getDevPort = (): number => lastStatus.port ?? config.devPort;
 
 const scriptsHandler = makeScriptsHandler(() => discoveredScripts ?? []);
 
@@ -90,15 +125,28 @@ const eventsH = makeEventsHandler({
   getActiveProcesses: () => processManager.activeNames(),
   getLastBranchStatus: () => branchStatus.getLast(),
 });
-const proxyH = makeProxyHandler({ config, broadcaster });
+const proxyH = makeProxyHandler({ broadcaster, getDevPort });
+const wsProxy = makeWsUpgrader(getDevPort);
 
-Bun.serve({
+Bun.serve<WsProxyData, never>({
   port: config.proxyPort,
   hostname: "0.0.0.0",
   idleTimeout: 0,
-  async fetch(req) {
+  async fetch(req, server) {
     const url = new URL(req.url);
     const p = url.pathname;
+
+    // WebSocket upgrade — Vite HMR + any other dev-server WS. We forward
+    // to in-pod localhost:devPort so HMR survives the daemon's reverse
+    // proxy. Daemon-internal SSE (/_decopilot_vm/events) stays HTTP.
+    if (
+      req.headers.get("upgrade")?.toLowerCase() === "websocket" &&
+      !p.startsWith("/_decopilot_vm/")
+    ) {
+      const ok = server.upgrade(req, { data: wsProxy.upgradeData(req) });
+      if (ok) return undefined as unknown as Response;
+      return new Response("Upgrade failed", { status: 400 });
+    }
 
     if (p === "/health" && req.method === "GET") return healthH();
 
@@ -134,6 +182,11 @@ Bun.serve({
     }
 
     return proxyH(req);
+  },
+  websocket: {
+    open: wsProxy.open,
+    message: wsProxy.message,
+    close: wsProxy.close,
   },
 });
 

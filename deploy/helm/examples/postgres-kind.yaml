@@ -1,0 +1,81 @@
+# Minimal Postgres for kind dev installs.
+#
+# The chart-deco-studio chart's `database.engine: sqlite` mode is a relic of
+# the published `decocms` npm package — the current source code uses Kysely +
+# node-postgres exclusively. So a postgres instance has to exist somewhere
+# the studio pod can reach.
+#
+# This manifest stands one up in the same namespace as the helm release. Pair
+# with values-kind.yaml's `database.engine: postgresql` + `database.url`
+# overrides. NOT for production — no auth hardening, no backups, single
+# replica. Replace with a managed RDS / CloudSQL / external Postgres URL in
+# any real deploy.
+#
+# Apply with:
+#   kubectl apply -n deco-studio -f deploy/helm/examples/postgres-kind.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+  clusterIP: None # headless — DNS resolves directly to the pod
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  # storageClassName omitted → cluster default (`standard` on kind).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # SQLite-style: single writer, RWO PVC
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          env:
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              value: postgres
+            - name: POSTGRES_DB
+              value: postgres
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-data
