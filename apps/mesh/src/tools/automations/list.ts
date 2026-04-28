@@ -21,6 +21,7 @@ export const AUTOMATION_LIST = defineTool({
   },
   inputSchema: z.object({
     virtual_mcp_id: z.string().optional().nullable(),
+    search: z.string().optional().nullable(),
   }),
   outputSchema: z.object({
     automations: z.array(
@@ -45,6 +46,7 @@ export const AUTOMATION_LIST = defineTool({
     const automations = await ctx.storage.automations.listWithTriggerCounts(
       organization.id,
       input.virtual_mcp_id,
+      input.search,
     );
 
     const results = automations.map((automation) => {

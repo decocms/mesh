@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus, Zap } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -15,14 +15,21 @@ import { track } from "@/web/lib/posthog-client";
 
 export function AutomationsList({ virtualMcpId }: { virtualMcpId: string }) {
   const navigate = useNavigate();
-  const { data: automations = [] } = useAutomations(virtualMcpId);
-  const { create } = useAutomationActions();
   const [search, setSearch] = useState("");
-
-  const lowerSearch = search.toLowerCase();
-  const filtered = automations.filter((a) =>
-    a.name.toLowerCase().includes(lowerSearch),
+  const [serverSearch, setServerSearch] = useState("");
+  const [, startTransition] = useTransition();
+  const { data: automations = [] } = useAutomations(
+    virtualMcpId,
+    serverSearch || null,
   );
+  const { create } = useAutomationActions();
+
+  const handleSearch = (value: string) => {
+    setSearch(value);
+    startTransition(() => {
+      setServerSearch(value);
+    });
+  };
 
   const goToDetail = (id: string) =>
     navigate({
@@ -68,7 +75,7 @@ export function AutomationsList({ virtualMcpId }: { virtualMcpId: string }) {
             {automations.length > 0 && (
               <SearchInput
                 value={search}
-                onChange={setSearch}
+                onChange={handleSearch}
                 placeholder="Search automations..."
                 className="w-full md:w-[375px]"
               />
@@ -93,7 +100,7 @@ export function AutomationsList({ virtualMcpId }: { virtualMcpId: string }) {
                 }
               />
             </div>
-          ) : filtered.length === 0 ? (
+          ) : automations.length === 0 && serverSearch ? (
             <div className="flex items-center justify-center py-20">
               <EmptyState
                 image={<Zap size={48} className="text-muted-foreground" />}
@@ -103,7 +110,7 @@ export function AutomationsList({ virtualMcpId }: { virtualMcpId: string }) {
             </div>
           ) : (
             <div className="mt-6 rounded-xl border border-border overflow-hidden">
-              {filtered.map((a) => (
+              {automations.map((a) => (
                 <AutomationListRow
                   key={a.id}
                   automation={a}

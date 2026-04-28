@@ -66,6 +66,7 @@ export interface AutomationsStorage {
   listWithTriggerCounts(
     organizationId: string,
     virtualMcpId?: string | null,
+    search?: string | null,
   ): Promise<AutomationWithTriggerInfo[]>;
   update(
     id: string,
@@ -244,6 +245,7 @@ class KyselyAutomationsStorage implements AutomationsStorage {
   async listWithTriggerCounts(
     organizationId: string,
     virtualMcpId?: string | null,
+    search?: string | null,
   ): Promise<AutomationWithTriggerInfo[]> {
     let query = this.db
       .selectFrom("automations as a")
@@ -270,6 +272,10 @@ class KyselyAutomationsStorage implements AutomationsStorage {
       query = virtualMcpId
         ? query.where("a.virtual_mcp_id", "=", virtualMcpId)
         : query.where("a.virtual_mcp_id", "is", null);
+    }
+
+    if (search) {
+      query = query.where("a.name", "ilike", `%${search}%`);
     }
 
     const rows = await query

@@ -247,8 +247,17 @@ export const KEYS = {
   // Automations (scoped by organization, optionally by project)
   automationsAll: (organizationId: string) =>
     ["automations", organizationId] as const,
-  automations: (organizationId: string, virtualMcpId?: string | null) =>
-    ["automations", organizationId, virtualMcpId ?? null] as const,
+  automations: (
+    organizationId: string,
+    virtualMcpId?: string | null,
+    search?: string | null,
+  ) =>
+    [
+      "automations",
+      organizationId,
+      virtualMcpId ?? null,
+      search ?? null,
+    ] as const,
   automation: (organizationId: string, id: string) =>
     ["automation", organizationId, id] as const,
   automationRuns: (
