@@ -603,8 +603,8 @@ function ConnectionModelsSection({
   const autoExpand = groups.length === 1 || q.length > 0;
 
   return (
-    <div className="mb-6 last:mb-0">
-      <div className="flex items-center gap-2 px-4 py-2">
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2 px-2 pt-2">
         <img
           src={PROVIDER_LOGOS[connection.providerId] ?? DEFAULT_LOGO}
           alt={connection.providerId}
@@ -620,7 +620,7 @@ function ConnectionModelsSection({
           </span>
         </div>
       </div>
-      <div className="flex flex-col gap-2 px-2">
+      <div className="flex flex-col gap-2">
         {groups.map((group) => (
           <SubProviderGroup
             key={group.id}
@@ -686,8 +686,8 @@ function ModelsPermissionsTab({
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="border-b border-border">
+    <div className="flex flex-col h-full overflow-auto gap-2 px-2 pt-2 pb-6">
+      <div className="border border-border rounded-lg overflow-hidden">
         <div
           className={cn(
             "flex items-center justify-between px-4 py-3",
@@ -731,38 +731,36 @@ function ModelsPermissionsTab({
           </div>
         </div>
       </div>
-      <div className="flex-1 overflow-auto">
-        {allModelsConnections.length === 0 ? (
-          <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-            No LLM connections configured
-          </div>
-        ) : (
-          allModelsConnections.map((conn) => (
-            <Suspense
-              key={conn.id}
-              fallback={
-                <div className="px-4 py-3 flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loading01 className="size-4 animate-spin" />
-                  Loading models...
-                </div>
-              }
-            >
-              <ConnectionModelsSection
-                connection={conn}
-                selectedModels={modelSet[conn.id] ?? []}
-                allowAllModels={allowAllModels}
-                onToggleModel={toggleModel}
-                onToggleConnectionAll={toggleConnectionAll}
-                allConnectionModelsSelected={(modelSet[conn.id] ?? []).includes(
-                  "*",
-                )}
-                searchQuery={deferredSearchQuery}
-                readOnly={readOnly}
-              />
-            </Suspense>
-          ))
-        )}
-      </div>
+      {allModelsConnections.length === 0 ? (
+        <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+          No LLM connections configured
+        </div>
+      ) : (
+        allModelsConnections.map((conn) => (
+          <Suspense
+            key={conn.id}
+            fallback={
+              <div className="px-4 py-3 flex items-center gap-2 text-sm text-muted-foreground">
+                <Loading01 className="size-4 animate-spin" />
+                Loading models...
+              </div>
+            }
+          >
+            <ConnectionModelsSection
+              connection={conn}
+              selectedModels={modelSet[conn.id] ?? []}
+              allowAllModels={allowAllModels}
+              onToggleModel={toggleModel}
+              onToggleConnectionAll={toggleConnectionAll}
+              allConnectionModelsSelected={(modelSet[conn.id] ?? []).includes(
+                "*",
+              )}
+              searchQuery={deferredSearchQuery}
+              readOnly={readOnly}
+            />
+          </Suspense>
+        ))
+      )}
     </div>
   );
 }
@@ -1533,7 +1531,12 @@ function RoleDetailPageInner({
         </div>
 
         <div className="flex-1 min-h-0 mx-auto w-full max-w-[1200px] px-4 md:px-10 pb-6">
-          <div className="h-full border border-border rounded-xl overflow-hidden">
+          <div
+            className={cn(
+              "h-full overflow-hidden",
+              activeTab !== "models" && "border border-border rounded-xl",
+            )}
+          >
             {activeTab === "mcp" && !isBuiltin && (
               <ToolSetSelector
                 toolSet={form.watch("toolSet")}
