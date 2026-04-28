@@ -152,7 +152,7 @@ export function publicMCPServerRoutes(
     // Create MCP server with public tools
     const tools = createPublicMCPTools(storage, org.id);
     const mcpServer = withRuntime({
-      tools: () => tools,
+      tools,
     });
 
     // Rewrite the request URL to remove the /org/:orgSlug/registry prefix
