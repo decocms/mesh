@@ -468,16 +468,28 @@ async function streamCoreInner(
 
         // VM file tools bind to (virtualMcpId, branch, userId). The VM is
         // provisioned lazily on the first tool call inside getBuiltInTools.
-        // Threads without a branch (no explicit VM_START flow) still get a
-        // VM — keyed by a synthetic `thread:<taskId>` slot so every thread
-        // has its own sandbox.
+        //
+        // Two keying regimes:
+        // - GitHub-linked agents (githubRepo set) need per-branch isolation
+        //   so PR/branch workflows don't trample each other. Falls back to a
+        //   `thread:<taskId>` synthetic branch when no explicit branch is
+        //   supplied yet.
+        // - Ephemeral agents (no githubRepo) share one VM per (user, agent)
+        //   across threads. The skills work is mostly read-heavy and
+        //   sharing a sandbox cuts the VM count linearly with thread count.
+        //   Tradeoff: concurrent threads share /app, /home/sandbox, /tmp —
+        //   parallel writes to overlapping filenames can race. Fine for
+        //   reads and scoped outputs; revisit if it bites.
         const vmMetadata = virtualMcp.metadata as {
           githubRepo?: GithubRepo | null;
         };
+        const isEphemeralAgent = !vmMetadata.githubRepo;
         const vmContext = input.userId
           ? {
               virtualMcpId: input.agent.id,
-              branch: input.branch ?? `thread:${mem.thread.id}`,
+              branch: isEphemeralAgent
+                ? "ephemeral"
+                : (input.branch ?? `thread:${mem.thread.id}`),
               userId: input.userId,
             }
           : null;
