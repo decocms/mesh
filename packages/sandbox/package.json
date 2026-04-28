@@ -16,7 +16,8 @@
     "./runner/freestyle": "./server/runner/freestyle/index.ts"
   },
   "dependencies": {
-    "@kubernetes/client-node": "^1.4.0"
+    "@kubernetes/client-node": "^1.4.0",
+    "@opentelemetry/api": "^1.9.0"
   },
   "optionalDependencies": {
     "@freestyle-sh/with-bun": "^0.2.12",

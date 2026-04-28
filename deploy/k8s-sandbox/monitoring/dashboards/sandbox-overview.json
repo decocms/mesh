@@ -1,0 +1,225 @@
+{
+  "title": "Mesh Sandbox Overview",
+  "uid": "mesh-sandbox-overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "tags": ["mesh", "sandbox"],
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "type": "constant",
+        "current": {
+          "value": "agent-sandbox-system",
+          "text": "agent-sandbox-system"
+        },
+        "query": "agent-sandbox-system",
+        "hide": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Active sandboxes",
+      "description": "Total live sandboxes (claimed pods in the namespace). Source: cAdvisor via kubeletstats — depends only on the in-cluster pipeline so it stays accurate even if mesh isn't running locally. Lags ~30s on creation, up to 5min on deletion (Prometheus staleness).",
+      "gridPos": { "h": 6, "w": 4, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "none", "noValue": "0" } },
+      "options": {
+        "reduceOptions": { "calcs": ["last"] },
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "count(k8s_pod_cpu_utilization_ratio{k8s_namespace_name=\"$namespace\",sandbox_role=\"claimed\"}) or vector(0)",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Orgs with active sandboxes",
+      "description": "Distinct orgs currently holding at least one sandbox.",
+      "gridPos": { "h": 6, "w": 4, "x": 4, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "none", "noValue": "0" } },
+      "options": {
+        "reduceOptions": { "calcs": ["last"] },
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "count(count by (org_id) (k8s_pod_cpu_utilization_ratio{k8s_namespace_name=\"$namespace\",sandbox_role=\"claimed\"})) or vector(0)",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Warm-pool overhead pods",
+      "description": "Sandbox-template pods sitting idle in the namespace with no owning org (sandbox_handle empty). Cost paid for warm-start latency savings.",
+      "gridPos": { "h": 6, "w": 4, "x": 8, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "none", "noValue": "0" } },
+      "options": {
+        "reduceOptions": { "calcs": ["last"] },
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "count(k8s_pod_cpu_utilization_ratio{k8s_namespace_name=\"$namespace\",app_name=\"mesh-sandbox\",sandbox_handle=\"\"}) or vector(0)",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Egress rate by org (bytes/sec)",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "Bps" } },
+      "targets": [
+        {
+          "expr": "sum by (org_id) (rate(k8s_pod_network_io_bytes_total{k8s_namespace_name=\"$namespace\",direction=\"transmit\",sandbox_role=\"claimed\"}[5m]))",
+          "legendFormat": "{{org_id}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "CPU usage by org (cores)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "fieldConfig": { "defaults": { "unit": "none" } },
+      "targets": [
+        {
+          "expr": "sum by (org_id) (k8s_pod_cpu_utilization_ratio{k8s_namespace_name=\"$namespace\",sandbox_role=\"claimed\"})",
+          "legendFormat": "{{org_id}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Memory (working set) by org",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "targets": [
+        {
+          "expr": "sum by (org_id) (k8s_pod_memory_working_set_bytes{k8s_namespace_name=\"$namespace\",sandbox_role=\"claimed\"})",
+          "legendFormat": "{{org_id}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Top 10 sandboxes by egress (last 1h, MB)",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "decmbytes" } },
+      "options": { "showHeader": true },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (org_id, user_id, sandbox_handle) (increase(k8s_pod_network_io_bytes_total{k8s_namespace_name=\"$namespace\",direction=\"transmit\",sandbox_role=\"claimed\"}[1h])) / 1024 / 1024)",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Mesh-side (runner POV)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+      "collapsed": false
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Active sandboxes by org over time",
+      "description": "Per-org count of claimed pods. Useful for spotting which tenants are spinning up / draining. Source: cAdvisor.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "fieldConfig": { "defaults": { "unit": "none" } },
+      "targets": [
+        {
+          "expr": "count by (org_id) (k8s_pod_cpu_utilization_ratio{k8s_namespace_name=\"$namespace\",sandbox_role=\"claimed\"})",
+          "legendFormat": "{{org_id}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Ensure outcomes (cold-start ratio)",
+      "description": "fresh = new claim provisioned, resume = state-store rehydrate, adopt = adopted an existing cluster claim. High fresh ratio after a mesh restart = warm-pool would help.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "targets": [
+        {
+          "expr": "sum by (outcome) (rate(mesh_sandbox_ensure_outcome_total{runner_kind=\"kubernetes\"}[5m]))",
+          "legendFormat": "{{outcome}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Proxy P95 latency by source (ms)",
+      "description": "P95 of mesh→daemon proxy duration. source=daemon is tool exec / control plane; source=preview is iframe traffic. Spikes correlate with daemon load or port-forward stalls (dev mode).",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 32 },
+      "fieldConfig": { "defaults": { "unit": "ms" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, source) (rate(mesh_sandbox_proxy_duration_ms_bucket{runner_kind=\"kubernetes\"}[5m])))",
+          "legendFormat": "{{source}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "row",
+      "title": "Cross-checks (mesh ↔ cluster drift)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 40 },
+      "collapsed": false
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Active count: mesh-side vs cAdvisor",
+      "description": "Two views of 'how many sandboxes exist now'. mesh-side is what the mesh runner believes (real-time UpDownCounter); cAdvisor is what kubeletstats reports for pods consuming resources (lags ~30s–5min). Persistent divergence indicates orphan claims (mesh deleted but K8s didn't reap) or pods mesh doesn't know about (cluster drift).",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 41 },
+      "fieldConfig": { "defaults": { "unit": "none" } },
+      "targets": [
+        {
+          "expr": "sum(mesh_sandbox_active{runner_kind=\"kubernetes\"})",
+          "legendFormat": "mesh",
+          "refId": "A"
+        },
+        {
+          "expr": "count(k8s_pod_cpu_utilization_ratio{k8s_namespace_name=\"$namespace\",sandbox_role=\"claimed\"})",
+          "legendFormat": "cAdvisor",
+          "refId": "B"
+        }
+      ]
+    }
+  ]
+}

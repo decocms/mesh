@@ -166,12 +166,17 @@ function bufferLike(v: unknown): string | undefined {
 }
 
 interface KubeFetchInit {
-  method: "GET" | "POST" | "DELETE";
+  method: "GET" | "POST" | "DELETE" | "PATCH";
   path: string;
   body?: unknown;
   signal?: AbortSignal;
   /** Extra Accept / query hints. Merged with auth headers. */
   headers?: Record<string, string>;
+  /**
+   * Required iff `method === "PATCH"`. Drives the patch content-type:
+   * RFC 7396 merge-patch (CRDs) vs. strategic-merge (built-in types).
+   */
+  patchType?: "merge" | "strategic-merge";
 }
 
 /**
@@ -184,9 +189,13 @@ async function kubeFetch(
   init: KubeFetchInit,
 ): Promise<Response> {
   const auth = await resolveKubeAuth(kc);
-  const url = `${auth.server}${init.path}`;
   const headers: Record<string, string> = { ...auth.headers, ...init.headers };
-  if (init.body !== undefined && !("content-type" in headers)) {
+  if (init.method === "PATCH") {
+    headers["content-type"] =
+      init.patchType === "strategic-merge"
+        ? "application/strategic-merge-patch+json"
+        : "application/merge-patch+json";
+  } else if (init.body !== undefined && !("content-type" in headers)) {
     headers["content-type"] = "application/json";
   }
   const reqInit: RequestInit & { tls?: typeof auth.tls } = {
@@ -196,32 +205,7 @@ async function kubeFetch(
     signal: init.signal,
     tls: auth.tls,
   };
-  return fetch(url, reqInit as RequestInit);
-}
-
-interface KubeFetchInitWithPatch extends Omit<KubeFetchInit, "method"> {
-  method: "PATCH";
-  patchType: "merge" | "strategic-merge";
-}
-
-async function kubePatch(
-  kc: KubeConfig,
-  init: KubeFetchInitWithPatch,
-): Promise<Response> {
-  const auth = await resolveKubeAuth(kc);
-  const url = `${auth.server}${init.path}`;
-  const contentType =
-    init.patchType === "strategic-merge"
-      ? "application/strategic-merge-patch+json"
-      : "application/merge-patch+json";
-  const reqInit: RequestInit & { tls?: typeof auth.tls } = {
-    method: "PATCH",
-    headers: { ...auth.headers, "content-type": contentType },
-    body: init.body === undefined ? undefined : JSON.stringify(init.body),
-    signal: init.signal,
-    tls: auth.tls,
-  };
-  return fetch(url, reqInit as RequestInit);
+  return fetch(`${auth.server}${init.path}`, reqInit as RequestInit);
 }
 
 /** HTTP error carrier used for the 404 fast-path before SandboxError wrapping. */
@@ -252,6 +236,31 @@ async function ensureOk(resp: Response, action: string): Promise<void> {
   throw new KubeHttpError(resp.status, body, message);
 }
 
+/**
+ * Issue a kube call where 404 is *not* an error (the resource was already
+ * gone; mesh's next ensure() recreates it). On 404, returns `null`. On 2xx,
+ * returns the parsed JSON body — or `null` for callers that don't need it.
+ * All other errors are wrapped in `SandboxError` with `wrapMessage` as the
+ * surfaced label.
+ */
+async function callSwallowing404<T>(
+  kc: KubeConfig,
+  init: KubeFetchInit,
+  action: string,
+  wrapMessage: string,
+  parse: "json" | "none" = "none",
+): Promise<T | null> {
+  try {
+    const resp = await kubeFetch(kc, init);
+    if (resp.status === 404) return null;
+    await ensureOk(resp, action);
+    if (parse === "json") return (await resp.json()) as T;
+    return null;
+  } catch (error) {
+    throw new SandboxError(wrapMessage, error);
+  }
+}
+
 // ---- Public surface ---------------------------------------------------------
 
 const CLAIM_PATH_PREFIX = `/apis/${K8S_CONSTANTS.CLAIM_API_GROUP}/${K8S_CONSTANTS.CLAIM_API_VERSION}/namespaces`;
@@ -271,6 +280,10 @@ export async function createSandboxClaim(
       error,
     );
   }
+}
+
+function claimPath(namespace: string, claimName: string): string {
+  return `${CLAIM_PATH_PREFIX}/${encodeURIComponent(namespace)}/${K8S_CONSTANTS.CLAIM_PLURAL}/${encodeURIComponent(claimName)}`;
 }
 
 /**
@@ -294,30 +307,19 @@ export async function patchSandboxClaimShutdown(
   claimName: string,
   shutdownTime: string,
 ): Promise<void> {
-  const path = `${CLAIM_PATH_PREFIX}/${encodeURIComponent(namespace)}/${K8S_CONSTANTS.CLAIM_PLURAL}/${encodeURIComponent(claimName)}`;
-  try {
-    const resp = await kubePatch(kc, {
+  await callSwallowing404(
+    kc,
+    {
       method: "PATCH",
-      path,
+      path: claimPath(namespace, claimName),
       patchType: "merge",
       body: {
-        spec: {
-          lifecycle: {
-            shutdownPolicy: "Delete",
-            shutdownTime,
-          },
-        },
+        spec: { lifecycle: { shutdownPolicy: "Delete", shutdownTime } },
       },
-    });
-    if (resp.status === 404) return;
-    await ensureOk(resp, "patchSandboxClaimShutdown");
-  } catch (error) {
-    if (error instanceof KubeHttpError && error.status === 404) return;
-    throw new SandboxError(
-      `Failed to patch SandboxClaim shutdownTime: ${claimName}`,
-      error,
-    );
-  }
+    },
+    "patchSandboxClaimShutdown",
+    `Failed to patch SandboxClaim shutdownTime: ${claimName}`,
+  );
 }
 
 export async function deleteSandboxClaim(
@@ -325,18 +327,12 @@ export async function deleteSandboxClaim(
   namespace: string,
   claimName: string,
 ): Promise<void> {
-  const path = `${CLAIM_PATH_PREFIX}/${encodeURIComponent(namespace)}/${K8S_CONSTANTS.CLAIM_PLURAL}/${encodeURIComponent(claimName)}`;
-  try {
-    const resp = await kubeFetch(kc, { method: "DELETE", path });
-    if (resp.status === 404) return;
-    await ensureOk(resp, "deleteSandboxClaim");
-  } catch (error) {
-    if (error instanceof KubeHttpError && error.status === 404) return;
-    throw new SandboxError(
-      `Failed to delete SandboxClaim: ${claimName}`,
-      error,
-    );
-  }
+  await callSwallowing404(
+    kc,
+    { method: "DELETE", path: claimPath(namespace, claimName) },
+    "deleteSandboxClaim",
+    `Failed to delete SandboxClaim: ${claimName}`,
+  );
 }
 
 export async function getSandboxClaim(
@@ -344,17 +340,14 @@ export async function getSandboxClaim(
   namespace: string,
   claimName: string,
 ): Promise<SandboxResource | undefined> {
-  const path = `${CLAIM_PATH_PREFIX}/${encodeURIComponent(namespace)}/${K8S_CONSTANTS.CLAIM_PLURAL}/${encodeURIComponent(claimName)}`;
-  try {
-    const resp = await kubeFetch(kc, { method: "GET", path });
-    if (resp.status === 404) return undefined;
-    await ensureOk(resp, "getSandboxClaim");
-    return (await resp.json()) as SandboxResource;
-  } catch (error) {
-    if (error instanceof KubeHttpError && error.status === 404)
-      return undefined;
-    throw new SandboxError(`Failed to get SandboxClaim: ${claimName}`, error);
-  }
+  const found = await callSwallowing404<SandboxResource>(
+    kc,
+    { method: "GET", path: claimPath(namespace, claimName) },
+    "getSandboxClaim",
+    `Failed to get SandboxClaim: ${claimName}`,
+    "json",
+  );
+  return found ?? undefined;
 }
 
 export interface WaitForSandboxReadyResult {

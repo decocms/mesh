@@ -23,6 +23,14 @@ import {
 } from "@decocms/sandbox/runner/k8s";
 
 /**
+ * Cap on frames buffered between client upgrade and upstream WS open. Vite
+ * HMR sends ~1 frame per file event, so 256 covers a normal cold start with
+ * room to spare while preventing a slow/blackholed upstream from exhausting
+ * mesh memory.
+ */
+const MAX_PENDING_FRAMES = 256;
+
+/**
  * Parses the base preview hostname (e.g. `preview.decocms.com`) out of the
  * `MESH_SANDBOX_PREVIEW_URL_PATTERN` value. The pattern has the form
  * `https://{handle}.preview.example.com` (or `https://{handle}.<base>`),
@@ -223,6 +231,28 @@ export async function tryUpgradePreviewWs(
 }
 
 /**
+ * Idempotent shutdown for one side of the preview WS bridge. Marks the
+ * connection as closed (so other event listeners stop forwarding), then
+ * closes both client and upstream sockets — `try/catch` around each because
+ * Bun + the WebSocket constructor both throw on close-after-close.
+ */
+function closePreviewBridge(
+  ws: PreviewServerWebSocket,
+  data: PreviewWsData,
+  code: number,
+  reason: string,
+): void {
+  if (data.closed) return;
+  data.closed = true;
+  try {
+    ws.close(code, reason);
+  } catch {}
+  try {
+    data.upstream?.close();
+  } catch {}
+}
+
+/**
  * Bun WebSocket handler for the upgraded preview connection. Pumps frames
  * between the browser side (`ws`) and the upstream daemon (`ws.data.upstream`)
  * in both directions. Buffers inbound frames received before the upstream
@@ -243,10 +273,7 @@ export const previewWebSocketHandler = {
       console.warn(
         `[preview-ws] failed to dial upstream ${data.upstreamUrl}: ${err instanceof Error ? err.message : String(err)}`,
       );
-      data.closed = true;
-      try {
-        ws.close(1011, "upstream connect failed");
-      } catch {}
+      closePreviewBridge(ws, data, 1011, "upstream connect failed");
       return;
     }
     upstream.binaryType = "arraybuffer";
@@ -263,18 +290,10 @@ export const previewWebSocketHandler = {
       ws.send(ev.data as string | Uint8Array | ArrayBuffer);
     });
     upstream.addEventListener("close", (ev: CloseEvent) => {
-      if (data.closed) return;
-      data.closed = true;
-      try {
-        ws.close(ev.code || 1000, ev.reason || "");
-      } catch {}
+      closePreviewBridge(ws, data, ev.code || 1000, ev.reason || "");
     });
     upstream.addEventListener("error", () => {
-      if (data.closed) return;
-      data.closed = true;
-      try {
-        ws.close(1011, "upstream error");
-      } catch {}
+      closePreviewBridge(ws, data, 1011, "upstream error");
     });
   },
   message(
@@ -286,17 +305,21 @@ export const previewWebSocketHandler = {
     const upstream = data.upstream;
     if (upstream && upstream.readyState === WebSocket.OPEN) {
       upstream.send(message);
-    } else {
-      data.pending.push(message);
+      return;
     }
+    // Cap the pre-handshake buffer. A blackholed upstream + a chatty client
+    // (e.g. vite HMR firing while the daemon is still booting) would otherwise
+    // grow this without bound. 1011 = "internal error" per RFC 6455.
+    if (data.pending.length >= MAX_PENDING_FRAMES) {
+      closePreviewBridge(ws, data, 1011, "preview ws backlog overflow");
+      return;
+    }
+    data.pending.push(message);
   },
   close(ws: PreviewServerWebSocket) {
     const data = ws.data;
     if (!isPreviewWsData(data)) return;
-    data.closed = true;
-    try {
-      data.upstream?.close();
-    } catch {}
+    closePreviewBridge(ws, data, 1000, "");
   },
 };
 

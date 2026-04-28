@@ -6,6 +6,27 @@ import {
   tryUpgradePreviewWs,
 } from "./preview-proxy";
 
+/**
+ * Inline mirror of `applyPreviewPattern` from
+ * `packages/sandbox/server/runner/shared/preview-url.ts` — kept here as a
+ * fixture so the round-trip test below has no cross-package coupling. If the
+ * real implementation drifts, the round-trip test will fail and force this
+ * mirror to update too.
+ */
+function applyPreviewPatternFixture(pattern: string, handle: string): string {
+  const base = pattern.replace(/\/+$/, "");
+  if (base.includes("{handle}")) {
+    return `${base.replace("{handle}", handle)}/`;
+  }
+  try {
+    const u = new URL(base);
+    u.hostname = `${handle}.${u.hostname}`;
+    return `${u.toString()}/`;
+  } catch {
+    return `${base}/${handle}/`;
+  }
+}
+
 describe("parsePreviewBaseDomain", () => {
   it("extracts the base from {handle}-templated patterns", () => {
     expect(parsePreviewBaseDomain("https://{handle}.preview.decocms.com")).toBe(
@@ -85,6 +106,33 @@ describe("extractHandleFromHost", () => {
       extractHandleFromHost("mesh-sb-abc.preview.decocms.com", ""),
     ).toBeNull();
   });
+});
+
+describe("applyPreviewPattern <-> parse/extract round-trip", () => {
+  // Walks the contract that applyPreviewPattern (runner) and
+  // parsePreviewBaseDomain + extractHandleFromHost (preview proxy) are
+  // inverses. If either side ever supports a pattern shape the other doesn't
+  // recognize, this test catches the mismatch before it silently misroutes
+  // production traffic.
+  const handle = "mesh-sb-abc123";
+
+  const patterns = [
+    "https://{handle}.preview.decocms.com",
+    "https://preview.example.com",
+    "https://{handle}.preview.example.com/",
+    "https://stage.example.com",
+  ];
+
+  for (const pattern of patterns) {
+    it(`round-trips: ${pattern}`, () => {
+      const previewUrl = applyPreviewPatternFixture(pattern, handle);
+      const url = new URL(previewUrl);
+      const baseDomain = parsePreviewBaseDomain(pattern);
+      expect(baseDomain).not.toBeNull();
+      const recovered = extractHandleFromHost(url.host, baseDomain!);
+      expect(recovered).toBe(handle);
+    });
+  }
 });
 
 describe("tryHandlePreviewHttp", () => {

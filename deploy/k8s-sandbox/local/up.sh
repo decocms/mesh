@@ -24,6 +24,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 SANDBOX_PKG="${REPO_ROOT}/packages/sandbox"
 DOCKERFILE="${SANDBOX_PKG}/image/Dockerfile"
+# Shared (prod-safe) monitoring values live one level up; this script layers
+# the kind-only overlay in local/monitoring/ on top.
+MONITORING_DIR="${SCRIPT_DIR}/../monitoring"
 
 MANIFEST_URL="https://github.com/kubernetes-sigs/agent-sandbox/releases/download/${OPERATOR_VERSION}/manifest.yaml"
 EXTENSIONS_URL="https://github.com/kubernetes-sigs/agent-sandbox/releases/download/${OPERATOR_VERSION}/extensions.yaml"
@@ -97,7 +100,8 @@ if [[ "${MONITORING:-1}" == "1" ]]; then
       --kube-context "${KCTX}" \
       --namespace monitoring --create-namespace \
       --version "${KUBE_PROM_STACK_VERSION}" \
-      -f "${SCRIPT_DIR}/monitoring/values-kube-prometheus-stack.yaml" \
+      -f "${MONITORING_DIR}/values-kube-prometheus-stack.yaml" \
+      -f "${SCRIPT_DIR}/monitoring/values-kube-prometheus-stack.local.yaml" \
       --wait --timeout 5m
 
     log "installing opentelemetry-collector ${OTEL_COLLECTOR_VERSION} (daemonset)"
@@ -106,13 +110,14 @@ if [[ "${MONITORING:-1}" == "1" ]]; then
       --kube-context "${KCTX}" \
       --namespace monitoring \
       --version "${OTEL_COLLECTOR_VERSION}" \
-      -f "${SCRIPT_DIR}/monitoring/values-otel-collector.yaml" \
+      -f "${MONITORING_DIR}/values-otel-collector.yaml" \
+      -f "${SCRIPT_DIR}/monitoring/values-otel-collector.local.yaml" \
       --wait --timeout 3m
 
     log "applying sandbox dashboard ConfigMap"
     # `--dry-run | apply` so re-runs replace the ConfigMap idempotently.
     kubectl --context "${KCTX}" -n monitoring create configmap mesh-sandbox-dashboard \
-      --from-file="${SCRIPT_DIR}/monitoring/dashboards/sandbox-overview.json" \
+      --from-file="${MONITORING_DIR}/dashboards/sandbox-overview.json" \
       --dry-run=client -o yaml | \
       kubectl --context "${KCTX}" apply -f -
     kubectl --context "${KCTX}" -n monitoring label configmap mesh-sandbox-dashboard \

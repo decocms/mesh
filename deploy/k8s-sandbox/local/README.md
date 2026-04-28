@@ -10,6 +10,12 @@ for upstream third-party stacks (Prometheus, Grafana, OpenTelemetry
 Collector) since that's their canonical install path; mesh-owned manifests
 (SandboxTemplate, agent-sandbox operator) stay raw `kubectl apply`.
 
+The monitoring stack (kube-prometheus-stack + OTel collector daemonset +
+sandbox dashboard) is deployed from values shared with prod — base values
+live in [`../monitoring/`](../monitoring/), and `up.sh` layers the
+kind-only overlay in [`monitoring/`](monitoring/) on top. See
+[`../monitoring/README.md`](../monitoring/README.md) for the prod install.
+
 ## Prereqs
 
 - [`docker`](https://docs.docker.com/engine/install/) — running
@@ -85,7 +91,7 @@ kubelet (cAdvisor) ──► OTel collector daemonset
                         │      → series labels: org_id, user_id, sandbox_handle, sandbox_role)
                         │  - prometheus exporter on :8889
                         ▼
-                   ServiceMonitor → kube-prometheus-stack Prometheus → Grafana
+                   PodMonitor → kube-prometheus-stack Prometheus → Grafana
 ```
 
 Pod labels come from `SandboxClaim.spec.additionalPodMetadata.labels`,
@@ -104,15 +110,12 @@ MONITORING_ONLY=1 ./deploy/k8s-sandbox/local/down.sh
 ./deploy/k8s-sandbox/local/up.sh
 ```
 
-### Production swap
+### Production install
 
-The pipeline shape carries to prod with two changes:
-1. Replace bundled Prometheus with remote-write to Mimir/VictoriaMetrics
-   (`prometheus.prometheusSpec.remoteWrite` in the values).
-2. Restrict the k8sattributes processor's `filter.namespaces` to the
-   sandbox namespace once you're not also debugging system pods.
-
-Dashboards, label names, and metric names stay identical.
+The same base values + dashboard ship to prod from this repo. See
+[`../monitoring/README.md`](../monitoring/README.md) for the install
+commands and the prod-overlay examples (remote-write, SSO, scoped
+k8sattributes filter, ServiceMonitor for the in-cluster mesh Deployment).
 
 ## Smoke test
 

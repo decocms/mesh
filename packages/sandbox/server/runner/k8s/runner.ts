@@ -31,6 +31,12 @@ import {
   KubeConfig as KubeConfigClass,
   PortForward,
 } from "@kubernetes/client-node";
+import type {
+  Counter,
+  Histogram,
+  Meter,
+  UpDownCounter,
+} from "@opentelemetry/api";
 import {
   daemonBash,
   probeDaemonHealth,
@@ -83,6 +89,26 @@ const DEFAULT_WORKDIR = "/app";
 
 // 32 bytes matches Docker's generation so audit logs don't vary by runner.
 const DAEMON_TOKEN_BYTES = 32;
+
+/**
+ * Env keys mesh owns and a caller's `opts.env` MUST NOT shadow. DAEMON_TOKEN
+ * is the secrecy boundary; the rest configure the daemon's bootstrap and
+ * silently overriding any of them would break clone/install/dev-server start.
+ */
+const RESERVED_ENV_KEYS = new Set([
+  "DAEMON_TOKEN",
+  "DAEMON_BOOT_ID",
+  "APP_ROOT",
+  "PROXY_PORT",
+  "DEV_PORT",
+  "RUNTIME",
+  "CLONE_URL",
+  "REPO_NAME",
+  "BRANCH",
+  "GIT_USER_NAME",
+  "GIT_USER_EMAIL",
+  "PACKAGE_MANAGER",
+]);
 
 // Default idle-reap TTL: 15 min from each ensure() hit. Every code-initiated
 // request flows through ensure() (or touches a record via getRecord, which
@@ -151,6 +177,11 @@ interface PortForwarder {
   localPort: number;
 }
 
+interface RunnerTenant {
+  orgId: string;
+  userId: string;
+}
+
 interface K8sRecord {
   id: SandboxId;
   handle: string;
@@ -167,6 +198,13 @@ interface K8sRecord {
    * itself, this is purely informational on the mesh side).
    */
   daemonBootId: string;
+  /**
+   * Tenant identity carried through for metric attribution on subsequent
+   * operations (proxy, exec, delete) where the caller only has a handle.
+   * Null when ensure() was called without tenant context (smoke tests,
+   * adopt fallback when claim labels were absent).
+   */
+  tenant: RunnerTenant | null;
 }
 
 interface PersistedK8sState {
@@ -175,6 +213,7 @@ interface PersistedK8sState {
   workdir: string;
   workload?: Workload | null;
   daemonBootId?: string;
+  tenant?: RunnerTenant | null;
   [k: string]: unknown;
 }
 
@@ -198,6 +237,13 @@ export interface KubernetesRunnerOptions {
    * deletes claim + pod when the wall clock passes that.
    */
   idleTtlMs?: number;
+  /**
+   * OpenTelemetry meter for runner-level metrics (active gauge, ensure
+   * outcome counter, proxy duration histogram). Optional — when absent,
+   * runner is fully functional but emits no metrics. Tests typically pass
+   * undefined; mesh wires `metrics.getMeter("mesh", "1.0.0")`.
+   */
+  meter?: Meter;
 }
 
 export class KubernetesSandboxRunner implements SandboxRunner {
@@ -213,6 +259,12 @@ export class KubernetesSandboxRunner implements SandboxRunner {
   private readonly sandboxTemplateName: string;
   private readonly tokenGenerator: () => string;
   private readonly idleTtlMs: number;
+  /**
+   * Instruments are null when no meter was provided. All emit-paths must
+   * null-check; the alternative — passing the OTel API's no-op meter — would
+   * still allocate and dispatch on every call.
+   */
+  private readonly metrics: RunnerMetrics | null;
 
   constructor(opts: KubernetesRunnerOptions = {}) {
     this.stateStore = opts.stateStore ?? null;
@@ -226,6 +278,7 @@ export class KubernetesSandboxRunner implements SandboxRunner {
       opts.tokenGenerator ??
       (() => randomBytes(DAEMON_TOKEN_BYTES).toString("hex"));
     this.idleTtlMs = opts.idleTtlMs ?? DEFAULT_IDLE_TTL_MS;
+    this.metrics = opts.meter ? buildRunnerMetrics(opts.meter) : null;
   }
 
   // ---- SandboxRunner surface ------------------------------------------------
@@ -247,7 +300,13 @@ export class KubernetesSandboxRunner implements SandboxRunner {
   async delete(handle: string): Promise<void> {
     const rec = await this.getRecord(handle);
     this.records.delete(handle);
-    if (rec) this.closeForwarder(rec.daemonForward);
+    if (rec) {
+      this.closeForwarder(rec.daemonForward);
+      // Decrement only when we actually held the record — getRecord can be
+      // null after restart-without-state-store, in which case the gauge
+      // was never incremented for this handle in this process.
+      this.metrics?.active.add(-1, tenantAttrs(rec.tenant));
+    }
     await deleteSandboxClaim(this.kubeConfig, this.namespace, handle);
     if (this.stateStore) {
       if (rec) await this.stateStore.delete(rec.id, RUNNER_KIND);
@@ -282,7 +341,25 @@ export class KubernetesSandboxRunner implements SandboxRunner {
         headers: { "content-type": "application/json" },
       });
     }
-    return proxyDaemonRequest(rec.daemonUrl, rec.token, path, init);
+    const start = performance.now();
+    let status = 0;
+    try {
+      const resp = await proxyDaemonRequest(
+        rec.daemonUrl,
+        rec.token,
+        path,
+        init,
+      );
+      status = resp.status;
+      return resp;
+    } finally {
+      this.recordProxyDuration(
+        "daemon",
+        status,
+        rec,
+        performance.now() - start,
+      );
+    }
   }
 
   /**
@@ -337,54 +414,80 @@ export class KubernetesSandboxRunner implements SandboxRunner {
     handle: string,
     request: Request,
   ): Promise<Response> {
-    const upstreamBase = await this.resolvePreviewUpstreamUrl(handle);
-    if (!upstreamBase) {
-      return jsonResponse(404, { error: "sandbox not found" });
-    }
-
-    const reqUrl = new URL(request.url);
-    const isAdminPath =
-      reqUrl.pathname === "/_decopilot_vm" ||
-      reqUrl.pathname.startsWith("/_decopilot_vm/");
-    if (isAdminPath && request.method !== "GET") {
-      return jsonResponse(404, { error: "not found" });
-    }
-
-    const target = `${upstreamBase}${reqUrl.pathname}${reqUrl.search}`;
-    const headers = new Headers(request.headers);
-    for (const h of PREVIEW_STRIP_REQUEST_HEADERS) headers.delete(h);
-
-    const hasBody = request.method !== "GET" && request.method !== "HEAD";
-    const init: RequestInit & { duplex?: string } = {
-      method: request.method,
-      headers,
-      body: hasBody ? request.body : undefined,
-      redirect: "manual",
-      signal: request.signal,
-      duplex: hasBody ? "half" : undefined,
-    };
-
-    let upstream: Response;
+    const start = performance.now();
+    // In-memory cache only — preview is the hot path; a state-store hit per
+    // request would dominate latency. Tenant attribution is best-effort: when
+    // the records map is cold (mesh just restarted) the metric still records
+    // duration with empty tenant attrs. cAdvisor on the pod side covers
+    // bandwidth attribution authoritatively via pod labels.
+    const cachedRec = this.records.get(handle) ?? null;
+    let status = 0;
     try {
-      upstream = await fetch(target, init as RequestInit);
-    } catch (err) {
-      console.warn(
-        `[${LOG_LABEL}] preview fetch to ${target} failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      return jsonResponse(502, { error: "sandbox daemon unreachable" });
-    }
-
-    const responseHeaders = new Headers();
-    for (const [k, v] of upstream.headers.entries()) {
-      if (!PREVIEW_STRIP_RESPONSE_HEADERS.includes(k.toLowerCase())) {
-        responseHeaders.set(k, v);
+      const upstreamBase = await this.resolvePreviewUpstreamUrl(handle);
+      if (!upstreamBase) {
+        status = 404;
+        return jsonResponse(404, { error: "sandbox not found" });
       }
+
+      const reqUrl = new URL(request.url);
+      const isAdminPath =
+        reqUrl.pathname === "/_decopilot_vm" ||
+        reqUrl.pathname.startsWith("/_decopilot_vm/");
+      if (isAdminPath && request.method !== "GET") {
+        status = 404;
+        return jsonResponse(404, { error: "not found" });
+      }
+
+      const target = `${upstreamBase}${reqUrl.pathname}${reqUrl.search}`;
+      const headers = new Headers(request.headers);
+      for (const h of PREVIEW_STRIP_REQUEST_HEADERS) headers.delete(h);
+
+      const hasBody = request.method !== "GET" && request.method !== "HEAD";
+      const init: RequestInit & { duplex?: string } = {
+        method: request.method,
+        headers,
+        body: hasBody ? request.body : undefined,
+        redirect: "manual",
+        signal: request.signal,
+        duplex: hasBody ? "half" : undefined,
+      };
+
+      let upstream: Response;
+      try {
+        upstream = await fetch(target, init as RequestInit);
+      } catch (err) {
+        // Truncate to host+pathname — query strings can carry secrets
+        // (magic-link tokens, signed URLs) and would otherwise end up in
+        // mesh stdout → kubectl logs → log aggregator.
+        const safeTarget = `${upstreamBase}${reqUrl.pathname}`;
+        console.warn(
+          `[${LOG_LABEL}] preview fetch to ${safeTarget} failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        status = 502;
+        return jsonResponse(502, { error: "sandbox daemon unreachable" });
+      }
+
+      const responseHeaders = new Headers();
+      for (const [k, v] of upstream.headers.entries()) {
+        if (!PREVIEW_STRIP_RESPONSE_HEADERS.includes(k.toLowerCase())) {
+          responseHeaders.set(k, v);
+        }
+      }
+      status = upstream.status;
+      return new Response(upstream.body, {
+        status: upstream.status,
+        statusText: upstream.statusText,
+        headers: responseHeaders,
+      });
+    } finally {
+      this.recordProxyDuration(
+        "preview",
+        status,
+        cachedRec,
+        performance.now() - start,
+        handle,
+      );
     }
-    return new Response(upstream.body, {
-      status: upstream.status,
-      statusText: upstream.statusText,
-      headers: responseHeaders,
-    });
   }
 
   // ---- Ensure flow ----------------------------------------------------------
@@ -400,11 +503,6 @@ export class KubernetesSandboxRunner implements SandboxRunner {
         `[${LOG_LABEL}] opts.image ignored (template ${this.sandboxTemplateName} pins image): got ${opts.image}`,
       );
     }
-    if (opts.env && Object.keys(opts.env).length > 0) {
-      console.warn(
-        `[${LOG_LABEL}] opts.env ignored (template holds non-token env; DAEMON_TOKEN is injected per-claim): keys=${Object.keys(opts.env).join(",")}`,
-      );
-    }
 
     // 1. State-store resume.
     if (ops) {
@@ -417,6 +515,7 @@ export class KubernetesSandboxRunner implements SandboxRunner {
             ops,
             /* persistNow */ false,
             /* patchTtl */ true,
+            "resume",
           );
         await ops.delete(id, RUNNER_KIND);
       }
@@ -441,6 +540,7 @@ export class KubernetesSandboxRunner implements SandboxRunner {
           ops,
           /* persistNow */ true,
           /* patchTtl */ true,
+          "adopt",
         );
       await deleteSandboxClaim(this.kubeConfig, this.namespace, handle).catch(
         () => {},
@@ -448,7 +548,13 @@ export class KubernetesSandboxRunner implements SandboxRunner {
     }
     // 3. Fresh provision.
     const fresh = await this.provision(id, handle, opts);
-    return this.finish(fresh, ops, /* persistNow */ true, /* patchTtl */ false);
+    return this.finish(
+      fresh,
+      ops,
+      /* persistNow */ true,
+      /* patchTtl */ false,
+      "fresh",
+    );
   }
 
   private async finish(
@@ -456,7 +562,9 @@ export class KubernetesSandboxRunner implements SandboxRunner {
     ops: RunnerStateStoreOps | null,
     persistNow: boolean,
     patchTtl: boolean,
+    outcome: "fresh" | "resume" | "adopt",
   ): Promise<Sandbox> {
+    const wasCached = this.records.has(rec.handle);
     this.records.set(rec.handle, rec);
     if (persistNow) await this.persist(ops, rec);
     // Fresh provision set a shutdownTime in the claim spec already; resumes
@@ -473,35 +581,57 @@ export class KubernetesSandboxRunner implements SandboxRunner {
         ),
       );
     }
+    if (this.metrics) {
+      const attrs = tenantAttrs(rec.tenant);
+      this.metrics.ensureOutcome.add(1, { ...attrs, outcome });
+      // Only increment the active gauge on first observation to avoid
+      // double-counting when the same handle is rehydrated multiple times
+      // (mesh-process internal cache hit; ensureLocked is invoked again).
+      if (!wasCached) this.metrics.active.add(1, attrs);
+    }
     return this.toSandbox(rec);
   }
 
-  private async provision(
-    id: SandboxId,
-    handle: string,
+  /**
+   * Compose the env block the daemon's orchestrator reads to clone, install,
+   * and start the dev server. Mirrors the docker runner's contract; reader is
+   * `packages/sandbox/daemon/config.ts`.
+   *
+   * Caller-supplied `opts.env` is layered first so the bootstrap keys defined
+   * here (and listed in RESERVED_ENV_KEYS) always win — an intercepted
+   * DAEMON_TOKEN would compromise the sandbox; an intercepted DEV_PORT would
+   * just break the boot. We warn — not throw — to match the docker runner's
+   * permissive shape.
+   */
+  private buildEnvMap(
     opts: EnsureOptions,
-  ): Promise<K8sRecord> {
-    const token = this.tokenGenerator();
-    const daemonBootId = randomUUID();
-    const workdir = DEFAULT_WORKDIR;
-    const devContainerPort = opts.workload?.devPort ?? DEFAULT_DEV_PORT;
-    const runtime = opts.workload?.runtime ?? "node";
-    const packageManager = opts.workload?.packageManager ?? null;
-    const repo = opts.repo ?? null;
+    boot: { token: string; daemonBootId: string; workdir: string },
+  ): Record<string, string> {
+    const callerEnv: Record<string, string> = {};
+    const dropped: string[] = [];
+    for (const [k, v] of Object.entries(opts.env ?? {})) {
+      if (RESERVED_ENV_KEYS.has(k)) dropped.push(k);
+      else callerEnv[k] = v;
+    }
+    if (dropped.length > 0) {
+      console.warn(
+        `[${LOG_LABEL}] opts.env keys overlap reserved bootstrap names and were dropped: ${dropped.join(",")}`,
+      );
+    }
+
+    const repo = opts.repo;
     const repoLabel = repo
       ? (repo.displayName ?? deriveRepoLabel(repo.cloneUrl))
       : null;
 
-    // Full env contract — daemon's orchestrator owns clone + install +
-    // dev-server start; no external bootstrap call needed. Mirrors the
-    // docker runner's env contract; reader is `packages/sandbox/daemon/config.ts`.
-    const envMap: Record<string, string> = {
-      DAEMON_TOKEN: token,
-      DAEMON_BOOT_ID: daemonBootId,
-      APP_ROOT: workdir,
+    return {
+      ...callerEnv,
+      DAEMON_TOKEN: boot.token,
+      DAEMON_BOOT_ID: boot.daemonBootId,
+      APP_ROOT: boot.workdir,
       PROXY_PORT: String(DAEMON_CONTAINER_PORT),
-      DEV_PORT: String(devContainerPort),
-      RUNTIME: runtime,
+      DEV_PORT: String(opts.workload?.devPort ?? DEFAULT_DEV_PORT),
+      RUNTIME: opts.workload?.runtime ?? "node",
       ...(repo
         ? {
             CLONE_URL: repo.cloneUrl,
@@ -511,18 +641,31 @@ export class KubernetesSandboxRunner implements SandboxRunner {
             GIT_USER_EMAIL: repo.userEmail,
           }
         : {}),
-      ...(packageManager ? { PACKAGE_MANAGER: packageManager } : {}),
+      ...(opts.workload?.packageManager
+        ? { PACKAGE_MANAGER: opts.workload.packageManager }
+        : {}),
     };
+  }
 
-    const claim: SandboxClaim = {
+  private buildClaim(
+    handle: string,
+    opts: EnsureOptions,
+    boot: { token: string; daemonBootId: string; workdir: string },
+  ): SandboxClaim {
+    const envMap = this.buildEnvMap(opts, boot);
+    return {
       apiVersion: `${K8S_CONSTANTS.CLAIM_API_GROUP}/${K8S_CONSTANTS.CLAIM_API_VERSION}`,
       kind: "SandboxClaim",
       metadata: {
         name: handle,
         namespace: this.namespace,
+        // Tenant duplicated on the claim itself (not just the pod) so the
+        // adopt path can recover orgId/userId after a state-store wipe;
+        // adopt() reads claim.metadata.labels, not pod labels.
         labels: {
           "app.kubernetes.io/name": "mesh-sandbox",
           "app.kubernetes.io/managed-by": "mesh",
+          ...buildTenantLabels(opts.tenant),
         },
       },
       spec: {
@@ -533,12 +676,19 @@ export class KubernetesSandboxRunner implements SandboxRunner {
         // distinguishes claimed pods from warm-pool pods (template sets
         // role=sandbox-pod by default).
         additionalPodMetadata: {
-          labels: buildTenantPodLabels(handle, opts.tenant),
+          labels: buildTenantLabels(opts.tenant, {
+            [LABEL_KEYS.role]: "claimed",
+            [LABEL_KEYS.sandboxHandle]: handle,
+          }),
         },
         // `valueFrom.secretKeyRef` isn't supported on SandboxClaim env; RBAC
         // on the namespace is the secrecy boundary. Warm-pool off because the
-        // operator rejects custom env on warm-pooled claims.
-        env: Object.entries(envMap).map(([name, value]) => ({ name, value })),
+        // operator rejects custom env on warm-pooled claims. Sorted by name
+        // so `kubectl diff` / claim audit entries don't churn across runs
+        // that pass the same env in different insertion orders.
+        env: Object.entries(envMap)
+          .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+          .map(([name, value]) => ({ name, value })),
         warmpool: "none",
         lifecycle: {
           shutdownPolicy: "Delete",
@@ -546,7 +696,22 @@ export class KubernetesSandboxRunner implements SandboxRunner {
         },
       },
     };
+  }
 
+  private async provision(
+    id: SandboxId,
+    handle: string,
+    opts: EnsureOptions,
+  ): Promise<K8sRecord> {
+    const token = this.tokenGenerator();
+    const daemonBootId = randomUUID();
+    const workdir = DEFAULT_WORKDIR;
+
+    const claim = this.buildClaim(handle, opts, {
+      token,
+      daemonBootId,
+      workdir,
+    });
     await createSandboxClaim(this.kubeConfig, this.namespace, claim);
     const { podName } = await waitForSandboxReady(
       this.kubeConfig,
@@ -580,6 +745,7 @@ export class KubernetesSandboxRunner implements SandboxRunner {
       daemonForward,
       workload: opts.workload ?? null,
       daemonBootId,
+      tenant: opts.tenant ?? null,
     };
   }
 
@@ -608,27 +774,14 @@ export class KubernetesSandboxRunner implements SandboxRunner {
     // annotation over the persisted value.
     const currentPodName = readPodName(claim) ?? state.podName;
 
-    const daemonForward = await this.openForwarder(
-      currentPodName,
-      DAEMON_CONTAINER_PORT,
-      handle,
-    ).catch(() => null);
-    if (!daemonForward) return null;
-    const daemonUrl = `http://127.0.0.1:${daemonForward.localPort}`;
-
-    // probeDaemonHealth returns null when /health is unreachable OR lacks a
-    // bootId (older daemon shape). Either way, purge + re-provision.
-    const health = await probeDaemonHealth(daemonUrl);
-    if (!health) {
-      this.closeForwarder(daemonForward);
-      return null;
-    }
+    const live = await this.openAndProbeDaemon(currentPodName, handle);
+    if (!live) return null;
 
     // Pod bounced but the daemon's orchestrator handles re-bootstrap itself
     // on boot (resume-on-restart). Just refresh our copy of bootId.
-    if (state.daemonBootId && state.daemonBootId !== health.bootId) {
+    if (state.daemonBootId && state.daemonBootId !== live.bootId) {
       console.warn(
-        `[${LOG_LABEL}] daemon restart detected (handle=${handle}): stored bootId=${state.daemonBootId} live bootId=${health.bootId}`,
+        `[${LOG_LABEL}] daemon restart detected (handle=${handle}): stored bootId=${state.daemonBootId} live bootId=${live.bootId}`,
       );
     }
 
@@ -638,10 +791,11 @@ export class KubernetesSandboxRunner implements SandboxRunner {
       podName: currentPodName,
       token: state.token,
       workdir: state.workdir ?? DEFAULT_WORKDIR,
-      daemonUrl,
-      daemonForward,
+      daemonUrl: live.daemonUrl,
+      daemonForward: live.daemonForward,
       workload: state.workload ?? null,
-      daemonBootId: health.bootId,
+      daemonBootId: live.bootId,
+      tenant: state.tenant ?? null,
     };
   }
 
@@ -656,17 +810,8 @@ export class KubernetesSandboxRunner implements SandboxRunner {
     const token = readClaimDaemonToken(claim);
     if (!token) return null;
 
-    const daemonForward = await this.openForwarder(
-      podName,
-      DAEMON_CONTAINER_PORT,
-      handle,
-    );
-    const daemonUrl = `http://127.0.0.1:${daemonForward.localPort}`;
-    const health = await probeDaemonHealth(daemonUrl);
-    if (!health) {
-      this.closeForwarder(daemonForward);
-      return null;
-    }
+    const live = await this.openAndProbeDaemon(podName, handle);
+    if (!live) return null;
 
     return {
       id,
@@ -674,11 +819,46 @@ export class KubernetesSandboxRunner implements SandboxRunner {
       podName,
       token,
       workdir: DEFAULT_WORKDIR,
-      daemonUrl,
-      daemonForward,
+      daemonUrl: live.daemonUrl,
+      daemonForward: live.daemonForward,
       workload: null,
-      daemonBootId: health.bootId,
+      daemonBootId: live.bootId,
+      // Recovered from claim labels written at provision time. Null if the
+      // claim pre-dates tenant labelling (back-compat with already-running
+      // sandboxes when this code rolls out).
+      tenant: readClaimTenant(claim),
     };
+  }
+
+  /**
+   * Open the daemon port-forward and probe `/health`. Closes the forwarder
+   * and returns null on any failure so the caller can fall through to
+   * recreate. Both `rehydrate` and `adopt` share this shape — the only
+   * difference is whether the bootId match is checked.
+   */
+  private async openAndProbeDaemon(
+    podName: string,
+    handle: string,
+  ): Promise<{
+    daemonForward: PortForwarder;
+    daemonUrl: string;
+    bootId: string;
+  } | null> {
+    const daemonForward = await this.openForwarder(
+      podName,
+      DAEMON_CONTAINER_PORT,
+      handle,
+    ).catch(() => null);
+    if (!daemonForward) return null;
+    const daemonUrl = `http://127.0.0.1:${daemonForward.localPort}`;
+    // probeDaemonHealth returns null when /health is unreachable OR lacks a
+    // bootId (older daemon shape). Either way, purge + re-provision.
+    const health = await probeDaemonHealth(daemonUrl);
+    if (!health) {
+      this.closeForwarder(daemonForward);
+      return null;
+    }
+    return { daemonForward, daemonUrl, bootId: health.bootId };
   }
 
   // ---- Handle resolution (post-restart) -------------------------------------
@@ -698,6 +878,24 @@ export class KubernetesSandboxRunner implements SandboxRunner {
     const rec = await this.getRecord(handle);
     if (!rec) throw new Error(`unknown sandbox handle ${handle}`);
     return rec;
+  }
+
+  // ---- Metric helpers -------------------------------------------------------
+
+  private recordProxyDuration(
+    source: "daemon" | "preview",
+    statusCode: number,
+    rec: K8sRecord | null,
+    durationMs: number,
+    fallbackHandle?: string,
+  ): void {
+    if (!this.metrics) return;
+    this.metrics.proxyDurationMs.record(durationMs, {
+      ...tenantAttrs(rec?.tenant ?? null),
+      source,
+      sandbox_handle: rec?.handle ?? fallbackHandle ?? "",
+      status_code: statusCode || 0,
+    });
   }
 
   // ---- Identity + preview URL ----------------------------------------------
@@ -741,6 +939,7 @@ export class KubernetesSandboxRunner implements SandboxRunner {
       workdir: rec.workdir,
       workload: rec.workload,
       daemonBootId: rec.daemonBootId,
+      tenant: rec.tenant,
     };
     await ops.put(rec.id, RUNNER_KIND, { handle: rec.handle, state });
   }
@@ -775,6 +974,12 @@ export class KubernetesSandboxRunner implements SandboxRunner {
         );
         server.once("error", (err: NodeJS.ErrnoException) => {
           if (err.code === "EADDRINUSE" && attempt < PORT_WALK_LIMIT) {
+            // Release the failed listener before walking forward — listen()
+            // failure leaves the Server object holding the connection handler
+            // closure; closing makes the leak trivially visible to GC.
+            try {
+              server.close();
+            } catch {}
             const next =
               PORT_RANGE_START +
               ((port - PORT_RANGE_START + 1) % PORT_RANGE_SIZE);
@@ -873,6 +1078,32 @@ export class KubernetesSandboxRunner implements SandboxRunner {
 
 // ---- Helpers ----------------------------------------------------------------
 
+interface RunnerMetrics {
+  active: UpDownCounter;
+  ensureOutcome: Counter;
+  proxyDurationMs: Histogram;
+}
+
+function buildRunnerMetrics(meter: Meter): RunnerMetrics {
+  return {
+    active: meter.createUpDownCounter("mesh.sandbox.active", {
+      description:
+        "Active sandbox count, by runner kind and owning org. Cross-checks the cAdvisor-derived count from the cluster — divergence between the two indicates orphaned claims (mesh deleted but K8s didn't reap) or unattributed pods.",
+      unit: "{sandbox}",
+    }),
+    ensureOutcome: meter.createCounter("mesh.sandbox.ensure.outcome", {
+      description:
+        "Outcome of each ensure() call: fresh provision, resume from state-store after restart, or adopt of a cluster-side claim mesh didn't know about. Cold-start ratio is the primary input for warm-pool sizing.",
+      unit: "{call}",
+    }),
+    proxyDurationMs: meter.createHistogram("mesh.sandbox.proxy.duration_ms", {
+      description:
+        "Wall-clock latency of mesh-mediated requests to the sandbox daemon: tool exec proxies (source=daemon) and preview iframe traffic (source=preview).",
+      unit: "ms",
+    }),
+  };
+}
+
 function loadDefaultKubeConfig(): KubeConfig {
   const kc = new KubeConfigClass();
   kc.loadFromDefault();
@@ -928,6 +1159,15 @@ function jsonResponse(status: number, body: unknown): Response {
   });
 }
 
+// K8s label keys mesh attaches. Centralized so writers (buildTenantLabels)
+// and the reader (readClaimTenant) can't drift.
+const LABEL_KEYS = {
+  role: "mesh.decocms.com/role",
+  sandboxHandle: "mesh.decocms.com/sandbox-handle",
+  orgId: "mesh.decocms.com/org-id",
+  userId: "mesh.decocms.com/user-id",
+} as const;
+
 // K8s label values: ≤63 chars, must match `(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?`.
 // Org/user IDs are UUIDs in mesh and pass through unchanged; the regex check
 // + truncation is defensive against future ID-shape changes (the operator will
@@ -941,26 +1181,51 @@ function sanitizeLabelValue(value: string): string {
 }
 
 /**
- * Pod labels for cost attribution. `role=claimed` distinguishes these from
- * warm-pool pods (template sets `role=sandbox-pod` as the default). Sandbox
- * handle is included so dashboards can drill from per-org aggregates down to
- * a specific sandbox without needing a join table.
+ * Tenant labels for `adopt()` recovery + cost attribution. Used on both the
+ * claim (so `kubectl get sandboxclaim` shows ownership and adopt() can read
+ * orgId/userId after a state-store wipe) and the pod (where cAdvisor /
+ * kubelet metrics pick them up). Pass `extra` for pod-only fields like
+ * `role` and `sandbox-handle`.
  */
-function buildTenantPodLabels(
-  handle: string,
+function buildTenantLabels(
   tenant: EnsureOptions["tenant"],
+  extra: Record<string, string> = {},
 ): Record<string, string> {
-  const labels: Record<string, string> = {
-    "mesh.decocms.com/role": "claimed",
-    "mesh.decocms.com/sandbox-handle": handle,
-  };
+  const labels: Record<string, string> = { ...extra };
   if (tenant) {
     const orgId = sanitizeLabelValue(tenant.orgId);
     const userId = sanitizeLabelValue(tenant.userId);
-    if (orgId) labels["mesh.decocms.com/org-id"] = orgId;
-    if (userId) labels["mesh.decocms.com/user-id"] = userId;
+    if (orgId) labels[LABEL_KEYS.orgId] = orgId;
+    if (userId) labels[LABEL_KEYS.userId] = userId;
   }
   return labels;
+}
+
+/** Read tenant back from a claim's metadata.labels (adopt path). */
+function readClaimTenant(claim: SandboxResource): RunnerTenant | null {
+  const labels = claim.metadata?.labels;
+  if (!labels) return null;
+  const orgId = labels[LABEL_KEYS.orgId];
+  const userId = labels[LABEL_KEYS.userId];
+  if (!orgId || !userId) return null;
+  return { orgId, userId };
+}
+
+/**
+ * Convert tenant struct to OTel attribute keys. `runner_kind` is constant for
+ * a given runner instance but included on every attrs set so downstream
+ * dashboards can pivot across runners (k8s vs docker) without re-aggregating.
+ */
+function tenantAttrs(tenant: RunnerTenant | null): {
+  org_id: string;
+  user_id: string;
+  runner_kind: string;
+} {
+  return {
+    org_id: tenant?.orgId ?? "",
+    user_id: tenant?.userId ?? "",
+    runner_kind: RUNNER_KIND,
+  };
 }
 
 /** Fallback for when callers don't provide `repo.displayName`. */

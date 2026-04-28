@@ -15,6 +15,14 @@
  */
 import type { ServerWebSocket } from "bun";
 
+/**
+ * Cap on frames buffered between client upgrade and upstream WS open. The
+ * upstream here is the in-pod dev server on localhost; if it isn't yet
+ * listening (booting / crashed), an unbounded pending queue would let a
+ * chatty client exhaust the daemon's memory.
+ */
+const MAX_PENDING_FRAMES = 256;
+
 export interface WsProxyData {
   /** Full upstream URL — `ws://localhost:<devPort><path>?<search>`. */
   target: string;
@@ -78,9 +86,19 @@ export function makeWsUpgrader(getDevPort: () => number) {
         try {
           upstream.send(frame as never);
         } catch {}
-      } else {
-        ws.data.pending.push(frame as ArrayBuffer | string);
+        return;
       }
+      if (ws.data.pending.length >= MAX_PENDING_FRAMES) {
+        // Backlog overflow: upstream isn't draining. 1011 = internal error.
+        try {
+          ws.close(1011, "ws-proxy backlog overflow");
+        } catch {}
+        try {
+          ws.data.upstream?.close();
+        } catch {}
+        return;
+      }
+      ws.data.pending.push(frame as ArrayBuffer | string);
     },
 
     close(ws: ServerWebSocket<WsProxyData>): void {

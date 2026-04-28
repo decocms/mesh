@@ -1,0 +1,27 @@
+# Kind-only overlay layered on top of `../../monitoring/values-kube-prometheus-stack.yaml`.
+# Helm deep-merges these values into the base — see `local/up.sh` for the
+# `helm upgrade -f base.yaml -f local-overlay.yaml` invocation.
+#
+# Anything here is unsafe / wrong for prod.
+
+grafana:
+  # Plaintext admin password is fine for kind, never for prod. Prod sets
+  # `grafana.admin.existingSecret` or wires SSO.
+  adminPassword: admin
+
+prometheus:
+  prometheusSpec:
+    # Mesh runs on the host (`bun run dev`) in local-dev mode, exposing
+    # /metrics on http://localhost:3000. From kind's perspective the host
+    # is reachable via `host.docker.internal` (Docker Desktop on macOS/Windows
+    # provides this DNS name natively; on Linux you'd need `extraHosts`).
+    # Prod replaces this with a ServiceMonitor on the in-cluster mesh
+    # Deployment.
+    additionalScrapeConfigs:
+      - job_name: mesh-host
+        scrape_interval: 30s
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["host.docker.internal:3000"]
+            labels:
+              source: mesh-runner

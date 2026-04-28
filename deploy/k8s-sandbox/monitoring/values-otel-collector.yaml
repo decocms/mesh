@@ -2,6 +2,10 @@
 # cAdvisor/pod metrics, enriches with our tenant labels, exposes
 # /metrics for kube-prometheus-stack's Prometheus to scrape.
 #
+# Used by both local kind (`deploy/k8s-sandbox/local/up.sh`) and prod
+# installs. Local layers a kind-only overlay on top — see
+# `local/monitoring/values-otel-collector.local.yaml`.
+#
 # DaemonSet (not Deployment) because kubeletstats reads from each node's
 # kubelet at https://${K8S_NODE_IP}:10250 — needs one collector per node.
 #
@@ -77,9 +81,9 @@ config:
       collection_interval: 30s
       auth_type: serviceAccount
       endpoint: "https://${env:K8S_NODE_IP}:10250"
-      # kind nodes use kubelet self-signed certs; skip verify locally.
-      # Prod: rotate to a CA-signed kubelet cert and remove this.
-      insecure_skip_verify: true
+      # Prod relies on the cluster's CA-signed kubelet certs. Local kind
+      # uses self-signed kubelet certs and overrides `insecure_skip_verify`
+      # in `local/monitoring/values-otel-collector.local.yaml`.
       # `volume` group requires the PV CSI metrics endpoint which kind
       # doesn't expose. node/pod/container is what we need anyway.
       metric_groups: [node, pod, container]

@@ -16,10 +16,37 @@ import {
 } from "@decocms/sandbox/runner";
 import { getDb } from "@/database";
 import type { Kysely } from "kysely";
+import { meter } from "@/observability";
 import type { Database as DatabaseSchema } from "@/storage/types";
 import { KyselySandboxRunnerStateStore } from "@/storage/sandbox-runner-state";
 
 const runners: Partial<Record<RunnerKind, SandboxRunner>> = {};
+// In-flight instantiate() promises, memoized per kind. Two concurrent
+// callers on a cold mesh would otherwise both miss the resolved-runner
+// cache and both call instantiate(); memoizing the promise (and only
+// promoting to `runners` once it resolves) collapses them to a single
+// build. Cleared on failure so a retry can take a fresh swing.
+const inflight: Partial<Record<RunnerKind, Promise<SandboxRunner>>> = {};
+
+function resolveOnce(
+  kind: RunnerKind,
+  build: () => Promise<SandboxRunner>,
+): Promise<SandboxRunner> {
+  const cached = runners[kind];
+  if (cached) return Promise.resolve(cached);
+  const pending = inflight[kind];
+  if (pending) return pending;
+  const promise = build()
+    .then((runner) => {
+      runners[kind] = runner;
+      return runner;
+    })
+    .finally(() => {
+      delete inflight[kind];
+    });
+  inflight[kind] = promise;
+  return promise;
+}
 
 // Set in prod (k8s/docker behind ingress) so the runner skips the local
 // 127.0.0.1 port-forward path and emits a URL the user's browser can
@@ -53,7 +80,14 @@ async function instantiate(
       const { KubernetesSandboxRunner } = await import(
         "@decocms/sandbox/runner/k8s"
       );
-      return new KubernetesSandboxRunner({ stateStore, previewUrlPattern });
+      // `meter` is reassigned by initObservability() after sdk.start(); read
+      // it at runner construction (post-init) so we get the real instruments
+      // not the no-op evaluated at module load.
+      return new KubernetesSandboxRunner({
+        stateStore,
+        previewUrlPattern,
+        meter,
+      });
     }
     default: {
       const exhaustive: never = kind;
@@ -67,15 +101,11 @@ export function getSharedRunner(ctx: MeshContext): Promise<SandboxRunner> {
 }
 
 /** VM_DELETE uses this so teardown follows the entry's recorded runnerKind. */
-export async function getRunnerByKind(
+export function getRunnerByKind(
   ctx: MeshContext,
   kind: RunnerKind,
 ): Promise<SandboxRunner> {
-  const cached = runners[kind];
-  if (cached) return cached;
-  const runner = await instantiate(kind, ctx.db);
-  runners[kind] = runner;
-  return runner;
+  return resolveOnce(kind, () => instantiate(kind, ctx.db));
 }
 
 /**
@@ -88,11 +118,7 @@ export async function getRunnerByKind(
 export async function getOrInitSharedRunner(): Promise<SandboxRunner | null> {
   const kind = tryResolveRunnerKindFromEnv();
   if (!kind) return null;
-  const cached = runners[kind];
-  if (cached) return cached;
-  const runner = await instantiate(kind, getDb().db);
-  runners[kind] = runner;
-  return runner;
+  return resolveOnce(kind, () => instantiate(kind, getDb().db));
 }
 
 /**
