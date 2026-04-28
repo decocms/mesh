@@ -18,7 +18,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import { resolveDefaultTabId } from "@/web/layouts/main-panel-tabs/tab-id";
 import { readCachedTaskBranch } from "@/web/lib/read-cached-task-branch";
-import { useTaskActions } from "@/web/hooks/use-tasks";
+import { setIntendedTaskMeta } from "@/web/lib/intended-task-meta";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -144,7 +144,6 @@ export function useChatMainPanelState(
     taskId?: string;
   };
   const queryClient = useQueryClient();
-  const taskActions = useTaskActions();
   const { locator } = useProjectContext();
 
   const { virtualMcpId, orgSlug, isAgentRoute } = routeCtx;
@@ -211,20 +210,15 @@ export function useChatMainPanelState(
     navigateSearch({ chat: 1 }, { replace: true });
   };
 
-  // Carry the active task's branch into the new thread so it lands on the
-  // same warm sandbox. Server picks from vmMap when no branch is provided.
+  // Lazy "+ New chat" — navigate without creating the row. Carry the source
+  // task's branch via the intended-task-meta store so the chat-context's
+  // sendMessage path can create the thread on the first user message with
+  // the same warm sandbox.
   const createNewTask = async () => {
     const newTaskId = crypto.randomUUID();
     const branch = readCachedTaskBranch(queryClient, locator, taskId);
-    try {
-      await taskActions.create.mutateAsync({
-        id: newTaskId,
-        virtual_mcp_id: virtualMcpId,
-        ...(branch ? { branch } : {}),
-      });
-    } catch {
-      // Toast already fired by useCollectionActions; navigate anyway so the
-      // route loader's ensure-fallback can retry.
+    if (branch) {
+      setIntendedTaskMeta(newTaskId, { branch });
     }
     navigate({
       to: routeBase,

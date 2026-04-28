@@ -12,11 +12,10 @@ import {
   useMatch,
   useNavigate,
   useParams,
-  useSearch,
 } from "@tanstack/react-router";
 import { KEYS } from "../lib/query-keys";
 import { readCachedTaskBranch } from "../lib/read-cached-task-branch";
-import { useTaskActions } from "../hooks/use-tasks";
+import { setIntendedTaskMeta } from "../lib/intended-task-meta";
 import { useOrganizationSettingsSuspense } from "../hooks/use-organization-settings";
 import { useOrgSsoStatus } from "../hooks/use-org-sso";
 import { SsoRequiredScreen } from "../components/sso-required-screen";
@@ -65,14 +64,12 @@ function ShellProjectProvider({
 export function usePanelActions() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const taskActions = useTaskActions();
   const { locator } = useProjectContext();
 
   const params = useParams({ strict: false }) as {
     org?: string;
     taskId?: string;
   };
-  const search = useSearch({ strict: false }) as { virtualmcpid?: string };
   const orgSlug = params.org ?? "";
   const currentTaskId = params.taskId ?? "";
 
@@ -115,23 +112,15 @@ export function usePanelActions() {
       false,
     );
 
-  // Create a new task carrying the current task's branch (if any) so the
-  // new thread lands on the same warm sandbox. Server picks from vmMap when
-  // no branch is provided. Awaiting the create avoids the route loader's
-  // create-on-404 fallback firing without a branch hint.
+  // Lazy "+ New chat" — navigates to a fresh id without creating a row.
+  // The chat-context's sendMessage path creates the thread on the first user
+  // message, picking up the carried branch from the intended-task-meta store
+  // so the new thread lands on the same warm sandbox.
   const createNewTask = async () => {
     const newId = crypto.randomUUID();
     const branch = readCachedTaskBranch(queryClient, locator, currentTaskId);
-    const targetVmcp = search.virtualmcpid;
-    try {
-      await taskActions.create.mutateAsync({
-        id: newId,
-        ...(targetVmcp ? { virtual_mcp_id: targetVmcp } : {}),
-        ...(branch ? { branch } : {}),
-      });
-    } catch {
-      // Toast already fired by useCollectionActions; navigate anyway so the
-      // route loader's ensure-fallback can retry.
+    if (branch) {
+      setIntendedTaskMeta(newId, { branch });
     }
     setTaskId(newId);
   };

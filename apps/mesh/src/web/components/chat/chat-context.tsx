@@ -29,11 +29,20 @@ import {
   type UIMessage,
 } from "ai";
 import {
+  SELF_MCP_ALIAS_ID,
   selectDefaultModel,
+  useMCPClient,
   useProjectContext,
   useVirtualMCP,
 } from "@decocms/mesh-sdk";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { KEYS } from "../../lib/query-keys";
+import {
+  clearIntendedTaskMeta,
+  getIntendedTaskMeta,
+  setIntendedTaskMeta,
+} from "../../lib/intended-task-meta";
 
 import {
   useAiProviderKeys,
@@ -59,7 +68,6 @@ import { toMetadataModelInfo } from "../../lib/metadata-model-info";
 
 import { useChatNavigation } from "./hooks/use-chat-navigation";
 import { useStreamManager } from "./hooks/use-stream-manager";
-import { useTaskActions } from "../../hooks/use-tasks";
 import { useTaskManager, type TaskOwnerFilter } from "./task";
 import { useTaskMessages } from "./task/use-task-manager";
 import { derivePartsFromTiptapDoc } from "./derive-parts";
@@ -260,6 +268,16 @@ interface TaskProviderInternals {
   };
   rawNavigateToTask: (taskId: string) => void;
   bridgeRef: React.RefObject<ChatBridgeValue>;
+  /**
+   * Lazily create the thread row on the server. Called by sendMessage right
+   * before the first send when no row exists yet (the user navigated to this
+   * task id but hasn't engaged with it). Idempotent on the server.
+   */
+  ensureTaskExists: (
+    taskId: string,
+    virtualMcpId: string,
+    branch: string | null,
+  ) => Promise<void>;
 }
 
 // ============================================================================
@@ -293,6 +311,83 @@ export function ChatContextProvider({
   const { org, locator } = useProjectContext();
   const { data: session } = authClient.useSession();
   const user = session?.user ?? null;
+  const queryClient = useQueryClient();
+  const ensureClient = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+
+  // Branches picked for threads that don't yet have a server row. When the
+  // user opens the branch picker on a freshly navigated empty chat, the choice
+  // lives here until sendMessage creates the row with this branch baked in.
+  const [pendingBranches, setPendingBranches] = useState<
+    Record<string, string>
+  >({});
+
+  // Silent create mutation — same payload as taskActions.create but with no
+  // success toast and a focused cache invalidation. Used by sendMessage to
+  // turn a lazily navigated task id into a real row right before the first
+  // user message goes through. Server INSERT … ON CONFLICT DO NOTHING makes
+  // this idempotent across tabs and StrictMode double-effects.
+  const ensureCreate = useMutation<
+    Task,
+    Error,
+    { taskId: string; virtualMcpId: string; branch: string | null }
+  >({
+    mutationFn: async ({ taskId, virtualMcpId: vmcpId, branch }) => {
+      const result = await ensureClient.callTool({
+        name: "COLLECTION_THREADS_CREATE",
+        arguments: {
+          data: {
+            id: taskId,
+            virtual_mcp_id: vmcpId,
+            ...(branch ? { branch } : {}),
+          },
+        },
+      });
+      if ((result as { isError?: boolean }).isError) {
+        const content = (result as { content?: unknown }).content;
+        const msg =
+          Array.isArray(content) && content[0] && typeof content[0] === "object"
+            ? ((content[0] as { text?: string }).text ?? "Create failed")
+            : "Create failed";
+        throw new Error(msg);
+      }
+      const payload = (result as { structuredContent?: unknown })
+        .structuredContent as { item: Task };
+      return payload.item;
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({
+        predicate: (q) =>
+          q.queryKey[1] === org.id &&
+          q.queryKey[3] === "collection" &&
+          q.queryKey[4] === "THREADS",
+      });
+      queryClient.invalidateQueries({ queryKey: KEYS.tasksPrefix(locator) });
+      queryClient.invalidateQueries({
+        queryKey: KEYS.ensureTask(org.id, vars.taskId),
+      });
+      // The branch is now persisted on the row; drop the local override and
+      // the cross-tree intent so subsequent reads come from the canonical
+      // task list.
+      setPendingBranches((prev) => {
+        if (!(vars.taskId in prev)) return prev;
+        const next = { ...prev };
+        delete next[vars.taskId];
+        return next;
+      });
+      clearIntendedTaskMeta(vars.taskId);
+    },
+  });
+
+  const ensureTaskExists = async (
+    taskId: string,
+    vmcpId: string,
+    branch: string | null,
+  ): Promise<void> => {
+    await ensureCreate.mutateAsync({ taskId, virtualMcpId: vmcpId, branch });
+  };
 
   // URL state
   const {
@@ -556,35 +651,39 @@ export function ChatContextProvider({
   };
 
   const activeTask = tasks.find((t) => t.id === effectiveTaskId);
-  const currentBranch = activeTask?.branch ?? null;
+  // Branch resolution for the active task, in priority order:
+  //   1. The persisted thread row (canonical once the row exists).
+  //   2. A pending in-context override the user picked before sending.
+  //   3. The cross-tree "intended" branch carried from a "+ New chat" entry
+  //      point that navigated here without creating a row.
+  const intendedBranchForActive = effectiveTaskId
+    ? (pendingBranches[effectiveTaskId] ??
+      getIntendedTaskMeta(effectiveTaskId)?.branch ??
+      null)
+    : null;
+  const currentBranch = activeTask?.branch ?? intendedBranchForActive ?? null;
+  // Branch is locked once the row persists it — the picker can still move
+  // freely on a not-yet-created thread.
   const isBranchLocked = !!activeTask?.branch;
 
-  // Create task — calls COLLECTION_THREADS_CREATE up-front with the active
-  // task's branch so the new thread lands on the same warm sandbox. The
-  // route loader's useEnsureTask will see the row already exists on its
-  // GET and skip the create-on-404 fallback.
-  const taskActions = useTaskActions();
+  // Create task — lazy. Just navigate to a fresh id; the row only lands in
+  // the database once the user actually sends a message (sendMessage's
+  // ensureTaskExists path). This keeps the task list clean of phantom rows
+  // from page-load redirects and idle "+ New" clicks.
   const createTask = (): string => {
     const newId = crypto.randomUUID();
-    void taskActions.create
-      .mutateAsync({
-        id: newId,
-        virtual_mcp_id: virtualMcpId,
-        ...(currentBranch ? { branch: currentBranch } : {}),
-      } as Partial<Task>)
-      .then(() => navigateToTask(newId))
-      .catch(() => {
-        // create error toast already fired by useCollectionActions; navigate
-        // anyway so the user's not stranded — the route loader's ensure
-        // fallback will retry.
-        navigateToTask(newId);
-      });
+    if (currentBranch) {
+      setIntendedTaskMeta(newId, { branch: currentBranch });
+    }
+    navigateToTask(newId);
     return newId;
   };
 
-  // Create task + queue a pending message. Propagates currentBranch only
-  // when the new task is on the same vMCP (different vMCPs have their own
-  // vmMap, so carrying a branch across them would land on a cold sandbox).
+  // Create task + queue a pending message — also lazy. Carries currentBranch
+  // only when the new task targets the same vMCP (different vMCPs maintain
+  // their own vmMap, so a foreign branch would land on a cold sandbox). The
+  // pending message triggers sendMessage in the new context, which lazily
+  // creates the row with the carried branch.
   const createTaskWithMessage = (params: {
     message: SendMessageParams;
     virtualMcpId?: string;
@@ -592,22 +691,12 @@ export function ChatContextProvider({
     const newId = crypto.randomUUID();
     const targetVmcp = params.virtualMcpId ?? virtualMcpId;
     const carryBranch = targetVmcp === virtualMcpId ? currentBranch : null;
-    void taskActions.create
-      .mutateAsync({
-        id: newId,
-        virtual_mcp_id: targetVmcp,
-        ...(carryBranch ? { branch: carryBranch } : {}),
-      } as Partial<Task>)
-      .then(() =>
-        navigateToTask(newId, {
-          virtualMcpId: params.virtualMcpId,
-        }),
-      )
-      .catch(() => {
-        navigateToTask(newId, {
-          virtualMcpId: params.virtualMcpId,
-        });
-      });
+    if (carryBranch) {
+      setIntendedTaskMeta(newId, { branch: carryBranch });
+    }
+    navigateToTask(newId, {
+      virtualMcpId: params.virtualMcpId,
+    });
     setPendingMessage({
       taskId: newId,
       message: params.message,
@@ -643,8 +732,24 @@ export function ChatContextProvider({
     currentBranch,
     isBranchLocked,
     setCurrentTaskBranch: (branch: string | null) => {
-      if (effectiveTaskId) {
+      if (!effectiveTaskId) return;
+      // Once the row exists, persist on the server (existing behavior).
+      // Otherwise stash the choice locally so sendMessage can create the row
+      // with the picked branch baked in.
+      if (activeTask) {
         taskManager.setTaskBranch(effectiveTaskId, branch);
+        return;
+      }
+      setPendingBranches((prev) => {
+        const next = { ...prev };
+        if (branch) next[effectiveTaskId] = branch;
+        else delete next[effectiveTaskId];
+        return next;
+      });
+      if (branch) {
+        setIntendedTaskMeta(effectiveTaskId, { branch });
+      } else {
+        clearIntendedTaskMeta(effectiveTaskId);
       }
     },
     ownerFilter: taskManager.ownerFilter,
@@ -705,6 +810,7 @@ export function ChatContextProvider({
     },
     rawNavigateToTask,
     bridgeRef,
+    ensureTaskExists,
   };
 
   return (
@@ -770,6 +876,7 @@ export function ActiveTaskProvider({
     taskManager,
     rawNavigateToTask,
     bridgeRef,
+    ensureTaskExists,
   } = internals;
 
   const { org } = useProjectContext();
@@ -868,6 +975,26 @@ export function ActiveTaskProvider({
     // Capture at send time (frozen in closure)
     const capturedTaskId = taskId;
     const capturedVirtualMcpId = virtualMcpId;
+
+    // Lazy thread creation — the row only exists once the user actually
+    // engages with this URL. The server stream endpoint requires the row, so
+    // create it here before the first send. Subsequent sends short-circuit
+    // (the row appears in `tasks` after the cache invalidation in onSuccess).
+    if (capturedTaskId && !tasks.some((t) => t.id === capturedTaskId)) {
+      try {
+        await ensureTaskExists(
+          capturedTaskId,
+          capturedVirtualMcpId,
+          currentBranch,
+        );
+      } catch (err) {
+        const msg =
+          err instanceof Error ? err.message : "Failed to create chat";
+        toast.error(msg);
+        console.error("[chat] ensureTaskExists failed:", err);
+        return;
+      }
+    }
 
     if (params.model) setModel(params.model);
 

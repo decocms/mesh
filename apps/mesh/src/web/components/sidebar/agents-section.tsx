@@ -76,7 +76,7 @@ import { SelfHealingRepoFlow } from "@/web/components/self-healing-repo/self-hea
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
 import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
-import { useTaskActions } from "@/web/hooks/use-tasks";
+import { setIntendedTaskMeta } from "@/web/lib/intended-task-meta";
 import { readCachedTaskBranch } from "@/web/lib/read-cached-task-branch";
 
 /**
@@ -89,7 +89,6 @@ import { readCachedTaskBranch } from "@/web/lib/read-cached-task-branch";
 function useNavigateToNewTaskWithBranchCarry(orgSlug: string) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const taskActions = useTaskActions();
   const { locator } = useProjectContext();
   const params = useParams({ strict: false }) as { taskId?: string };
   const search = useSearch({ strict: false }) as { virtualmcpid?: string };
@@ -100,15 +99,8 @@ function useNavigateToNewTaskWithBranchCarry(orgSlug: string) {
       clickedVirtualMcpId === search.virtualmcpid
         ? readCachedTaskBranch(queryClient, locator, params.taskId ?? "")
         : null;
-    try {
-      await taskActions.create.mutateAsync({
-        id: taskId,
-        virtual_mcp_id: clickedVirtualMcpId,
-        ...(carryBranch ? { branch: carryBranch } : {}),
-      });
-    } catch {
-      // Toast already fired; navigate anyway so the route loader's
-      // ensure-fallback can retry.
+    if (carryBranch) {
+      setIntendedTaskMeta(taskId, { branch: carryBranch });
     }
     navigate({
       to: "/$org/$taskId",

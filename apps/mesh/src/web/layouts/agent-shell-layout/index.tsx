@@ -253,11 +253,11 @@ function AgentInsetProvider() {
   const isDecopilot = virtualMcpId === getDecopilotId(org.id);
   const isAgentRoute = !isDecopilot;
 
-  // Ensure the thread row exists for this URL before rendering the chat. On
-  // 404 the hook fires COLLECTION_THREADS_CREATE (idempotent) and surfaces a
-  // "Creating task…" state until the row is persisted. Without this the
-  // chat renders with branch=null because the thread never existed.
-  const ensureState = useEnsureTask(params.taskId ?? "", virtualMcpId);
+  // Look up the thread row for this URL, but don't create it. Threads are
+  // created lazily on the first user message so empty page-load navigations
+  // (the home-page redirect, "+ New chat" buttons) don't flood the task list.
+  // The chat renders fine without a row — sendMessage handles creation.
+  const ensureState = useEnsureTask(params.taskId ?? "");
 
   // Fetch entity (Suspense-based — resolved before render)
   const entity = useVirtualMCP(virtualMcpId);
@@ -302,13 +302,13 @@ function AgentInsetProvider() {
     entity,
   };
 
-  if (ensureState.status === "creating" || ensureState.status === "loading") {
+  if (ensureState.status === "loading") {
     return (
       <InsetContext value={insetContextValue}>
         <div className="flex-1 min-h-0 pr-1.5 pb-1.5 overflow-hidden">
           <div className="flex h-full items-center justify-center bg-background card-shadow rounded-[0.75rem] text-sm text-muted-foreground">
             <Loading01 className="size-4 animate-spin mr-2" />
-            Creating task…
+            Loading task…
           </div>
         </div>
       </InsetContext>
