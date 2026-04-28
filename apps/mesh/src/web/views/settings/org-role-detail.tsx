@@ -453,9 +453,9 @@ function SubProviderGroup({
           </span>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <span className="text-xs text-muted-foreground">
+          <Badge variant="secondary" className="text-xs text-muted-foreground">
             {enabledCount}/{models.length} enabled
-          </span>
+          </Badge>
           {expanded ? (
             <ChevronDown size={16} className="text-muted-foreground shrink-0" />
           ) : (
