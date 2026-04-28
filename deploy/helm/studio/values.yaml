@@ -314,6 +314,3 @@ opentelemetry-collector:
           receivers: [otlp]
           processors: [memory_limiter, batch]
           exporters: [debug]
-
-# For the K8s sandbox runner, install the separate agent-sandbox chart:
-# deploy/helm/agent-sandbox/ (or oci://ghcr.io/decocms/studio/charts/agent-sandbox).

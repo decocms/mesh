@@ -1339,12 +1339,6 @@ kubectl top pods -l app.kubernetes.io/instance=deco-studio -n deco-studio
 - **Liveness**: Kills and recreates pods with problems
 - **Readiness**: Removes pods from Service when not ready
 
-## Agent-sandbox runner
-
-For the K8s sandbox runner, install the separate
-[`agent-sandbox`](../agent-sandbox/README.md) chart and set
-`configMap.meshConfig.STUDIO_SANDBOX_RUNNER: "agent-sandbox"` in this
-release's values.
 
 ## License
 
