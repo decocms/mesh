@@ -363,7 +363,10 @@ const SUB_PROVIDER_DISPLAY_NAMES: Record<string, string> = {
 
 function getSubProviderId(modelId: string, fallback: string): string {
   const slash = modelId.indexOf("/");
-  return slash > 0 ? modelId.slice(0, slash) : fallback;
+  const raw = slash > 0 ? modelId.slice(0, slash) : fallback;
+  // OpenRouter prefixes BYOK / passthrough providers with `~` (e.g.
+  // `~anthropic/claude-...`); normalize so they group with the canonical id.
+  return raw.startsWith("~") ? raw.slice(1) : raw;
 }
 
 function getSubProviderDisplayName(id: string): string {
@@ -441,7 +444,7 @@ function SubProviderGroup({
   };
 
   return (
-    <div className="border-b border-border last:border-b-0">
+    <div className="border border-border rounded-lg overflow-hidden">
       <div
         className={cn(
           "flex items-center justify-between gap-3 px-4 py-3",
@@ -617,7 +620,7 @@ function ConnectionModelsSection({
           </span>
         </div>
       </div>
-      <div className="border border-border rounded-lg mx-2 overflow-hidden">
+      <div className="flex flex-col gap-2 px-2">
         {groups.map((group) => (
           <SubProviderGroup
             key={group.id}
