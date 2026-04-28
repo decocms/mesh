@@ -12,8 +12,10 @@ spec:
   resources:
     requests:
       storage: {{ .Values.persistence.size }}
-  {{- with .Values.persistence.storageClass }}
-  storageClassName: {{ . }}
+  {{- if .Values.persistence.storageClass }}
+  storageClassName: {{ .Values.persistence.storageClass }}
+  {{- else }}
+  storageClassName: ""  # Use default storage class
   {{- end }}
 {{- end }}
 {{- end }}

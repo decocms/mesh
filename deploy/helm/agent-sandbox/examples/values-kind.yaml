@@ -1,8 +1,7 @@
 # Local kind cluster overrides for the agent-sandbox chart.
 #
-# Used by deploy/k8s-sandbox/local/up.sh, which installs this chart alongside
-# the studio chart (deploy/helm/studio/, with its own examples/values-kind.yaml)
-# into the same kind cluster.
+# Used by deploy/k8s-sandbox/local/up.sh — installs the operator, CRDs,
+# SandboxTemplate, RBAC, and NetworkPolicy into a kind cluster.
 
 # ── sandbox image (built locally + `kind load`ed) ──────────────────────
 image:

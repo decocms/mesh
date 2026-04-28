@@ -131,10 +131,6 @@ terminationGracePeriodSeconds: 60
 
 nodeSelector:
   kubernetes.io/arch: amd64
-# arm64 clusters (Apple Silicon kind, ARM EKS, bare-metal RPi) should override
-# this — set `nodeSelector: {}` or pin to `arm64`. Mesh's own image is
-# multi-arch, but the s3-sync sidecar and some upstream subchart images may
-# be amd64-only.
 
 tolerations: []
 # Example:
@@ -319,20 +315,5 @@ opentelemetry-collector:
           processors: [memory_limiter, batch]
           exporters: [debug]
 
-# Agent-sandbox runner is now a separate Helm chart, deployed independently
-# (typically as its own ArgoCD Application). To switch mesh from the Docker
-# runner to the K8s runner, set:
-#   configMap.meshConfig.STUDIO_SANDBOX_RUNNER: "agent-sandbox"
-#   configMap.meshConfig.STUDIO_SANDBOX_PREVIEW_URL_PATTERN: "https://{handle}.preview.example.com"
-#
-# Then install the agent-sandbox chart, pointing it at this release's mesh
-# Service / ServiceAccount via its `mesh.*` values:
-#   helm install agent-sandbox oci://ghcr.io/decocms/studio/charts/agent-sandbox \
-#     --version 0.1.0 \
-#     --namespace agent-sandbox-system --create-namespace \
-#     --set mesh.namespace=<this-release-namespace> \
-#     --set mesh.serviceAccountName=<this-release-name> \
-#     --set mesh.serviceName=<this-release-name> \
-#     --set mesh.servicePort=80
-#
-# See deploy/helm/agent-sandbox/README.md for the full set of values.
+# For the K8s sandbox runner, install the separate agent-sandbox chart:
+# deploy/helm/agent-sandbox/ (or oci://ghcr.io/decocms/studio/charts/agent-sandbox).
