@@ -76,6 +76,8 @@ import { SelfHealingRepoFlow } from "@/web/components/self-healing-repo/self-hea
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
 import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
+import { AiImageRecruitModal } from "@/web/components/home/ai-image-recruit-modal.tsx";
+import { AiResearchRecruitModal } from "@/web/components/home/ai-research-recruit-modal.tsx";
 import { useTaskActions } from "@/web/hooks/use-tasks";
 import { readCachedTaskBranch } from "@/web/lib/read-cached-task-branch";
 
@@ -342,6 +344,8 @@ function PinAgentPopoverContent({
   onOpenDiagnosticsModal,
   onOpenLeanCanvasModal,
   onOpenStudioPackModal,
+  onOpenAiImageModal,
+  onOpenAiResearchModal,
 }: {
   onClose: () => void;
   onOpenImportDeco: () => void;
@@ -350,6 +354,8 @@ function PinAgentPopoverContent({
   onOpenDiagnosticsModal: () => void;
   onOpenLeanCanvasModal: () => void;
   onOpenStudioPackModal: () => void;
+  onOpenAiImageModal: () => void;
+  onOpenAiResearchModal: () => void;
 }) {
   const [search, setSearch] = useState("");
   const allAgents = useVirtualMCPs();
@@ -403,6 +409,32 @@ function PinAgentPopoverContent({
       )
     : undefined;
 
+  const aiImageTemplate = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "ai-image",
+  );
+  const existingAiImage = aiImageTemplate
+    ? allAgents.find(
+        (a): a is typeof a & { id: string } =>
+          a.id !== null &&
+          ((a as { metadata?: { type?: string } }).metadata?.type ===
+            aiImageTemplate.id ||
+            a.title === aiImageTemplate.title),
+      )
+    : undefined;
+
+  const aiResearchTemplate = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "ai-research",
+  );
+  const existingAiResearch = aiResearchTemplate
+    ? allAgents.find(
+        (a): a is typeof a & { id: string } =>
+          a.id !== null &&
+          ((a as { metadata?: { type?: string } }).metadata?.type ===
+            aiResearchTemplate.id ||
+            a.title === aiResearchTemplate.title),
+      )
+    : undefined;
+
   const handleSelect = (agent: VirtualMCPEntity) => {
     if (!isPinned(agent.id)) {
       pin(agent.id);
@@ -430,6 +462,18 @@ function PinAgentPopoverContent({
         navigateToAgent(existingLeanCanvas.id);
       } else {
         onOpenLeanCanvasModal();
+      }
+    } else if (templateId === "ai-image") {
+      if (existingAiImage) {
+        navigateToAgent(existingAiImage.id);
+      } else {
+        onOpenAiImageModal();
+      }
+    } else if (templateId === "ai-research") {
+      if (existingAiResearch) {
+        navigateToAgent(existingAiResearch.id);
+      } else {
+        onOpenAiResearchModal();
       }
     } else if (templateId === "studio-pack") {
       onOpenStudioPackModal();
@@ -572,6 +616,8 @@ function PinAgentPopover() {
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
   const [leanCanvasModalOpen, setLeanCanvasModalOpen] = useState(false);
   const [studioPackModalOpen, setStudioPackModalOpen] = useState(false);
+  const [aiImageModalOpen, setAiImageModalOpen] = useState(false);
+  const [aiResearchModalOpen, setAiResearchModalOpen] = useState(false);
   const isMobile = useIsMobile();
   const { setOpenMobile } = useSidebar();
 
@@ -602,6 +648,8 @@ function PinAgentPopover() {
         onOpenDiagnosticsModal={() => setDiagnosticsModalOpen(true)}
         onOpenLeanCanvasModal={() => setLeanCanvasModalOpen(true)}
         onOpenStudioPackModal={() => setStudioPackModalOpen(true)}
+        onOpenAiImageModal={() => setAiImageModalOpen(true)}
+        onOpenAiResearchModal={() => setAiResearchModalOpen(true)}
       />
     </Suspense>
   );
@@ -681,6 +729,14 @@ function PinAgentPopover() {
       <StudioPackRecruitModal
         open={studioPackModalOpen}
         onOpenChange={setStudioPackModalOpen}
+      />
+      <AiImageRecruitModal
+        open={aiImageModalOpen}
+        onOpenChange={setAiImageModalOpen}
+      />
+      <AiResearchRecruitModal
+        open={aiResearchModalOpen}
+        onOpenChange={setAiResearchModalOpen}
       />
     </>
   );
