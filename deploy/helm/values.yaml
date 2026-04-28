@@ -336,7 +336,11 @@ sandbox:
     enabled: false
     image:
       repository: ghcr.io/decocms/mesh-sandbox
-      tag: latest
+      # Pinned to a specific image version so chart upgrades pull a matching
+      # image instead of silently moving with `:latest`. Bump in lockstep
+      # with packages/sandbox/package.json — the release workflow tags
+      # images using that version. NEVER set this to "latest" in prod.
+      tag: "0.1.0"
       # Default IfNotPresent; override to Never for local kind clusters that
       # load the image via `kind load docker-image`.
       pullPolicy: IfNotPresent
@@ -357,6 +361,24 @@ sandbox:
       # instead, so most installs leave this empty. See
       # `previewGateway` below for the standard Istio Gateway API path.
       previewGatewayNamespace: ""
+      # Operator-supplied egress rules (NetworkPolicyEgressRule[]) merged
+      # into the sandbox NetworkPolicy. The base policy denies in-cluster
+      # egress; use this to grant *specific* exceptions (e.g. an in-cluster
+      # OTel collector if the daemon ever emits OTLP). Empty = no extra
+      # egress.
+      #
+      # extraEgress:
+      #   - to:
+      #       - namespaceSelector:
+      #           matchLabels:
+      #             kubernetes.io/metadata.name: monitoring
+      #         podSelector:
+      #           matchLabels:
+      #             app.kubernetes.io/name: opentelemetry-collector
+      #     ports:
+      #       - protocol: TCP
+      #         port: 4318
+      extraEgress: []
     # Public URL pattern that ingress terminates on for sandbox previews.
     # The runner substitutes {handle} (or whatever applyPreviewPattern
     # supports) with the per-claim handle. Set in prod once a wildcard
@@ -436,16 +458,24 @@ sandbox:
     # pod maps to a high, unprivileged subordinate UID on the node, so a
     # container escape doesn't land as a real node UID. Requires K8s
     # 1.30+ with a containerd/kernel that support userns (EKS default
-    # AMIs from late 2024 onward are fine). Defaults to current behavior
-    # (host users); flip to false to opt in.
-    hostUsers: true
+    # AMIs from late 2024 onward are fine; kind nodes vary).
+    #
+    # Defaults to the secure-by-default path because this chart runs
+    # untrusted user code. Override to true (back to host users) ONLY on
+    # clusters whose kernel/containerd doesn't support userns — symptoms
+    # of unsupported runtime are pod scheduling failures with messages
+    # like "user namespaces are not enabled".
+    hostUsers: false
     # Read-only root filesystem. When true, /app + /tmp + /home/sandbox
     # are remounted as emptyDirs and `safe.directory '*'` is set so git
-    # works against the chowned mount. Validate end-to-end (clone +
-    # bun/npm install + dev server start) on staging before flipping; the
-    # daemon may write to paths we haven't covered. Defaults to false to
-    # preserve current behavior on upgrade.
-    readOnlyRootFilesystem: false
+    # works against the chowned mount.
+    #
+    # Defaults to true (secure path). Override to false ONLY if a
+    # workload writes outside the three covered emptyDirs and you've
+    # measured the resulting failure mode. Validate end-to-end (clone +
+    # bun/npm install + dev server start) on staging before merging an
+    # override.
+    readOnlyRootFilesystem: true
     warmPool:
       # Enable only after measuring cold-start pain; every warm pod costs
       # the full resources.requests above.

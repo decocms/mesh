@@ -12,11 +12,9 @@ metadata:
   name: studio-sandbox
   namespace: agent-sandbox-system
   labels:
-    app.kubernetes.io/name: studio-sandbox
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
-    helm.sh/chart: {{ include "chart-deco-studio.chart" . }}
+    {{- include "chart-deco-studio.sandboxLabels" . | nindent 4 }}
 spec:
-  # Claims inject DAEMON_TOKEN per-provision (see PLAN-K8S-REMAINING 2.1). The
+  # Claims inject DAEMON_TOKEN per-provision via SandboxClaim.spec.env. The
   # template carries no shared secret; leakage of the template compromises
   # nothing on its own.
   envVarsInjectionPolicy: Allowed
@@ -69,7 +67,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: sandbox
-          image: "{{ .Values.sandbox.agentSandbox.image.repository }}:{{ .Values.sandbox.agentSandbox.image.tag }}"
+          image: "{{ .Values.sandbox.agentSandbox.image.repository }}:{{ .Values.sandbox.agentSandbox.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.sandbox.agentSandbox.image.pullPolicy }}
           workingDir: /app
           env:

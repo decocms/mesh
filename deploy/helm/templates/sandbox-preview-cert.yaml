@@ -20,9 +20,7 @@ metadata:
   name: {{ $meshServiceName }}-sandbox-preview
   namespace: {{ $gwNamespace }}
   labels:
-    app.kubernetes.io/name: studio-sandbox-preview
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
-    helm.sh/chart: {{ include "chart-deco-studio.chart" . }}
+    {{- include "chart-deco-studio.sandboxPreviewLabels" . | nindent 4 }}
 spec:
   secretName: {{ $tlsSecretName }}
   issuerRef:

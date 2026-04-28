@@ -15,9 +15,17 @@ jobs:
   build-push:
     name: Build & Push mesh-sandbox image
     runs-on: ubuntu-latest
+    # `[release]:` commits come from the auto-bump bot and don't actually
+    # change the sandbox source — skip them to avoid republishing the same
+    # version on every release tag bump.
+    if: ${{ !startsWith(github.event.head_commit.message, '[release]:') }}
     permissions:
       contents: read
       packages: write
+      # OIDC token for keyless cosign signing (Sigstore Fulcio).
+      id-token: write
+      # Required to attach SLSA provenance / SBOM attestations.
+      attestations: write
 
     steps:
       - name: Checkout code
@@ -49,23 +57,52 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Skip republishing if the version tag already exists in GHCR. Without
+      # this guard, every push to main that touches packages/sandbox/**
+      # (including release-bump commits that get filtered above, but also
+      # docs-only changes inside the package) silently mutates the image
+      # under a tag consumers may already be pinning.
+      - name: Check if version tag already exists
+        id: tag-check
+        run: |
+          set -euo pipefail
+          TOKEN=$(echo -n "${{ secrets.GITHUB_TOKEN }}" | base64)
+          STATUS=$(curl -sS -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            "https://${{ env.REGISTRY }}/v2/${{ env.IMAGE_NAME }}/manifests/${{ steps.version.outputs.version }}")
+          if [ "${STATUS}" = "200" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "::notice::Image ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }} already exists — skipping push. Bump packages/sandbox/package.json to publish."
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up QEMU
+        if: steps.tag-check.outputs.exists != 'true'
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
+        if: steps.tag-check.outputs.exists != 'true'
         uses: docker/setup-buildx-action@v3
 
+      # `:latest` is intentionally only emitted on manual workflow_dispatch
+      # runs. Branch pushes get the version tag + sha tag, never `:latest`,
+      # so chart consumers who pin against `:latest` at least know it was a
+      # deliberate human action that moved it.
       - name: Extract metadata (tags, labels)
         id: meta
+        if: steps.tag-check.outputs.exists != 'true'
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=${{ steps.version.outputs.version }}
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' }}
             type=sha,format=short
 
       - name: Build and push Docker image
+        id: build
+        if: steps.tag-check.outputs.exists != 'true'
         uses: docker/build-push-action@v5
         with:
           context: ./packages/sandbox
@@ -76,3 +113,32 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
+
+      # Keyless cosign signing — verifies provenance via Sigstore's public
+      # transparency log without requiring long-lived signing keys. Verify
+      # downstream with:
+      #   cosign verify ghcr.io/decocms/studio/mesh-sandbox:<tag> \
+      #     --certificate-identity-regexp 'https://github.com/decocms/studio/.*' \
+      #     --certificate-oidc-issuer https://token.actions.githubusercontent.com
+      - name: Install cosign
+        if: steps.tag-check.outputs.exists != 'true'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image with cosign
+        if: steps.tag-check.outputs.exists != 'true'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          for tag in $(echo "${TAGS}" | tr ',' '\n'); do
+            cosign sign --yes "${tag}@${DIGEST}"
+          done
+
+      - name: Generate SLSA build provenance
+        if: steps.tag-check.outputs.exists != 'true'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true

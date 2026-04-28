@@ -16,9 +16,17 @@ DOCKERFILE="${SANDBOX_PKG}/image/Dockerfile"
 KCTX="kind-${CLUSTER_NAME}"
 
 log() { printf "\033[1;34m[reload]\033[0m %s\n" "$*"; }
+err() { printf "\033[1;31m[reload]\033[0m %s\n" "$*" >&2; }
+
+for cmd in kind kubectl docker bun; do
+  if ! command -v "${cmd}" >/dev/null 2>&1; then
+    err "${cmd} not found on PATH — see README.md prereqs"
+    exit 1
+  fi
+done
 
 if ! kind get clusters 2>/dev/null | grep -qx "${CLUSTER_NAME}"; then
-  echo "cluster ${CLUSTER_NAME} does not exist — run ./up.sh first" >&2
+  err "cluster ${CLUSTER_NAME} does not exist — run ./up.sh first"
   exit 1
 fi
 

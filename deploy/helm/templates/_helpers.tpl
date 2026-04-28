@@ -46,6 +46,50 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
+Selector labels for sandbox pods. Uses a fixed `studio-sandbox` name (not
+the chart name) because the sandbox runner stamps this same label onto
+every pod it creates via SandboxClaim.additionalPodMetadata, and the
+runner has no easy way to read the chart name. The NetworkPolicy
+podSelector targets these labels.
+*/}}
+{{- define "chart-deco-studio.sandboxSelectorLabels" -}}
+app.kubernetes.io/name: studio-sandbox
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Common labels for sandbox-* resources. Matches `chart-deco-studio.labels`
+shape but with the sandbox name (see sandboxSelectorLabels) and an
+explicit component=sandbox tag so dashboards/queries can split by role.
+*/}}
+{{- define "chart-deco-studio.sandboxLabels" -}}
+helm.sh/chart: {{ include "chart-deco-studio.chart" . }}
+{{ include "chart-deco-studio.sandboxSelectorLabels" . }}
+app.kubernetes.io/component: sandbox
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/*
+Common labels for the sandbox-preview Gateway/HTTPRoute/Certificate. Same
+shape as sandboxLabels but with name=studio-sandbox-preview and
+component=sandbox-preview so dashboards can split traffic-edge resources
+from runtime sandbox pods.
+*/}}
+{{- define "chart-deco-studio.sandboxPreviewLabels" -}}
+helm.sh/chart: {{ include "chart-deco-studio.chart" . }}
+app.kubernetes.io/name: studio-sandbox-preview
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: sandbox-preview
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/*
 Create the name of the service account to use
 */}}
 {{- define "chart-deco-studio.serviceAccountName" -}}

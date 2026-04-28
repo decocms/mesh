@@ -1400,6 +1400,24 @@ an Istio Gateway + HTTPRoute + cert-manager Certificate that send
 Host header and reverse-proxies to the matching sandbox's daemon at
 port 9000 — including WebSocket upgrades, so vite HMR works.
 
+> **⚠️ Preview handles are URL-grade secrets**. The handle in
+> `<handle>.preview.<domain>` is the *only* authorization check between a
+> browser and a sandbox's preview surface — there is no per-user auth on
+> the preview path (matching how Vercel preview URLs work). The handle
+> appears in plaintext in the Host header, which means it will be logged
+> in:
+>
+> - your CDN / load balancer access logs
+> - the Istio/Envoy proxy access logs
+> - any HTTP request logging the mesh Service emits
+> - browser history of anyone you share the URL with
+>
+> Treat handles like signed URLs: do not paste them into chat, tickets,
+> or screenshots intended for an audience you wouldn't grant the
+> sandbox to. If you need stronger isolation, terminate auth at the
+> Gateway with an `AuthorizationPolicy` (Istio) / extauth (Envoy) /
+> Cloudflare Access policy in front of the listener.
+
 Required values:
 
 ```yaml

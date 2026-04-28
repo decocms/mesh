@@ -5,26 +5,34 @@
 {{- $tlsSecretName := default (printf "%s-sandbox-preview-tls" (include "chart-deco-studio.fullname" .)) .Values.sandbox.agentSandbox.previewGateway.tlsSecretName }}
 {{- $hostname := printf "*.%s" $domain }}
 {{- $meshServiceName := include "chart-deco-studio.fullname" . }}
-# Wildcard preview-URL ingress: Approach B from the K8s sandbox plan. A
-# single Gateway + HTTPRoute terminate `*.preview.<domain>` and forward to
-# the mesh Service; mesh inspects the Host header and reverse-proxies to
-# the matching sandbox's daemon at port 9000 (daemon owns the public
-# surface; routing browsers straight at dev port 3000 would bypass the
-# daemon's CSP/HMR rewrites and break iframe embedding + SSE).
+# Wildcard preview-URL ingress. A single Gateway + HTTPRoute terminate
+# `*.preview.<domain>` and forward to the mesh Service; mesh inspects the
+# Host header and reverse-proxies to the matching sandbox's daemon at port
+# 9000 (daemon owns the public surface; routing browsers straight at dev
+# port 3000 would bypass the daemon's CSP/HMR rewrites and break iframe
+# embedding + SSE).
 #
 # Mesh stays in the request path for the first ship; the longer-term plan
 # is per-claim HTTPRoutes that bypass mesh entirely. Switching to that
 # requires per-Service routing + RBAC for mesh to mint HTTPRoutes, which
 # is deferred.
+#
+# AUTH MODEL — read before exposing this. The Host header carries the
+# sandbox handle, which is the *only* authorization on the preview path
+# (no listener-level auth, matching how Vercel preview URLs work). That
+# means handles travel in plaintext through every CDN / LB / proxy in the
+# request path and will appear in their access logs. Treat them as
+# URL-grade secrets — do not share in tickets, screenshots, etc. For
+# tighter isolation, terminate auth at the Gateway with an
+# AuthorizationPolicy (Istio) / extauth (Envoy) in front of this
+# listener; the chart does not do that for you.
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: {{ $meshServiceName }}-sandbox-preview
   namespace: {{ $gwNamespace }}
   labels:
-    app.kubernetes.io/name: studio-sandbox-preview
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
-    helm.sh/chart: {{ include "chart-deco-studio.chart" . }}
+    {{- include "chart-deco-studio.sandboxPreviewLabels" . | nindent 4 }}
   annotations:
     # cert-manager picks up the cert from the listener's TLS secret ref;
     # this annotation tells it which ClusterIssuer to use when minting
@@ -61,9 +69,7 @@ metadata:
   name: {{ $meshServiceName }}-sandbox-preview
   namespace: {{ .Release.Namespace }}
   labels:
-    app.kubernetes.io/name: studio-sandbox-preview
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
-    helm.sh/chart: {{ include "chart-deco-studio.chart" . }}
+    {{- include "chart-deco-studio.sandboxPreviewLabels" . | nindent 4 }}
 spec:
   parentRefs:
     - kind: Gateway

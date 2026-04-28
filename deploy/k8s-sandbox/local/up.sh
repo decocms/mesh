@@ -32,6 +32,31 @@ MANIFEST_URL="https://github.com/kubernetes-sigs/agent-sandbox/releases/download
 EXTENSIONS_URL="https://github.com/kubernetes-sigs/agent-sandbox/releases/download/${OPERATOR_VERSION}/extensions.yaml"
 
 log() { printf "\033[1;34m[up]\033[0m %s\n" "$*"; }
+err() { printf "\033[1;31m[up]\033[0m %s\n" "$*" >&2; }
+
+# Required tools for the base flow. Helm is checked separately (only needed
+# when MONITORING=1) so a contributor without helm can still spin up the
+# operator + template.
+for cmd in kind kubectl docker bun; do
+  if ! command -v "${cmd}" >/dev/null 2>&1; then
+    err "${cmd} not found on PATH — see README.md prereqs"
+    exit 1
+  fi
+done
+
+# Track whether *we* created the cluster on this invocation. If so and the
+# rest of bring-up fails, we tear it down so re-runs aren't fighting a
+# half-installed cluster. Pre-existing clusters are left alone.
+CREATED_CLUSTER=0
+on_failure() {
+  if [[ ${CREATED_CLUSTER} -eq 1 ]]; then
+    err "bring-up failed — deleting partial cluster ${CLUSTER_NAME}"
+    kind delete cluster --name "${CLUSTER_NAME}" >/dev/null 2>&1 || true
+  else
+    err "bring-up failed — leaving pre-existing cluster ${CLUSTER_NAME} intact"
+  fi
+}
+trap on_failure ERR
 
 # 1. kind cluster
 if kind get clusters 2>/dev/null | grep -qx "${CLUSTER_NAME}"; then
@@ -39,6 +64,7 @@ if kind get clusters 2>/dev/null | grep -qx "${CLUSTER_NAME}"; then
 else
   log "creating kind cluster ${CLUSTER_NAME}"
   kind create cluster --name "${CLUSTER_NAME}"
+  CREATED_CLUSTER=1
 fi
 
 # kubectl commands target kind's context explicitly so an ambient KUBECONFIG
@@ -127,5 +153,9 @@ if [[ "${MONITORING:-1}" == "1" ]]; then
     log "  → http://localhost:3001 (admin / admin) → Dashboards → 'Studio Sandbox Overview'"
   fi
 fi
+
+# Bring-up succeeded — drop the failure trap so a non-zero exit from any
+# follow-up command (none expected today) doesn't tear down the cluster.
+trap - ERR
 
 log "ready. smoke test: see README.md"

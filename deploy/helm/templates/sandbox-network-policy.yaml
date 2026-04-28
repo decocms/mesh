@@ -1,27 +1,28 @@
 {{- if and .Values.sandbox.agentSandbox.enabled .Values.sandbox.agentSandbox.networkPolicy.enabled }}
-# NetworkPolicy for mesh sandbox pods. Derived from PLAN-K8S-REMAINING.md
-# section 2.1 — the prior 2.1 PR that was meant to land a local/prod network
-# policy had not merged at the time this chart was authored, so the spec
-# below tracks the plan directly. Reconcile if the 2.1 PR lands a different
-# shape.
+# NetworkPolicy for mesh sandbox pods.
 #
 # Scope: selects pods in agent-sandbox-system labeled
 # app.kubernetes.io/name=studio-sandbox. Applies both ingress and egress rules,
 # so egress is deny-by-default (policyType Egress with only allowed rules).
 #
 # Threat model: workload is arbitrary user code. Egress must not reach IMDS
-# (169.254.169.254), in-cluster RFC1918 services, or link-local addresses.
-# Combine with EKS IMDSv2 hop-limit=1 at the node level — this policy alone
-# is not sufficient on clouds where IMDS is reachable via hop.
+# (169.254.169.254 / fd00:ec2::254), in-cluster RFC1918 services, or
+# link-local addresses. Combine with EKS IMDSv2 hop-limit=1 at the node
+# level — this policy alone is not sufficient on clouds where IMDS is
+# reachable via hop.
+#
+# OTel side note: the sandbox image does not currently emit OTLP traffic.
+# If a future daemon revision pushes telemetry out-of-pod, add an explicit
+# egress rule for the in-cluster collector (or use
+# `sandbox.agentSandbox.networkPolicy.extraEgress`); the default-deny
+# stance here will otherwise silently drop it.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: studio-sandbox
   namespace: agent-sandbox-system
   labels:
-    app.kubernetes.io/name: studio-sandbox
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
-    helm.sh/chart: {{ include "chart-deco-studio.chart" . }}
+    {{- include "chart-deco-studio.sandboxLabels" . | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
@@ -76,18 +77,50 @@ spec:
     # Public internet on 80/443 with IMDS, RFC1918, and link-local blocked.
     # Covers bun install, git clone, external APIs without opening the
     # sandbox to in-cluster services.
+    #
+    # 100.64.0.0/10 is shared address space (RFC 6598). Some carriers and
+    # K8s networking flavors put pod IPs there (Kops/Kubenet on AWS; some
+    # GKE configurations); EKS with the AWS VPC CNI uses VPC ranges
+    # (10.0.0.0/8) and is already covered above. Keeping the 100.64.0.0/10
+    # exclusion is harmless on EKS and necessary on the others.
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
             except:
-              - 169.254.0.0/16   # link-local + IMDSv2
+              - 169.254.0.0/16   # link-local + IPv4 IMDSv2
               - 10.0.0.0/8       # RFC1918
               - 172.16.0.0/12    # RFC1918
               - 192.168.0.0/16   # RFC1918
-              - 100.64.0.0/10    # carrier-grade NAT / EKS VPC CNI pods
+              - 100.64.0.0/10    # shared address space (RFC 6598)
       ports:
         - protocol: TCP
           port: 443
         - protocol: TCP
           port: 80
+    # IPv6 egress on dual-stack clusters (EKS dual-stack, GKE, etc.).
+    # Without this rule, an IPv6-enabled pod can reach in-cluster
+    # ULA-addressed Services and the IPv6 IMDS endpoint
+    # (fd00:ec2::254 on AWS) bypassing the IPv4 exclusions above.
+    # Single-stack IPv4 clusters ignore the rule, so it is safe to leave
+    # in by default.
+    - to:
+        - ipBlock:
+            cidr: ::/0
+            except:
+              - fe80::/10        # link-local
+              - fc00::/7         # ULA (in-cluster IPv6 Service ranges, ULA Pod CIDRs)
+              - fd00:ec2::/96    # AWS IPv6 IMDS prefix
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+    {{- with .Values.sandbox.agentSandbox.networkPolicy.extraEgress }}
+    # Operator-supplied egress rules. Use to grant the sandbox controlled
+    # access to in-cluster services it shouldn't reach by default — for
+    # example, the OTel collector at
+    # `<release>-opentelemetry-collector.<release-ns>.svc:4318` if a future
+    # daemon revision emits OTLP. Each entry is a NetworkPolicyEgressRule.
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 {{- end }}

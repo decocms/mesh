@@ -119,8 +119,7 @@ k8sattributes filter, ServiceMonitor for the in-cluster mesh Deployment).
 
 ## Smoke test
 
-Stage 1 exit criterion from PLAN-K8S-MVP.md. Exercises
-`AgentSandboxRunner` end-to-end against the live kind cluster:
+End-to-end smoke test for `AgentSandboxRunner` against the live kind cluster:
 ensure → exec → preview fetch → delete → recreate → ensure (warm) →
 alive → delete.
 
@@ -181,6 +180,7 @@ kubectl --context "$CTX" delete sandboxclaim/smoke-test -n agent-sandbox-system
   doesn't carry a shared default; the runner generates a random token
   per claim and puts it in `SandboxClaim.spec.env`.
 - `emptyDir` workdir means first-touch cost (clone + install) is paid on
-  every pod recreate. That's deliberate for the MVP — see PLAN-K8S-MVP.md.
+  every pod recreate. That's a deliberate MVP choice — persistent
+  workdir is a future hardening pass.
 - Preview URLs are not ingress-terminated locally; the runner uses
   `PortForward` against the dev port (3000) when the runtime asks for one.

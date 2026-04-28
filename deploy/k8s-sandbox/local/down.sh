@@ -10,8 +10,20 @@ CLUSTER_NAME="studio-sandbox-dev"
 KCTX="kind-${CLUSTER_NAME}"
 
 log() { printf "\033[1;34m[down]\033[0m %s\n" "$*"; }
+err() { printf "\033[1;31m[down]\033[0m %s\n" "$*" >&2; }
+
+for cmd in kind kubectl; do
+  if ! command -v "${cmd}" >/dev/null 2>&1; then
+    err "${cmd} not found on PATH — see README.md prereqs"
+    exit 1
+  fi
+done
 
 if [[ "${MONITORING_ONLY:-0}" == "1" ]]; then
+  if ! command -v helm >/dev/null 2>&1; then
+    err "MONITORING_ONLY=1 requires helm; not found on PATH"
+    exit 1
+  fi
   if ! kind get clusters 2>/dev/null | grep -qx "${CLUSTER_NAME}"; then
     log "cluster ${CLUSTER_NAME} not found, nothing to remove"
     exit 0
