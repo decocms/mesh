@@ -82,8 +82,7 @@ function isDockerInstalled(): boolean {
  * Rules:
  *   1. `STUDIO_SANDBOX_RUNNER=docker|freestyle|agent-sandbox` — honored.
  *   2. No explicit value, `FREESTYLE_API_KEY` set — pick freestyle.
- *   3. Production w/o explicit value and no freestyle key — null.
- *   4. Dev w/o explicit value — docker if CLI present, else null.
+ *   3. Otherwise — docker if CLI present, else null.
  *
  * agent-sandbox is explicit-only: never auto-selected — callers must opt in
  * with `STUDIO_SANDBOX_RUNNER=agent-sandbox` so docker-only dev stays the default.
@@ -99,7 +98,6 @@ export function tryResolveRunnerKindFromEnv(): RunnerKind | null {
     );
   }
   if (process.env.FREESTYLE_API_KEY) return "freestyle";
-  if (process.env.NODE_ENV === "production") return null;
   return isDockerInstalled() ? "docker" : null;
 }
 
@@ -107,14 +105,8 @@ export function tryResolveRunnerKindFromEnv(): RunnerKind | null {
 export function resolveRunnerKindFromEnv(): RunnerKind {
   const kind = tryResolveRunnerKindFromEnv();
   if (kind) return kind;
-  if (process.env.NODE_ENV === "production") {
-    throw new Error(
-      `STUDIO_SANDBOX_RUNNER must be set explicitly in production — ` +
-        `choose "docker", "freestyle", or "agent-sandbox" (or set FREESTYLE_API_KEY).`,
-    );
-  }
   throw new Error(
     `No sandbox runner available: Docker CLI not found on PATH. ` +
-      `Install Docker for local dev, or set STUDIO_SANDBOX_RUNNER explicitly.`,
+      `Install Docker, set FREESTYLE_API_KEY, or set STUDIO_SANDBOX_RUNNER explicitly.`,
   );
 }
