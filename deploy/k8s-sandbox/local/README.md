@@ -39,7 +39,7 @@ Pins:
 2. Applies the agent-sandbox `v0.4.2` base manifest (namespace, CRDs, controller)
 3. Applies the agent-sandbox `v0.4.2` extensions manifest (SandboxClaim, SandboxTemplate, …)
 4. Waits for controller deployments to report `Available`
-5. Builds `packages/mesh-plugin-user-sandbox/image/` as `mesh-sandbox:local`
+5. Builds the daemon bundle (`bun run --cwd packages/sandbox build`), then `packages/sandbox/image/Dockerfile` as `mesh-sandbox:local`
 6. Loads the image into kind (required because the template pins `imagePullPolicy: Never`)
 7. Applies `sandbox-template.yaml`
 

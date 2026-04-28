@@ -16,7 +16,8 @@ IMAGE_TAG="mesh-sandbox:local"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
-IMAGE_CONTEXT="${REPO_ROOT}/packages/mesh-plugin-user-sandbox/image"
+SANDBOX_PKG="${REPO_ROOT}/packages/sandbox"
+DOCKERFILE="${SANDBOX_PKG}/image/Dockerfile"
 
 MANIFEST_URL="https://github.com/kubernetes-sigs/agent-sandbox/releases/download/${OPERATOR_VERSION}/manifest.yaml"
 EXTENSIONS_URL="https://github.com/kubernetes-sigs/agent-sandbox/releases/download/${OPERATOR_VERSION}/extensions.yaml"
@@ -49,9 +50,15 @@ kubectl --context "${KCTX}" wait \
   --for=condition=Available deployment \
   -n agent-sandbox-system --all --timeout=180s
 
-# 5. build the sandbox image (same Dockerfile Docker runner uses)
-log "building ${IMAGE_TAG} from ${IMAGE_CONTEXT}"
-docker build -t "${IMAGE_TAG}" "${IMAGE_CONTEXT}"
+# 5. build the sandbox image (same Dockerfile the Docker runner uses).
+# The Dockerfile copies `daemon/dist/daemon.js` from the build context, so
+# the daemon bundle has to be produced first and the build context has to
+# be the sandbox package root (not image/).
+log "building daemon bundle"
+bun run --cwd "${SANDBOX_PKG}" build
+
+log "building ${IMAGE_TAG} from ${SANDBOX_PKG}"
+docker build -t "${IMAGE_TAG}" -f "${DOCKERFILE}" "${SANDBOX_PKG}"
 
 # 6. load into kind so imagePullPolicy: Never resolves
 log "loading ${IMAGE_TAG} into kind cluster ${CLUSTER_NAME}"

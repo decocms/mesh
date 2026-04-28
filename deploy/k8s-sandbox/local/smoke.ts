@@ -23,14 +23,14 @@
 
 // Imported via relative paths, not the package export name: this script is
 // not inside any package, so bun would resolve module names from repo-root
-// node_modules (which doesn't carry mesh-plugin-user-sandbox). Relative
-// imports resolve @kubernetes/client-node from the package's own
-// node_modules naturally.
+// node_modules (which doesn't carry @decocms/sandbox). Relative imports
+// resolve @kubernetes/client-node from the package's own node_modules
+// naturally.
 import {
   KubeConfig,
   KubernetesSandboxRunner,
-} from "../../../packages/mesh-plugin-user-sandbox/server/runner/k8s";
-import type { SandboxId } from "../../../packages/mesh-plugin-user-sandbox/server/runner/types";
+} from "../../../packages/sandbox/server/runner/k8s";
+import type { SandboxId } from "../../../packages/sandbox/server/runner/types";
 
 const KIND_CONTEXT = "kind-mesh-sandbox-dev";
 const NAMESPACE = "agent-sandbox-system";

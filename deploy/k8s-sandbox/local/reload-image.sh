@@ -11,7 +11,8 @@ IMAGE_TAG="mesh-sandbox:local"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
-IMAGE_CONTEXT="${REPO_ROOT}/packages/mesh-plugin-user-sandbox/image"
+SANDBOX_PKG="${REPO_ROOT}/packages/sandbox"
+DOCKERFILE="${SANDBOX_PKG}/image/Dockerfile"
 KCTX="kind-${CLUSTER_NAME}"
 
 log() { printf "\033[1;34m[reload]\033[0m %s\n" "$*"; }
@@ -21,8 +22,11 @@ if ! kind get clusters 2>/dev/null | grep -qx "${CLUSTER_NAME}"; then
   exit 1
 fi
 
+log "rebuilding daemon bundle"
+bun run --cwd "${SANDBOX_PKG}" build
+
 log "rebuilding ${IMAGE_TAG}"
-docker build -t "${IMAGE_TAG}" "${IMAGE_CONTEXT}"
+docker build -t "${IMAGE_TAG}" -f "${DOCKERFILE}" "${SANDBOX_PKG}"
 
 log "reloading ${IMAGE_TAG} into kind"
 kind load docker-image "${IMAGE_TAG}" --name "${CLUSTER_NAME}"
