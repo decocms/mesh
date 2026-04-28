@@ -692,49 +692,47 @@ function ModelsPermissionsTab({
   };
 
   return (
-    <div className="flex flex-col h-full overflow-auto gap-2 px-2 pt-2 pb-6">
-      <div className="border border-border rounded-lg overflow-hidden">
-        <div
-          className={cn(
-            "flex items-center justify-between px-4 py-3",
-            !readOnly && "hover:bg-muted/50 cursor-pointer",
+    <div className="flex flex-col h-full overflow-auto gap-4 px-2 pt-2 pb-6">
+      <div
+        className={cn(
+          "flex items-center justify-between px-4 py-2 rounded-lg",
+          !readOnly && "hover:bg-muted/50 cursor-pointer",
+        )}
+        onClick={() => {
+          if (readOnly) return;
+          const newValue = !allowAllModels;
+          onAllowAllChange(newValue);
+          if (newValue) onModelSetChange({});
+        }}
+      >
+        <span className="text-sm font-medium">All models</span>
+        <div onClick={(e) => e.stopPropagation()}>
+          {readOnly ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div>
+                    <Switch
+                      checked={allowAllModels}
+                      disabled
+                      onCheckedChange={() => {}}
+                    />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Built-in role permissions cannot be changed</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : (
+            <Switch
+              checked={allowAllModels}
+              onCheckedChange={(checked) => {
+                onAllowAllChange(checked);
+                if (checked) onModelSetChange({});
+              }}
+            />
           )}
-          onClick={() => {
-            if (readOnly) return;
-            const newValue = !allowAllModels;
-            onAllowAllChange(newValue);
-            if (newValue) onModelSetChange({});
-          }}
-        >
-          <span className="text-sm font-medium">All models</span>
-          <div onClick={(e) => e.stopPropagation()}>
-            {readOnly ? (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div>
-                      <Switch
-                        checked={allowAllModels}
-                        disabled
-                        onCheckedChange={() => {}}
-                      />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Built-in role permissions cannot be changed</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            ) : (
-              <Switch
-                checked={allowAllModels}
-                onCheckedChange={(checked) => {
-                  onAllowAllChange(checked);
-                  if (checked) onModelSetChange({});
-                }}
-              />
-            )}
-          </div>
         </div>
       </div>
       {allModelsConnections.length === 0 ? (
