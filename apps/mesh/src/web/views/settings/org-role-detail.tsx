@@ -50,6 +50,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { SearchInput } from "@deco/ui/components/search-input.tsx";
 import { Page } from "@/web/components/page";
+import { IntegrationIcon } from "@/web/components/integration-icon";
 import {
   ChevronDown,
   ChevronRight,
@@ -430,54 +431,36 @@ function SubProviderGroup({
     selectedModels.includes(modelId);
 
   const enabledCount = models.filter((m) => isModelEnabled(m.id)).length;
-  const allSelected = enabledCount === models.length;
   const visibleModels = models.slice(0, visibleCount);
   const hasMore = models.length > visibleCount;
-
-  const toggleAll = () => {
-    if (readOnly || allowAllModels) return;
-    const target = !allSelected;
-    for (const m of models) {
-      const enabled = isModelEnabled(m.id);
-      if (enabled !== target) onToggleModel(connectionId, m.id);
-    }
-  };
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">
       <div
-        className={cn(
-          "flex items-center justify-between gap-3 px-4 py-3",
-          "hover:bg-muted/50 cursor-pointer",
-        )}
+        className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/50 cursor-pointer"
         onClick={() => setExpanded((e) => !e)}
       >
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          {expanded ? (
-            <ChevronDown size={14} className="text-muted-foreground shrink-0" />
-          ) : (
-            <ChevronRight
-              size={14}
-              className="text-muted-foreground shrink-0"
-            />
-          )}
-          <img
-            src={PROVIDER_LOGOS[subProviderId] ?? DEFAULT_LOGO}
-            alt={subProviderId}
-            className="w-4 h-4 rounded-sm dark:bg-white dark:rounded-sm dark:p-px"
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <IntegrationIcon
+            icon={PROVIDER_LOGOS[subProviderId] ?? DEFAULT_LOGO}
+            name={subProviderName}
+            size="sm"
           />
           <span className="text-sm font-medium truncate">
             {subProviderName}
           </span>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <Badge variant="secondary" className="text-xs">
+          <span className="text-xs text-muted-foreground">
             {enabledCount}/{models.length} enabled
-          </Badge>
-          {!readOnly && !allowAllModels && (
-            <div onClick={(e) => e.stopPropagation()}>
-              <Switch checked={allSelected} onCheckedChange={toggleAll} />
-            </div>
+          </span>
+          {expanded ? (
+            <ChevronDown size={16} className="text-muted-foreground shrink-0" />
+          ) : (
+            <ChevronRight
+              size={16}
+              className="text-muted-foreground shrink-0"
+            />
           )}
         </div>
       </div>
@@ -489,7 +472,7 @@ function SubProviderGroup({
               <div
                 key={model.id}
                 className={cn(
-                  "flex items-center justify-between gap-3 pl-10 pr-4 py-3 border-b border-border last:border-b-0",
+                  "flex items-center justify-between gap-3 px-4 py-3 border-b border-border last:border-b-0",
                   !readOnly &&
                     !allowAllModels &&
                     "hover:bg-muted/50 cursor-pointer",
@@ -562,7 +545,6 @@ function ConnectionModelsSection({
   selectedModels: string[];
   allowAllModels: boolean;
   onToggleModel: (keyId: string, modelId: string) => void;
-  onToggleConnectionAll: (keyId: string, models: { id: string }[]) => void;
   allConnectionModelsSelected: boolean;
   searchQuery: string;
   readOnly: boolean;
@@ -668,23 +650,6 @@ function ModelsPermissionsTab({
     onModelSetChange(newModelSet);
   };
 
-  const toggleConnectionAll = (
-    connectionId: string,
-    models: { id: string }[],
-  ) => {
-    const current = modelSet[connectionId] ?? [];
-    const allModelIds = models.map((m) => m.id);
-    const allSelected =
-      current.includes("*") || allModelIds.every((id) => current.includes(id));
-    const newModelSet = { ...modelSet };
-    if (allSelected) {
-      delete newModelSet[connectionId];
-    } else {
-      newModelSet[connectionId] = allModelIds;
-    }
-    onModelSetChange(newModelSet);
-  };
-
   return (
     <div className="flex flex-col h-full overflow-auto gap-2 px-2 pt-2 pb-6">
       <div className="border border-border rounded-lg overflow-hidden">
@@ -751,7 +716,6 @@ function ModelsPermissionsTab({
               selectedModels={modelSet[conn.id] ?? []}
               allowAllModels={allowAllModels}
               onToggleModel={toggleModel}
-              onToggleConnectionAll={toggleConnectionAll}
               allConnectionModelsSelected={(modelSet[conn.id] ?? []).includes(
                 "*",
               )}
