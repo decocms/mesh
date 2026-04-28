@@ -14,3 +14,10 @@ dependencies:
     version: "0.147.2"
     repository: "https://open-telemetry.github.io/opentelemetry-helm-charts"
     condition: otel.collector.enabled
+  # Local subchart — vendors kubernetes-sigs/agent-sandbox operator + CRDs for
+  # the mesh k8s sandbox runner. Upstream doesn't publish a Helm chart, so we
+  # pin and ship release YAML here. See charts/agent-sandbox/README.md.
+  - name: agent-sandbox
+    version: "0.1.0"
+    repository: "file://./charts/agent-sandbox"
+    condition: sandbox.kubernetes.enabled

@@ -13,7 +13,7 @@ import {
   tryResolveRunnerKindFromEnv,
   type RunnerKind,
   type SandboxRunner,
-} from "mesh-plugin-user-sandbox/runner";
+} from "@decocms/sandbox/runner";
 import { KyselySandboxRunnerStateStore } from "@/storage/sandbox-runner-state";
 
 const runners: Partial<Record<RunnerKind, SandboxRunner>> = {};
@@ -30,7 +30,7 @@ async function instantiate(
       // Dynamic import — freestyle SDK is an optionalDependency so
       // docker-only deploys don't need it installed.
       const { FreestyleSandboxRunner } = await import(
-        "mesh-plugin-user-sandbox/runner/freestyle"
+        "@decocms/sandbox/runner/freestyle"
       );
       return new FreestyleSandboxRunner({ stateStore });
     }
@@ -39,7 +39,7 @@ async function instantiate(
       // when MESH_SANDBOX_RUNNER=kubernetes. Docker/Freestyle deploys never
       // load it.
       const { KubernetesSandboxRunner } = await import(
-        "mesh-plugin-user-sandbox/runner/k8s"
+        "@decocms/sandbox/runner/k8s"
       );
       return new KubernetesSandboxRunner({ stateStore });
     }

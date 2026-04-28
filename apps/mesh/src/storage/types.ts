@@ -775,7 +775,7 @@ export interface Thread {
   created_at: string;
   updated_at: string;
   created_by: string;
-  updated_by: string | null;
+  updated_by: string | undefined;
   hidden: boolean | null;
   status: ThreadStatus;
   trigger_id: string | null;

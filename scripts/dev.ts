@@ -10,10 +10,7 @@ const repoRoot = join(import.meta.dir, "..");
 
 // Hot-reload the sandbox daemon: Docker runner bind-mounts this dir over
 // `/opt/sandbox-daemon` and runs it under `node --watch`. No rebuild needed.
-const sandboxDaemonDir = join(
-  repoRoot,
-  "packages/mesh-plugin-user-sandbox/image",
-);
+const sandboxDaemonDir = join(repoRoot, "packages/@decocms/sandbox/image");
 
 const child = Bun.spawn(
   [

@@ -137,8 +137,6 @@ const ALL_TOOL_NAMES = [
   "AI_PROVIDER_TOPUP_URL",
   "AI_PROVIDER_CREDITS",
   "AI_PROVIDER_CLI_ACTIVATE",
-  "AI_SIMPLE_MODE_GET",
-  "AI_SIMPLE_MODE_UPDATE",
 
   // Object Storage tools
   "LIST_OBJECTS",
@@ -670,16 +668,6 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "Activate Claude Code via local CLI",
     category: "AI Providers",
   },
-  {
-    name: "AI_SIMPLE_MODE_GET",
-    description: "Get Simple Model Mode config for the org",
-    category: "AI Providers",
-  },
-  {
-    name: "AI_SIMPLE_MODE_UPDATE",
-    description: "Update Simple Model Mode config for the org",
-    category: "AI Providers",
-  },
   // Object Storage tools
   {
     name: "LIST_OBJECTS",
@@ -984,8 +972,6 @@ const TOOL_LABELS: Record<ToolName, string> = {
   AI_PROVIDER_TOPUP_URL: "Get top-up checkout URL",
   AI_PROVIDER_CREDITS: "Get credit balance",
   AI_PROVIDER_CLI_ACTIVATE: "Activate Claude Code CLI",
-  AI_SIMPLE_MODE_GET: "Get Simple Model Mode config",
-  AI_SIMPLE_MODE_UPDATE: "Update Simple Model Mode config",
 
   // Object Storage
   LIST_OBJECTS: "List objects",

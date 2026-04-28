@@ -20,6 +20,7 @@ import "../../index.css";
 
 import { authClient } from "@/web/lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
+
 import { sourcePlugins } from "./plugins.ts";
 import type {
   AnyClientPlugin,
@@ -198,7 +199,6 @@ const unifiedChatSearchSchema = z.object({
   tasks: z.number().optional(),
   mainOpen: z.number().optional(),
   chat: z.number().optional(),
-  branch: z.string().optional(),
 });
 
 const unifiedChatRoute = createRoute({

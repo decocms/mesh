@@ -1,6 +1,13 @@
 import { Suspense, useState, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useRouterState,
+  useSearch,
+} from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
   closestCenter,
@@ -57,7 +64,7 @@ import {
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { usePinnedAgents } from "@/web/hooks/use-pinned-agents";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
-import { useCreateTaskAndNavigate } from "@/web/hooks/use-create-task-and-navigate";
+import { track } from "@/web/lib/posthog-client";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { GitHubIcon } from "@/web/components/icons/github-icon";
@@ -68,6 +75,47 @@ import { GitHubRepoPicker } from "@/web/components/github-repo-picker.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
 import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recruit-modal.tsx";
+import { useTaskActions } from "@/web/hooks/use-tasks";
+import { readCachedTaskBranch } from "@/web/lib/read-cached-task-branch";
+
+/**
+ * Hook for sidebar "spawn task on this vMCP" buttons. When the user clicks
+ * a vMCP that matches the URL's current virtualmcpid, the active task's
+ * branch is carried into the new thread so the new task lands on the same
+ * warm sandbox. When the clicked vMCP differs, no branch is passed and the
+ * server picks the most-recently-touched vmMap entry for that vMCP.
+ */
+function useNavigateToNewTaskWithBranchCarry(orgSlug: string) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const taskActions = useTaskActions();
+  const { locator } = useProjectContext();
+  const params = useParams({ strict: false }) as { taskId?: string };
+  const search = useSearch({ strict: false }) as { virtualmcpid?: string };
+
+  return async (clickedVirtualMcpId: string) => {
+    const taskId = crypto.randomUUID();
+    const carryBranch =
+      clickedVirtualMcpId === search.virtualmcpid
+        ? readCachedTaskBranch(queryClient, locator, params.taskId ?? "")
+        : null;
+    try {
+      await taskActions.create.mutateAsync({
+        id: taskId,
+        virtual_mcp_id: clickedVirtualMcpId,
+        ...(carryBranch ? { branch: carryBranch } : {}),
+      });
+    } catch {
+      // Toast already fired; navigate anyway so the route loader's
+      // ensure-fallback can retry.
+    }
+    navigate({
+      to: "/$org/$taskId",
+      params: { org: orgSlug, taskId },
+      search: { virtualmcpid: clickedVirtualMcpId },
+    });
+  };
+}
 function AgentListItem({
   agent,
   org,
@@ -81,7 +129,7 @@ function AgentListItem({
 }) {
   const navigate = useNavigate();
   const { isMobile, setOpenMobile } = useSidebar();
-  const navigateToNewTask = useCreateTaskAndNavigate();
+  const navigateToNewTask = useNavigateToNewTaskWithBranchCarry(org);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isActive = pathname.startsWith(`/${org}/${agent.id}`);
   const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
@@ -133,6 +181,10 @@ function AgentListItem({
             tooltip={buttonRect ? undefined : agent.title}
             isActive={isActive}
             onClick={() => {
+              track("sidebar_agent_pin_clicked", {
+                agent_id: agent.id,
+                agent_title: agent.title,
+              });
               navigateToNewTask(agent.id);
               if (isMobile) setOpenMobile(false);
             }}
@@ -306,7 +358,7 @@ function PinAgentPopoverContent({
   });
   const [preferences] = usePreferences();
 
-  const navigateToNewTask = useCreateTaskAndNavigate();
+  const navigateToNewTask = useNavigateToNewTaskWithBranchCarry(org.slug);
   const navigateToAgent = useNavigateToAgent();
 
   const lowerSearch = search.toLowerCase();
@@ -401,6 +453,7 @@ function PinAgentPopoverContent({
             type="button"
             disabled={isCreating}
             onClick={async () => {
+              track("agent_create_new_clicked", { source: "browse_popover" });
               await createVirtualMCP();
               onClose();
             }}
@@ -417,6 +470,7 @@ function PinAgentPopoverContent({
           <button
             type="button"
             onClick={() => {
+              track("agent_import_clicked", { source: "deco_cx" });
               onOpenImportDeco();
               onClose();
             }}
@@ -438,6 +492,7 @@ function PinAgentPopoverContent({
             <button
               type="button"
               onClick={() => {
+                track("agent_import_clicked", { source: "github" });
                 onOpenGithubImport();
                 onClose();
               }}
@@ -474,7 +529,13 @@ function PinAgentPopoverContent({
                 <button
                   key={template.id}
                   type="button"
-                  onClick={() => handleTemplateClick(template.id)}
+                  onClick={() => {
+                    track("agent_template_clicked", {
+                      template_id: template.id,
+                      template_title: template.title,
+                    });
+                    handleTemplateClick(template.id);
+                  }}
                   className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <AgentAvatar
@@ -561,7 +622,10 @@ function PinAgentPopover() {
             <SidebarMenuButton
               tooltip="Browse agents"
               className="bg-muted/75 hover:bg-sidebar-accent"
-              onClick={() => setOpen(true)}
+              onClick={() => {
+                track("agent_browser_opened", { surface: "mobile_drawer" });
+                setOpen(true);
+              }}
             >
               <Plus className="!opacity-100" />
             </SidebarMenuButton>
@@ -574,7 +638,15 @@ function PinAgentPopover() {
           </Drawer>
         </>
       ) : (
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover
+          open={open}
+          onOpenChange={(next) => {
+            if (next && !open) {
+              track("agent_browser_opened", { surface: "desktop_popover" });
+            }
+            setOpen(next);
+          }}
+        >
           <SidebarMenuItem>
             <PopoverTrigger asChild>
               <SidebarMenuButton

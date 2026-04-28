@@ -37,6 +37,7 @@ import {
 import { FolderClosed, Plus } from "@untitledui/icons";
 import { toast } from "sonner";
 import { GitHubRepoPicker } from "@/web/components/github-repo-picker.tsx";
+import { track } from "@/web/lib/posthog-client";
 
 export default function AgentsListPage() {
   const { org } = useProjectContext();
@@ -92,6 +93,7 @@ export default function AgentsListPage() {
   );
 
   const handleTemplateClick = (templateId: string) => {
+    track("agents_list_template_clicked", { template_id: templateId });
     if (templateId === "site-editor") {
       setImportDecoOpen(true);
     } else if (templateId === "site-diagnostics") {
@@ -117,6 +119,7 @@ export default function AgentsListPage() {
     setDeleteTarget(null);
     try {
       await actions.delete.mutateAsync(id);
+      track("agent_deleted", { agent_id: id, source: "agents_list" });
       toast.success(`Deleted "${title}"`);
     } catch {
       // Error toast handled by mutation
@@ -138,9 +141,27 @@ export default function AgentsListPage() {
                     </Button>
                   </DropdownMenuTrigger>
                   <CreateAgentDropdownContent
-                    onCreateFromScratch={() => createVirtualMCP()}
-                    onImportGitHub={() => setGithubPickerOpen(true)}
-                    onImportDeco={() => setImportDecoOpen(true)}
+                    onCreateFromScratch={() => {
+                      track("agent_create_clicked", {
+                        source: "agents_list",
+                        method: "scratch",
+                      });
+                      createVirtualMCP();
+                    }}
+                    onImportGitHub={() => {
+                      track("agent_create_clicked", {
+                        source: "agents_list",
+                        method: "github",
+                      });
+                      setGithubPickerOpen(true);
+                    }}
+                    onImportDeco={() => {
+                      track("agent_create_clicked", {
+                        source: "agents_list",
+                        method: "deco",
+                      });
+                      setImportDecoOpen(true);
+                    }}
                     isCreating={isCreating}
                     align="end"
                   />
@@ -185,9 +206,27 @@ export default function AgentsListPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <CreateAgentDropdownContent
-                        onCreateFromScratch={() => createVirtualMCP()}
-                        onImportGitHub={() => setGithubPickerOpen(true)}
-                        onImportDeco={() => setImportDecoOpen(true)}
+                        onCreateFromScratch={() => {
+                          track("agent_create_clicked", {
+                            source: "agents_list_empty",
+                            method: "scratch",
+                          });
+                          createVirtualMCP();
+                        }}
+                        onImportGitHub={() => {
+                          track("agent_create_clicked", {
+                            source: "agents_list_empty",
+                            method: "github",
+                          });
+                          setGithubPickerOpen(true);
+                        }}
+                        onImportDeco={() => {
+                          track("agent_create_clicked", {
+                            source: "agents_list_empty",
+                            method: "deco",
+                          });
+                          setImportDecoOpen(true);
+                        }}
                         isCreating={isCreating}
                         align="center"
                         showBetaBadge

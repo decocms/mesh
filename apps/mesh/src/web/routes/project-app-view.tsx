@@ -9,7 +9,10 @@ import {
   useMCPToolsList,
   useMCPToolCall,
 } from "@decocms/mesh-sdk";
-import type { McpUiMessageRequest } from "@modelcontextprotocol/ext-apps";
+import type {
+  McpUiDisplayMode,
+  McpUiMessageRequest,
+} from "@modelcontextprotocol/ext-apps";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { contentBlocksToTiptapDoc } from "@/mcp-apps/content-blocks.ts";
 import { MCPAppRenderer } from "@/mcp-apps/mcp-app-renderer.tsx";
@@ -39,8 +42,18 @@ function AppRenderer({
 }) {
   const { sendMessage } = useChatBridge();
   const { setAppContext, clearAppContext } = useChatPrefs();
-  const { setChatOpen } = usePanelActions();
+  const { setChatOpen, openTab } = usePanelActions();
   const sourceId = `${connectionId}:${tool.name}`;
+
+  const handleRequestDisplayMode = (
+    mode: McpUiDisplayMode,
+  ): McpUiDisplayMode => {
+    if (mode === "inline") {
+      openTab("0");
+      return "inline";
+    }
+    return "fullscreen";
+  };
   const { data: toolResult } = useMCPToolCall({
     client,
     toolName: tool.name,
@@ -79,6 +92,7 @@ function AppRenderer({
       onMessage={handleAppMessage}
       onUpdateModelContext={(params) => setAppContext(sourceId, params)}
       onTeardown={() => clearAppContext(sourceId)}
+      onRequestDisplayMode={handleRequestDisplayMode}
       className="h-full"
     />
   );

@@ -61,7 +61,7 @@ export function MainPanelContent({
     return (
       <Suspense
         fallback={
-          <div className="flex-1 flex items-center justify-center">
+          <div className="h-full w-full flex items-center justify-center">
             <Loading01
               size={20}
               className="animate-spin text-muted-foreground"
@@ -83,7 +83,7 @@ export function MainPanelContent({
     return (
       <Suspense
         fallback={
-          <div className="flex-1 flex items-center justify-center">
+          <div className="h-full w-full flex items-center justify-center">
             <Loading01
               size={20}
               className="animate-spin text-muted-foreground"

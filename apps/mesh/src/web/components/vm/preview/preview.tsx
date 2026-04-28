@@ -43,6 +43,7 @@ import { useVmStart, type VmStartArgs } from "../hooks/use-vm-start";
 import { VmSuspendedState } from "../vm-suspended-state";
 import { VmBootingState } from "../vm-booting-state";
 import { VmErrorState } from "../vm-error-state";
+import { track } from "@/web/lib/posthog-client";
 
 type PreviewViewMode = "preview" | "visual";
 
@@ -163,11 +164,11 @@ export function PreviewContent() {
   if (taskId && vmEntry && autoStartedForTaskRef.current !== taskId) {
     autoStartedForTaskRef.current = taskId;
   }
-  // Branch must be resolved before firing: the layout's auto-start uses
-  // `urlBranch`, and `useVmStart` dedupes by (virtualMcpId, branch). Firing
-  // here with branch=null uses a different dedup key AND asks the server to
-  // generate a fresh branch — that's a different sandbox than the one the
-  // page is actually on.
+  // Branch must be resolved before firing: VmEventsBridge keys auto-start on
+  // `currentBranch`, and `useVmStart` dedupes by (virtualMcpId, branch).
+  // Firing here with branch=null uses a different dedup key AND asks the
+  // server to generate a fresh branch — that's a different sandbox than the
+  // one the page is actually on.
   const shouldAutoStart =
     !!taskId &&
     !!virtualMcpId &&
@@ -438,6 +439,14 @@ export function PreviewContent() {
             className="w-full h-full border-0"
             title="Dev Server Preview"
             onLoad={() => {
+              // This is the VM dev-server preview (sandboxed running app),
+              // NOT an MCP app. MCP apps render via <MCPAppRenderer/>.
+              track("vm_preview_loaded", {
+                view_mode: viewMode,
+                vm_id: vmEntry?.vmId ?? null,
+                // Intentionally excluding the full previewUrl — it can contain
+                // ephemeral tokens / user data in the query string.
+              });
               if (viewMode === "visual") {
                 injectVisualEditor();
               }

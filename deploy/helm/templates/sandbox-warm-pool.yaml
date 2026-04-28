@@ -1,0 +1,22 @@
+{{- if and .Values.sandbox.kubernetes.enabled .Values.sandbox.kubernetes.warmPool.enabled }}
+# Pre-warms N sandbox pods against the shared SandboxTemplate so new claims
+# bind instantly rather than waiting on image pull + kubelet start. Disabled
+# by default — enable only after measuring cold-start pain; every pool
+# replica costs the full sandbox resource request.
+#
+# Schema (v1alpha1): see CRD at
+# deploy/helm/charts/agent-sandbox/crds/agent-sandbox-crds.yaml.
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
+kind: SandboxWarmPool
+metadata:
+  name: mesh-sandbox
+  namespace: agent-sandbox-system
+  labels:
+    app.kubernetes.io/name: mesh-sandbox
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ include "chart-deco-studio.chart" . }}
+spec:
+  replicas: {{ .Values.sandbox.kubernetes.warmPool.size }}
+  sandboxTemplateRef:
+    name: mesh-sandbox
+{{- end }}

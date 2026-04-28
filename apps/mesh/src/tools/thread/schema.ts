@@ -68,7 +68,7 @@ export const ThreadEntitySchema = z.object({
   created_by: z.string().describe("User ID who created the thread"),
   updated_by: z
     .string()
-    .nullable()
+    .optional()
     .describe("User ID who last updated the thread"),
   virtual_mcp_id: z
     .string()
@@ -100,12 +100,18 @@ export type ThreadEntity = z.infer<typeof ThreadEntitySchema>;
 
 export const ThreadCreateDataSchema = z.object({
   id: z.string().optional().describe("Optional custom ID for the thread"),
-  title: z.string().describe("Thread title"),
+  title: z.string().optional().describe("Thread title"),
   description: z.string().nullish().describe("Thread description"),
+  virtual_mcp_id: z
+    .string()
+    .describe("Virtual MCP (agent) this thread is bound to"),
   branch: z
     .string()
-    .nullish()
-    .describe("Git branch to pin this thread to (GitHub-linked vms only)"),
+    .min(1)
+    .optional()
+    .describe(
+      "Preferred branch. Used only when the vMCP has a githubRepo; ignored otherwise. When omitted, the server picks the most-recently-touched branch from the user's vmMap, falling back to a freshly generated name.",
+    ),
 });
 
 export type ThreadCreateData = z.infer<typeof ThreadCreateDataSchema>;

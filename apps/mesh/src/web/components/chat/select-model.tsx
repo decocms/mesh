@@ -54,6 +54,7 @@ import {
   useAiProviders,
 } from "../../hooks/collections/use-ai-providers";
 import { ErrorBoundary } from "../error-boundary";
+import { track } from "@/web/lib/posthog-client";
 import { useChatPrefs } from "./context";
 import { getProviderLogo } from "@/web/utils/ai-providers-logos";
 import { useNavigate } from "@tanstack/react-router";
@@ -948,13 +949,87 @@ function SelectedModelDisplay({
   );
 }
 
+const FILE_BEARING_CAPABILITIES = [
+  "vision",
+  "image",
+  "file",
+  "audio",
+  "video",
+] as const;
+
+const IMAGE_MIME_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+] as const;
+
 export function modelSupportsFiles(
   selectedModel: AiProviderModel | null | undefined,
 ): boolean {
-  return (
-    selectedModel?.capabilities?.includes("vision") === true ||
-    selectedModel?.capabilities?.includes("image") === true
-  );
+  const caps = selectedModel?.capabilities;
+  if (!caps) return false;
+  return FILE_BEARING_CAPABILITIES.some((c) => caps.includes(c));
+}
+
+export function isFileTypeSupportedByModel(
+  mimeType: string,
+  selectedModel: AiProviderModel | null | undefined,
+): boolean {
+  if (!mimeType) return false;
+  if (mimeType.startsWith("text/")) return true;
+
+  const caps = selectedModel?.capabilities ?? [];
+  const hasVision = caps.includes("vision") || caps.includes("image");
+  const hasFile = caps.includes("file");
+  const hasAudio = caps.includes("audio");
+  const hasVideo = caps.includes("video");
+
+  if (hasVision && IMAGE_MIME_TYPES.includes(mimeType as never)) return true;
+  if (hasFile && mimeType === "application/pdf") return true;
+  if (hasAudio && mimeType.startsWith("audio/")) return true;
+  if (hasVideo && mimeType.startsWith("video/")) return true;
+
+  return false;
+}
+
+export function getAcceptedMimeTypesForModel(
+  selectedModel: AiProviderModel | null | undefined,
+): string {
+  const caps = selectedModel?.capabilities ?? [];
+  const accepted: string[] = ["text/*"];
+
+  if (caps.includes("vision") || caps.includes("image")) {
+    accepted.push(...IMAGE_MIME_TYPES);
+  }
+  if (caps.includes("file")) {
+    accepted.push("application/pdf");
+  }
+  if (caps.includes("audio")) {
+    accepted.push("audio/*");
+  }
+  if (caps.includes("video")) {
+    accepted.push("video/*");
+  }
+
+  return accepted.join(",");
+}
+
+export function getSupportedFileTypesLabel(
+  selectedModel: AiProviderModel | null | undefined,
+): string {
+  const caps = selectedModel?.capabilities ?? [];
+  const parts: string[] = [];
+
+  if (caps.includes("vision") || caps.includes("image")) parts.push("images");
+  if (caps.includes("file")) parts.push("PDFs");
+  if (caps.includes("audio")) parts.push("audio");
+  if (caps.includes("video")) parts.push("video");
+
+  if (parts.length === 0) return "text only";
+  if (parts.length === 1) return parts[0]!;
+  if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
+  return `${parts.slice(0, -1).join(", ")}, and ${parts.at(-1)}`;
 }
 
 // ============================================================================
@@ -1218,10 +1293,19 @@ function ModelSelectorContent({ onClose }: { onClose: () => void }) {
     <ModelSelectorInner
       onClose={onClose}
       credentialId={credentialId}
-      onCredentialChange={setCredentialId}
+      onCredentialChange={(id) => {
+        track("chat_credential_changed", { credential_id: id });
+        setCredentialId(id);
+      }}
       selectedModel={selectedModel}
       onModelChange={(model) => {
         if (!credentialId) return;
+        track("chat_model_changed", {
+          from_model_id: selectedModel?.modelId ?? null,
+          to_model_id: model.modelId,
+          to_model_provider: model.providerId ?? null,
+          credential_id: credentialId,
+        });
         setModel({ ...model, keyId: credentialId });
       }}
     />

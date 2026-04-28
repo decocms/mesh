@@ -21,6 +21,7 @@ import {
 } from "@decocms/mesh-sdk";
 import { KEYS } from "@/web/lib/query-keys";
 import { getActiveGithubRepo } from "@/web/lib/github-repo";
+import { useChatTask } from "@/web/components/chat/index";
 import type {
   ThreadExpandedTool,
   ThreadMetadata,
@@ -97,10 +98,10 @@ export function useMainPanelTabs(ctx: {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as {
     main?: string;
-    branch?: string;
   };
   const entity = useVirtualMCP(ctx.virtualMcpId);
   const metadata = useTaskMetadata(ctx.taskId);
+  const { currentBranch } = useChatTask();
 
   const entityUI =
     (
@@ -151,7 +152,7 @@ export function useMainPanelTabs(ctx: {
   if (hasActiveGithubRepo) {
     systemTabs.push({ id: "preview", title: "Preview" });
     systemTabs.push({ id: "env", title: "Terminal" });
-    systemTabs.push({ id: "git", title: search.branch ?? "git" });
+    systemTabs.push({ id: "git", title: currentBranch ?? "git" });
   }
   systemTabs.push({ id: "settings", title: "Settings" });
   systemTabs.push({ id: "automations", title: "Automations" });

@@ -1,0 +1,96 @@
+# Mesh sandbox pod template for local kind clusters.
+#
+# One shared SandboxTemplate per cluster; every SandboxClaim references it by
+# name and gets its own pod. Production will carry a near-identical template
+# with hardened values (IfNotPresent pull, per-claim DAEMON_TOKEN via Secret,
+# resource limits tuned to measured load). Changes here should be mirrored
+# into decocms/infra_applications/provisioning/agent-sandbox/eks-envs/ when
+# they graduate.
+#
+# The daemon listens on 9000 and refuses to start without DAEMON_TOKEN; user
+# workloads bind port 3000 for the dev server (preview ingress terminates
+# on that port). Ports + UID 1000 + /app workdir must track the Dockerfile.
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
+kind: SandboxTemplate
+metadata:
+  name: mesh-sandbox
+  namespace: agent-sandbox-system
+  labels:
+    app.kubernetes.io/name: mesh-sandbox
+    app.kubernetes.io/managed-by: mesh
+spec:
+  # Claims inject DAEMON_TOKEN per-provision (Stage 2.1). The SandboxClaim
+  # CRD only accepts literal `{name, value}` on spec.env (no valueFrom), so
+  # the token is plaintext in the claim and mesh/RBAC is the secrecy
+  # boundary. Additive merge — claim env is added on top of this template's
+  # env. Once per-claim git credentials land (later in Stage 2+), the same
+  # mechanism carries them.
+  envVarsInjectionPolicy: Allowed
+  podTemplate:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mesh-sandbox
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: sandbox
+          image: mesh-sandbox:local
+          # Local only: kind loads the image manually via `kind load
+          # docker-image`. Prevents accidental ghcr pulls.
+          imagePullPolicy: Never
+          workingDir: /app
+          env:
+            - name: DAEMON_PORT
+              value: "9000"
+            - name: WORKDIR
+              value: "/app"
+            # DAEMON_TOKEN is injected per-claim (Stage 2.1) via
+            # SandboxClaim.spec.env rather than baked into the template —
+            # one leak compromises one sandbox, not every sandbox.
+          ports:
+            - name: daemon
+              containerPort: 9000
+              protocol: TCP
+            - name: dev
+              containerPort: 3000
+              protocol: TCP
+          # Laptop-shape limits. Docker Desktop on macOS defaults to ~4 GiB
+          # for the whole kind VM — a single 4 GiB sandbox would evict the
+          # control plane (coredns/etcd/apiserver). Prod runs a separate
+          # template with higher ceilings; do NOT just bump these here when
+          # you hit OOM on a heavy repo — bump Docker Desktop memory first,
+          # and only raise these limits if your laptop has the headroom.
+          # 3Gi fits a full deco dev stack (bun install + vite + react
+          # compiler + tailwind v4 + firebase/sentry) with margin; 1Gi OOMs
+          # as soon as vite boots.
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "3Gi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            # User code writes to ~/.bun, /tmp, and the workdir; a read-only
+            # rootfs would need tmpfs mounts for each. Revisit after Stage 1.
+            readOnlyRootFilesystem: false
+          # No volumeMounts on /app on purpose: the image chowns /app to
+          # sandbox:sandbox (uid 1000). An emptyDir overlay would replace it
+          # with a root-owned dir, and Git 2.35+ refuses to operate there
+          # ("detected dubious ownership"). The pod's ephemeral image layer
+          # gives the same lifetime as emptyDir for a shutdownPolicy=Delete
+          # claim.
+          # Daemon has its own /_daemon/health route; we rely on the
+          # agent-sandbox operator's Ready condition (see waitForSandboxReady
+          # in runner/k8s/client.ts) for readiness gating. No need to
+          # duplicate probes here until we see a false-ready in practice.

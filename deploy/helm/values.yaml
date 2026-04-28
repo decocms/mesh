@@ -314,3 +314,46 @@ opentelemetry-collector:
           receivers: [otlp]
           processors: [memory_limiter, batch]
           exporters: [debug]
+
+# K8s sandbox runner. Requires MESH_SANDBOX_RUNNER=kubernetes in mesh env.
+# Disabled by default — self-hosters on the Docker runner (simpler, no
+# cluster needed) leave this off and don't pay the agent-sandbox operator
+# install cost.
+#
+# When enabled, installs:
+#   - agent-sandbox operator + CRDs (vendored in charts/agent-sandbox/)
+#   - SandboxTemplate used by every SandboxClaim mesh creates
+#   - NetworkPolicy locking down sandbox-pod ingress/egress
+#   - (optional) SandboxWarmPool for cold-start mitigation
+#
+# See deploy/helm/README.md for the enable/upgrade procedure.
+sandbox:
+  kubernetes:
+    enabled: false
+    image:
+      repository: ghcr.io/decocms/mesh-sandbox
+      tag: latest
+      # Default IfNotPresent; override to Never for local kind clusters that
+      # load the image via `kind load docker-image`.
+      pullPolicy: IfNotPresent
+    # Prod ceilings. Adjust per measured workload.
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: "2"
+        memory: 4Gi
+        ephemeral-storage: 10Gi
+    networkPolicy:
+      enabled: true
+      # If set, ingress from this namespace on port 3000 (dev server) is
+      # allowed — this is where the Istio / Gateway API controller pods live
+      # that terminate preview URLs. Leave empty to skip the rule (sandbox
+      # previews are then unreachable from outside the cluster).
+      previewGatewayNamespace: ""
+    warmPool:
+      # Enable only after measuring cold-start pain; every warm pod costs
+      # the full resources.requests above.
+      enabled: false
+      size: 0

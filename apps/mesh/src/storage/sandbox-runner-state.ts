@@ -1,7 +1,7 @@
 /**
  * Kysely-backed RunnerStateStore. `state` jsonb is opaque — each runner
  * serialises its own fields. See
- * packages/mesh-plugin-user-sandbox/server/runner/.
+ * packages/@decocms/sandbox/server/runner/.
  *
  * Method implementations take an explicit executor (db or trx) so the scoped
  * store handed to `withLock` callbacks can reuse the lock's connection. If
@@ -19,7 +19,7 @@ import type {
   RunnerStateStore,
   RunnerStateStoreOps,
   SandboxId,
-} from "mesh-plugin-user-sandbox/runner";
+} from "@decocms/sandbox/runner";
 import type { Database } from "./types";
 
 type Executor = Kysely<Database>;

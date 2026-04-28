@@ -1339,6 +1339,109 @@ kubectl top pods -l app.kubernetes.io/instance=deco-studio -n deco-studio
 - **Liveness**: Kills and recreates pods with problems
 - **Readiness**: Removes pods from Service when not ready
 
+## K8s sandbox runner
+
+Mesh ships with three sandbox runners (Docker, Freestyle, Kubernetes) for
+isolating user code execution. The Kubernetes runner uses
+[`kubernetes-sigs/agent-sandbox`](https://github.com/kubernetes-sigs/agent-sandbox)
+as its control loop. For self-hosters on Kubernetes it's the most scalable
+option; for single-node or dev setups the Docker runner is simpler and the
+default.
+
+### Enable
+
+```bash
+helm install deco-studio deploy/helm/ \
+  --set sandbox.kubernetes.enabled=true \
+  --namespace deco-studio --create-namespace
+```
+
+Then set `MESH_SANDBOX_RUNNER=kubernetes` in the mesh server environment
+(`configMap.meshConfig` or `env:` in values). With `enabled=true` the chart
+installs, in order:
+
+- The vendored [`agent-sandbox`](./charts/agent-sandbox/README.md) subchart
+  — operator Deployment + four `v1alpha1` CRDs (`Sandbox`, `SandboxClaim`,
+  `SandboxTemplate`, `SandboxWarmPool`) in the `agent-sandbox-system`
+  namespace.
+- A `SandboxTemplate` named `mesh-sandbox` — the shared pod template every
+  `SandboxClaim` references. Image, pull policy, and resources come from
+  `sandbox.kubernetes.*`.
+- A `NetworkPolicy` that scopes sandbox-pod ingress/egress (see
+  [Security](#security)).
+- Optionally a `SandboxWarmPool` (disabled unless
+  `sandbox.kubernetes.warmPool.enabled=true`).
+
+With `enabled=false` (default) none of the above renders — `helm template`
+emits zero sandbox-related resources.
+
+### Prereqs
+
+- A working Kubernetes cluster (EKS / GKE / AKS / kind / k3s — tested on
+  kind locally). The subchart bundles everything the operator needs;
+  there's no out-of-chart install step.
+- Cluster capacity for sandbox pods. Defaults request `500m` CPU / `1Gi`
+  memory per sandbox and cap at `2` CPU / `4Gi` / `10Gi` ephemeral. Tune
+  via `sandbox.kubernetes.resources.*`.
+- If you run previews through an ingress gateway (Istio, NGINX, Gateway
+  API), set `sandbox.kubernetes.networkPolicy.previewGatewayNamespace` to
+  the namespace holding the gateway controller's pods so port 3000 ingress
+  is allowed.
+
+### Local kind
+
+Pull policy defaults to `IfNotPresent` (prod). For local kind clusters
+where the image is loaded via `kind load docker-image`, override:
+
+```bash
+helm install deco-studio deploy/helm/ \
+  --set sandbox.kubernetes.enabled=true \
+  --set sandbox.kubernetes.image.pullPolicy=Never \
+  --kube-context kind-<your-cluster> \
+  --namespace deco-studio --create-namespace
+```
+
+The repo also ships `deploy/k8s-sandbox/local/` for contributors developing
+the runner itself — that path uses raw `kubectl apply` and is independent
+of this Helm chart.
+
+### Bumping the upstream operator
+
+The `agent-sandbox` subchart pins `v0.4.2`. To update:
+
+```bash
+./deploy/helm/charts/agent-sandbox/vendor.sh vX.Y.Z
+# edit charts/agent-sandbox/Chart.yaml:
+#   appVersion: "X.Y.Z"
+#   version: bump subchart version (e.g. 0.1.0 -> 0.2.0)
+helm dependency update deploy/helm/
+```
+
+Helm never upgrades CRDs on `helm upgrade` (this is intentional upstream
+behavior). After `vendor.sh` pulls a new CRD schema, apply it manually:
+
+```bash
+kubectl apply -f deploy/helm/charts/agent-sandbox/crds/agent-sandbox-crds.yaml
+```
+
+Then `helm upgrade` as normal. See `charts/agent-sandbox/README.md` for
+the full story.
+
+### Security
+
+The default `NetworkPolicy` (`sandbox.kubernetes.networkPolicy.enabled=true`):
+
+- **Ingress**: allows mesh server pods (chart's own selector labels) to
+  reach port 9000 (daemon) on sandbox pods; optionally allows the
+  configured preview gateway namespace on port 3000 (dev server).
+- **Egress**: permits DNS to CoreDNS + public internet on 80/443. Blocks
+  RFC1918, `169.254.0.0/16` (link-local + IMDSv2), and the EKS pod CIDR
+  (`100.64.0.0/10`) via `ipBlock.except`.
+
+On EKS, also set IMDSv2 hop-limit=1 on the node launch template — a
+misconfigured egress rule alone won't protect the node IAM role if IMDS is
+reachable by hop.
+
 ## License
 
 This chart is part of the deco-studio project.

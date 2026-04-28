@@ -1,6 +1,6 @@
 {
   "name": "decocms",
-  "version": "2.274.2",
+  "version": "2.279.4",
   "description": "Deco CMS — Self-hostable MCP Gateway for managing AI connections and tools",
   "author": "Deco team",
   "repository": {
@@ -22,7 +22,7 @@
     "dev": "bun run migrate && concurrently \"bun run dev:client\" \"bun run dev:server\"",
     "dev:servers": "concurrently \"bun run dev:client\" \"bun run dev:server\"",
     "dev:client": "bun --bun vite dev",
-    "dev:server": "NODE_ENV=development bun --env-file=.env --hot run src/index.ts",
+    "dev:server": "bun run --cwd=../../packages/sandbox build && NODE_ENV=development bun --env-file=.env --hot run src/index.ts",
     "build:client": "bun --bun vite build",
     "build:server": "bun run scripts/bundle-server-script.ts --dist ./dist/server",
     "db:migrate": "bun run ./dist/server/migrate.js",
@@ -66,6 +66,8 @@
     "ink": "^6.8.0",
     "kysely": "^0.28.12",
     "nats": "^2.29.3",
+    "posthog-js": "^1.371.1",
+    "posthog-node": "^5.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
@@ -143,7 +145,7 @@
     "kysely-pglite": "^0.6.1",
     "lucide-react": "^0.468.0",
     "marked": "^15.0.6",
-    "mesh-plugin-user-sandbox": "workspace:*",
+    "@decocms/sandbox": "workspace:*",
     "mesh-plugin-workflows": "workspace:*",
     "nanoid": "^5.1.6",
     "pg": "^8.16.3",
