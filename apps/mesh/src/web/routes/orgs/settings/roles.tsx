@@ -186,10 +186,7 @@ function RolesPageContent() {
       });
       toast.success("Role deleted successfully!");
       refetchRoles();
-      if (
-        activeTarget?.kind === "custom" &&
-        activeTarget.role.id === roleToDelete?.id
-      ) {
+      if (activeTarget?.kind === "custom" && activeTarget.role.id === roleId) {
         setActiveRole(undefined);
       }
     },

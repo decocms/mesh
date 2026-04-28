@@ -1068,20 +1068,47 @@ interface RoleDetailPageProps {
   onSaved: (id: string | undefined) => void;
 }
 
-export function RoleDetailPage({
-  target,
-  onBack,
-  onSaved,
-}: RoleDetailPageProps) {
+export function RoleDetailPage(props: RoleDetailPageProps) {
   const { locator } = useProjectContext();
-  const queryClient = useQueryClient();
-  const connections = useConnections() ?? [];
+  const connections = useConnections();
 
-  const { data: membersData } = useQuery({
+  const { data: membersData, isPending: membersPending } = useQuery({
     queryKey: KEYS.members(locator),
     queryFn: () => authClient.organization.listMembers(),
   });
+
+  if (membersPending || !connections) {
+    return (
+      <Page>
+        <div className="flex items-center justify-center h-full">
+          <Loading01 size={32} className="animate-spin text-muted-foreground" />
+        </div>
+      </Page>
+    );
+  }
+
   const members: MemberLike[] = membersData?.data?.members ?? [];
+  return (
+    <RoleDetailPageInner
+      {...props}
+      members={members}
+      connections={connections}
+    />
+  );
+}
+
+function RoleDetailPageInner({
+  target,
+  onBack,
+  onSaved,
+  members,
+  connections,
+}: RoleDetailPageProps & {
+  members: MemberLike[];
+  connections: ConnectionEntity[];
+}) {
+  const { locator } = useProjectContext();
+  const queryClient = useQueryClient();
 
   const isBuiltin = target.kind === "builtin";
   const isNew = target.kind === "new";
