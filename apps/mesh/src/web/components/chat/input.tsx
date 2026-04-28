@@ -197,7 +197,7 @@ function useWindowFileDrop(
       window.removeEventListener("dragover", onDragOver);
       window.removeEventListener("drop", onDrop);
     };
-  }, [editor, selectedModel]);
+  }, [editor, selectedModel, onUnsupportedFile]);
 
   return isDraggingOver;
 }

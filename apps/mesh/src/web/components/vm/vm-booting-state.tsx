@@ -53,6 +53,7 @@ function getPhaseIndex(
 /** Strip ANSI color + cursor escape sequences from terminal output. */
 function stripAnsi(str: string): string {
   // biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escapes use control chars
+  // oxlint-disable-next-line no-control-regex
   return str.replace(/\u001b\[[0-9;?]*[a-zA-Z]/g, "");
 }
 

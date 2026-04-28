@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { loadConfig } from "./config";
-import { MAX_SSE_CLIENTS, REPLAY_BYTES } from "./constants";
+import { REPLAY_BYTES } from "./constants";
 import { Broadcaster } from "./events/broadcast";
 import { ProcessManager } from "./process/run-process";
 import { SetupOrchestrator } from "./setup/orchestrator";
