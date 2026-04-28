@@ -5,7 +5,7 @@ import { Broadcaster } from "./events/broadcast";
 import { ProcessManager } from "./process/run-process";
 import { SetupOrchestrator } from "./setup/orchestrator";
 import {
-  makeReadHandler,
+  makeViewHandler,
   makeWriteHandler,
   makeEditHandler,
   makeGrepHandler,
@@ -65,7 +65,7 @@ broadcaster.broadcastEvent = (event: string, data: unknown) => {
   origEvent(event, data);
 };
 
-const readH = makeReadHandler({ appRoot: config.appRoot, dropPrivileges });
+const viewH = makeViewHandler({ appRoot: config.appRoot, dropPrivileges });
 const writeH = makeWriteHandler({ appRoot: config.appRoot, dropPrivileges });
 const editH = makeEditHandler({ appRoot: config.appRoot, dropPrivileges });
 const grepH = makeGrepHandler({ appRoot: config.appRoot, dropPrivileges });
@@ -107,7 +107,10 @@ Bun.serve({
       return scriptsHandler();
 
     if (req.method === "POST") {
-      if (p === "/_decopilot_vm/read") return readH(req);
+      // /view is the canonical endpoint; /read kept as alias for one
+      // release cycle so mid-upgrade sandboxes don't 404.
+      if (p === "/_decopilot_vm/view" || p === "/_decopilot_vm/read")
+        return viewH(req);
       if (p === "/_decopilot_vm/write") return writeH(req);
       if (p === "/_decopilot_vm/edit") return editH(req);
       if (p === "/_decopilot_vm/grep") return grepH(req);

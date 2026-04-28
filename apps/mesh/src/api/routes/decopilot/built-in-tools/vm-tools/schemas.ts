@@ -5,15 +5,22 @@
 
 import { z } from "zod";
 
-export const ReadInputSchema = z.object({
+export const ViewInputSchema = z.object({
   path: z
     .string()
-    .describe("File path relative to project root (e.g. 'src/index.ts')"),
+    .describe(
+      "File path. Relative paths resolve against the project root (e.g. " +
+        "'src/index.ts'); absolute paths are accepted for files outside the " +
+        "project (e.g. '/home/sandbox/deck.thumbnail.jpg').",
+    ),
   offset: z
     .number()
     .optional()
-    .describe("Starting line number (1-based, default 1)"),
-  limit: z.number().optional().describe("Max lines to return (default 2000)"),
+    .describe("Starting line number for text files (1-based, default 1)"),
+  limit: z
+    .number()
+    .optional()
+    .describe("Max lines to return for text files (default 2000)"),
 });
 
 export const WriteInputSchema = z.object({
@@ -72,16 +79,20 @@ export const BashInputSchema = z.object({
     .describe("Timeout in milliseconds (default 30000, max 120000)"),
 });
 
-export type ReadInput = z.infer<typeof ReadInputSchema>;
+export type ViewInput = z.infer<typeof ViewInputSchema>;
 export type WriteInput = z.infer<typeof WriteInputSchema>;
 export type EditInput = z.infer<typeof EditInputSchema>;
 export type GrepInput = z.infer<typeof GrepInputSchema>;
 export type GlobInput = z.infer<typeof GlobInputSchema>;
 export type BashInput = z.infer<typeof BashInputSchema>;
 
-export const READ_DESCRIPTION =
-  "Read a file from the VM's project directory. Returns content with line numbers. " +
-  "Use offset and limit for large files.";
+export const VIEW_DESCRIPTION =
+  "View a file. For text files, returns content with line numbers (use offset " +
+  "and limit for large files). For images (jpeg, png, gif, webp), the image " +
+  "is injected into the next turn as a vision input — do NOT describe what " +
+  "you 'expect' to see, just call view and look at the next message. Other " +
+  "binary formats are not supported; use a format-specific skill " +
+  "(e.g. pptx-extract for .pptx).";
 
 export const WRITE_DESCRIPTION =
   "Write content to a file in the VM's project directory. " +
@@ -103,9 +114,9 @@ export const BASH_DESCRIPTION =
   "Execute a shell command in the VM's project directory. " +
   "Working directory is the project root. Timeout default 30s, max 2min.";
 
-// read/grep/glob are non-mutating; write/edit/bash mutate.
+// view/grep/glob are non-mutating; write/edit/bash mutate.
 export const TOOL_APPROVAL = {
-  read: false,
+  view: false,
   write: true,
   edit: true,
   grep: false,

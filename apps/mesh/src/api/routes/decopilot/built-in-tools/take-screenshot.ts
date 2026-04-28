@@ -41,11 +41,17 @@ export type TakeScreenshotInput = z.infer<typeof TakeScreenshotInputSchema>;
 /**
  * Pending image entry. Stored by `execute`, consumed by `prepareStep`
  * in stream-core.ts which injects it as a user message content part.
+ *
+ * One of `pageUrl` or `label` should be set; `label` takes precedence
+ * when present. Screenshots use `pageUrl` (preserving the legacy
+ * `[Screenshot of <url>]` framing); other sources (e.g. `view` loading
+ * a sandbox image) set `label` directly.
  */
 export interface PendingImage {
   url: string;
   mediaType: string;
-  pageUrl: string;
+  pageUrl?: string;
+  label?: string;
 }
 
 export function createTakeScreenshotTool(

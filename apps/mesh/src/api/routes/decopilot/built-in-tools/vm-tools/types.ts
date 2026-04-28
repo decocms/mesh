@@ -1,4 +1,5 @@
 import type { SandboxRunner } from "@decocms/sandbox/runner";
+import type { PendingImage } from "../take-screenshot";
 
 export interface VmToolsParams {
   readonly runner: SandboxRunner;
@@ -9,4 +10,10 @@ export interface VmToolsParams {
   readonly ensureHandle: () => Promise<string>;
   readonly toolOutputMap: Map<string, string>;
   readonly needsApproval: boolean;
+  /**
+   * Shared queue for vision inputs that should be injected into the next
+   * model turn. The `view` tool pushes here when it loads an image; the
+   * queue is flushed by `prepareStep` in stream-core.ts.
+   */
+  readonly pendingImages: PendingImage[];
 }

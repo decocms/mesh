@@ -35,8 +35,8 @@ import { createReadPromptTool } from "./prompts";
 import { createReadResourceTool } from "./resources";
 import { createSandboxTool, type VirtualClient } from "./sandbox";
 import { createVmTools } from "./vm-tools";
-import { getRunnerByKind } from "@/sandbox/lifecycle";
-import type { RunnerKind } from "@decocms/sandbox/runner";
+import { getSharedRunner } from "@/sandbox/lifecycle";
+import { ensureVmForBranch } from "@/tools/vm/start";
 import { createSubtaskTool } from "./subtask";
 import { userAskTool } from "./user-ask";
 import { proposePlanTool } from "./propose-plan";
@@ -48,9 +48,15 @@ import { createInspectPageTool } from "./inspect-page";
 import type { ModelsConfig } from "../types";
 import type { MeshProvider } from "@/ai-providers/types";
 
-export type ActiveVm = {
-  runnerKind: RunnerKind;
-  vmId: string;
+/**
+ * Identifies the (virtual MCP, branch, user) tuple that the built-in VM
+ * tools should bind to. Provisioning is lazy — the VM is only ensured on
+ * the first VM-tool invocation.
+ */
+export type VmContext = {
+  virtualMcpId: string;
+  branch: string;
+  userId: string;
 };
 
 export interface BuiltinToolParams {
@@ -71,11 +77,12 @@ export interface BuiltinToolParams {
    */
   pendingImages: PendingImage[];
   /**
-   * When set, VM file tools replace the QuickJS sandbox tool. Provisioning
-   * already happened in `VM_START` — tools read the handle directly from
-   * the vmMap entry.
+   * When set, the six VM file tools (view/write/edit/grep/glob/bash) are
+   * registered with a memoized lazy provisioner: the first tool call
+   * triggers `ensureVmForBranch`, subsequent calls reuse the same handle.
+   * When null, no VM-backed code execution tool is included.
    */
-  activeVm?: ActiveVm | null;
+  vmContext?: VmContext | null;
 }
 
 export type { PendingImage };
@@ -101,7 +108,7 @@ async function buildAllTools(
     toolOutputMap,
     pendingImages,
     passthroughClient,
-    activeVm,
+    vmContext,
   } = params;
   const approvalOpts = { isPlanMode };
   const tools: Record<string, unknown> = {
@@ -129,31 +136,42 @@ async function buildAllTools(
       toolOutputMap,
     }),
   };
-  // VM file tools — same six LLM-visible tools across runners (schemas in
-  // vm-tools/schemas.ts). Dispatch resolves through `getRunnerByKind` so
-  // the entry's recorded runnerKind drives the routing, regardless of the
-  // current MESH_SANDBOX_RUNNER env value. When no entry exists, fall back
-  // to the QuickJS `sandbox` tool — VM_START must run first for file tools.
+  // VM file tools — six LLM-visible tools (read/write/edit/grep/glob/bash)
+  // always registered when a vmContext is provided. The handle is resolved
+  // lazily on the first tool invocation: `ensureVmForBranch` either reuses
+  // the existing vmMap entry (fast path) or provisions a new sandbox via
+  // the env-selected runner. The promise is memoized on the closure so
+  // parallel first calls (e.g. the model emitting bash + read in one step)
+  // share a single provisioning round-trip.
   const vmNeedsApproval =
     toolNeedsApproval(toolApprovalLevel, false, approvalOpts) !== false;
-  if (activeVm) {
-    const runner = await getRunnerByKind(ctx, activeVm.runnerKind);
-    const { vmId } = activeVm;
+  if (vmContext) {
+    const runner = await getSharedRunner(ctx);
+    let cached: Promise<string> | null = null;
+    const ensureHandle = () => {
+      if (!cached) {
+        cached = ensureVmForBranch(
+          { virtualMcpId: vmContext.virtualMcpId, branch: vmContext.branch },
+          ctx,
+        ).then((entry) => entry.vmId);
+        // Reset on failure so the next tool call retries instead of
+        // permanently caching a rejected promise.
+        cached.catch(() => {
+          cached = null;
+        });
+      }
+      return cached;
+    };
     Object.assign(
       tools,
       createVmTools({
         runner,
-        ensureHandle: () => Promise.resolve(vmId),
+        ensureHandle,
         toolOutputMap,
         needsApproval: vmNeedsApproval,
+        pendingImages,
       }),
     );
-  } else {
-    tools.sandbox = createSandboxTool({
-      passthroughClient,
-      toolOutputMap,
-      needsApproval: vmNeedsApproval,
-    });
   }
   // subtask requires a provider (LLM calls) — skip when provider is null (Claude Code)
   if (provider) {

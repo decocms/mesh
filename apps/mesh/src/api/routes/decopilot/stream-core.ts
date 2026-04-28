@@ -466,32 +466,19 @@ async function streamCoreInner(
                 { ctx, isPlanMode: modeConfig.isPlanMode },
               );
 
-        // Resolve active VM for (user, branch). Per-entry `runnerKind` drives
-        // transport dispatch inside `getBuiltInTools`.
+        // VM file tools bind to (virtualMcpId, branch, userId). The VM is
+        // provisioned lazily on the first tool call inside getBuiltInTools.
+        // Threads without a branch (no explicit VM_START flow) still get a
+        // VM — keyed by a synthetic `thread:<taskId>` slot so every thread
+        // has its own sandbox.
         const vmMetadata = virtualMcp.metadata as {
-          vmMap?: Record<
-            string,
-            Record<
-              string,
-              {
-                vmId: string;
-                previewUrl: string;
-                runnerKind?: "docker" | "freestyle";
-              }
-            >
-          >;
           githubRepo?: GithubRepo | null;
         };
-        const activeVmEntry =
-          input.branch && input.userId
-            ? vmMetadata?.vmMap?.[input.userId]?.[input.branch]
-            : undefined;
-        const activeVm = activeVmEntry
+        const vmContext = input.userId
           ? {
-              runnerKind: (activeVmEntry.runnerKind ?? "freestyle") as
-                | "docker"
-                | "freestyle",
-              vmId: activeVmEntry.vmId,
+              virtualMcpId: input.agent.id,
+              branch: input.branch ?? `thread:${mem.thread.id}`,
+              userId: input.userId,
             }
           : null;
 
@@ -508,7 +495,7 @@ async function streamCoreInner(
                 toolOutputMap,
                 pendingImages,
                 passthroughClient,
-                activeVm,
+                vmContext,
               },
               ctx,
             );
@@ -793,7 +780,11 @@ async function streamCoreInner(
                         for (const img of imageParts) {
                           content.push({
                             type: "text",
-                            text: `[Screenshot of ${img.pageUrl}]`,
+                            text:
+                              img.label ??
+                              (img.pageUrl
+                                ? `[Screenshot of ${img.pageUrl}]`
+                                : "[Image]"),
                           });
                           if (img.url.startsWith("data:")) {
                             // data URI → send as inline image

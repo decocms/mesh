@@ -1,7 +1,7 @@
 /**
  * VM File Tools — runner-agnostic.
  *
- * Registers the six LLM-visible tools (read/write/edit/grep/glob/bash) on
+ * Registers the six LLM-visible tools (view/write/edit/grep/glob/bash) on
  * top of any `SandboxRunner.proxyDaemonRequest`. All runners speak the
  * unified `/_decopilot_vm/*` surface with base64-wrapped JSON bodies
  * (Cloudflare WAF bypass; harmless 33% overhead on non-CF paths).
@@ -19,9 +19,9 @@ import {
   GREP_DESCRIPTION,
   GlobInputSchema,
   GrepInputSchema,
-  READ_DESCRIPTION,
-  ReadInputSchema,
   TOOL_APPROVAL,
+  VIEW_DESCRIPTION,
+  ViewInputSchema,
   WRITE_DESCRIPTION,
   WriteInputSchema,
 } from "./schemas";
@@ -89,19 +89,44 @@ async function daemonRequest(
 }
 
 export function createVmTools(params: VmToolsParams) {
-  const { runner, ensureHandle, toolOutputMap, needsApproval } = params;
+  const { runner, ensureHandle, toolOutputMap, needsApproval, pendingImages } =
+    params;
   const approvalFor = (mutating: boolean) => (mutating ? needsApproval : false);
   const call = async (path: string, input: Record<string, unknown>) => {
     const handle = await ensureHandle();
     return daemonRequest(runner, handle, path, input);
   };
 
-  const read = tool({
-    needsApproval: approvalFor(TOOL_APPROVAL.read),
-    description: READ_DESCRIPTION,
-    inputSchema: zodSchema(ReadInputSchema),
+  const view = tool({
+    needsApproval: approvalFor(TOOL_APPROVAL.view),
+    description: VIEW_DESCRIPTION,
+    inputSchema: zodSchema(ViewInputSchema),
     execute: async (input) => {
-      const result = await call("/_decopilot_vm/read", input);
+      const result = (await call("/_decopilot_vm/view", input)) as
+        | { kind: "text"; content: string; lineCount: number }
+        | {
+            kind: "image";
+            mediaType: string;
+            base64: string;
+            size: number;
+          };
+      if (result.kind === "image") {
+        // Queue the image for injection as a user message in prepareStep.
+        // Tool result is text-only — providers don't all carry images in
+        // tool result messages, but everyone supports them in user content.
+        pendingImages.push({
+          url: `data:${result.mediaType};base64,${result.base64}`,
+          mediaType: result.mediaType,
+          label: `[Image at ${input.path}]`,
+        });
+        return {
+          kind: "image" as const,
+          path: input.path,
+          mediaType: result.mediaType,
+          size: result.size,
+          message: "Image attached below.",
+        };
+      }
       return maybeTruncate(result, toolOutputMap);
     },
   });
@@ -150,5 +175,5 @@ export function createVmTools(params: VmToolsParams) {
     },
   });
 
-  return { read, write, edit, grep, glob, bash };
+  return { view, write, edit, grep, glob, bash };
 }
