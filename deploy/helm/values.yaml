@@ -352,6 +352,14 @@ sandbox:
       # that terminate preview URLs. Leave empty to skip the rule (sandbox
       # previews are then unreachable from outside the cluster).
       previewGatewayNamespace: ""
+    # Public URL pattern that ingress terminates on for sandbox previews.
+    # The runner substitutes {handle} (or whatever applyPreviewPattern
+    # supports) with the per-claim handle. Set in prod once a wildcard
+    # gateway + cert is in place; leave empty in local dev so the runner
+    # falls back to the 127.0.0.1 port-forward URL. Surfaced into the
+    # mesh container as MESH_SANDBOX_PREVIEW_URL_PATTERN.
+    previewUrlPattern: ""
+    # previewUrlPattern: "https://{handle}.preview.example.com"
     # Pin sandbox pods to a dedicated NodePool so a container escape lands
     # on a node that has no mesh / postgres / NATS / OTel pods on it. Pair
     # with a Karpenter NodePool that taints + labels matching nodes; see

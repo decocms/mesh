@@ -18,14 +18,23 @@ import { KyselySandboxRunnerStateStore } from "@/storage/sandbox-runner-state";
 
 const runners: Partial<Record<RunnerKind, SandboxRunner>> = {};
 
+// Set in prod (k8s/docker behind ingress) so the runner skips the local
+// 127.0.0.1 port-forward path and emits a URL the user's browser can
+// actually reach. Empty/unset = local forwarder fallback (dev).
+function readPreviewUrlPattern(): string | undefined {
+  const raw = process.env.MESH_SANDBOX_PREVIEW_URL_PATTERN;
+  return raw && raw.trim() !== "" ? raw : undefined;
+}
+
 async function instantiate(
   kind: RunnerKind,
   ctx: MeshContext,
 ): Promise<SandboxRunner> {
   const stateStore = new KyselySandboxRunnerStateStore(ctx.db);
+  const previewUrlPattern = readPreviewUrlPattern();
   switch (kind) {
     case "docker":
-      return new DockerSandboxRunner({ stateStore });
+      return new DockerSandboxRunner({ stateStore, previewUrlPattern });
     case "freestyle": {
       // Dynamic import — freestyle SDK is an optionalDependency so
       // docker-only deploys don't need it installed.
@@ -41,7 +50,7 @@ async function instantiate(
       const { KubernetesSandboxRunner } = await import(
         "@decocms/sandbox/runner/k8s"
       );
-      return new KubernetesSandboxRunner({ stateStore });
+      return new KubernetesSandboxRunner({ stateStore, previewUrlPattern });
     }
     default: {
       const exhaustive: never = kind;

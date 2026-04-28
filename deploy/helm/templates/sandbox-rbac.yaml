@@ -1,0 +1,50 @@
+{{- if .Values.sandbox.kubernetes.enabled }}
+# RBAC for the mesh ServiceAccount to drive the agent-sandbox operator from
+# inside the cluster. The runner (packages/sandbox/server/runner/k8s/) needs:
+#   - sandboxclaims CRUD/patch (per-tenant claim lifecycle, idle TTL refresh)
+#   - sandboxes get/list/watch (waitForSandboxReady streams `?watch=true`)
+#   - pods/portforward create (kubectl-style tunnel to the daemon container)
+# Pods get is included for portforward error paths; the runner itself doesn't
+# read pod specs directly.
+#
+# Scope: Role in agent-sandbox-system (the operator's namespace). The mesh
+# ServiceAccount lives in {{ .Release.Namespace }} and the RoleBinding crosses
+# namespaces by referencing it explicitly. Keeps blast radius of a mesh
+# compromise limited to the sandbox namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mesh-sandbox-runner
+  namespace: agent-sandbox-system
+  labels:
+    {{- include "chart-deco-studio.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["extensions.agents.x-k8s.io"]
+    resources: ["sandboxclaims"]
+    verbs: ["get", "create", "delete", "patch"]
+  - apiGroups: ["agents.x-k8s.io"]
+    resources: ["sandboxes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["pods/portforward"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mesh-sandbox-runner
+  namespace: agent-sandbox-system
+  labels:
+    {{- include "chart-deco-studio.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "chart-deco-studio.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: mesh-sandbox-runner
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
