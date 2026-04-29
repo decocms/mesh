@@ -16,6 +16,11 @@
 # env label so every enabled housekeeper sweeps all studio claims in
 # agent-sandbox-system. Multiple active housekeepers cause duplicate probes
 # and competing deletes (harmless but wasteful).
+#
+# Each reap also deletes the per-claim HTTPRoute (same name as the claim,
+# created by the operator for preview URL routing). The operator does not
+# attach an ownerReference from HTTPRoute → SandboxClaim, so without this
+# the routes leak into agent-sandbox-system every time a claim disappears.
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -42,6 +47,9 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes"]
+    verbs: ["delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -92,6 +100,17 @@ spec:
                   TTL_MS={{ mul .Values.housekeeper.idleTtlSeconds 1000 }}
                   echo "[housekeeper] idle TTL=${TTL_MS}ms — scanning claims..."
 
+                  # Delete the HTTPRoute before the SandboxClaim so traffic
+                  # stops resolving to the pod before it enters termination
+                  # (avoids 502s in the shutdown window). The operator
+                  # creates the HTTPRoute with metadata.name = claim name,
+                  # so we can address it by the claim name directly.
+                  reap_claim() {
+                    local claim="$1"
+                    kubectl delete httproute "$claim" -n "$NS" --ignore-not-found || true
+                    kubectl delete sandboxclaim "$claim" -n "$NS" --ignore-not-found || true
+                  }
+
                   CLAIMS=$(kubectl get sandboxclaims -n "$NS" \
                     -l "app.kubernetes.io/managed-by=studio,app.kubernetes.io/name=studio-sandbox" \
                     -o jsonpath='{.items[*].metadata.name}')
@@ -112,8 +131,8 @@ spec:
                       2>/dev/null || true)
 
                     if [ "$READY" = "False" ] && [ "$REASON" = "ReconcilerError" ]; then
-                      echo "[housekeeper] $CLAIM stuck in ReconcilerError — deleting"
-                      kubectl delete sandboxclaim "$CLAIM" -n "$NS" || true
+                      echo "[housekeeper] $CLAIM stuck in ReconcilerError — reaping"
+                      reap_claim "$CLAIM"
                       continue
                     fi
 
@@ -147,8 +166,8 @@ spec:
                     IDLE_MS=${IDLE_MS:-$TTL_MS}
 
                     if [ "$IDLE_MS" -ge "$TTL_MS" ]; then
-                      echo "[housekeeper] deleting $CLAIM — idle ${IDLE_MS}ms >= ttl ${TTL_MS}ms"
-                      kubectl delete sandboxclaim "$CLAIM" -n "$NS" || true
+                      echo "[housekeeper] reaping $CLAIM — idle ${IDLE_MS}ms >= ttl ${TTL_MS}ms"
+                      reap_claim "$CLAIM"
                     else
                       REMAINING=$((TTL_MS - IDLE_MS))
                       echo "[housekeeper] $CLAIM active — idle ${IDLE_MS}ms, ${REMAINING}ms until ttl"
