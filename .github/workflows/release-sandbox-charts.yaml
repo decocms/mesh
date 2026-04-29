@@ -61,11 +61,11 @@ jobs:
           echo "::notice::Chart ${NAME} version ${VERSION}"
 
       - name: Log in to GitHub Container Registry
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | \
-            helm registry login "${REGISTRY}" \
-              --username "${{ github.actor }}" \
-              --password-stdin
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       # Skip republishing if the version tag already exists. Without this
       # guard, every push to main that touches the chart silently mutates
