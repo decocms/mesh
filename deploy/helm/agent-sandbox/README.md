@@ -15,6 +15,29 @@ RBAC `RoleBinding`, `NetworkPolicy` ingress selector, and preview
 
 Pinned upstream version: **v0.4.2** (see `Chart.yaml` `appVersion`).
 
+## Prerequisites
+
+- **Kubernetes 1.30+** (enforced by `Chart.yaml` `kubeVersion`). Required
+  for `spec.hostUsers: false` (user namespace remap) on sandbox pods. Older
+  clusters can install with `--set hostUsers=true` but lose that hardening.
+- The chart **must be installed into the `agent-sandbox-system` namespace**.
+  The vendored upstream operator manifest hardcodes that namespace; `helm
+  template` will fail otherwise. See the validation in `_helpers.tpl`.
+
+## Preview gateway auth model
+
+If you flip `previewGateway.enabled=true`, read this first.
+
+The Host header is the *only* authorization on `*.preview.<domain>` (no
+listener-level auth, matching how Vercel preview URLs work). That means
+sandbox handles travel in plaintext through every CDN / LB / proxy in the
+request path and will appear in their access logs. Treat handles as
+URL-grade secrets — do not share in tickets, screenshots, etc.
+
+For tighter isolation, terminate auth at the Gateway with an
+`AuthorizationPolicy` (Istio) or extauth (Envoy) in front of this listener.
+This chart does not do that for you.
+
 ## Install
 
 Published as an OCI artifact at

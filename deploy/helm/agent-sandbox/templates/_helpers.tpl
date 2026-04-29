@@ -69,6 +69,23 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
+Validate that the chart is being installed into agent-sandbox-system. The
+vendored upstream operator manifest (templates/agent-sandbox-manifest.yaml)
+ships its own Namespace object and hardcodes that name across its
+ServiceAccount, Service, Deployment, and ClusterRoleBinding. The Studio-side
+templates (SandboxTemplate, NetworkPolicy, Role, WarmPool) also reference
+agent-sandbox-system explicitly so they live alongside the operator.
+Installing under any other namespace splits resources across two namespaces
+and breaks reconciliation in non-obvious ways — fail at template time
+instead.
+*/}}
+{{- define "agent-sandbox.validateNamespace" -}}
+{{- if ne .Release.Namespace "agent-sandbox-system" -}}
+{{- fail (printf "agent-sandbox: this chart must be installed into the 'agent-sandbox-system' namespace (got %q). The vendored upstream operator manifest hardcodes that namespace; installing elsewhere splits resources across namespaces. Re-run with --namespace agent-sandbox-system --create-namespace." .Release.Namespace) -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 Validate that Gateway API + cert-manager CRDs are present when the sandbox
 preview gateway is enabled. Without this check, `helm install` would push
 Gateway/HTTPRoute/Certificate to an API server that doesn't know those

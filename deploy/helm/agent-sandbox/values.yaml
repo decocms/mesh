@@ -37,11 +37,13 @@ resources:
 # ── sandbox NetworkPolicy ──────────────────────────────────────────────
 networkPolicy:
   enabled: true
-  # Legacy/standby — kept for setups whose external gateway terminates
+  # DEPRECATED: kept only for installs whose external gateway terminates
   # *directly* on the sandbox's port 3000 (dev server). The default
   # preview path goes through mesh and lands on port 9000 (daemon)
-  # instead, so most installs leave this empty. See `previewGateway`
-  # below for the standard Istio Gateway API path.
+  # instead, so all standard installs leave this empty. See
+  # `previewGateway` below for the supported Istio Gateway API path.
+  # Will be removed in a future chart version — open an issue if you
+  # still need it.
   previewGatewayNamespace: ""
   # Operator-supplied egress rules (NetworkPolicyEgressRule[]) merged
   # into the sandbox NetworkPolicy. The base policy denies in-cluster

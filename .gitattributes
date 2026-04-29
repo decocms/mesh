@@ -6,4 +6,3 @@
 # etc.) are first-party and stay reviewable.
 deploy/helm/agent-sandbox/crds/** linguist-generated=true
 deploy/helm/agent-sandbox/templates/agent-sandbox-manifest.yaml linguist-generated=true
-deploy/helm/agent-sandbox-*.tgz binary linguist-generated=true

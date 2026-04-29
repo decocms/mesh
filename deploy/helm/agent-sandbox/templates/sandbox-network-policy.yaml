@@ -48,10 +48,11 @@ spec:
         - protocol: TCP
           port: 9000
     {{- with .Values.networkPolicy.previewGatewayNamespace }}
-    # Legacy/standby — direct ingress on dev port 3000 from a configured
+    # DEPRECATED — direct ingress on dev port 3000 from a configured
     # gateway namespace. Only needed for setups that route preview traffic
     # *around* mesh (no daemon CSP/HMR rewrites). The standard Istio
     # Gateway API path lands on port 9000 via mesh and doesn't need this.
+    # Slated for removal in a future chart version.
     - from:
         - namespaceSelector:
             matchLabels:
@@ -74,9 +75,14 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
-    # Public internet on 80/443 with IMDS, RFC1918, and link-local blocked.
-    # Covers bun install, git clone, external APIs without opening the
-    # sandbox to in-cluster services.
+    # Public internet on 443 (HTTPS only) with IMDS, RFC1918, and link-local
+    # blocked. Covers bun install, git clone over HTTPS, external APIs
+    # without opening the sandbox to in-cluster services.
+    #
+    # Plaintext port 80 is *not* allowed by default — bun, npm, and git over
+    # HTTPS don't need it, and allowing it widens the MITM-on-egress surface.
+    # Installs that need a package mirror over HTTP can grant it via
+    # `networkPolicy.extraEgress` (see values.yaml).
     #
     # 100.64.0.0/10 is shared address space (RFC 6598). Some carriers and
     # K8s networking flavors put pod IPs there (Kops/Kubenet on AWS; some
@@ -95,8 +101,6 @@ spec:
       ports:
         - protocol: TCP
           port: 443
-        - protocol: TCP
-          port: 80
     # IPv6 egress on dual-stack clusters (EKS dual-stack, GKE, etc.).
     # Without this rule, an IPv6-enabled pod can reach in-cluster
     # ULA-addressed Services and the IPv6 IMDS endpoint
@@ -113,8 +117,6 @@ spec:
       ports:
         - protocol: TCP
           port: 443
-        - protocol: TCP
-          port: 80
     {{- with .Values.networkPolicy.extraEgress }}
     # Operator-supplied egress rules. Use to grant the sandbox controlled
     # access to in-cluster services it shouldn't reach by default — for
