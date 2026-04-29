@@ -1,60 +1,142 @@
 import { describe, expect, test } from "bun:test";
 import {
   AUTOSEND_TTL_MS,
-  decodeAutosend,
-  encodeAutosend,
+  AUTOSEND_QUERY_VALUE,
+  autosendStorageKey,
+  claimStoredAutosend,
+  markStoredAutosendSent,
+  readStoredAutosend,
+  writeStoredAutosend,
   type AutosendPayload,
 } from "./autosend";
 
-describe("autosend encode/decode", () => {
-  test("round-trips a simple payload", () => {
+class MemoryStorage {
+  private items = new Map<string, string>();
+
+  getItem(key: string) {
+    return this.items.get(key) ?? null;
+  }
+
+  setItem(key: string, value: string) {
+    this.items.set(key, value);
+  }
+
+  removeItem(key: string) {
+    this.items.delete(key);
+  }
+}
+
+describe("autosend storage", () => {
+  test("writes and reads a pending payload", () => {
+    const storage = new MemoryStorage();
     const payload: AutosendPayload = {
       message: { tiptapDoc: { type: "doc", content: [] } },
       createdAt: 1_700_000_000_000,
     };
-    const encoded = encodeAutosend(payload);
-    expect(typeof encoded).toBe("string");
-    expect(encoded).not.toContain("=");
-    expect(encoded).not.toContain("/");
-    expect(encoded).not.toContain("+");
-    const decoded = decodeAutosend(encoded);
-    expect(decoded).toEqual(payload);
+
+    writeStoredAutosend(
+      storage,
+      "org/project",
+      "task-1",
+      payload.message,
+      payload.createdAt,
+    );
+
+    expect(readStoredAutosend(storage, "org/project", "task-1")).toEqual({
+      ...payload,
+      status: "pending",
+    });
   });
 
-  test("round-trips a payload with non-ASCII text", () => {
+  test("claim switches pending payload to sending", () => {
+    const storage = new MemoryStorage();
     const payload: AutosendPayload = {
-      message: {
-        tiptapDoc: {
-          type: "doc",
-          content: [
-            {
-              type: "paragraph",
-              content: [{ type: "text", text: "olá — café 🚀" }],
-            },
-          ],
-        },
-      },
-      createdAt: Date.now(),
+      message: { tiptapDoc: { type: "doc", content: [] } },
+      createdAt: 1_700_000_000_000,
     };
-    const decoded = decodeAutosend(encodeAutosend(payload));
-    expect(decoded).toEqual(payload);
+
+    writeStoredAutosend(
+      storage,
+      "org/project",
+      "task-1",
+      payload.message,
+      payload.createdAt,
+    );
+
+    expect(
+      claimStoredAutosend(storage, "org/project", "task-1", payload.createdAt),
+    ).toEqual(payload);
+    expect(readStoredAutosend(storage, "org/project", "task-1")?.status).toBe(
+      "sending",
+    );
   });
 
-  test("returns null for invalid base64", () => {
-    expect(decodeAutosend("not!!!base64")).toBeNull();
+  test("claim ignores non-pending payloads", () => {
+    const storage = new MemoryStorage();
+    writeStoredAutosend(
+      storage,
+      "org/project",
+      "task-1",
+      { tiptapDoc: { type: "doc", content: [] } },
+      1_700_000_000_000,
+    );
+    claimStoredAutosend(storage, "org/project", "task-1", 1_700_000_000_000);
+
+    expect(
+      claimStoredAutosend(storage, "org/project", "task-1", 1_700_000_000_000),
+    ).toBeNull();
   });
 
-  test("returns null for valid base64 but invalid JSON", () => {
-    const encoded = btoa("not json").replace(/=+$/, "");
-    expect(decodeAutosend(encoded)).toBeNull();
+  test("claim removes stale payloads", () => {
+    const storage = new MemoryStorage();
+    writeStoredAutosend(
+      storage,
+      "org/project",
+      "task-1",
+      { tiptapDoc: { type: "doc", content: [] } },
+      1_700_000_000_000,
+    );
+
+    expect(
+      claimStoredAutosend(
+        storage,
+        "org/project",
+        "task-1",
+        1_700_000_000_000 + AUTOSEND_TTL_MS,
+      ),
+    ).toBeNull();
+    expect(readStoredAutosend(storage, "org/project", "task-1")).toBeNull();
   });
 
-  test("returns null when shape is wrong", () => {
-    const encoded = btoa(JSON.stringify({ foo: 1 })).replace(/=+$/, "");
-    expect(decodeAutosend(encoded)).toBeNull();
+  test("mark sent stores sent status", () => {
+    const storage = new MemoryStorage();
+    writeStoredAutosend(
+      storage,
+      "org/project",
+      "task-1",
+      { tiptapDoc: { type: "doc", content: [] } },
+      1_700_000_000_000,
+    );
+
+    markStoredAutosendSent(storage, "org/project", "task-1");
+
+    expect(readStoredAutosend(storage, "org/project", "task-1")?.status).toBe(
+      "sent",
+    );
   });
 
-  test("AUTOSEND_TTL_MS is 10 seconds", () => {
+  test("invalid stored JSON is removed", () => {
+    const storage = new MemoryStorage();
+    storage.setItem(autosendStorageKey("org/project", "task-1"), "not json");
+
+    expect(readStoredAutosend(storage, "org/project", "task-1")).toBeNull();
+    expect(storage.getItem(autosendStorageKey("org/project", "task-1"))).toBe(
+      null,
+    );
+  });
+
+  test("constants match expected URL handoff", () => {
     expect(AUTOSEND_TTL_MS).toBe(10_000);
+    expect(AUTOSEND_QUERY_VALUE).toBe("true");
   });
 });

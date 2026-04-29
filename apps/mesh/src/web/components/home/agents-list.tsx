@@ -37,7 +37,7 @@ import { LeanCanvasRecruitModal } from "@/web/components/home/lean-canvas-recrui
 import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
 import { SelfHealingRepoFlow } from "@/web/components/self-healing-repo/self-healing-repo-flow.tsx";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
-import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
+import { useNavigateToAgentThread } from "@/web/hooks/use-navigate-to-agent-thread";
 import { usePreferences } from "@/web/hooks/use-preferences.ts";
 import { Suspense, useState } from "react";
 import { track } from "@/web/lib/posthog-client";
@@ -64,7 +64,7 @@ function AgentPreview({
     title: string;
     icon?: string | null;
   };
-  onSpecialClick?: () => void;
+  onSpecialClick?: () => void | Promise<unknown>;
   tracking: {
     template_id: string | null;
     tile_kind: TileKind;
@@ -83,7 +83,7 @@ function AgentPreview({
       action: tracking.action,
     });
     if (onSpecialClick) {
-      onSpecialClick();
+      void onSpecialClick();
     } else {
       const taskId = crypto.randomUUID();
       navigate({
@@ -243,7 +243,7 @@ function findExistingForTemplate(
 
 function AgentsListContent() {
   const virtualMcps = useVirtualMCPs();
-  const { locator } = useProjectContext();
+  const { locator, org } = useProjectContext();
   const orgDefaults = useDefaultHomeAgents();
   const [importDecoOpen, setImportDecoOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
@@ -253,7 +253,7 @@ function AgentsListContent() {
   const [studioPackModalOpen, setStudioPackModalOpen] = useState(false);
   const [selfHealingOpen, setSelfHealingOpen] = useState(false);
   const [preferences] = usePreferences();
-  const navigateToAgent = useNavigateToAgent();
+  const navigateToAgentThread = useNavigateToAgentThread(org.slug);
 
   const siteEditorAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
     (t) => t.id === "site-editor",
@@ -506,7 +506,7 @@ function AgentsListContent() {
       <AgentPreview
         key={tile.key}
         agent={tile.agent}
-        onSpecialClick={() => navigateToAgent(tile.agent.id)}
+        onSpecialClick={() => navigateToAgentThread(tile.agent.id)}
         tracking={{
           template_id: tile.templateId,
           tile_kind: tile.templateId ? "existing" : "recent",

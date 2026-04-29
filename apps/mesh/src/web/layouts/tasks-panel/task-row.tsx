@@ -1,5 +1,6 @@
 import { cn } from "@deco/ui/lib/utils.js";
 import { Archive } from "@untitledui/icons";
+import { useEffect, useRef } from "react";
 import {
   Tooltip,
   TooltipContent,
@@ -29,9 +30,25 @@ export function TaskRow({
   const StatusIcon = config.icon;
   const virtualMcp = useVirtualMCP(task.virtual_mcp_id);
   const githubRepo = getActiveGithubRepo(virtualMcp);
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect -- syncs route-selected task row with the scrollable tasks panel DOM
+  useEffect(() => {
+    if (!isActive) return;
+    const row = rowRef.current;
+    if (!row) return;
+
+    row.focus({ preventScroll: true });
+    row.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+      inline: "nearest",
+    });
+  }, [isActive, task.id]);
 
   return (
     <div
+      ref={rowRef}
       role="button"
       tabIndex={0}
       onClick={onClick}

@@ -17,16 +17,18 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useRef,
   useState,
   type PropsWithChildren,
 } from "react";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useSearch } from "@tanstack/react-router";
 import { useChat as useAIChat, type UseChatHelpers } from "@ai-sdk/react";
 import {
-  AUTOSEND_TTL_MS,
-  decodeAutosend,
-  encodeAutosend,
+  AUTOSEND_QUERY_VALUE,
+  claimStoredAutosend,
+  markStoredAutosendSent,
+  writeStoredAutosend,
 } from "@/web/lib/autosend";
 import {
   lastAssistantMessageIsCompleteWithToolCalls,
@@ -757,7 +759,7 @@ export function ChatContextProvider({
 
   const navigateToTask = (
     taskId: string,
-    opts?: { virtualMcpId?: string; autosend?: string },
+    opts?: { virtualMcpId?: string; autosend?: boolean },
   ) => {
     markTaskRead(taskId);
     rawNavigateToTask(taskId, {
@@ -805,10 +807,7 @@ export function ChatContextProvider({
     const newId = crypto.randomUUID();
     const targetVmcp = params.virtualMcpId ?? virtualMcpId;
     const carryBranch = targetVmcp === virtualMcpId ? currentBranch : null;
-    const autosend = encodeAutosend({
-      message: params.message,
-      createdAt: Date.now(),
-    });
+    writeStoredAutosend(localStorage, locator, newId, params.message);
     void taskActions.create
       .mutateAsync({
         id: newId,
@@ -818,13 +817,13 @@ export function ChatContextProvider({
       .then(() =>
         navigateToTask(newId, {
           virtualMcpId: params.virtualMcpId,
-          autosend,
+          autosend: true,
         }),
       )
       .catch(() => {
         navigateToTask(newId, {
           virtualMcpId: params.virtualMcpId,
-          autosend,
+          autosend: true,
         });
       });
   };
@@ -978,7 +977,7 @@ export function ActiveTaskProvider({
     bridgeRef,
   } = internals;
 
-  const { org } = useProjectContext();
+  const { org, locator } = useProjectContext();
 
   // Messages for current task (from React Query / server) — this is what suspends
   const serverMessages = useTaskMessages(taskId || null);
@@ -1187,48 +1186,24 @@ export function ActiveTaskProvider({
     isStreaming: chat.status === "submitted" || chat.status === "streaming",
   };
 
-  // Autosend consumer — read the queued message from the URL search param
-  // (set by /$org/ submit or createTaskWithMessage), fire it once, then
-  // strip the param so reload doesn't refire.
-  const autosendNavigate = useNavigate();
+  // Autosend consumer: the URL carries only `autosend=true`; the message
+  // body lives in localStorage keyed by locator + taskId. It only boots empty
+  // threads, and the stored status gates duplicate sends across remounts.
   const autosendSearch = useSearch({ strict: false }) as { autosend?: string };
-  const autosendConsumedRef = useRef<string | null>(null);
-  if (autosendSearch.autosend) {
-    const decoded = decodeAutosend(autosendSearch.autosend);
-    const consumeKey = `${taskId}:${decoded?.createdAt ?? "?"}`;
-    if (
-      decoded &&
-      Date.now() - decoded.createdAt < AUTOSEND_TTL_MS &&
-      autosendConsumedRef.current !== consumeKey
-    ) {
-      autosendConsumedRef.current = consumeKey;
-      const msg = decoded.message;
-      queueMicrotask(() => {
-        void sendMessageInternal(msg);
-        autosendNavigate({
-          to: ".",
-          search: (prev: Record<string, unknown>) => {
-            const { autosend: _omit, ...rest } = prev;
-            return rest;
-          },
-          replace: true,
-        });
-      });
-    } else if (autosendConsumedRef.current !== consumeKey) {
-      // Invalid or stale — silently strip it.
-      autosendConsumedRef.current = consumeKey;
-      queueMicrotask(() => {
-        autosendNavigate({
-          to: ".",
-          search: (prev: Record<string, unknown>) => {
-            const { autosend: _omit, ...rest } = prev;
-            return rest;
-          },
-          replace: true,
-        });
-      });
-    }
-  }
+  const shouldAutosend = autosendSearch.autosend === AUTOSEND_QUERY_VALUE;
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect, react-hooks/exhaustive-deps -- storage status, not function identity, gates duplicate sends
+  useEffect(() => {
+    if (!shouldAutosend) return;
+    if (messages.length > 0) return;
+
+    const payload = claimStoredAutosend(localStorage, locator, taskId);
+    if (!payload) return;
+
+    void sendMessageInternal(payload.message).then(() => {
+      markStoredAutosendSent(localStorage, locator, taskId);
+    });
+    // oxlint-disable-next-line eslint-plugin-react-hooks/exhaustive-deps -- storage status, not function identity, gates duplicate sends
+  }, [shouldAutosend, messages.length, locator, taskId, sendMessageInternal]);
 
   const streamValue: ChatStreamContextValue = {
     messages,

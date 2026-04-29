@@ -1,60 +1,111 @@
-/**
- * Autosend — encode a queued chat message into a URL search parameter so
- * the next route can consume it on mount. Replaces the in-memory
- * `pendingMessage` mechanism for the home → task message handoff.
- *
- * Shape mirrors today's `pendingMessage`: `{ message, createdAt }`. Callers
- * enforce the TTL (`AUTOSEND_TTL_MS`) at consumption time so a pasted-link
- * autosend doesn't fire after the URL has been sitting in someone's
- * clipboard for hours.
- */
-
 import type { SendMessageParams } from "@/web/components/chat/store/types";
+import type { ProjectLocator } from "@decocms/mesh-sdk";
+import { LOCALSTORAGE_KEYS } from "./localstorage-keys";
 
 export const AUTOSEND_TTL_MS = 10_000;
+export const AUTOSEND_QUERY_VALUE = "true";
 
 export interface AutosendPayload {
   message: SendMessageParams;
   createdAt: number;
 }
 
-function toBase64Url(bytes: Uint8Array): string {
-  let bin = "";
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+export type AutosendStatus = "pending" | "sending" | "sent";
+
+export interface StoredAutosendPayload extends AutosendPayload {
+  status: AutosendStatus;
 }
 
-function fromBase64Url(s: string): Uint8Array {
-  const padded =
-    s.replace(/-/g, "+").replace(/_/g, "/") +
-    "=".repeat((4 - (s.length % 4)) % 4);
-  const bin = atob(padded);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
+type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+export function autosendStorageKey(
+  locator: ProjectLocator | string,
+  taskId: string,
+): string {
+  return LOCALSTORAGE_KEYS.chatAutosend(locator, taskId);
 }
 
-export function encodeAutosend(payload: AutosendPayload): string {
-  const bytes = new TextEncoder().encode(JSON.stringify(payload));
-  return toBase64Url(bytes);
+function isValidStatus(status: unknown): status is AutosendStatus {
+  return status === "pending" || status === "sending" || status === "sent";
 }
 
-export function decodeAutosend(s: string): AutosendPayload | null {
-  let decoded: unknown;
+function parseStoredAutosend(
+  value: string | null,
+): StoredAutosendPayload | null {
+  if (!value) return null;
+  let parsed: unknown;
   try {
-    const bytes = fromBase64Url(s);
-    const json = new TextDecoder().decode(bytes);
-    decoded = JSON.parse(json);
+    parsed = JSON.parse(value);
   } catch {
     return null;
   }
   if (
-    !decoded ||
-    typeof decoded !== "object" ||
-    typeof (decoded as { createdAt?: unknown }).createdAt !== "number" ||
-    typeof (decoded as { message?: unknown }).message !== "object"
+    !parsed ||
+    typeof parsed !== "object" ||
+    typeof (parsed as { createdAt?: unknown }).createdAt !== "number" ||
+    typeof (parsed as { message?: unknown }).message !== "object" ||
+    !isValidStatus((parsed as { status?: unknown }).status)
   ) {
     return null;
   }
-  return decoded as AutosendPayload;
+  return parsed as StoredAutosendPayload;
+}
+
+export function writeStoredAutosend(
+  storage: StorageLike,
+  locator: ProjectLocator | string,
+  taskId: string,
+  message: SendMessageParams,
+  createdAt = Date.now(),
+): StoredAutosendPayload {
+  const payload: StoredAutosendPayload = {
+    message,
+    createdAt,
+    status: "pending",
+  };
+  storage.setItem(autosendStorageKey(locator, taskId), JSON.stringify(payload));
+  return payload;
+}
+
+export function readStoredAutosend(
+  storage: StorageLike,
+  locator: ProjectLocator | string,
+  taskId: string,
+): StoredAutosendPayload | null {
+  const key = autosendStorageKey(locator, taskId);
+  const payload = parseStoredAutosend(storage.getItem(key));
+  if (!payload) {
+    storage.removeItem(key);
+    return null;
+  }
+  return payload;
+}
+
+export function claimStoredAutosend(
+  storage: StorageLike,
+  locator: ProjectLocator | string,
+  taskId: string,
+  now = Date.now(),
+): AutosendPayload | null {
+  const key = autosendStorageKey(locator, taskId);
+  const payload = readStoredAutosend(storage, locator, taskId);
+  if (!payload) return null;
+  if (payload.status !== "pending") return null;
+  if (now - payload.createdAt >= AUTOSEND_TTL_MS) {
+    storage.removeItem(key);
+    return null;
+  }
+  storage.setItem(key, JSON.stringify({ ...payload, status: "sending" }));
+  return { message: payload.message, createdAt: payload.createdAt };
+}
+
+export function markStoredAutosendSent(
+  storage: StorageLike,
+  locator: ProjectLocator | string,
+  taskId: string,
+): void {
+  const key = autosendStorageKey(locator, taskId);
+  const payload = readStoredAutosend(storage, locator, taskId);
+  if (!payload) return;
+  storage.setItem(key, JSON.stringify({ ...payload, status: "sent" }));
 }

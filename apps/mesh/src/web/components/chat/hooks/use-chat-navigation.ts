@@ -2,16 +2,17 @@ import { useRef } from "react";
 import { getWellKnownDecopilotVirtualMCP } from "@decocms/mesh-sdk";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useProjectContext } from "@decocms/mesh-sdk";
+import { AUTOSEND_QUERY_VALUE } from "@/web/lib/autosend";
 
 export interface ChatNavigation {
   /** Resolved vMCP for the current chat — either the URL param or the well-known decopilot. */
   virtualMcpId: string;
   /** Always defined — `/$org/$taskId` path param, or a stable fallback for routes that don't have it. */
   taskId: string;
-  /** Navigate to a task. `virtualMcpId` becomes `?virtualmcpid=` — used as bootstrap for the route loader. `autosend` carries an encoded message for the new task to consume. */
+  /** Navigate to a task. `virtualMcpId` becomes `?virtualmcpid=`. `autosend` tells the task route to consume the stored handoff message. */
   navigateToTask: (
     taskId: string,
-    opts?: { virtualMcpId?: string; autosend?: string },
+    opts?: { virtualMcpId?: string; autosend?: boolean },
   ) => void;
 }
 
@@ -26,7 +27,7 @@ export function useChatNavigation(): ChatNavigation {
 
   const navigateToTask = (
     taskId: string,
-    opts?: { virtualMcpId?: string; autosend?: string },
+    opts?: { virtualMcpId?: string; autosend?: boolean },
   ) => {
     navigate({
       to: "/$org/$taskId",
@@ -36,7 +37,7 @@ export function useChatNavigation(): ChatNavigation {
         const vmcp = opts?.virtualMcpId ?? prev.virtualmcpid;
         if (vmcp) next.virtualmcpid = vmcp;
         if (prev.tasks) next.tasks = prev.tasks;
-        if (opts?.autosend) next.autosend = opts.autosend;
+        if (opts?.autosend) next.autosend = AUTOSEND_QUERY_VALUE;
         return next;
       },
     });

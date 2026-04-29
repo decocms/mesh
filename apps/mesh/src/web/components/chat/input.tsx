@@ -1,6 +1,6 @@
 import { isModKey } from "@/web/lib/keyboard-shortcuts";
 import { calculateUsageStats } from "@/web/lib/usage-utils.ts";
-import { encodeAutosend } from "@/web/lib/autosend";
+import { AUTOSEND_QUERY_VALUE, writeStoredAutosend } from "@/web/lib/autosend";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   DropdownMenu,
@@ -258,15 +258,15 @@ function FileDropZone({
 // ============================================================================
 
 /**
- * Submit handler for the home composer. No active task exists; we encode
- * the tiptap doc into ?autosend= and navigate to a fresh /$org/$taskId.
+ * Submit handler for the home composer. No active task exists; we write
+ * the tiptap doc to localStorage and navigate to a fresh /$org/$taskId.
  * The new task page's useEnsureTask creates the thread (server-side
  * idempotent on id) and ActiveTaskProvider's autosend consumer fires
  * sendMessage on mount.
  */
 function useHomeSubmit() {
   const navigate = useNavigate();
-  const { org } = useProjectContext();
+  const { org, locator } = useProjectContext();
 
   return ({
     tiptapDoc,
@@ -278,14 +278,11 @@ function useHomeSubmit() {
     const newId = crypto.randomUUID();
     const targetVmcp =
       virtualMcp?.id ?? getWellKnownDecopilotVirtualMCP(org.id).id;
-    const autosend = encodeAutosend({
-      message: { tiptapDoc },
-      createdAt: Date.now(),
-    });
+    writeStoredAutosend(localStorage, locator, newId, { tiptapDoc });
     navigate({
       to: "/$org/$taskId",
       params: { org: org.slug, taskId: newId },
-      search: { virtualmcpid: targetVmcp, autosend },
+      search: { virtualmcpid: targetVmcp, autosend: AUTOSEND_QUERY_VALUE },
     });
   };
 }
