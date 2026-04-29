@@ -112,7 +112,7 @@ The server starts at `http://localhost:3000` with:
 - 🔧 MCP endpoint: `http://localhost:3000/mcp`
 - 📊 Metrics: `http://localhost:3000/metrics`
 
-A SQLite database is automatically created at `./data/mesh.db`.
+A SQLite database is automatically created at `./data/mesh.db`. 
 
 ## Architecture
 
