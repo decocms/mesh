@@ -73,6 +73,7 @@ import { VirtualMcpHeaderInfo } from "../../views/virtual-mcp/header-info.tsx";
 import { VmEventsProvider } from "@/web/components/vm/hooks/vm-events-context.tsx";
 import type { VmMapEntry } from "@decocms/mesh-sdk";
 import { useEnsureTask } from "@/web/hooks/use-tasks";
+import { HomePage } from "@/web/layouts/home-page";
 
 // ---------------------------------------------------------------------------
 // Types & Context
@@ -403,9 +404,13 @@ function AgentInsetProvider() {
               />
               <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
               <div className="flex-1 min-h-0 overflow-hidden">
-                <ActiveTaskBoundary
-                  variant={isDecopilot ? "home" : undefined}
-                />
+                {params.taskId ? (
+                  <ActiveTaskBoundary
+                    variant={isDecopilot ? "home" : undefined}
+                  />
+                ) : (
+                  <HomePage />
+                )}
               </div>
               {mobileSidebarSheet}
             </VmEventsBridge>
@@ -428,7 +433,7 @@ function AgentInsetProvider() {
       </Toolbar.Toggles>
 
       <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
-        {!isDecopilot && (
+        {params.taskId && !isDecopilot && (
           <Toolbar.Tabs>
             <MainPanelTabsBar
               virtualMcpId={virtualMcpId}
@@ -442,20 +447,28 @@ function AgentInsetProvider() {
           hasActiveGithubRepo={hasActiveGithubRepo}
           vmMap={entity?.metadata?.vmMap}
         >
-          {!isDecopilot && <VirtualMcpHeaderInfo virtualMcp={entity} />}
-          <NewTaskBridge
-            onNewTaskRef={onNewTask}
-            createNewTask={layout.createNewTask}
-          />
-          <ChatMainPanelGroup
-            virtualMcpId={virtualMcpId}
-            taskId={layout.taskId}
-            chatOpen={layout.chatOpen}
-            mainOpen={layout.mainOpen}
-            chatContent={
-              <ActiveTaskBoundary variant={isDecopilot ? "home" : undefined} />
-            }
-          />
+          {params.taskId ? (
+            <>
+              {!isDecopilot && <VirtualMcpHeaderInfo virtualMcp={entity} />}
+              <NewTaskBridge
+                onNewTaskRef={onNewTask}
+                createNewTask={layout.createNewTask}
+              />
+              <ChatMainPanelGroup
+                virtualMcpId={virtualMcpId}
+                taskId={layout.taskId}
+                chatOpen={layout.chatOpen}
+                mainOpen={layout.mainOpen}
+                chatContent={
+                  <ActiveTaskBoundary
+                    variant={isDecopilot ? "home" : undefined}
+                  />
+                }
+              />
+            </>
+          ) : (
+            <HomePage />
+          )}
         </VmEventsBridge>
       </Chat.Provider>
     </InsetContext>
