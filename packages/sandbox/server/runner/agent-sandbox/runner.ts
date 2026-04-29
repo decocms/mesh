@@ -80,6 +80,7 @@ import {
   SandboxAlreadyExistsError,
   SandboxError,
 } from "./constants";
+import { watchClaimLifecycle, type ClaimPhase } from "./lifecycle-watcher";
 
 const RUNNER_KIND = "agent-sandbox" as const;
 const LOG_LABEL = "AgentSandboxRunner";
@@ -137,6 +138,17 @@ const DEFAULT_IDLE_TTL_MS = 15 * 60 * 1000;
  */
 export const HANDLE_PREFIX = "studio-sb-";
 const HANDLE_HASH_LEN = 16;
+
+/**
+ * Server-side helper for callers (mesh routes, lifecycle SSE) that need to
+ * compute a claim name without instantiating an `AgentSandboxRunner`.
+ * Always produces the exact same string the runner would for the same
+ * `(SandboxId, branch)` pair — the lifecycle SSE depends on this so it can
+ * subscribe to the claim a racing `VM_START` is about to create.
+ */
+export function composeClaimName(id: SandboxId, branch: string | null): string {
+  return `${HANDLE_PREFIX}${composeBranchHandle(id, branch, { hashLen: HANDLE_HASH_LEN })}`;
+}
 
 /**
  * Headers stripped before re-issuing the preview proxy fetch. Hop-by-hop per
@@ -409,6 +421,27 @@ export class AgentSandboxRunner implements SandboxRunner {
       handle,
     ).catch(() => undefined);
     return claim ? isSandboxReady(claim) : false;
+  }
+
+  /**
+   * Stream of phase transitions for a SandboxClaim's pre-Ready lifecycle.
+   * Used by mesh's lifecycle SSE route to surface what's happening between
+   * `VM_START` posting a claim and the daemon SSE coming online.
+   *
+   * Generator closes on terminal phase (`ready`/`failed`) or on
+   * `signal.abort()`. Safe to call before the claim exists — the generator
+   * stays in `claiming` until the operator creates the Sandbox/Pod.
+   */
+  watchClaimLifecycle(
+    handle: string,
+    signal?: AbortSignal,
+  ): AsyncGenerator<ClaimPhase, void, unknown> {
+    return watchClaimLifecycle({
+      kc: this.kubeConfig,
+      namespace: this.namespace,
+      claimName: handle,
+      signal,
+    });
   }
 
   async getPreviewUrl(handle: string): Promise<string | null> {
@@ -1271,7 +1304,7 @@ export class AgentSandboxRunner implements SandboxRunner {
   // ---- Identity + preview URL ----------------------------------------------
 
   private computeHandle(id: SandboxId, branch: string | null): string {
-    return `${HANDLE_PREFIX}${composeBranchHandle(id, branch, { hashLen: HANDLE_HASH_LEN })}`;
+    return composeClaimName(id, branch);
   }
 
   // Local mode: route preview traffic through the daemon port-forward, not

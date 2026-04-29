@@ -37,6 +37,7 @@ import authRoutes from "./routes/auth";
 import orgSsoRoutes from "./routes/org-sso";
 import { createDecopilotRoutes } from "./routes/decopilot";
 import downstreamTokenRoutes from "./routes/downstream-token";
+import { vmEventsRoutes } from "./routes/vm-events";
 import decoSitesRoutes from "./routes/deco-sites";
 import virtualMcpRoutes from "./routes/virtual-mcp";
 import oauthProxyRoutes, {
@@ -1494,6 +1495,12 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // Deco.cx sites list (requires meshContext / auth)
   app.route("/api/deco-sites", decoSitesRoutes);
+
+  // Unified VM events SSE — single auth-gated stream that emits pre-Ready
+  // lifecycle phases, then proxies the daemon's `/_decopilot_vm/events` once
+  // the sandbox is up. Replaces the prior split between `/api/vm-lifecycle`
+  // and the browser's direct daemon EventSource.
+  app.route("/api/vm-events", vmEventsRoutes);
 
   // ============================================================================
   // Server Plugin Routes

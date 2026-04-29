@@ -20,5 +20,14 @@ export type {
   SandboxResource,
   WaitForSandboxReadyResult,
 } from "./client";
-export { AgentSandboxRunner, HANDLE_PREFIX } from "./runner";
+export {
+  AgentSandboxRunner,
+  HANDLE_PREFIX,
+  composeClaimName,
+} from "./runner";
 export type { AgentSandboxRunnerOptions } from "./runner";
+export type {
+  ClaimFailureReason,
+  ClaimPhase,
+  WatchClaimLifecycleOptions,
+} from "./lifecycle-watcher";

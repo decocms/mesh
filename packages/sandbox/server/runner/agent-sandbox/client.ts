@@ -207,8 +207,12 @@ interface KubeFetchInit {
  * Thin wrapper around `fetch` that threads TLS + auth from the kubeconfig.
  * Returns the raw `Response` so streaming callers (watch) can consume the
  * body themselves; non-streaming callers parse JSON explicitly.
+ *
+ * Package-internal: re-exported only for sibling modules in this directory
+ * (e.g. lifecycle-watcher) that need the same transport. Not surfaced via
+ * `index.ts` — callers outside the runner should not depend on this.
  */
-async function kubeFetch(
+export async function kubeFetch(
   kc: KubeConfig,
   init: KubeFetchInit,
 ): Promise<Response> {
@@ -801,8 +805,13 @@ export function waitForSandboxReady(
   return promise;
 }
 
-/** ND-JSON line reader over a WHATWG ReadableStream. */
-async function* readNdJson<T>(
+/**
+ * ND-JSON line reader over a WHATWG ReadableStream.
+ *
+ * Package-internal export: sibling modules (lifecycle-watcher) consume the
+ * same kube watch streams and parse them this way. Not exposed via index.ts.
+ */
+export async function* readNdJson<T>(
   stream: ReadableStream<Uint8Array>,
 ): AsyncGenerator<T, void, unknown> {
   const reader = stream.getReader();

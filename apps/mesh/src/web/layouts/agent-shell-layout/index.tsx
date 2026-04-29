@@ -134,10 +134,11 @@ function MobileToolbar({ onOpenSidebar }: { onOpenSidebar: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
-// VmEventsBridge — derives the daemon URL from thread.branch and runs
-// auto-start. Lives inside Chat.Provider so it can read useChatTask, which
-// keeps the VM SSE connection in sync with the active task as the user
-// navigates between tasks (different tasks may pin different branches).
+// VmEventsBridge — passes (virtualMcpId, branch) to the unified VM events
+// SSE provider and runs auto-start. Lives inside Chat.Provider so it can
+// read useChatTask, which keeps the SSE connection in sync with the active
+// task as the user navigates between tasks (different tasks may pin
+// different branches).
 // ---------------------------------------------------------------------------
 
 function VmEventsBridge({
@@ -155,14 +156,6 @@ function VmEventsBridge({
   const { currentBranch } = useChatTask();
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
-
-  const vmEntry =
-    userId && currentBranch ? (vmMap?.[userId]?.[currentBranch] ?? null) : null;
-  // Browser talks to the daemon directly via previewUrl. Trailing slash
-  // stripped because the SSE URL appends `/_decopilot_vm/events`.
-  const vmDaemonBaseUrl = vmEntry?.previewUrl
-    ? vmEntry.previewUrl.replace(/\/$/, "")
-    : null;
 
   // Auto-start the VM when the active task points at a branch without a
   // registered vmMap entry. Routed through useVmStart so concurrent mounts
@@ -203,7 +196,10 @@ function VmEventsBridge({
   ]);
 
   return (
-    <VmEventsProvider daemonBaseUrl={vmDaemonBaseUrl}>
+    <VmEventsProvider
+      virtualMcpId={virtualMcpId}
+      branch={currentBranch ?? null}
+    >
       {children}
     </VmEventsProvider>
   );

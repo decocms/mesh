@@ -180,3 +180,33 @@ export function asDockerRunner(
 ): DockerSandboxRunner | null {
   return runner instanceof DockerSandboxRunner ? runner : null;
 }
+
+/**
+ * Optional capability: agent-sandbox runner exposes a phase stream for the
+ * pre-Ready window. Other runners don't (Docker/Freestyle have no equivalent
+ * black hole — Docker is local-fast, Freestyle's setup is end-to-end).
+ *
+ * Duck-check rather than `instanceof AgentSandboxRunner` so we don't have to
+ * statically import the K8s-laden module just for type narrowing.
+ */
+export interface SupportsLifecycleWatch {
+  readonly kind: RunnerKind;
+  watchClaimLifecycle(
+    handle: string,
+    signal?: AbortSignal,
+  ): AsyncGenerator<unknown, void, unknown>;
+}
+
+export function asLifecycleWatchable(
+  runner: SandboxRunner | null,
+): SupportsLifecycleWatch | null {
+  if (!runner) return null;
+  if (runner.kind !== "agent-sandbox") return null;
+  if (
+    typeof (runner as Partial<SupportsLifecycleWatch>).watchClaimLifecycle !==
+    "function"
+  ) {
+    return null;
+  }
+  return runner as unknown as SupportsLifecycleWatch;
+}

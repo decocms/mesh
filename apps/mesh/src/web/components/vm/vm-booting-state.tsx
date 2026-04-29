@@ -2,6 +2,7 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import { Terminal } from "@untitledui/icons";
 import type { ReactNode } from "react";
 import { GridLoader } from "@/web/components/grid-loader";
+import type { ClaimPhase } from "./hooks/vm-events-context";
 import { useVmEvents } from "./hooks/use-vm-events";
 
 interface VmBootingStateProps {
@@ -12,6 +13,17 @@ interface VmBootingStateProps {
   scripts: string[];
   activeProcesses: string[];
   onViewLogs: () => void;
+  /**
+   * Pre-daemon lifecycle phase (agent-sandbox runner only). When non-null
+   * and not `ready`, the component renders a lifecycle-driven pre-daemon
+   * UI; otherwise it falls through to the existing 3-phase daemon-driven
+   * UI. Callers pass `null` when the runner doesn't surface lifecycle
+   * phases (Docker/Freestyle) or once the lifecycle has reached `ready`
+   * AND VM_START has resolved (so we don't flash back to lifecycle copy).
+   */
+  claimPhase?: ClaimPhase | null;
+  /** Optional retry handler shown on terminal `failed` phases. */
+  onRetry?: () => void;
 }
 
 const PHASES = [
@@ -80,7 +92,24 @@ export function VmBootingState({
   scripts,
   activeProcesses,
   onViewLogs,
+  claimPhase,
+  onRetry,
 }: VmBootingStateProps) {
+  // Lifecycle-driven pre-daemon UI takes precedence whenever the caller
+  // supplies a phase. The caller (preview.tsx) decides when to drop it —
+  // typically once VM_START's promise resolves and a previewUrl is in
+  // hand, so we don't briefly flash the 3-phase UI between
+  // Sandbox.Ready=True and VM_START.success.
+  if (claimPhase != null) {
+    return (
+      <ClaimLifecycleView
+        phase={claimPhase}
+        onRetry={onRetry}
+        onViewLogs={onViewLogs}
+      />
+    );
+  }
+
   const phase = getPhaseIndex(hasSetupData, scripts, activeProcesses);
   const currentLabel = PHASES[phase]?.label ?? PHASES[0].label;
 
@@ -323,4 +352,167 @@ function PreviewContent() {
       </div>
     </div>
   );
+}
+
+// ---- Lifecycle (pre-daemon) UI --------------------------------------------
+
+/**
+ * Copy for each pre-daemon phase. Headlines stay short for the pill;
+ * `body` is only shown for phases where the user benefits from knowing why
+ * the wait exists (capacity provisioning, image pull on a fresh node).
+ *
+ * `failed` is intentionally absent here — failure copy is phase-reason
+ * driven (see `failureCopy`) and renders a Try-Again affordance.
+ */
+const LIFECYCLE_COPY: Record<
+  Exclude<ClaimPhase["kind"], "ready" | "failed">,
+  { headline: string; body?: string }
+> = {
+  claiming: {
+    headline: "Reserving sandbox",
+    body: "Posting your claim to the cluster…",
+  },
+  "waiting-for-capacity": {
+    headline: "Waiting for cluster capacity",
+    body: "The cluster may need to provision a new node — typically 60–90s.",
+  },
+  "pulling-image": {
+    headline: "Downloading sandbox image",
+    body: "First boot on this node — subsequent runs reuse the cached image.",
+  },
+  "starting-container": {
+    headline: "Starting your sandbox",
+  },
+  "warming-daemon": {
+    headline: "Connecting to your sandbox",
+  },
+};
+
+function failureCopy(phase: Extract<ClaimPhase, { kind: "failed" }>): {
+  headline: string;
+  body: string;
+} {
+  switch (phase.reason) {
+    case "image-pull-backoff":
+      return {
+        headline: "Sandbox image failed to download",
+        body: phase.message,
+      };
+    case "crash-loop-backoff":
+      return {
+        headline: "Sandbox crashed during startup",
+        body: phase.message,
+      };
+    case "scheduling-timeout":
+      return {
+        headline: "Couldn't get cluster capacity in time",
+        body: phase.message,
+      };
+    case "claim-never-created":
+      return {
+        headline: "Sandbox claim was never posted",
+        body: phase.message,
+      };
+    case "reconciler-error":
+      return {
+        headline: "Sandbox controller reported an error",
+        body: phase.message,
+      };
+    case "unknown":
+    default:
+      return {
+        headline: "Sandbox failed to start",
+        body: phase.message,
+      };
+  }
+}
+
+function ClaimLifecycleView({
+  phase,
+  onRetry,
+  onViewLogs,
+}: {
+  phase: ClaimPhase;
+  onRetry?: () => void;
+  onViewLogs: () => void;
+}) {
+  if (phase.kind === "failed") {
+    const copy = failureCopy(phase);
+    return (
+      <div className="relative flex flex-col items-center justify-center w-full h-full overflow-hidden select-none gap-6 px-6">
+        <div className="flex flex-col items-center gap-2 text-center max-w-[440px]">
+          <span className="text-sm font-medium text-foreground">
+            {copy.headline}
+          </span>
+          <span className="text-xs text-muted-foreground">{copy.body}</span>
+        </div>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="rounded-md border border-foreground/15 bg-background px-3 py-1.5 text-xs font-medium hover:bg-foreground/[0.04] transition-colors"
+          >
+            Try again
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onViewLogs}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors duration-200"
+        >
+          <Terminal size={11} />
+          View logs
+        </button>
+      </div>
+    );
+  }
+
+  // `ready` is reached when Sandbox.Ready=True, but VM_START still has the
+  // Service-patch + HTTPRoute-mint + port-forward window before previewUrl
+  // exists. Show "almost ready" until the caller drops `claimPhase`
+  // (= VM_START's promise resolved).
+  const copy =
+    phase.kind === "ready"
+      ? { headline: "Almost ready", body: undefined }
+      : LIFECYCLE_COPY[phase.kind];
+  const subline =
+    phase.kind === "ready" ? undefined : (nodeClaimSubline(phase) ?? copy.body);
+
+  return (
+    <div className="relative flex flex-col items-center justify-center w-full h-full overflow-hidden select-none gap-6">
+      <div className="flex items-center gap-2 rounded-full border border-foreground/10 bg-background px-3.5 py-1.5 shadow-[0_4px_20px_-4px_rgb(0_0_0_/_0.12)]">
+        <GridLoader />
+        <span
+          key={phase.kind}
+          className="text-[13px] font-medium text-foreground/85 animate-in fade-in duration-500"
+        >
+          {copy.headline}…
+        </span>
+      </div>
+
+      {subline && (
+        <span
+          key={subline}
+          className="block max-w-[440px] truncate text-center text-xs text-muted-foreground/70 animate-in fade-in duration-300"
+        >
+          {subline}
+        </span>
+      )}
+
+      <button
+        type="button"
+        onClick={onViewLogs}
+        className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors duration-200"
+      >
+        <Terminal size={11} />
+        View logs
+      </button>
+    </div>
+  );
+}
+
+function nodeClaimSubline(phase: ClaimPhase): string | undefined {
+  if (phase.kind !== "waiting-for-capacity") return undefined;
+  if (!phase.nodeClaim) return undefined;
+  return `Provisioning node ${phase.nodeClaim}…`;
 }
