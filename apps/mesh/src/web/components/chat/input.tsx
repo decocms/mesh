@@ -52,6 +52,10 @@ import {
 import { isTiptapDocEmpty } from "./tiptap/utils";
 import { ToolsPopover } from "./tools-popover";
 import { SessionStats } from "./usage-stats";
+import {
+  useCavemanFeatureEnabled,
+  useCavemanToggle,
+} from "@/web/lib/caveman-mode.ts";
 import { authClient } from "@/web/lib/auth-client.ts";
 import { track } from "@/web/lib/posthog-client";
 import { useSound } from "@/web/hooks/use-sound.ts";
@@ -279,6 +283,8 @@ export function ChatInput({
   const { org } = useProjectContext();
   const decopilotId = getWellKnownDecopilotVirtualMCP(org.id).id;
   const playSwitchSound = useSound(question004Sound);
+  const cavemanFeatureEnabled = useCavemanFeatureEnabled();
+  const [cavemanActive, setCavemanActive] = useCavemanToggle();
   const [connectionsOpen, setConnectionsOpen] = useState(false);
   const { unsupportedFile, onUnsupportedFile, clearUnsupportedFile } =
     useUnsupportedFileDialog();
@@ -608,6 +614,43 @@ export function ChatInput({
                             size={14}
                             className="shrink-0 hidden group-hover:block"
                           />
+                        </button>
+                      )}
+                      {cavemanFeatureEnabled && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = !cavemanActive;
+                            track("caveman_mode_toggled", { enabled: next });
+                            setCavemanActive(next);
+                          }}
+                          aria-label={
+                            cavemanActive
+                              ? "Disable caveman mode"
+                              : "Enable caveman mode"
+                          }
+                          title={
+                            cavemanActive
+                              ? "Disable caveman mode"
+                              : "Enable caveman mode"
+                          }
+                          className={cn(
+                            "flex items-center gap-1.5 h-8 rounded-lg transition-colors whitespace-nowrap group",
+                            cavemanActive
+                              ? "px-2.5 text-sm font-medium text-[#8B6F47] dark:text-[#C19A6B] hover:bg-[#8B6F47]/10 animate-in fade-in duration-200"
+                              : "size-8 justify-center text-muted-foreground/60 hover:text-foreground hover:bg-muted",
+                          )}
+                        >
+                          <span className="text-[14px] leading-none">🪨</span>
+                          {cavemanActive && (
+                            <>
+                              Caveman
+                              <X
+                                size={14}
+                                className="shrink-0 hidden group-hover:block"
+                              />
+                            </>
+                          )}
                         </button>
                       )}
                       {contextWindow && lastTotalTokens > 0 && (

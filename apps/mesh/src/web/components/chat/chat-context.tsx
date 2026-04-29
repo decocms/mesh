@@ -75,6 +75,7 @@ import { useLocalStorage } from "../../hooks/use-local-storage";
 import { chatModeForTransportRef } from "../../lib/chat-mode-sync";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
 import { useSimpleMode } from "../../hooks/use-organization-settings";
+import { CAVEMAN_SYSTEM_PROMPT } from "../../lib/caveman-mode";
 
 // ============================================================================
 // Context Types
@@ -253,6 +254,8 @@ interface TaskProviderInternals {
   contextPrompt: string;
   preferences: {
     toolApprovalLevel?: import("../../hooks/use-preferences").ToolApprovalLevel;
+    experimental_caveman?: boolean;
+    caveman_active?: boolean;
   };
   taskManager: {
     updateMessagesCache: (taskId: string, messages: ChatMessage[]) => void;
@@ -896,7 +899,11 @@ export function ActiveTaskProvider({
             .map(([source, text]) => `### App Context: ${source}\n${text}`)
             .join("\n\n")
         : "";
-    const system = [contextPrompt, appContextSection]
+    const cavemanPrompt =
+      preferences.experimental_caveman && preferences.caveman_active
+        ? CAVEMAN_SYSTEM_PROMPT
+        : "";
+    const system = [contextPrompt, appContextSection, cavemanPrompt]
       .filter(Boolean)
       .join("\n\n");
 
