@@ -1,5 +1,6 @@
 import { isModKey } from "@/web/lib/keyboard-shortcuts";
 import { calculateUsageStats } from "@/web/lib/usage-utils.ts";
+import { encodeAutosend } from "@/web/lib/autosend";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   DropdownMenu,
@@ -12,6 +13,7 @@ import {
   getWellKnownDecopilotVirtualMCP,
   useProjectContext,
 } from "@decocms/mesh-sdk";
+import { useNavigate } from "@tanstack/react-router";
 import {
   ArrowUp,
   Atom01,
@@ -31,7 +33,12 @@ import {
 import type { FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import type { Metadata } from "./types.ts";
-import { useChatStream, useChatTask, useChatPrefs } from "./context";
+import {
+  useChatPrefs,
+  useOptionalChatStream,
+  useOptionalChatTask,
+} from "./context";
+import type { VirtualMCPInfo } from "./select-virtual-mcp";
 import { ChatHighlight } from "./highlight";
 import { ModelSelector } from "./select-model";
 import { getSupportedFileTypesLabel, modelSupportsFiles } from "./select-model";
@@ -250,6 +257,39 @@ function FileDropZone({
 // ChatInput - Merged component with virtual MCP wrapper, banners, and selectors
 // ============================================================================
 
+/**
+ * Submit handler for the home composer. No active task exists; we encode
+ * the tiptap doc into ?autosend= and navigate to a fresh /$org/$taskId.
+ * The new task page's useEnsureTask creates the thread (server-side
+ * idempotent on id) and ActiveTaskProvider's autosend consumer fires
+ * sendMessage on mount.
+ */
+function useHomeSubmit() {
+  const navigate = useNavigate();
+  const { org } = useProjectContext();
+
+  return ({
+    tiptapDoc,
+    virtualMcp,
+  }: {
+    tiptapDoc: Metadata["tiptapDoc"];
+    virtualMcp: VirtualMCPInfo | null;
+  }) => {
+    const newId = crypto.randomUUID();
+    const targetVmcp =
+      virtualMcp?.id ?? getWellKnownDecopilotVirtualMCP(org.id).id;
+    const autosend = encodeAutosend({
+      message: { tiptapDoc },
+      createdAt: Date.now(),
+    });
+    navigate({
+      to: "/$org/$taskId",
+      params: { org: org.slug, taskId: newId },
+      search: { virtualmcpid: targetVmcp, autosend },
+    });
+  };
+}
+
 export function ChatInput({
   onOpenContextPanel,
   showConnectionsBanner = false,
@@ -257,9 +297,15 @@ export function ChatInput({
   onOpenContextPanel?: () => void;
   showConnectionsBanner?: boolean;
 }) {
-  const { messages, isStreaming, isRunInProgress, sendMessage, stop } =
-    useChatStream();
-  const { taskId, tasks } = useChatTask();
+  const stream = useOptionalChatStream();
+  const taskCtx = useOptionalChatTask();
+  const messages = stream?.messages ?? [];
+  const isStreaming = stream?.isStreaming ?? false;
+  const isRunInProgress = stream?.isRunInProgress ?? false;
+  const stop = stream?.stop ?? (() => {});
+  const taskId = taskCtx?.taskId ?? "";
+  const tasks = taskCtx?.tasks ?? [];
+  const homeSubmit = useHomeSubmit();
   const {
     selectedModel,
     selectedVirtualMcp,
@@ -407,7 +453,7 @@ export function ChatInput({
       stop();
     } else if (canSubmit && tiptapDoc) {
       track("chat_message_sent", {
-        thread_id: taskId,
+        thread_id: taskId || null,
         mode: chatMode,
         model_id: selectedModel?.modelId ?? null,
         model_provider: selectedModel?.providerId ?? null,
@@ -415,7 +461,11 @@ export function ChatInput({
         submission: e ? "button_or_enter" : "programmatic",
       });
       playClickSound();
-      void sendMessage(tiptapDoc);
+      if (stream) {
+        void stream.sendMessage(tiptapDoc);
+      } else {
+        homeSubmit({ tiptapDoc, virtualMcp: selectedVirtualMcp });
+      }
       setTiptapDoc(undefined);
     }
   };

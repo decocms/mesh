@@ -1389,6 +1389,10 @@ export function useOptionalChatPrefs(): ChatPrefsContextValue | null {
   return useContext(ChatPrefsCtx);
 }
 
+export function useOptionalChatTask(): ChatTaskContextValue | null {
+  return useContext(ChatTaskCtx);
+}
+
 export function useChatBridge(): ChatBridgeValue {
   const ref = useContext(ChatBridgeCtx);
   // Return wrappers that read .current at call time. Destructuring
