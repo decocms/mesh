@@ -563,4 +563,57 @@ app.post("/domain-setup", async (c) => {
   }
 });
 
+/**
+ * My Role Permissions Endpoint (authenticated)
+ *
+ * Returns the current user's own role and its permissions for the active org.
+ * Unlike Better Auth's /organization/list-roles, this requires no special
+ * permissions — every member can read their own role definition.
+ *
+ * Route: GET /api/auth/custom/my-role
+ */
+app.get("/my-role", async (c) => {
+  const session = (await auth.api.getSession({
+    headers: c.req.raw.headers,
+  })) as {
+    user?: { id: string };
+    session?: { activeOrganizationId?: string };
+  } | null;
+
+  if (!session?.user) {
+    return c.json({ error: "Authentication required" }, 401);
+  }
+
+  const organizationId = session.session?.activeOrganizationId;
+  if (!organizationId) {
+    return c.json({ error: "No active organization" }, 400);
+  }
+
+  const db = getDb().db;
+
+  const member = await db
+    .selectFrom("member")
+    .select(["role"])
+    .where("userId", "=", session.user.id)
+    .where("organizationId", "=", organizationId)
+    .executeTakeFirst();
+
+  if (!member) {
+    return c.json({ error: "Not a member of this organization" }, 403);
+  }
+
+  const roleRow = await db
+    .selectFrom("organizationRole")
+    .select(["permission"])
+    .where("organizationId", "=", organizationId)
+    .where("role", "=", member.role)
+    .executeTakeFirst();
+
+  const permission = roleRow?.permission
+    ? (JSON.parse(roleRow.permission) as Record<string, string[]>)
+    : null;
+
+  return c.json({ role: member.role, permission });
+});
+
 export default app;

@@ -10,8 +10,9 @@ import { AutomationListRow } from "@/web/views/automations/automation-list-row";
 import { useVirtualMCPs, useProjectContext } from "@decocms/mesh-sdk";
 import { useNavigate } from "@tanstack/react-router";
 import { track } from "@/web/lib/posthog-client";
+import { SettingsPermissionGuard } from "@/web/components/settings-permission-guard";
 
-export default function SettingsAutomationsPage() {
+function AutomationsPageContent() {
   const { org } = useProjectContext();
   const { data: automations = [] } = useAutomations(undefined);
   const agents = useVirtualMCPs();
@@ -100,5 +101,13 @@ export default function SettingsAutomationsPage() {
         </Page.Body>
       </Page.Content>
     </Page>
+  );
+}
+
+export default function SettingsAutomationsPage() {
+  return (
+    <SettingsPermissionGuard requiredTool="AUTOMATION_LIST">
+      <AutomationsPageContent />
+    </SettingsPermissionGuard>
   );
 }

@@ -38,7 +38,9 @@ export async function migrateBetterAuth(databaseUrl?: string): Promise<string> {
   const options = {
     database: freshDatabase,
     plugins: [
-      organization(),
+      organization({
+        dynamicAccessControl: { enabled: true, enableCustomResources: true },
+      }),
       adminPlugin(),
       apiKey(),
       jwt(),
