@@ -305,8 +305,12 @@ export async function createSandboxClaim(
   try {
     resp = await kubeFetch(kc, { method: "POST", path, body: claim });
   } catch (error) {
+    const causeMsg = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `[agent-sandbox/client] createSandboxClaim ${claim.metadata.name} transport error: ${causeMsg}`,
+    );
     throw new SandboxError(
-      `Failed to create SandboxClaim: ${claim.metadata.name}`,
+      `Failed to create SandboxClaim: ${claim.metadata.name} (transport error: ${causeMsg})`,
       error,
     );
   }
