@@ -12,6 +12,7 @@
 import posthog from "posthog-js";
 
 let initialized = false;
+let lastOrgGroupKey: string | null = null;
 
 export function initPostHog(key: string, host: string) {
   if (initialized || typeof window === "undefined") return;
@@ -52,11 +53,28 @@ export function identifyUser(
 export function resetUser() {
   if (!initialized) return;
   posthog.reset();
+  lastOrgGroupKey = null;
 }
 
 export function track(event: string, properties?: Record<string, unknown>) {
   if (!initialized) return;
   posthog.capture(event, properties);
+}
+
+/**
+ * Bind the current browser session to an organization group so that every
+ * subsequent autocaptured event carries `$groups: { organization: <id> }`.
+ * De-duped by orgId — calling this repeatedly with the same id is free.
+ * `resetUser()` clears the cache so re-login re-fires.
+ */
+export function setOrganizationGroup(
+  orgId: string,
+  props?: { name?: string; slug?: string },
+) {
+  if (!initialized) return;
+  if (orgId === lastOrgGroupKey) return;
+  posthog.group("organization", orgId, props);
+  lastOrgGroupKey = orgId;
 }
 
 /**
@@ -77,4 +95,13 @@ export function captureException(
   } catch {
     // Swallow — never let analytics break the error UI.
   }
+}
+
+/**
+ * Test-only: reset module-level state between tests. Not exported from any
+ * non-test consumer; kept here because module state is otherwise opaque.
+ */
+export function __resetForTest() {
+  initialized = false;
+  lastOrgGroupKey = null;
 }
