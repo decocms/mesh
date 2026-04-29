@@ -173,6 +173,15 @@ describe("createSandboxClaim", () => {
     ).rejects.toThrow(/Failed to create SandboxClaim: denied/);
   });
 
+  it("surfaces transport-layer failures (fetch throws) with the cause message", async () => {
+    fetchImpl = async () => {
+      throw new Error("fetch failed: TLS connection reset by peer");
+    };
+    await expect(
+      createSandboxClaim(makeKc(), NS, makeClaim("blip")),
+    ).rejects.toThrow(/transport error: fetch failed: TLS connection reset/);
+  });
+
   it("throws SandboxAlreadyExistsError on 409 so the runner can wait+retry", async () => {
     // Operator's idle-TTL deleted the prior claim but finalizers haven't
     // drained yet — the API server still has the resource and rejects
