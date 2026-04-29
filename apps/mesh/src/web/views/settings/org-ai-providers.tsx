@@ -838,9 +838,12 @@ function ProviderCard({
 function OpenAICompatiblePresetCard({
   preset,
   keys,
+  fallbackLogo,
 }: {
   preset: OpenAICompatiblePreset | null;
   keys: AiProviderKey[];
+  /** Used for the Custom (preset = null) card — shows the openai-compatible provider's default logo. */
+  fallbackLogo?: string | null;
 }) {
   const { org } = useProjectContext();
   const client = useMCPClient({
@@ -854,7 +857,7 @@ function OpenAICompatiblePresetCard({
   const displayName = preset?.name ?? "Custom OpenAI Compatible";
   const description =
     preset?.description ?? "Connect any OpenAI-compatible endpoint by URL";
-  const logo = preset?.logo;
+  const logo = preset?.logo ?? fallbackLogo;
 
   const { mutate: deleteKey, isPending: isDeleting } = useMutation({
     mutationFn: async (keyId: string) => {
@@ -926,10 +929,6 @@ function OpenAICompatiblePresetCard({
           <div className="mt-1">
             <p className="text-xs font-medium text-muted-foreground">
               {keys.length} connection{keys.length !== 1 ? "s" : ""} configured
-              <span className="text-muted-foreground/60">
-                {" "}
-                — click to add another
-              </span>
             </p>
             <KeyList keys={keys} onDelete={deleteKey} isDeleting={isDeleting} />
           </div>
@@ -986,6 +985,9 @@ export function ProviderCardGrid({
     (k) => k.providerId === "openai-compatible",
   );
   const showOpenAICompatibleSection = hideProviderId !== "openai-compatible";
+  const openaiCompatibleProvider = (aiProviders?.providers ?? []).find(
+    (p) => p.id === "openai-compatible",
+  );
 
   return (
     <div className="flex flex-col gap-5 w-full">
@@ -1014,18 +1016,8 @@ export function ProviderCardGrid({
             keys={allKeys.filter((k) => k.providerId === provider.id)}
           />
         ))}
-      </div>
-      {showOpenAICompatibleSection && (
-        <div className="flex flex-col gap-3">
-          <div className="flex items-baseline justify-between">
-            <p className="text-xs font-medium text-muted-foreground">
-              OpenAI-compatible servers
-            </p>
-            <p className="text-xs text-muted-foreground/70">
-              Add as many of each as you like
-            </p>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {showOpenAICompatibleSection && (
+          <>
             {OPENAI_COMPATIBLE_PRESETS.map((preset) => (
               <OpenAICompatiblePresetCard
                 key={preset.id}
@@ -1039,10 +1031,11 @@ export function ProviderCardGrid({
               key="custom"
               preset={null}
               keys={openaiCompatibleKeys.filter((k) => !k.presetId)}
+              fallbackLogo={openaiCompatibleProvider?.logo}
             />
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
