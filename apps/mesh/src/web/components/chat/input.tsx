@@ -490,8 +490,10 @@ export function ChatInput({
             <div className="absolute inset-0 rounded-2xl pointer-events-none bg-muted/50" />
           )}
 
-          {/* Highlight floats above the form area */}
-          <ChatHighlight />
+          {/* Highlight floats above the form area. Only renders when there's
+              an active task — it depends on useChatStream + useChatTask, both
+              absent on the home composer. */}
+          {stream && taskCtx && <ChatHighlight />}
 
           <TiptapProvider
             key={taskId}
