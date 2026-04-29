@@ -1,34 +1,43 @@
 {{- if .Values.housekeeper.enabled }}
-# CronJob that probes each Ready sandbox daemon's /_decopilot_vm/idle endpoint
-# and deletes claims that exceed the configured idle TTL. Also removes claims
-# stuck in ReconcilerError so broken sandboxes don't accumulate.
-#
-# The housekeeper is the activity-based counterpart to the operator's
-# time-based spec.lifecycle.shutdownTime: mesh sets a hard ceiling at
-# provision time; this job cuts claims earlier when the daemon reports the
-# pod has been idle for longer than idleTtlSeconds.
-#
-# Probe failure handling: a single connect error or timeout is retried once
-# (`curl --retry 1 --retry-all-errors --max-time 2 --retry-delay 1`). If both
-# attempts fail OR the body has no parseable idleMs the claim is SKIPPED, not
-# reaped. Truly broken pods are caught by the ReconcilerError branch above
-# (operator-side liveness) — reaping a Ready=True pod just because the script
-# couldn't reach it once means a NetworkPolicy/CNI/DNS blip wipes every
-# sandbox in one sweep. Cost of skipping: at most one extra TTL window of
-# resource hold; cost of false reap: user loses live work.
-#
-# Each reap also deletes the per-claim HTTPRoute first so traffic stops
-# resolving to the pod before it enters termination (avoids 502s in the
-# shutdown window). The route is matched by label
-# `studio.decocms.com/sandbox-handle=<claim>` rather than by name so this
-# survives any future change to the operator's route-naming convention.
-# (mesh stamps both the route name AND the handle label — see
-#  packages/sandbox/server/runner/agent-sandbox/runner.ts:1039,1043)
-#
-# Enable in exactly ONE env release per namespace — SandboxClaims carry no
-# env label so every enabled housekeeper sweeps all studio claims in
-# agent-sandbox-system. Multiple active housekeepers cause duplicate probes
-# and competing deletes (harmless but wasteful).
+{{- /*
+Idle-reap housekeeper for studio sandbox claims.
+
+What it does:
+- Probes each Ready sandbox's daemon at /_decopilot_vm/idle every
+  `housekeeper.schedule` minutes, deletes claims idle ≥ idleTtlSeconds.
+- Clears claims stuck in ReconcilerError (operator gave up).
+- Escalates "Ready but unreachable" claims to a StuckReady reap once they
+  exceed stuckReadyTtlSeconds (catches wedged daemons that present TCP
+  but don't respond meaningfully).
+- Re-probes immediately before delete to narrow the activity-during-reap
+  race window.
+- Emits a Kubernetes Event per reap so post-mortem via `kubectl get events`
+  works after the claim is gone.
+
+Multi-housekeeper warning:
+SandboxClaims carry no env label today, so every enabled housekeeper in
+agent-sandbox-system sweeps the *same* set of claims. Enable in exactly
+ONE env release per cluster. Per-env scoping requires a follow-up to
+runner.ts (stamp studio.decocms.com/env on the claim) plus this chart's
+selector picking that label up.
+
+Layout:
+- ConfigMap holds the sweep script (files/housekeeper-sweep.sh) — keeps
+  this YAML readable and lets the script be lint-tested in isolation.
+- CronJob mounts the ConfigMap at /scripts/sweep.sh and passes config via
+  env vars, so the script has zero Helm-templating inside it.
+*/ -}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sandbox-env.housekeeperName" . }}-script
+  namespace: agent-sandbox-system
+  labels:
+    {{- include "sandbox-env.labels" . | nindent 4 }}
+data:
+  sweep.sh: |
+{{ .Files.Get "files/housekeeper-sweep.sh" | indent 4 }}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -46,20 +55,21 @@ metadata:
   labels:
     {{- include "sandbox-env.labels" . | nindent 4 }}
 rules:
-  # SandboxClaim is the reap target. Annotate is used to stamp the reap
-  # reason just before delete so kube-audit retains a breadcrumb.
+  # Reap target: list to discover, get to read probe-fail annotations,
+  # patch to stamp annotations, delete to actually reap.
   - apiGroups: ["extensions.agents.x-k8s.io"]
     resources: ["sandboxclaims"]
     verbs: ["get", "list", "patch", "delete"]
-  # Pod IPs are read directly via a label-selected list, so we don't need
-  # `agents.x-k8s.io/sandboxes` get permission anymore. Pods carry the
-  # `studio.decocms.com/sandbox-handle` label set by mesh's runner.ts
-  # buildClaim → additionalPodMetadata path.
+  # Pod IPs come from a label-selected list (studio.decocms.com/role=claimed).
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["list"]
-  # HTTPRoute deletion is by label selector (studio.decocms.com/sandbox-handle),
-  # which requires `list` in addition to `delete`.
+  # Reap events for post-mortem after the claim object is gone.
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create"]
+  # Per-claim HTTPRoute deletion is by sandbox-handle label, which needs
+  # list in addition to delete.
   - apiGroups: ["gateway.networking.k8s.io"]
     resources: ["httproutes"]
     verbs: ["list", "delete"]
@@ -87,21 +97,23 @@ metadata:
   namespace: agent-sandbox-system
   labels:
     {{- include "sandbox-env.labels" . | nindent 4 }}
+  annotations:
+    # Roll the CronJob template when the script content changes so the next
+    # scheduled run picks up new logic without an explicit redeploy of the
+    # CronJob spec.
+    checksum/script: {{ .Files.Get "files/housekeeper-sweep.sh" | sha256sum }}
 spec:
   schedule: {{ .Values.housekeeper.schedule | quote }}
   concurrencyPolicy: Forbid
   # Without this, a missed slot (controller-manager downtime, scheduling
-  # pressure) is silently skipped instead of catching up. 240s gives the
-  # next sweep ~one schedule interval to recover before being abandoned.
-  startingDeadlineSeconds: 240
+  # pressure) is silently skipped instead of catching up.
+  startingDeadlineSeconds: {{ .Values.housekeeper.startingDeadlineSeconds }}
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
       activeDeadlineSeconds: {{ .Values.housekeeper.activeDeadlineSeconds }}
-      # Clean up finished pod objects faster than failedJobsHistoryLimit
-      # alone — keeps `kubectl get pods` in agent-sandbox-system tidy.
-      ttlSecondsAfterFinished: 300
+      ttlSecondsAfterFinished: {{ .Values.housekeeper.ttlSecondsAfterFinished }}
       template:
         metadata:
           labels:
@@ -109,9 +121,8 @@ spec:
         spec:
           serviceAccountName: {{ include "sandbox-env.housekeeperName" . }}
           restartPolicy: Never
-          # Restricted-PSS-compliant: runs as non-root, no privilege
-          # escalation, no capabilities, read-only rootfs. /tmp is mounted
-          # via emptyDir for any temporary scratch curl/sh might need.
+          # Restricted-PSS-compliant: non-root, no privilege escalation,
+          # read-only rootfs, no capabilities.
           securityContext:
             runAsNonRoot: true
             runAsUser: 1001
@@ -130,138 +141,40 @@ spec:
                   drop: ["ALL"]
               resources:
                 {{- toYaml .Values.housekeeper.resources | nindent 16 }}
-              volumeMounts:
-                - name: tmp
-                  mountPath: /tmp
               env:
+                # Cronjob pod name as run id — used in log lines and on the
+                # reap-run annotation so a sweep's effects are traceable.
                 - name: RUN_ID
                   valueFrom:
                     fieldRef:
                       fieldPath: metadata.name
-              command: ["/bin/sh", "-c"]
-              args:
-                - |
-                  set -eu
-                  NS="agent-sandbox-system"
-                  TTL_MS={{ mul .Values.housekeeper.idleTtlSeconds 1000 }}
-                  NOW_ISO=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-                  echo "[housekeeper] run=$RUN_ID ttl=${TTL_MS}ms ns=$NS — scanning"
-
-                  # The selector below mirrors STUDIO_CLAIM_LABEL_SELECTOR /
-                  # buildClaim() in mesh's runner.ts (~line 877). Keep both
-                  # in sync; if mesh ever adds a third selector label, this
-                  # silently drifts to wrong scope otherwise.
-                  CLAIM_SELECTOR="app.kubernetes.io/managed-by=studio,app.kubernetes.io/name=studio-sandbox"
-
-                  # Single API call returns name + Ready status + Ready reason
-                  # for every studio claim. One JSONPath line per claim, fields
-                  # separated by '|' so awk/cut can split without jq.
-                  CLAIMS_TSV=$(kubectl get sandboxclaims -n "$NS" \
-                    -l "$CLAIM_SELECTOR" \
-                    -o jsonpath='{range .items[*]}{.metadata.name}|{.status.conditions[?(@.type=="Ready")].status}|{.status.conditions[?(@.type=="Ready")].reason}{"\n"}{end}' \
-                    2>/dev/null || true)
-
-                  if [ -z "$CLAIMS_TSV" ]; then
-                    echo "[housekeeper] no studio sandbox claims found"
-                    exit 0
-                  fi
-
-                  # Pod IPs in one call, keyed by sandbox-handle. The
-                  # additionalPodMetadata path in mesh runner.ts:892 stamps
-                  # `studio.decocms.com/sandbox-handle=<handle>` and
-                  # `studio.decocms.com/role=claimed` on every claimed pod.
-                  PODS_TSV=$(kubectl get pods -n "$NS" \
-                    -l "studio.decocms.com/role=claimed" \
-                    -o jsonpath='{range .items[*]}{.metadata.labels.studio\.decocms\.com/sandbox-handle}|{.status.podIP}{"\n"}{end}' \
-                    2>/dev/null || true)
-
-                  pod_ip_for() {
-                    # $1 = claim handle. Echoes pod IP or empty.
-                    printf '%s\n' "$PODS_TSV" \
-                      | awk -F'|' -v h="$1" '$1==h && $2!="" { print $2; exit }'
-                  }
-
-                  reap_claim() {
-                    # $1 = claim handle, $2 = reason (idle|reconciler-error)
-                    local claim="$1" reason="$2"
-                    # Annotate first so kube-audit retains why this claim
-                    # disappeared. The annotation lives only as long as the
-                    # claim object itself, so this is best-effort breadcrumbs
-                    # rather than long-term forensics.
-                    kubectl annotate sandboxclaim "$claim" -n "$NS" --overwrite \
-                      "studio.decocms.com/reap-reason=$reason" \
-                      "studio.decocms.com/reap-at=$NOW_ISO" \
-                      "studio.decocms.com/reap-run=$RUN_ID" >/dev/null 2>&1 || true
-                    # Route deletion uses the sandbox-handle label
-                    # (LABEL_KEYS.sandboxHandle in mesh runner.ts:1570) to
-                    # survive any future operator route-naming change.
-                    kubectl delete httproute -n "$NS" \
-                      -l "studio.decocms.com/sandbox-handle=$claim" \
-                      --ignore-not-found >/dev/null 2>&1 || true
-                    kubectl delete sandboxclaim "$claim" -n "$NS" \
-                      --ignore-not-found >/dev/null 2>&1 || true
-                    echo "[housekeeper] reap=ok claim=$claim reason=$reason"
-                  }
-
-                  # Strip blank lines, then iterate.
-                  echo "$CLAIMS_TSV" | awk -F'|' 'NF>=1 && $1!=""' | while IFS='|' read -r CLAIM READY REASON; do
-                    if [ "$READY" = "False" ] && [ "$REASON" = "ReconcilerError" ]; then
-                      reap_claim "$CLAIM" "reconciler-error"
-                      continue
-                    fi
-
-                    if [ "$READY" != "True" ]; then
-                      echo "[housekeeper] skip=not-ready claim=$CLAIM ready=${READY:-<none>} reason=${REASON:-<none>}"
-                      continue
-                    fi
-
-                    POD_IP=$(pod_ip_for "$CLAIM")
-                    if [ -z "$POD_IP" ]; then
-                      echo "[housekeeper] skip=no-pod-ip claim=$CLAIM"
-                      continue
-                    fi
-
-                    # Probe daemon. `--retry 1 --retry-all-errors --retry-delay 1`
-                    # absorbs a single transient blip (CNI churn, brief net hiccup).
-                    # Two failed attempts → SKIP (don't reap); see top-of-file
-                    # rationale.
-                    #
-                    # Daemon contract: 200 OK with body `{"idleMs":<int>,...}`.
-                    # Coupling lives at /_decopilot_vm/idle in the daemon image.
-                    # If that field is renamed or nested, the sed regex below
-                    # silently produces no match and the claim is skipped.
-                    if RESPONSE=$(curl -sf --max-time 2 \
-                          --retry 1 --retry-all-errors --retry-delay 1 \
-                          "http://${POD_IP}:9000/_decopilot_vm/idle" 2>/dev/null); then
-                      :
-                    else
-                      echo "[housekeeper] skip=probe-failed claim=$CLAIM pod_ip=$POD_IP"
-                      continue
-                    fi
-
-                    IDLE_MS=$(printf '%s' "$RESPONSE" \
-                      | sed -n 's/.*"idleMs"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p')
-
-                    # Defensive: only digits past this point. set -eu would
-                    # otherwise abort the loop on a bad numeric compare.
-                    case "$IDLE_MS" in
-                      ''|*[!0-9]*)
-                        echo "[housekeeper] skip=bad-response claim=$CLAIM body=$(printf '%s' "$RESPONSE" | head -c 80)"
-                        continue
-                        ;;
-                    esac
-
-                    if [ "$IDLE_MS" -ge "$TTL_MS" ]; then
-                      echo "[housekeeper] decision=reap claim=$CLAIM idle_ms=$IDLE_MS ttl_ms=$TTL_MS"
-                      reap_claim "$CLAIM" "idle"
-                    else
-                      REMAINING=$((TTL_MS - IDLE_MS))
-                      echo "[housekeeper] decision=keep claim=$CLAIM idle_ms=$IDLE_MS remaining_ms=$REMAINING"
-                    fi
-                  done
-
-                  echo "[housekeeper] run=$RUN_ID done"
+                - name: NS
+                  value: agent-sandbox-system
+                - name: TTL_MS
+                  value: {{ mul .Values.housekeeper.idleTtlSeconds 1000 | quote }}
+                - name: STUCK_TTL_MS
+                  value: {{ mul .Values.housekeeper.stuckReadyTtlSeconds 1000 | quote }}
+                - name: PROBE_TIMEOUT_SEC
+                  value: {{ .Values.housekeeper.probeTimeoutSeconds | quote }}
+                - name: CLAIM_SELECTOR
+                  value: {{ .Values.housekeeper.claimSelector | quote }}
+                - name: POD_SELECTOR
+                  value: {{ .Values.housekeeper.podSelector | quote }}
+              command: ["/bin/sh", "/scripts/sweep.sh"]
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
           volumes:
+            - name: script
+              configMap:
+                name: {{ include "sandbox-env.housekeeperName" . }}-script
+                defaultMode: 0555
+                items:
+                  - key: sweep.sh
+                    path: sweep.sh
             - name: tmp
               emptyDir: {}
 {{- end }}

@@ -236,33 +236,69 @@ mesh:
     app.kubernetes.io/instance: "deco-studio"
 
 # ── idle-reap housekeeper ──────────────────────────────────────────────
-# CronJob that probes each Ready sandbox daemon's /_decopilot_vm/idle and
-# deletes claims idle longer than idleTtlSeconds. Also clears claims stuck
-# in ReconcilerError. Probe failures are SKIPPED (not reaped) — see
-# templates/sandbox-housekeeper.yaml header for the full rationale.
+# CronJob that sweeps studio sandboxes:
+#   1. Reaps claims stuck in ReconcilerError (operator-side broken).
+#   2. Probes /_decopilot_vm/idle on each Ready claim's daemon. Idle ≥
+#      idleTtlSeconds → re-probe → delete (the re-probe narrows the
+#      activity-during-reap race).
+#   3. Tracks consecutive probe failures via annotation. Failures older
+#      than stuckReadyTtlSeconds escalate to a StuckReady reap (catches
+#      wedged daemons that present TCP but don't respond meaningfully).
+# A Kubernetes Event is emitted on every reap so post-mortem via
+# `kubectl get events` works after the claim object is gone.
 #
-# Enable in exactly ONE env release per namespace — SandboxClaims carry no
-# env label so every active housekeeper sweeps all studio claims in
-# agent-sandbox-system.
+# Multi-housekeeper warning: SandboxClaims today carry no env label, so
+# every enabled housekeeper sweeps the SAME set of claims. Enable in
+# exactly ONE env release per cluster. See README for the per-env scoping
+# follow-up.
 housekeeper:
   enabled: false
-  # Seconds of inactivity before a claim is deleted. Should match (or be
+
+  # Cron expression. Default sweeps every 5 min; with the 15 min idle TTL
+  # below this gives at most ~5 min of "stale-idle overshoot" before reap.
+  schedule: "*/5 * * * *"
+
+  # Seconds of inactivity before a claim is reaped. Should match (or be
   # shorter than) DEFAULT_IDLE_TTL_MS in mesh's runner.ts (default 900s).
   idleTtlSeconds: 900
-  # How often to sweep. Every 5min gives ≤5min overshoot on a 15min TTL.
-  schedule: "*/5 * * * *"
-  # Hard job deadline. The script now batches API calls (1 list of claims +
-  # 1 list of pods) instead of 4 per-claim, so the bottleneck is the curl
-  # probe at ~1.5s/claim worst-case. 600s ≈ 400 sandboxes with headroom.
+
+  # Consecutive probe-failure window before a Ready-but-unreachable claim
+  # is escalated to a StuckReady reap. Default 30 min: long enough to
+  # outlast typical CNI/NetworkPolicy churn, short enough that a wedged
+  # daemon doesn't sit until the operator's hard ceiling.
+  stuckReadyTtlSeconds: 1800
+
+  # Per-probe curl --max-time. The healthy daemon responds in <50ms; this
+  # only matters for the failure path. Two attempts (one retry) cap total
+  # probe latency at ~2× this value plus retry-delay.
+  probeTimeoutSeconds: 2
+
+  # Hard job deadline. The script batches API calls (1 list of claims +
+  # 1 list of pods) so the bottleneck is curl probes at ~1.5s/claim
+  # worst-case. 600s ≈ 400 sandboxes/sweep with headroom.
   activeDeadlineSeconds: 600
+
+  # Recover missed slots when controller-manager was down at the
+  # scheduled time. 240s = 4 min of grace before the slot is abandoned.
+  startingDeadlineSeconds: 240
+
+  # Clean up finished pod objects faster than failedJobsHistoryLimit.
+  ttlSecondsAfterFinished: 300
+
+  # Label selectors that match what mesh stamps on claims and pods. Mirrors
+  # buildClaim in packages/sandbox/server/runner/agent-sandbox/runner.ts.
+  # Override only if mesh's selector changes — the two MUST stay in sync.
+  claimSelector: "app.kubernetes.io/managed-by=studio,app.kubernetes.io/name=studio-sandbox"
+  podSelector: "studio.decocms.com/role=claimed"
+
   # Pinned for reproducibility — `latest` would silently change behavior
-  # at the next scheduled run. Bump on a deliberate version refresh.
+  # at the next scheduled run. Bump deliberately.
   image:
     repository: bitnami/kubectl
     tag: "1.32"
     pullPolicy: IfNotPresent
+
   # Tight by design: the script does N kubectl calls + N curls and exits.
-  # Scale up only if you observe OOMKills under high claim counts.
   resources:
     requests:
       cpu: 50m
