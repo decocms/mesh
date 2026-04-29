@@ -1,6 +1,5 @@
 import { AgentsList } from "@/web/components/home/agents-list.tsx";
 import { Chat } from "@/web/components/chat";
-import { IdleChatStreamProvider } from "@/web/components/chat/chat-context";
 import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import { authClient } from "@/web/lib/auth-client";
@@ -75,14 +74,6 @@ function useIsDecoUser() {
 }
 
 export function HomePage() {
-  return (
-    <IdleChatStreamProvider>
-      <HomePageContent />
-    </IdleChatStreamProvider>
-  );
-}
-
-function HomePageContent() {
   const { data: session } = authClient.useSession();
   const [importOpen, setImportOpen] = useState(false);
   const isDecoUser = useIsDecoUser();
