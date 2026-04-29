@@ -12,8 +12,8 @@ Renders:
   ServiceAccount of THIS env's studio install)
 - `NetworkPolicy` `studio-sandbox-<envName>` (per-env podSelector)
 - `SandboxWarmPool` `studio-sandbox-<envName>` (optional)
-- `Gateway` + `HTTPRoute` + `Certificate`
-  `agent-sandbox-preview-<envName>` (optional)
+- `Gateway` + `Certificate` `agent-sandbox-preview-<envName>` (optional;
+  per-claim HTTPRoutes are minted by the mesh runner, not by this chart)
 
 Requires the [`sandbox-operator`](../sandbox-operator/) chart to already be
 installed (it ships the CRDs + controller).
@@ -77,6 +77,14 @@ configMap:
     STUDIO_SANDBOX_RUNNER: "agent-sandbox"
     STUDIO_SANDBOX_TEMPLATE_NAME: "studio-sandbox-staging"
     STUDIO_SANDBOX_PREVIEW_URL_PATTERN: "https://{handle}.preview.staging.example.com"
+    # Per-claim HTTPRoute attaches to this Gateway. Both required whenever
+    # previewGateway.enabled=true — without them mesh falls back to its
+    # in-process preview proxy, which the chart no longer wires up.
+    # NAMESPACE must match `previewGateway.namespace` from the chart values
+    # (no default — different gateway controllers live in different
+    # namespaces, and a wrong default would silently fail to attach).
+    STUDIO_SANDBOX_PREVIEW_GATEWAY_NAME: "agent-sandbox-preview-staging"
+    STUDIO_SANDBOX_PREVIEW_GATEWAY_NAMESPACE: "istio-system"
 ```
 
 ### ArgoCD Application (one per env)
@@ -127,7 +135,7 @@ sandbox-env/
     ├── sandbox-network-policy.yaml      # NetworkPolicy on sandbox pods (per-env)
     ├── sandbox-rbac.yaml                # Role + cross-ns RoleBinding to mesh SA
     ├── sandbox-preview-cert.yaml        # cert-manager Certificate (optional)
-    └── sandbox-preview-gateway.yaml     # Gateway + HTTPRoute (optional)
+    └── sandbox-preview-gateway.yaml     # Gateway only — per-claim HTTPRoutes are minted by mesh
 ```
 
 ## Values
@@ -148,6 +156,6 @@ See `values.yaml` for the full set. The most-tuned ones:
 | `previewGateway.enabled` | `false` | wildcard `*.preview.<domain>` Gateway + cert |
 | `mesh.namespace` | `deco-studio` | studio release namespace (this env's) |
 | `mesh.serviceAccountName` | `deco-studio` | mesh ServiceAccount that gets the RoleBinding |
-| `mesh.serviceName` | `deco-studio` | mesh Service the preview HTTPRoute targets |
-| `mesh.servicePort` | `80` | match studio's `service.port` |
+| `mesh.serviceName` | `deco-studio` | _deprecated, unused since per-claim HTTPRoutes_ |
+| `mesh.servicePort` | `80` | _deprecated, unused since per-claim HTTPRoutes_ |
 | `mesh.podSelectorLabels` | `chart-deco-studio` / `deco-studio` | for the NetworkPolicy ingress rule |

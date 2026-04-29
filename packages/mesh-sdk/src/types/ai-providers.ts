@@ -57,6 +57,11 @@ export interface AiProviderKey {
   id: string;
   providerId: ProviderId;
   label: string;
+  /**
+   * Frontend preset id (e.g. "litellm", "ollama") for openai-compatible keys
+   * that were created from a branded preset card. Null otherwise.
+   */
+  presetId: string | null;
   createdBy: string;
   createdAt: string;
 }

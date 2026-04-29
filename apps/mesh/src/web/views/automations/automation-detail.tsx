@@ -41,7 +41,7 @@ import {
   XClose,
   Zap,
 } from "@untitledui/icons";
-import { Suspense, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
 import type { Metadata } from "@/web/components/chat/types.ts";
@@ -318,6 +318,10 @@ export function SettingsTab({
   const editorInitializedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tiptapDirtyRef = useRef(false);
+  // The save runs from a debounced setTimeout. Reading state through a closure
+  // there would give us the value from the render that scheduled the timer,
+  // not the latest keystroke — that's how trailing characters got lost.
+  const tiptapDocRef = useRef<Metadata["tiptapDoc"]>(initialTiptapDoc);
 
   const handleImprovePrompt = () => {
     const parts = derivePartsFromTiptapDoc(tiptapDoc);
@@ -411,6 +415,7 @@ export function SettingsTab({
     tiptapDirtyRef.current = false;
 
     const values = form.getValues();
+    const tiptapDocAtSave = tiptapDocRef.current;
     try {
       const coercedCredentialId =
         values.credential_id && values.model_id ? values.credential_id : "";
@@ -430,7 +435,7 @@ export function SettingsTab({
             id: coercedModelId,
           },
         },
-        messages: tiptapDocToMessages(tiptapDoc),
+        messages: tiptapDocToMessages(tiptapDocAtSave),
         temperature: 0,
       };
       await updateMutation.mutateAsync(updatePayload);
@@ -450,11 +455,20 @@ export function SettingsTab({
         EDIT_SESSION_QUIET_MS,
       );
 
-      form.reset({
-        ...values,
-        credential_id: coercedCredentialId,
-        model_id: coercedModelId,
-      });
+      // keepDirtyValues: any field the user kept editing during the in-flight
+      // mutation stays at its current value AND keeps its dirty flag, so the
+      // queued debouncedSave actually persists those edits on its next fire.
+      // Without this, reset would clear dirty state and the next saveForm
+      // would early-return on hasDirtyFields=false, stranding the keystrokes
+      // in the UI but never sending them to the server.
+      form.reset(
+        {
+          ...values,
+          credential_id: coercedCredentialId,
+          model_id: coercedModelId,
+        },
+        { keepDirtyValues: true },
+      );
       return true;
     } catch {
       tiptapDirtyRef.current = true;
@@ -462,19 +476,31 @@ export function SettingsTab({
     }
   };
 
+  // Always-fresh ref to saveForm so debounced timers and the form-watch
+  // subscription (which is registered once) call the latest closure that reads
+  // current state, not whichever closure happened to be in scope at scheduling
+  // time.
+  const saveFormRef = useRef(saveForm);
+  saveFormRef.current = saveForm;
+
   const debouncedSave = () => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      saveForm();
+      saveTimerRef.current = null;
+      saveFormRef.current();
     }, 1000);
   };
 
   const flushAndSave = async () => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    return saveForm();
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    return saveFormRef.current();
   };
 
   const setTiptapDoc = (doc: Metadata["tiptapDoc"]) => {
+    tiptapDocRef.current = doc;
     setTiptapDocRaw(doc);
     if (!editorInitializedRef.current) {
       editorInitializedRef.current = true;
@@ -491,6 +517,19 @@ export function SettingsTab({
       debouncedSave();
     });
   }
+
+  // Flush any pending save on unmount so navigating away within the 1s
+  // debounce window doesn't drop the last edit.
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+        saveFormRef.current();
+      }
+    };
+  }, []);
 
   const handleRunClick = async () => {
     track("automation_test_clicked", {

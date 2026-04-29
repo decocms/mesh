@@ -6,6 +6,7 @@ import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { usePanelActions } from "@/web/layouts/shell-layout";
+import { User } from "@/web/components/user/user";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 
 import {
@@ -1597,6 +1598,23 @@ Define step-by-step how the agent should handle requests.
                 </span>
                 Connect
               </Button>
+            </div>
+
+            {/* Creator metadata */}
+            <div className="flex items-center gap-2 -mt-6 text-muted-foreground">
+              <User
+                id={virtualMcp.created_by}
+                size="2xs"
+                className="text-sm text-muted-foreground"
+              />
+              <span className="text-muted-foreground/50 text-sm">·</span>
+              <span className="text-sm">
+                {new Date(virtualMcp.created_at).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </span>
             </div>
 
             {/* Connections section */}

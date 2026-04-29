@@ -138,15 +138,23 @@ warmPool:
   size: 0
 
 # ── preview URL gateway (optional) ─────────────────────────────────────
-# Wildcard preview-URL ingress (Approach B in the K8s sandbox plan).
-# Renders an Istio Gateway + HTTPRoute that send all *.preview.<domain>
-# traffic to the mesh Service; mesh recognises the Host header and
-# reverse-proxies to the matching sandbox's daemon at port 9000 (daemon,
-# not dev port 3000 — the daemon's reverse proxy injects the HMR
-# bootstrap + strips CSP that the iframe needs).
+# Wildcard preview-URL ingress. Renders an Istio Gateway (HTTPS, terminates
+# `*.<domain>`) + a cert-manager Certificate. Per-claim HTTPRoutes are NOT
+# rendered here — the mesh runner mints one HTTPRoute per SandboxClaim in
+# `agent-sandbox-system` and tears it down on claim delete, so each preview
+# URL routes directly to its sandbox Service:9000. Mesh is no longer in
+# the data path; it only writes the routing config.
+#
+# Wiring on the studio side (chart-deco-studio configMap.meshConfig):
+#   STUDIO_SANDBOX_PREVIEW_URL_PATTERN: "https://{handle}.<domain>"
+#   STUDIO_SANDBOX_PREVIEW_GATEWAY_NAME: "agent-sandbox-preview-<envName>"
+#   STUDIO_SANDBOX_PREVIEW_GATEWAY_NAMESPACE: "<previewGateway.namespace>"
+# Without those, mesh falls back to in-process proxying via its own Service
+# (the previous design). That fallback also requires a separate cluster-wide
+# HTTPRoute that this chart no longer creates.
 #
 # Manual prerequisites (not templated):
-#   1. DNS: Cloudflare (or other) wildcard `*.preview.<domain>` → cluster
+#   1. DNS: Cloudflare (or other) wildcard `*.<domain>` → cluster
 #      external LB hostname.
 #   2. cert-manager ClusterIssuer for the wildcard cert. DNS-01 is
 #      required (HTTP-01 doesn't work for wildcards). Set `clusterIssuer`
@@ -188,11 +196,13 @@ mesh:
   # SandboxClaim CRUD + portforward against agent-sandbox-system.
   # Conventionally the studio release name (chart.fullname).
   serviceAccountName: "deco-studio"
-  # Name of the mesh Service the preview HTTPRoute forwards traffic to.
-  # Conventionally the studio release name.
+  # DEPRECATED: previously the cluster-wide preview HTTPRoute backendRef'd
+  # the mesh Service so mesh could reverse-proxy preview traffic in
+  # process. The chart no longer renders that HTTPRoute (per-claim routes
+  # are minted by mesh and bypass mesh as a proxy), so these are unused.
+  # Kept to avoid breaking values overrides on existing installs; will be
+  # removed in a future chart version.
   serviceName: "deco-studio"
-  # Port on the mesh Service the preview HTTPRoute targets. Match
-  # studio's `service.port` (default 80).
   servicePort: 80
   # Pod selector labels that identify mesh pods for the NetworkPolicy
   # ingress rule. Should match the studio chart's selectorLabels.

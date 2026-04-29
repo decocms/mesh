@@ -24,7 +24,12 @@ import {
   type KubeConfig,
   type V1Status as V1StatusUpstream,
 } from "@kubernetes/client-node";
-import { K8S_CONSTANTS, SandboxError, SandboxTimeoutError } from "./constants";
+import {
+  K8S_CONSTANTS,
+  SandboxAlreadyExistsError,
+  SandboxError,
+  SandboxTimeoutError,
+} from "./constants";
 
 type V1Status = Partial<V1StatusUpstream> & { reason?: string };
 
@@ -86,6 +91,20 @@ export interface SandboxResource {
     name?: string;
     labels?: Record<string, string>;
     annotations?: Record<string, string>;
+    /**
+     * Set by the API server when a delete is in flight. While the resource
+     * still has finalizers, GETs return the object with this field populated
+     * and a Ready=False condition. The runner uses this to detect the
+     * terminating window and avoid recreating into a 409 AlreadyExists.
+     */
+    deletionTimestamp?: string;
+    /**
+     * Finalizer keys the API server must see drained before it actually
+     * removes the resource. Surfaced so the runner can log which controller
+     * is blocking deletion when `waitForSandboxClaimGone` times out — that's
+     * the difference between "operator is slow" and "operator is broken".
+     */
+    finalizers?: string[];
   };
   /**
    * Present when this came back from `getSandboxClaim` (CRD has a spec);
@@ -174,9 +193,14 @@ interface KubeFetchInit {
   headers?: Record<string, string>;
   /**
    * Required iff `method === "PATCH"`. Drives the patch content-type:
-   * RFC 7396 merge-patch (CRDs) vs. strategic-merge (built-in types).
+   *   - `merge`           — RFC 7396 merge-patch (default; CRDs).
+   *   - `strategic-merge` — strategic-merge-patch (built-in types).
+   *   - `apply`           — Server-Side Apply (declarative; tracks field
+   *                         ownership via `?fieldManager=<name>`). Caller
+   *                         is responsible for appending `fieldManager`
+   *                         (and optionally `force=true`) to `path`.
    */
-  patchType?: "merge" | "strategic-merge";
+  patchType?: "merge" | "strategic-merge" | "apply";
 }
 
 /**
@@ -191,10 +215,16 @@ async function kubeFetch(
   const auth = await resolveKubeAuth(kc);
   const headers: Record<string, string> = { ...auth.headers, ...init.headers };
   if (init.method === "PATCH") {
+    // SSA's canonical content-type is `application/apply-patch+yaml`; the
+    // API server treats JSON as a strict YAML subset, so we serialize the
+    // body as JSON and label it `+yaml` for compat with K8s <1.32 (the
+    // `+json` variant only landed in 1.32).
     headers["content-type"] =
-      init.patchType === "strategic-merge"
-        ? "application/strategic-merge-patch+json"
-        : "application/merge-patch+json";
+      init.patchType === "apply"
+        ? "application/apply-patch+yaml"
+        : init.patchType === "strategic-merge"
+          ? "application/strategic-merge-patch+json"
+          : "application/merge-patch+json";
   } else if (init.body !== undefined && !("content-type" in headers)) {
     headers["content-type"] = "application/json";
   }
@@ -271,14 +301,82 @@ export async function createSandboxClaim(
   claim: SandboxClaim,
 ): Promise<void> {
   const path = `${CLAIM_PATH_PREFIX}/${encodeURIComponent(namespace)}/${K8S_CONSTANTS.CLAIM_PLURAL}`;
+  let resp: Response;
   try {
-    const resp = await kubeFetch(kc, { method: "POST", path, body: claim });
-    await ensureOk(resp, "createSandboxClaim");
+    resp = await kubeFetch(kc, { method: "POST", path, body: claim });
   } catch (error) {
     throw new SandboxError(
       `Failed to create SandboxClaim: ${claim.metadata.name}`,
       error,
     );
+  }
+  if (resp.ok) return;
+  // The status + reason + message must reach the surface — when the user
+  // sees "Failed to create SandboxClaim" with no further context, we have no
+  // way to tell whether this was a 409 finalizer-drain race (recoverable),
+  // a 422 admission-webhook rejection (claim shape problem), a 403/RBAC, or
+  // a stuck-terminating claim that the operator never finishes deleting.
+  const body = await readStatusBody(resp);
+  const reason = body?.reason ? ` ${body.reason}` : "";
+  const detail = body?.message ?? resp.statusText;
+  const summary = `Failed to create SandboxClaim: ${claim.metadata.name} (${resp.status}${reason}: ${detail})`;
+  // Server-side log mirrors the surface error and adds the response body so
+  // operators triaging an incident can tell which K8s subsystem rejected
+  // the create even if the only artifact in front of them is the user's
+  // toast/MCP response.
+  console.warn(
+    `[agent-sandbox/client] createSandboxClaim ${claim.metadata.name} rejected: status=${resp.status} reason=${body?.reason ?? "<none>"} message=${detail}`,
+  );
+  // 409 is split out so the runner can wait for the still-terminating prior
+  // claim to drain finalizers and retry. This is the canonical race when the
+  // operator's idle-TTL just reaped a claim and mesh's next ensure() hits
+  // before the resource is fully GC'd. Stuck-finalizer cases also surface as
+  // 409 but never recover from a wait — those need operator intervention.
+  if (resp.status === 409) {
+    throw new SandboxAlreadyExistsError(summary);
+  }
+  throw new SandboxError(summary);
+}
+
+/**
+ * Poll until the named SandboxClaim no longer exists in the API server (i.e.
+ * its DELETE has drained all finalizers and the API server has GC'd the
+ * resource). Returns immediately if the claim is already gone.
+ *
+ * The agent-sandbox operator's idle-TTL deletes the claim, but pod teardown +
+ * any per-claim finalizers can take several seconds. Recreating during that
+ * window 409s; this helper bridges the gap so the runner's recreate path is
+ * deterministic instead of probabilistic. Polling at 500ms keeps the recovery
+ * latency low without hammering the API server (≤120 requests over a 60s
+ * window).
+ */
+export async function waitForSandboxClaimGone(
+  kc: KubeConfig,
+  namespace: string,
+  claimName: string,
+  timeoutMs = 60_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  const intervalMs = 500;
+  let lastClaim: SandboxResource | undefined;
+  while (true) {
+    const claim = await getSandboxClaim(kc, namespace, claimName).catch(
+      () => undefined,
+    );
+    if (!claim) return;
+    lastClaim = claim;
+    if (Date.now() >= deadline) {
+      // Include the deletionTimestamp + finalizer set in the error: a
+      // stuck finalizer is the most plausible non-recoverable cause and
+      // distinguishes "operator is slow" from "operator dropped the claim
+      // on the floor and won't ever finish".
+      const finalizers = lastClaim.metadata?.finalizers ?? [];
+      const since = lastClaim.metadata?.deletionTimestamp ?? "<unknown>";
+      throw new SandboxTimeoutError(
+        `SandboxClaim ${claimName} still terminating after ${timeoutMs}ms (deletionTimestamp=${since}, finalizers=[${finalizers.join(", ")}])`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
 }
 
@@ -348,6 +446,217 @@ export async function getSandboxClaim(
     "json",
   );
   return found ?? undefined;
+}
+
+// ---- HTTPRoute (Gateway API) ------------------------------------------------
+
+/**
+ * Minimal HTTPRoute shape for per-claim preview routing. Mirrors the v1
+ * Gateway API surface, scoped to the fields the runner writes — listener
+ * attachment via `parentRefs`, exact-host match via `hostnames`, and a
+ * single same-namespace `backendRefs` to the operator-created Service.
+ *
+ * Cross-namespace backendRefs are deliberately not modeled: HTTPRoute and
+ * Service both live in `agent-sandbox-system`, which avoids the
+ * ReferenceGrant dance.
+ */
+export interface HttpRoute {
+  apiVersion: string;
+  kind: "HTTPRoute";
+  metadata: {
+    name: string;
+    namespace?: string;
+    labels?: Record<string, string>;
+    annotations?: Record<string, string>;
+  };
+  spec: {
+    parentRefs: Array<{
+      kind?: "Gateway";
+      group?: "gateway.networking.k8s.io";
+      name: string;
+      namespace: string;
+      sectionName?: string;
+    }>;
+    hostnames: string[];
+    rules: Array<{
+      backendRefs: Array<{
+        group?: "";
+        kind?: "Service";
+        name: string;
+        port: number;
+      }>;
+    }>;
+  };
+}
+
+const HTTPROUTE_API_GROUP = "gateway.networking.k8s.io";
+const HTTPROUTE_API_VERSION = "v1";
+const HTTPROUTE_PLURAL = "httproutes";
+const HTTPROUTE_PATH_PREFIX = `/apis/${HTTPROUTE_API_GROUP}/${HTTPROUTE_API_VERSION}/namespaces`;
+
+function httpRoutePath(namespace: string, routeName: string): string {
+  return `${HTTPROUTE_PATH_PREFIX}/${encodeURIComponent(namespace)}/${HTTPROUTE_PLURAL}/${encodeURIComponent(routeName)}`;
+}
+
+function httpRouteCollectionPath(namespace: string): string {
+  return `${HTTPROUTE_PATH_PREFIX}/${encodeURIComponent(namespace)}/${HTTPROUTE_PLURAL}`;
+}
+
+/**
+ * Create an HTTPRoute. 409 (AlreadyExists) is swallowed because the runner
+ * calls this from both the fresh-provision path and the adopt-backfill
+ * path — a pre-existing route from an earlier provision attempt is the
+ * intended steady state, not an error.
+ */
+export async function createHttpRoute(
+  kc: KubeConfig,
+  namespace: string,
+  route: HttpRoute,
+): Promise<void> {
+  try {
+    const resp = await kubeFetch(kc, {
+      method: "POST",
+      path: httpRouteCollectionPath(namespace),
+      body: route,
+    });
+    if (resp.status === 409) return;
+    await ensureOk(resp, "createHttpRoute");
+  } catch (error) {
+    if (error instanceof KubeHttpError && error.status === 409) return;
+    throw new SandboxError(
+      `Failed to create HTTPRoute: ${route.metadata.name}`,
+      error,
+    );
+  }
+}
+
+export async function deleteHttpRoute(
+  kc: KubeConfig,
+  namespace: string,
+  routeName: string,
+): Promise<void> {
+  await callSwallowing404(
+    kc,
+    { method: "DELETE", path: httpRoutePath(namespace, routeName) },
+    "deleteHttpRoute",
+    `Failed to delete HTTPRoute: ${routeName}`,
+  );
+}
+
+export async function getHttpRoute(
+  kc: KubeConfig,
+  namespace: string,
+  routeName: string,
+): Promise<HttpRoute | undefined> {
+  const found = await callSwallowing404<HttpRoute>(
+    kc,
+    { method: "GET", path: httpRoutePath(namespace, routeName) },
+    "getHttpRoute",
+    `Failed to get HTTPRoute: ${routeName}`,
+    "json",
+  );
+  return found ?? undefined;
+}
+
+export const HTTPROUTE_CONSTANTS = {
+  API_GROUP: HTTPROUTE_API_GROUP,
+  API_VERSION: HTTPROUTE_API_VERSION,
+  PLURAL: HTTPROUTE_PLURAL,
+} as const;
+
+// ---- Service port patching -------------------------------------------------
+
+/**
+ * Field-manager identity asserted on Server-Side Apply calls. K8s tracks
+ * ownership per-field by this string; reusing it across calls (and across
+ * mesh restarts) is what lets the second SSA see "I already own ports[]"
+ * and treat it as a no-op rather than a conflict.
+ */
+const SSA_FIELD_MANAGER = "mesh-sandbox-runner";
+
+/**
+ * Server-Side Apply a single named port onto a core Service. Establishes
+ * `mesh-sandbox-runner` as the field manager for `spec.ports[name=daemon]`,
+ * which prevents the operator's reconciler from silently reverting the
+ * field on its next pass.
+ *
+ * Why this exists: agent-sandbox v0.4.x creates per-Sandbox Services with
+ * `spec.ports: []` — the operator assumes callers reach pods via direct
+ * pod-IP DNS (`<pod>.<svc>.<ns>.svc.cluster.local`). Istio's k8s service
+ * registry only builds an upstream cluster when the Service has at least
+ * one declared port. With an empty ports list, an HTTPRoute backed by that
+ * Service is "Accepted" by the gateway controller but routes to nowhere:
+ * Envoy returns 500 with no body, which the browser misreports as a CORS
+ * error (because the empty 500 also has no `access-control-allow-origin`).
+ *
+ * Why SSA over strategic-merge-patch:
+ *   - SSA establishes mesh as the *owner* of `spec.ports`. If a future
+ *     operator revision performs a full Update of the Service (Get →
+ *     mutate → Put), the API server rejects the conflicting write unless
+ *     the operator explicitly forces — which would surface in operator
+ *     logs as a managed-fields conflict rather than silently breaking
+ *     routing in production.
+ *   - Re-applying the same body is a guaranteed no-op (the API server
+ *     diffs against our recorded managed-fields), so the call is safe
+ *     to issue from both fresh provision and adopt-backfill paths
+ *     without any caller-side "already applied?" check.
+ *
+ * `force=true` is set so the *first* apply takes ownership even if the
+ * operator initially set `ports: []` under its own field manager. After
+ * the first call, the API server records us as the owner and subsequent
+ * applies are no-ops.
+ *
+ * 404 is NOT swallowed: a missing Service when we expected one indicates
+ * a race against operator Service creation, which the caller should
+ * surface and potentially retry.
+ */
+export async function ensureServicePort(
+  kc: KubeConfig,
+  namespace: string,
+  serviceName: string,
+  port: {
+    name: string;
+    port: number;
+    targetPort: number;
+    protocol?: "TCP" | "UDP";
+  },
+): Promise<void> {
+  // SSA requires apiVersion + kind + metadata.name in the body so the API
+  // server can resolve the target type without reading it from the path.
+  const body = {
+    apiVersion: "v1",
+    kind: "Service",
+    metadata: { name: serviceName },
+    spec: {
+      ports: [
+        {
+          name: port.name,
+          port: port.port,
+          targetPort: port.targetPort,
+          protocol: port.protocol ?? "TCP",
+        },
+      ],
+    },
+  };
+  const query = new URLSearchParams({
+    fieldManager: SSA_FIELD_MANAGER,
+    force: "true",
+  });
+  const path = `/api/v1/namespaces/${encodeURIComponent(namespace)}/services/${encodeURIComponent(serviceName)}?${query}`;
+  try {
+    const resp = await kubeFetch(kc, {
+      method: "PATCH",
+      path,
+      patchType: "apply",
+      body,
+    });
+    await ensureOk(resp, "ensureServicePort");
+  } catch (error) {
+    throw new SandboxError(
+      `Failed to apply Service ports: ${serviceName}`,
+      error,
+    );
+  }
 }
 
 export interface WaitForSandboxReadyResult {
