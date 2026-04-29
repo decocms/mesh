@@ -106,6 +106,31 @@ tolerations: []
 # nodeSelector can't express. Empty default = scheduler picks.
 affinity: {}
 
+# Topology spread constraints merged into the sandbox PodSpec. Useful
+# for spreading sandbox pods across availability zones so a single-AZ
+# spot reclaim doesn't take the whole pool out at once. Empty default
+# = no spread (scheduler / Karpenter cost-bias may concentrate pods in
+# one AZ).
+#
+# When using this, the labelSelector must match the per-env pod label
+# stamped by this chart (see templates/sandbox-template.yaml):
+#   app.kubernetes.io/name: studio-sandbox-<envName>
+#
+# Recommended for production:
+#
+# topologySpreadConstraints:
+#   - maxSkew: 1
+#     topologyKey: topology.kubernetes.io/zone
+#     # ScheduleAnyway, not DoNotSchedule — we don't want a sandbox
+#     # claim to fail because Karpenter hasn't yet provisioned a node
+#     # in the second AZ. The constraint is a soft preference; over
+#     # time pods drift toward an even spread as new nodes come up.
+#     whenUnsatisfiable: ScheduleAnyway
+#     labelSelector:
+#       matchLabels:
+#         app.kubernetes.io/name: studio-sandbox-<envName>
+topologySpreadConstraints: []
+
 # ── sandbox-pod hardening ──────────────────────────────────────────────
 # User namespace remap (`spec.hostUsers: false`): UID 1000 inside the pod
 # maps to a high, unprivileged subordinate UID on the node, so a

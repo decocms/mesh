@@ -9,6 +9,12 @@ description: |
   releases coexist in the shared `agent-sandbox-system` namespace.
   Requires the sandbox-operator chart to already be installed.
 type: application
+# 0.4.0: SandboxTemplate now passes `topologySpreadConstraints` from
+# values into the pod spec. Empty default preserves prior behaviour.
+# Use it to spread sandbox pods across AZs so a single-AZ spot reclaim
+# doesn't take half the pool out simultaneously — see values.yaml for
+# the recommended config.
+#
 # 0.3.0: mesh runner now Server-Side Applies `port: 9000` onto each
 # operator-created Service after the SandboxClaim becomes Ready, taking
 # ownership of `spec.ports[name=daemon]` under field manager
@@ -30,7 +36,7 @@ type: application
 # an ingress rule from `previewGateway.namespace` to sandbox port 9000.
 # Upgraders MUST bump mesh to the matching version that creates per-claim
 # HTTPRoutes — otherwise preview URLs stop resolving.
-version: 0.3.0
+version: 0.4.0
 # appVersion tracks the studio-sandbox image version (image.tag default).
 appVersion: "0.1.0"
 kubeVersion: ">=1.30.0-0"

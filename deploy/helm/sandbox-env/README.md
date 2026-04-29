@@ -149,6 +149,7 @@ See `values.yaml` for the full set. The most-tuned ones:
 | `image.tag` | chart `appVersion` | bump in lockstep with packages/sandbox/package.json |
 | `resources.*` | 0.5/2 CPU, 1/4Gi RAM | per sandbox pod |
 | `nodeSelector` / `tolerations` / `affinity` | `{}` | for sandbox isolation NodePool |
+| `topologySpreadConstraints` | `[]` | spread sandbox pods across AZs; see `values.yaml` for the recommended config |
 | `hostUsers` | `false` | userns remap; flip to `true` if kernel/containerd doesn't support userns |
 | `readOnlyRootFilesystem` | `true` | RO rootfs + emptyDirs on /app, /tmp, /home |
 | `networkPolicy.enabled` | `true` | locks down ingress/egress |
