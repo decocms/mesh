@@ -3,6 +3,7 @@ import { K8S_CONSTANTS } from "./constants";
 import {
   createSandboxClaim,
   deleteSandboxClaim,
+  ensureServicePort,
   getSandboxClaim,
   patchSandboxClaimShutdown,
   type SandboxClaim,
@@ -280,6 +281,84 @@ describe("patchSandboxClaimShutdown", () => {
         "2026-04-01T12:00:00.000Z",
       ),
     ).rejects.toThrow(/Failed to patch SandboxClaim shutdownTime: busy/);
+  });
+});
+
+describe("ensureServicePort", () => {
+  it("server-side applies the Service ports with field manager + force", async () => {
+    fetchImpl = async () => jsonResponse(200, { kind: "Service" });
+    await ensureServicePort(makeKc(), NS, "studio-sb-abc", {
+      name: "daemon",
+      port: 9000,
+      targetPort: 9000,
+    });
+
+    expect(fetchCalls).toHaveLength(1);
+    const [call] = fetchCalls;
+    const url = new URL(call!.url);
+    expect(url.pathname).toBe(
+      `/api/v1/namespaces/${NS}/services/studio-sb-abc`,
+    );
+    // SSA contract: fieldManager identifies the writer, force=true takes
+    // ownership of fields previously owned by another manager (the
+    // operator's empty ports[]).
+    expect(url.searchParams.get("fieldManager")).toBe("mesh-sandbox-runner");
+    expect(url.searchParams.get("force")).toBe("true");
+
+    expect(call!.init.method).toBe("PATCH");
+    const headers = call!.init.headers as Record<string, string>;
+    expect(headers["content-type"]).toBe("application/apply-patch+yaml");
+
+    // SSA bodies must be self-describing: apiVersion + kind + metadata.name
+    // are required so the API server can resolve the target without reading
+    // path params. spec.ports is the field we want to own.
+    expect(JSON.parse(String(call!.init.body))).toEqual({
+      apiVersion: "v1",
+      kind: "Service",
+      metadata: { name: "studio-sb-abc" },
+      spec: {
+        ports: [
+          { name: "daemon", port: 9000, targetPort: 9000, protocol: "TCP" },
+        ],
+      },
+    });
+  });
+
+  it("defaults protocol to TCP when not provided", async () => {
+    fetchImpl = async () => jsonResponse(200, { kind: "Service" });
+    await ensureServicePort(makeKc(), NS, "svc", {
+      name: "daemon",
+      port: 9000,
+      targetPort: 9000,
+    });
+    const body = JSON.parse(String(fetchCalls[0]!.init.body));
+    expect(body.spec.ports[0].protocol).toBe("TCP");
+  });
+
+  it("URL-encodes the service name", async () => {
+    fetchImpl = async () => jsonResponse(200, { kind: "Service" });
+    await ensureServicePort(makeKc(), NS, "weird/name", {
+      name: "daemon",
+      port: 9000,
+      targetPort: 9000,
+    });
+    expect(fetchCalls[0]!.url).toContain("/services/weird%2Fname");
+  });
+
+  it("wraps non-2xx errors in SandboxError with the service name", async () => {
+    fetchImpl = async () =>
+      jsonResponse(404, {
+        kind: "Status",
+        reason: "NotFound",
+        message: "service not found",
+      });
+    await expect(
+      ensureServicePort(makeKc(), NS, "missing", {
+        name: "daemon",
+        port: 9000,
+        targetPort: 9000,
+      }),
+    ).rejects.toThrow(/Failed to apply Service ports: missing/);
   });
 });
 

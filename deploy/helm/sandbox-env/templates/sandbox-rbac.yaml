@@ -72,6 +72,28 @@ rules:
   - apiGroups: ["gateway.networking.k8s.io"]
     resources: ["httproutes"]
     verbs: ["get", "create", "delete"]
+  # Per-claim Service port ownership. agent-sandbox v0.4.x creates the
+  # Service for each Sandbox with `spec.ports: []` (the operator's
+  # contract is that callers reach pods via direct pod-IP DNS). Istio's
+  # k8s service registry only registers an upstream cluster when the
+  # Service declares at least one port, so the runner Server-Side Applies
+  # `port: 9000` onto the Service right after the SandboxClaim becomes
+  # Ready and before creating the HTTPRoute. SSA is used over a plain
+  # PATCH so that mesh becomes the recorded field manager for
+  # `spec.ports[name=daemon]` — if a future operator revision tries to
+  # reset ports[] under its own field manager, the API server surfaces a
+  # managed-fields conflict instead of silently breaking routing in prod.
+  # Without this, the HTTPRoute is "Accepted" but Envoy has no cluster to
+  # route to and returns an empty 500 — which the browser misreports as a
+  # CORS error.
+  #
+  # `patch` is the verb K8s requires for SSA writes (apply-patch is just
+  # a content type — the verb on the subresource is still PATCH). `get`
+  # is here for parity with the HTTPRoute rule (debug visibility); the
+  # runner doesn't read Services on the hot path.
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
