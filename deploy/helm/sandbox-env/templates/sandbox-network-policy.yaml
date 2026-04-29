@@ -65,6 +65,18 @@ spec:
         - protocol: TCP
           port: 9000
     {{- end }}
+    {{- if .Values.housekeeper.enabled }}
+    # Housekeeper — probes /_decopilot_vm/idle to reap idle sandboxes.
+    # Runs in agent-sandbox-system (same ns as pods), so no namespaceSelector
+    # needed; scoped to the housekeeper pod by its app.kubernetes.io/name label.
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ include "sandbox-env.housekeeperName" . }}
+      ports:
+        - protocol: TCP
+          port: 9000
+    {{- end }}
     {{- with .Values.networkPolicy.previewGatewayNamespace }}
     # DEPRECATED — direct ingress on dev port 3000 from a configured
     # gateway namespace. Only needed for setups that route preview traffic

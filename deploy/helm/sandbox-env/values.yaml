@@ -234,3 +234,21 @@ mesh:
   podSelectorLabels:
     app.kubernetes.io/name: "chart-deco-studio"
     app.kubernetes.io/instance: "deco-studio"
+
+# ── idle-reap housekeeper ──────────────────────────────────────────────
+# CronJob that probes each Ready sandbox daemon's /_decopilot_vm/idle and
+# deletes claims idle longer than idleTtlSeconds. Also clears claims stuck
+# in ReconcilerError.
+#
+# Enable in exactly ONE env release per namespace — SandboxClaims carry no
+# env label so every active housekeeper sweeps all studio claims in
+# agent-sandbox-system.
+housekeeper:
+  enabled: false
+  # Seconds of inactivity before a claim is deleted. Should match (or be
+  # shorter than) DEFAULT_IDLE_TTL_MS in runner.ts (default 900s / 15min).
+  idleTtlSeconds: 900
+  # How often to sweep. Every 5min gives ≤5min overshoot on a 15min TTL.
+  schedule: "*/5 * * * *"
+  # Hard job deadline. 300s handles ~100 sandboxes at 2s/probe with headroom.
+  activeDeadlineSeconds: 300
