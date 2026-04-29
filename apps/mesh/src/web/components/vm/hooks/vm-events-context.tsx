@@ -1,9 +1,25 @@
 /**
- * Single SSE connection to the VM daemon, fanned out via context — one
- * EventSource instead of per-consumer (which would hit MAX_SSE_CLIENTS).
- * daemonBaseUrl is the VM's previewUrl (daemon serves /_decopilot_vm/* on
- * the same host). Provider appends `/_decopilot_vm/events`. The daemon
- * serves this surface unauthenticated.
+ * Single SSE connection to mesh's `/api/vm-events`, fanned out via context.
+ *
+ * Keyed on `(virtualMcpId, branch)` — mesh derives the userId from the
+ * authenticated session and composes the same claim handle a racing
+ * VM_START would. The stream emits in two phases on one connection:
+ *
+ *   1. `event: phase` — `ClaimPhase` JSON for the pre-Ready lifecycle.
+ *      Surfaces what's happening between VM_START posting a SandboxClaim
+ *      and the daemon coming online (capacity wait, image pull, etc).
+ *   2. `event: log/status/scripts/processes/reload/branch-status` — passthrough
+ *      from the in-pod daemon's `/_decopilot_vm/events`. Same wire format the
+ *      browser used to consume directly.
+ *
+ *   3. `event: gone` — synthetic. Mesh's upstream daemon fetch returned 404
+ *      (sandbox handle missing → operator-evicted on idle TTL). Mapped to
+ *      `notFound` which preview.tsx's self-heal flow turns into a VM_START.
+ *
+ * `ClaimPhase` is imported as a type-only reference from the canonical
+ * server-side definition; `import type` is erased at build time, so the
+ * web bundle does not pull in `@kubernetes/client-node` or any of the
+ * runner's runtime code.
  */
 
 import {
@@ -13,6 +29,13 @@ import {
   useState,
   type ReactNode,
 } from "react";
+
+import type {
+  ClaimFailureReason,
+  ClaimPhase,
+} from "@decocms/sandbox/runner/agent-sandbox";
+
+export type { ClaimFailureReason, ClaimPhase };
 
 export interface VmStatus {
   ready: boolean;
@@ -34,9 +57,17 @@ export type ChunkHandler = (source: string, data: string) => void;
 export type ReloadHandler = () => void;
 
 export interface VmEventsValue {
+  /**
+   * Latest `ClaimPhase` from the lifecycle portion of the stream. Null until
+   * the first phase arrives. Stays at `ready`/`failed` after a terminal
+   * phase — callers that want to gate UI on "boot in progress" should pair
+   * this with their own signal (e.g. VM_START in flight, previewUrl
+   * present).
+   */
+  phase: ClaimPhase | null;
   status: VmStatus;
   suspended: boolean;
-  /** 404 on daemon endpoint = handle gone; reprovision via VM_START. Cleared on daemonBaseUrl change. */
+  /** True after a `gone` event — handle gone, reprovision via VM_START. */
   notFound: boolean;
   scripts: string[];
   activeProcesses: string[];
@@ -49,6 +80,7 @@ export interface VmEventsValue {
 }
 
 const DEFAULT_VALUE: VmEventsValue = {
+  phase: null,
   status: { ready: false, htmlSupport: false },
   suspended: false,
   notFound: false,
@@ -82,14 +114,14 @@ class ChunkBuffer {
 }
 
 // Keyed on connection state (NOT event silence) — a ready dev server has
-// nothing to emit. Daemon sends a 15s SSE heartbeat to keep TCP warm so
-// EventSource.onerror fires promptly when the VM actually goes away.
+// nothing to emit. Mesh sends a 15s SSE heartbeat so EventSource.onerror
+// fires promptly when mesh or the daemon goes away.
 const SUSPENDED_AFTER_ERROR_MS = 60_000;
 
 const BASE_RECONNECT_DELAY_MS = 1_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 
-const EVENT_TYPES = [
+const DAEMON_EVENT_TYPES = [
   "log",
   "status",
   "scripts",
@@ -99,12 +131,15 @@ const EVENT_TYPES = [
 ] as const;
 
 export function VmEventsProvider({
-  daemonBaseUrl,
+  virtualMcpId,
+  branch,
   children,
 }: {
-  daemonBaseUrl: string | null;
+  virtualMcpId: string | null;
+  branch: string | null;
   children: ReactNode;
 }) {
+  const [phase, setPhase] = useState<ClaimPhase | null>(null);
   const [status, setStatus] = useState<VmStatus>({
     ready: false,
     htmlSupport: false,
@@ -114,7 +149,8 @@ export function VmEventsProvider({
   const [scripts, setScripts] = useState<string[]>([]);
   const [activeProcesses, setActiveProcesses] = useState<string[]>([]);
   const [branchStatus, setBranchStatus] = useState<BranchStatus | null>(null);
-  // Bumped on log chunks so getBuffer/hasData consumers re-render; buffer mutation alone doesn't.
+  // Bumped on log chunks so getBuffer/hasData consumers re-render; buffer
+  // mutation alone doesn't.
   const [, setLogTick] = useState(0);
 
   const buffers = useRef(new Map<string, ChunkBuffer>());
@@ -132,7 +168,8 @@ export function VmEventsProvider({
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — SSE subscription lifecycle requires cleanup on unmount; single EventSource with reconnect logic
   useEffect(() => {
-    // Reset on daemon URL change so stale data doesn't linger across branches.
+    // Reset on key change so stale data doesn't linger across branches.
+    setPhase(null);
     setStatus({ ready: false, htmlSupport: false });
     setSuspended(false);
     setNotFound(false);
@@ -141,40 +178,19 @@ export function VmEventsProvider({
     setBranchStatus(null);
     buffers.current.clear();
 
-    if (!daemonBaseUrl) return;
+    if (!virtualMcpId || !branch) return;
 
-    const sseUrl = `${daemonBaseUrl}/_decopilot_vm/events`;
+    const sseUrl =
+      `/api/vm-events?virtualMcpId=${encodeURIComponent(virtualMcpId)}` +
+      `&branch=${encodeURIComponent(branch)}`;
 
     let disposed = false;
-    let hasProbed = false;
     let reconnectAttempt = 0;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let suspendTimer: ReturnType<typeof setTimeout> | null = null;
     let es: EventSource | null = null;
-    const probeAbort = new AbortController();
-
-    // EventSource.onerror doesn't expose HTTP status; fetch once to distinguish
-    // 404 (sandbox deleted, permanent) from a transient disconnect.
-    async function probeMissing(): Promise<boolean> {
-      try {
-        const res = await fetch(sseUrl, {
-          method: "GET",
-          headers: { Accept: "text/event-stream" },
-          cache: "no-store",
-          signal: probeAbort.signal,
-        });
-        if (res.body) {
-          try {
-            await res.body.cancel();
-          } catch {
-            /* ignore */
-          }
-        }
-        return res.status === 404;
-      } catch {
-        return false;
-      }
-    }
+    /** Latched to true after a `failed` phase — terminal, no reconnect. */
+    let terminalFailure = false;
 
     const enterSuspendTimerIfIdle = () => {
       if (!suspendTimer) {
@@ -191,7 +207,49 @@ export function VmEventsProvider({
       }
     };
 
-    const handler = (e: MessageEvent) => {
+    const handlePhase = (e: MessageEvent) => {
+      try {
+        const next = JSON.parse(e.data) as ClaimPhase;
+        setPhase(next);
+        // A fresh non-terminal phase means the lifecycle is making progress
+        // again — clear notFound from a prior `gone` so the self-heal UI
+        // settles back into the booting overlay.
+        if (next.kind !== "failed") {
+          setNotFound(false);
+        }
+        if (next.kind === "failed") {
+          terminalFailure = true;
+          es?.close();
+        }
+      } catch (err) {
+        console.warn("[vm-events] bad phase payload", err);
+      }
+    };
+
+    const handleGone = () => {
+      // The sandbox is gone (idle-evicted, VM_DELETE'd, or its pod terminated
+      // and mesh has stopped finding the handle). Everything we've cached is
+      // about to be stale, so reset:
+      //   - phase: residual `ready` would otherwise keep `lifecycleActive`
+      //     stuck on "Almost ready" in the booting overlay even though
+      //     nothing is starting.
+      //   - status / scripts / processes / branchStatus / log buffers: these
+      //     describe a sandbox that no longer exists. preview.tsx's
+      //     `bootTrackedRef` keys on previewUrl, so flipping `status.ready`
+      //     to false ensures the next provisioned sandbox is treated as a
+      //     fresh boot rather than instantly-ready.
+      // `notFound = true` then drives preview.tsx's self-heal flow when a
+      // vmEntry exists; the empty "Start Server" state when it doesn't.
+      setNotFound(true);
+      setPhase(null);
+      setStatus({ ready: false, htmlSupport: false });
+      setScripts([]);
+      setActiveProcesses([]);
+      setBranchStatus(null);
+      buffers.current.clear();
+    };
+
+    const handleDaemonEvent = (e: MessageEvent) => {
       try {
         const data = JSON.parse(e.data);
 
@@ -242,7 +300,7 @@ export function VmEventsProvider({
     };
 
     function connect() {
-      if (disposed) return;
+      if (disposed || terminalFailure) return;
 
       es = new EventSource(sseUrl);
 
@@ -254,32 +312,24 @@ export function VmEventsProvider({
 
       es.onerror = () => {
         if (es?.readyState !== EventSource.CLOSED) return;
+        // After a terminal `failed` phase the connection is gone for good
+        // and the UI already shows a dedicated error state — surfacing
+        // `suspended` on top of that would just stack confusing overlays.
+        if (terminalFailure) return;
         // Timer runs only while disconnected; onopen clears it on reconnect.
         enterSuspendTimerIfIdle();
-        if (hasProbed) {
-          scheduleReconnect();
-          return;
-        }
-        hasProbed = true;
-        probeMissing().then((missing) => {
-          if (disposed) return;
-          if (missing) {
-            // Sandbox gone — stop reconnecting; caller reprovisions via VM_START,
-            // which changes daemonBaseUrl and remounts this effect.
-            setNotFound(true);
-            return;
-          }
-          scheduleReconnect();
-        });
+        scheduleReconnect();
       };
 
-      for (const type of EVENT_TYPES) {
-        es.addEventListener(type, handler);
+      es.addEventListener("phase", handlePhase);
+      es.addEventListener("gone", handleGone);
+      for (const type of DAEMON_EVENT_TYPES) {
+        es.addEventListener(type, handleDaemonEvent);
       }
     }
 
     function scheduleReconnect() {
-      if (disposed || reconnectTimer) return;
+      if (disposed || reconnectTimer || terminalFailure) return;
 
       const delay = Math.min(
         BASE_RECONNECT_DELAY_MS * 2 ** reconnectAttempt,
@@ -299,14 +349,14 @@ export function VmEventsProvider({
 
     return () => {
       disposed = true;
-      probeAbort.abort();
       es?.close();
       if (reconnectTimer) clearTimeout(reconnectTimer);
       clearSuspendTimer();
     };
-  }, [daemonBaseUrl]);
+  }, [virtualMcpId, branch]);
 
   const value: VmEventsValue = {
+    phase,
     status,
     suspended,
     notFound,

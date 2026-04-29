@@ -20,5 +20,13 @@ export type {
   SandboxResource,
   WaitForSandboxReadyResult,
 } from "./client";
-export { AgentSandboxRunner, HANDLE_PREFIX } from "./runner";
+export {
+  AgentSandboxRunner,
+  HANDLE_PREFIX,
+  composeClaimName,
+} from "./runner";
 export type { AgentSandboxRunnerOptions } from "./runner";
+// Lifecycle types live in their own module (no K8s deps) so type-only
+// consumers — notably the studio web bundle — can import them safely.
+export type { ClaimFailureReason, ClaimPhase } from "./lifecycle-types";
+export type { WatchClaimLifecycleOptions } from "./lifecycle-watcher";

@@ -39,7 +39,11 @@ import {
 } from "./visual-editor-script";
 import { VisualEditorPrompt } from "./visual-editor-prompt";
 import { useVmEvents, useVmReloadHandler } from "../hooks/use-vm-events";
-import { useVmStart, type VmStartArgs } from "../hooks/use-vm-start";
+import {
+  useIsVmStartPending,
+  useVmStart,
+  type VmStartArgs,
+} from "../hooks/use-vm-start";
 import { VmSuspendedState } from "../vm-suspended-state";
 import { VmBootingState } from "../vm-booting-state";
 import { VmErrorState } from "../vm-error-state";
@@ -92,9 +96,10 @@ export function PreviewContent() {
   const hasHtmlPreview = vmEvents.status.htmlSupport;
   const suspended = vmEvents.suspended;
 
-  // Gate iframe on upstream readiness to avoid "didn't send any data" page;
-  // keep mounted once ever-ready so HMR hiccups don't re-show the boot screen.
-  // `at` uses server-stamped vmEntry.createdAt so the timer survives remounts.
+  // Gate iframe on upstream readiness to avoid the daemon's "Server is
+  // starting..." placeholder; keep mounted once ever-ready so HMR hiccups
+  // don't re-show the boot screen. `at` uses server-stamped
+  // vmEntry.createdAt so the timer survives remounts.
   const bootTrackedRef = useRef<{ url: string; at: number; ready: boolean }>({
     url: "",
     at: 0,
@@ -129,14 +134,27 @@ export function PreviewContent() {
   });
   const startVm = useVmStart(mcpClient);
   const lastStartError = startVm.error?.message ?? null;
-  if (startVm.isPending) {
+  const vmStartPending = useIsVmStartPending(
+    virtualMcpId ?? undefined,
+    branch ?? undefined,
+  );
+  if (vmStartPending) {
     if (!startingSinceRef.current) startingSinceRef.current = Date.now();
   } else if (previewUrl) {
     startingSinceRef.current = 0;
   }
-  const starting = startVm.isPending && !previewUrl && !suspended;
+  const starting = vmStartPending && !previewUrl && !suspended;
   const autoStartedForTaskRef = useRef<string | null>(null);
   const reprovisionedForVmIdRef = useRef<string | null>(null);
+
+  const claimPhase = vmEvents.phase;
+  // Only meaningful during the pre-previewUrl gap (VM_START mutation
+  // resolved → vmMap refetch lands). Once previewUrl is set, the booting
+  // overlay is driven by `booting` and dismisses on ready=true; if we kept
+  // lifecycleActive=true here, the overlay would never dismiss because
+  // `claimPhase` stays at `ready` for the lifetime of the SSE.
+  const lifecycleActive =
+    !previewUrl && !!claimPhase && claimPhase.kind !== "failed";
 
   // ref-latest pattern: effects below depend only on upstream signals, not
   // on this closure's churning captures (branch, mutation, setter).
@@ -377,7 +395,7 @@ export function PreviewContent() {
       )}
 
       <div className="flex-1 relative overflow-hidden">
-        {!previewUrl && !starting && !lastStartError && (
+        {!previewUrl && !starting && !lastStartError && !lifecycleActive && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-background">
             <Monitor04 size={48} className="text-muted-foreground/40" />
             <h3 className="text-lg font-medium">Preview</h3>
@@ -403,7 +421,7 @@ export function PreviewContent() {
           </div>
         )}
 
-        {!lastStartError && (booting || starting) && (
+        {!lastStartError && (booting || starting || lifecycleActive) && (
           <div className="absolute inset-0 z-30 flex items-center justify-center bg-background">
             <VmBootingState
               since={
@@ -413,6 +431,8 @@ export function PreviewContent() {
               scripts={vmEvents.scripts}
               activeProcesses={vmEvents.activeProcesses}
               onViewLogs={openEnv}
+              claimPhase={previewUrl ? null : claimPhase}
+              onRetry={retryAutoStart}
             />
           </div>
         )}
