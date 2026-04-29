@@ -69,10 +69,12 @@ async function spawnCloneWithReference(deps: CloneDeps): Promise<number> {
     headMtimeMs !== null && Date.now() - headMtimeMs > MIRROR_TTL_MS;
 
   if (mirrorMissing) {
-    // Cold path: create a shallow bare clone. --depth 1 keeps the mirror
-    // small (only the latest tree) — enough for any --reference --depth 1
-    // sandbox clone. Double-checked inside the flock so concurrent pods
-    // don't race on creation.
+    // Cold path: shallow bare clone. --depth 1 is fine here because we never
+    // pass this mirror to `git clone --reference` (which rejects shallow repos
+    // with "reference repository is shallow"). Instead we wire it as an
+    // alternate manually — git looks up objects from the pack without a
+    // shallow check. Double-checked inside the flock so concurrent pods don't
+    // race on creation.
     onChunk("setup", `$ (warming git mirror for ${config.repoName})\r\n`);
     const createCmd = [
       `flock -x ${JSON.stringify(lockFile)}`,
@@ -96,10 +98,9 @@ async function spawnCloneWithReference(deps: CloneDeps): Promise<number> {
       );
     }
   } else if (mirrorStale) {
-    // TTL refresh: fetch latest refs so the mirror stays useful for new
-    // commits. Failure is non-fatal — we fall through with the stale mirror
-    // (git fills in any missing objects from origin during --dissociate).
-    // Touch HEAD after fetch so GC TTL is based on last-used time.
+    // TTL refresh. --depth 1 is consistent with creation (mirror stays shallow).
+    // Failure is non-fatal — fall through with the stale mirror.
+    // Touch HEAD after fetch so GC TTL reflects last-used time.
     onChunk("setup", `$ (refreshing git mirror for ${config.repoName})\r\n`);
     const fetchCmd = [
       `flock -x ${JSON.stringify(lockFile)}`,
@@ -109,22 +110,29 @@ async function spawnCloneWithReference(deps: CloneDeps): Promise<number> {
     await spawnShell(fetchCmd, { dropPrivileges, onChunk });
   }
 
-  // No --dissociate: without it git writes a single .git/objects/info/alternates
-  // pointer rather than copying every borrowed object from EFS into the pod.
-  // --dissociate would trigger the full Counting→Compressing→Writing phase
-  // (one NFS read per object) which is the dominant cost for cache-hit clones.
-  // The alternates reference to /mnt/cache/git/… is safe: the GC TTL (30d) far
-  // exceeds any sandbox lifetime, so objects will never disappear under a live pod.
-  onChunk(
-    "setup",
-    `$ git clone --reference ${config.repoName} ${config.appRoot}\r\n`,
-  );
+  // Manually wire the mirror as an alternates source instead of using
+  // `git clone --reference` (which rejects shallow repos). The alternates
+  // file tells git where to look for objects before contacting the remote:
+  // objects already in the mirror are served from EFS; only new/changed
+  // objects are fetched from GitHub. Works for any branch, including ones
+  // not yet in the mirror — missing objects fall through to origin.
+  const mirrorObjects = `${mirror}/objects`;
+  const appRoot = JSON.stringify(config.appRoot);
+  const alternatesDir = `${config.appRoot}/.git/objects/info`;
+  const fetchRef = JSON.stringify(config.branch ?? "HEAD");
+
+  onChunk("setup", `$ git init ${config.repoName} ${config.appRoot}\r\n`);
+
   const cloneCmd = [
-    "git clone",
-    `--reference ${JSON.stringify(mirror)}`,
-    "--depth 1",
-    config.cloneUrl,
-    config.appRoot,
+    `git init -q ${appRoot}`,
+    `&& mkdir -p ${JSON.stringify(alternatesDir)}`,
+    `&& echo ${JSON.stringify(mirrorObjects)} > ${JSON.stringify(`${alternatesDir}/alternates`)}`,
+    `&& git -C ${appRoot} remote add origin ${JSON.stringify(config.cloneUrl!)}`,
+    `&& git -C ${appRoot} fetch --depth 1 --quiet origin ${fetchRef}`,
+    `&& git -C ${appRoot} checkout FETCH_HEAD`,
+    ...(config.branch
+      ? [`&& git -C ${appRoot} branch -M ${JSON.stringify(config.branch)}`]
+      : []),
   ].join(" ");
   return spawnShell(cloneCmd, { dropPrivileges, onChunk });
 }
