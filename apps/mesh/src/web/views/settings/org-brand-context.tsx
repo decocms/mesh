@@ -19,6 +19,16 @@ import {
   Zap,
 } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@deco/ui/components/alert-dialog.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
@@ -358,10 +368,10 @@ function LogosSection({
           </div>
         </div>
       ) : hasLogos ? (
-        <div className="flex gap-2">
-          {brand.logo && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="flex flex-col gap-1.5">
             <div
-              className="flex h-16 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl"
+              className="flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl"
               style={{
                 backgroundImage:
                   "linear-gradient(45deg, #e5e7eb 25%, transparent 25%, transparent 75%, #e5e7eb 75%), linear-gradient(45deg, #e5e7eb 25%, transparent 25%, transparent 75%, #e5e7eb 75%)",
@@ -370,16 +380,23 @@ function LogosSection({
                 backgroundColor: "#fff",
               }}
             >
-              <img
-                src={brand.logo}
-                alt="Logo"
-                className="h-full w-full object-contain p-2"
-              />
+              {brand.logo ? (
+                <img
+                  src={brand.logo}
+                  alt="Logo"
+                  className="h-full w-full object-contain p-3"
+                />
+              ) : (
+                <span className="text-[10px] text-muted-foreground/70">
+                  No logo
+                </span>
+              )}
             </div>
-          )}
-          {brand.favicon && (
+            <span className="text-[10px] text-muted-foreground">Logo</span>
+          </div>
+          <div className="flex flex-col gap-1.5">
             <div
-              className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl"
+              className="flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl"
               style={{
                 backgroundImage:
                   "linear-gradient(45deg, #e5e7eb 25%, transparent 25%, transparent 75%, #e5e7eb 75%), linear-gradient(45deg, #e5e7eb 25%, transparent 25%, transparent 75%, #e5e7eb 75%)",
@@ -388,23 +405,48 @@ function LogosSection({
                 backgroundColor: "#fff",
               }}
             >
-              <img
-                src={brand.favicon}
-                alt="Favicon"
-                className="h-8 w-8 object-contain"
-              />
+              {brand.favicon ? (
+                <img
+                  src={brand.favicon}
+                  alt="Favicon"
+                  className="h-12 w-12 object-contain"
+                />
+              ) : (
+                <span className="text-[10px] text-muted-foreground/70">
+                  No favicon
+                </span>
+              )}
             </div>
-          )}
-          {brand.ogImage && (
-            <div className="h-16 flex-1 overflow-hidden rounded-xl">
-              <img
-                src={brand.ogImage}
-                alt="OG"
-                className="h-full w-full object-cover"
-                loading="lazy"
-              />
+            <span className="text-[10px] text-muted-foreground">Favicon</span>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <div
+              className="flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl"
+              style={{
+                backgroundImage:
+                  "linear-gradient(45deg, #e5e7eb 25%, transparent 25%, transparent 75%, #e5e7eb 75%), linear-gradient(45deg, #e5e7eb 25%, transparent 25%, transparent 75%, #e5e7eb 75%)",
+                backgroundSize: "8px 8px",
+                backgroundPosition: "0 0, 4px 4px",
+                backgroundColor: "#fff",
+              }}
+            >
+              {brand.ogImage ? (
+                <img
+                  src={brand.ogImage}
+                  alt="OG"
+                  className="h-full w-full object-contain"
+                  loading="lazy"
+                />
+              ) : (
+                <span className="text-[10px] text-muted-foreground/70">
+                  No SEO image
+                </span>
+              )}
             </div>
-          )}
+            <span className="text-[10px] text-muted-foreground">
+              SEO / OG image
+            </span>
+          </div>
         </div>
       ) : (
         <p className="text-sm text-muted-foreground/60">
@@ -606,14 +648,13 @@ function ExpandableBrandEntry({
   brand,
   client,
   onChanged,
-  archived,
 }: {
   brand: BrandContext;
   client: ReturnType<typeof useMCPClient>;
   onChanged: () => void;
-  archived?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(brand.isDefault ?? false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const { mutate: saveBrand } = useMutation({
     mutationFn: async (data: Partial<BrandContext>) => {
@@ -645,47 +686,42 @@ function ExpandableBrandEntry({
     onError: () => toast.error("Failed to save brand context"),
   });
 
-  const { mutate: toggleArchive, isPending: isToggling } = useMutation({
+  const { mutate: deleteBrand, isPending: isDeleting } = useMutation({
     mutationFn: async () => {
-      if (archived) {
-        // Unarchive: clear archivedAt via update
-        await client.callTool({
-          name: "BRAND_CONTEXT_UPDATE",
-          arguments: { id: brand.id, archivedAt: null },
-        });
-      } else {
-        await client.callTool({
-          name: "BRAND_CONTEXT_DELETE",
-          arguments: { id: brand.id },
-        });
-      }
+      await client.callTool({
+        name: "BRAND_CONTEXT_DELETE",
+        arguments: { id: brand.id },
+      });
     },
     onSuccess: () => {
-      track(archived ? "brand_restored" : "brand_archived", {
-        brand_id: brand.id,
-      });
+      track("brand_deleted", { brand_id: brand.id });
+      setConfirmDeleteOpen(false);
       onChanged();
-      toast.success(archived ? "Brand restored" : "Brand archived");
+      toast.success("Brand deleted");
     },
-    onError: () =>
-      toast.error(
-        archived ? "Failed to restore brand" : "Failed to archive brand",
-      ),
+    onError: () => toast.error("Failed to delete brand"),
   });
 
-  const { mutate: setAsDefault } = useMutation({
+  const { mutate: toggleDefault } = useMutation({
     mutationFn: async () => {
       await client.callTool({
         name: "BRAND_CONTEXT_UPDATE",
-        arguments: { id: brand.id, isDefault: true },
+        arguments: { id: brand.id, isDefault: !brand.isDefault },
       });
     },
     onSuccess: () => {
-      track("brand_set_as_default", { brand_id: brand.id });
+      track(
+        brand.isDefault ? "brand_unset_as_default" : "brand_set_as_default",
+        {
+          brand_id: brand.id,
+        },
+      );
       onChanged();
-      toast.success("Set as default brand");
+      toast.success(
+        brand.isDefault ? "Removed as default brand" : "Set as default brand",
+      );
     },
-    onError: () => toast.error("Failed to set default brand"),
+    onError: () => toast.error("Failed to update default brand"),
   });
 
   return (
@@ -745,84 +781,83 @@ function ExpandableBrandEntry({
           )}
         </div>
 
-        {/* Color swatches */}
-        {brand.colors && Object.values(brand.colors).some((v) => v) && (
-          <div className="flex shrink-0 gap-1">
-            {Object.entries(brand.colors)
-              .filter(([, v]) => v)
-              .map(([role, value]) => (
-                <div
-                  key={role}
-                  className="h-5 w-5 rounded-full border border-border/40"
-                  style={{ backgroundColor: value }}
-                  title={`${role}: ${value}`}
-                />
-              ))}
-          </div>
-        )}
+        {/* Color swatches — only when collapsed */}
+        {!expanded &&
+          brand.colors &&
+          Object.values(brand.colors).some((v) => v) && (
+            <div className="flex shrink-0 gap-1">
+              {Object.entries(brand.colors)
+                .filter(([, v]) => v)
+                .map(([role, value]) => (
+                  <div
+                    key={role}
+                    className="h-5 w-5 rounded-full border border-border/40"
+                    style={{ backgroundColor: value }}
+                    title={`${role}: ${value}`}
+                  />
+                ))}
+            </div>
+          )}
 
-        {/* Font names */}
-        {brand.fonts && Object.values(brand.fonts).some((v) => v) && (
-          <span className="shrink-0 text-xs text-muted-foreground">
-            {Object.values(brand.fonts).filter(Boolean).join(", ")}
-          </span>
-        )}
+        {/* Font names — only when collapsed */}
+        {!expanded &&
+          brand.fonts &&
+          Object.values(brand.fonts).some((v) => v) && (
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {Object.values(brand.fonts).filter(Boolean).join(", ")}
+            </span>
+          )}
 
         {/* Default star */}
-        {!archived && (
-          <span
-            role="button"
-            tabIndex={0}
-            className={cn(
-              "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-opacity",
-              brand.isDefault
-                ? "opacity-100"
-                : "opacity-0 hover:bg-muted group-hover:opacity-100",
-            )}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (!brand.isDefault) setAsDefault();
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.stopPropagation();
-                if (!brand.isDefault) setAsDefault();
-              }
-            }}
-            title={brand.isDefault ? "Default brand" : "Set as default"}
-          >
-            <Star01
-              size={13}
-              className={cn(
-                brand.isDefault
-                  ? "text-primary fill-primary"
-                  : "text-muted-foreground",
-              )}
-            />
-          </span>
-        )}
-
-        {/* Archive */}
         <span
           role="button"
           tabIndex={0}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
+          className={cn(
+            "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-opacity",
+            brand.isDefault
+              ? "opacity-100"
+              : "opacity-0 hover:bg-muted group-hover:opacity-100",
+          )}
           onClick={(e) => {
             e.stopPropagation();
-            toggleArchive();
+            toggleDefault();
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.stopPropagation();
-              toggleArchive();
+              toggleDefault();
             }
           }}
+          title={brand.isDefault ? "Unset as default" : "Set as default"}
         >
-          {isToggling ? (
-            <span className="text-[10px] text-muted-foreground">...</span>
-          ) : (
-            <Trash01 size={13} className="text-muted-foreground" />
-          )}
+          <Star01
+            size={13}
+            className={cn(
+              brand.isDefault
+                ? "text-primary fill-primary"
+                : "text-muted-foreground",
+            )}
+          />
+        </span>
+
+        {/* Delete */}
+        <span
+          role="button"
+          tabIndex={0}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg opacity-0 transition-opacity hover:bg-destructive/10 group-hover:opacity-100"
+          onClick={(e) => {
+            e.stopPropagation();
+            setConfirmDeleteOpen(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.stopPropagation();
+              setConfirmDeleteOpen(true);
+            }
+          }}
+          title="Delete brand"
+        >
+          <Trash01 size={13} className="text-muted-foreground" />
         </span>
       </button>
 
@@ -830,15 +865,57 @@ function ExpandableBrandEntry({
       {expanded && (
         <div className="space-y-3 px-5 pb-5">
           <OverviewSection brand={brand} onSave={saveBrand} />
-
+          <LogosSection brand={brand} onSave={saveBrand} />
           <div className="grid grid-cols-2 gap-3">
-            <LogosSection brand={brand} onSave={saveBrand} />
+            <ColorsSection brand={brand} onSave={saveBrand} />
             <FontsSection brand={brand} onSave={saveBrand} />
           </div>
-
-          <ColorsSection brand={brand} onSave={saveBrand} />
         </div>
       )}
+
+      <AlertDialog
+        open={confirmDeleteOpen}
+        onOpenChange={(open) => {
+          if (!open && !isDeleting) setConfirmDeleteOpen(false);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete brand?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                <p>
+                  This will permanently delete{" "}
+                  <span className="font-medium text-foreground">
+                    {brand.name || "this brand"}
+                  </span>
+                  . This action cannot be undone.
+                </p>
+                {brand.isDefault && (
+                  <p className="mt-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2 text-destructive">
+                    <span className="font-medium">Heads up:</span> this is your
+                    organization's default brand. Deleting it will leave your
+                    organization without a default brand until you set another.
+                  </p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                deleteBrand();
+              }}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -859,7 +936,7 @@ export function OrgBrandContextPage() {
     queryFn: async () => {
       const result = await client.callTool({
         name: "BRAND_CONTEXT_LIST",
-        arguments: { includeArchived: true },
+        arguments: { includeArchived: false },
       });
       const data = unwrapToolResult<{ items?: BrandContext[] }>(result);
       return Array.isArray(data?.items) ? data.items : [];
@@ -867,8 +944,6 @@ export function OrgBrandContextPage() {
   });
 
   const activeBrands = allBrands.filter((b) => !b.archivedAt);
-  const archivedBrands = allBrands.filter((b) => b.archivedAt);
-  const [showArchived, setShowArchived] = useState(false);
 
   const invalidate = () =>
     queryClient.invalidateQueries({
@@ -950,7 +1025,7 @@ export function OrgBrandContextPage() {
               />
             )}
 
-            {activeBrands.length === 0 && archivedBrands.length === 0 && (
+            {activeBrands.length === 0 && (
               <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center">
                 <p className="text-sm text-muted-foreground">
                   No brands configured yet.
@@ -978,39 +1053,6 @@ export function OrgBrandContextPage() {
                 />
               ))}
             </div>
-
-            {archivedBrands.length > 0 && (
-              <div className="space-y-3">
-                <button
-                  type="button"
-                  onClick={() => setShowArchived(!showArchived)}
-                  className="flex items-center gap-1.5 text-xs text-muted-foreground/60 transition-colors hover:text-muted-foreground"
-                >
-                  <ChevronRight
-                    size={12}
-                    className={cn(
-                      "transition-transform",
-                      showArchived && "rotate-90",
-                    )}
-                  />
-                  {archivedBrands.length} archived
-                </button>
-
-                {showArchived && (
-                  <div className="space-y-3 opacity-60">
-                    {archivedBrands.map((brand) => (
-                      <ExpandableBrandEntry
-                        key={brand.id}
-                        brand={brand}
-                        client={client}
-                        onChanged={invalidate}
-                        archived
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </Page.Body>
       </Page.Content>
