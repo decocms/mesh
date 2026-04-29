@@ -455,20 +455,20 @@ export function SettingsTab({
         EDIT_SESSION_QUIET_MS,
       );
 
-      // Re-read values at reset time so any keystrokes that landed during the
-      // in-flight mutation aren't clobbered by a stale snapshot.
-      const latestValues = form.getValues();
-      form.reset({
-        ...latestValues,
-        credential_id:
-          latestValues.credential_id === values.credential_id
-            ? coercedCredentialId
-            : latestValues.credential_id,
-        model_id:
-          latestValues.model_id === values.model_id
-            ? coercedModelId
-            : latestValues.model_id,
-      });
+      // keepDirtyValues: any field the user kept editing during the in-flight
+      // mutation stays at its current value AND keeps its dirty flag, so the
+      // queued debouncedSave actually persists those edits on its next fire.
+      // Without this, reset would clear dirty state and the next saveForm
+      // would early-return on hasDirtyFields=false, stranding the keystrokes
+      // in the UI but never sending them to the server.
+      form.reset(
+        {
+          ...values,
+          credential_id: coercedCredentialId,
+          model_id: coercedModelId,
+        },
+        { keepDirtyValues: true },
+      );
       return true;
     } catch {
       tiptapDirtyRef.current = true;
