@@ -1,14 +1,10 @@
 /**
  * ToggleButtons — left/right panel toggles portal'd into the outer Toolbar.
  *
- * Layout differs by virtual MCP:
- *   - Non-decopilot agents: tasks + chat toggles (main panel opens/closes
- *     via the header tab bar).
- *   - Decopilot: tasks toggle only (no layout icon on home).
- *
- * When the tasks panel is closed, an additional "new task" button slides
- * in via a grid-cols animation so the shortcut is always reachable
- * without stealing visual weight when tasks are already visible.
+ * Renders the tasks toggle, chat toggle, and (when armed) the new-task
+ * button. When the tasks panel is closed, the new-task button slides in
+ * via a grid-cols animation so the shortcut is always reachable without
+ * stealing visual weight when tasks are already visible.
  */
 
 import { Edit05, Menu02, MessageCircle01 } from "@untitledui/icons";
@@ -22,7 +18,8 @@ import { useTasksPanelState } from "@/web/hooks/use-tasks-panel-state";
 import { track } from "@/web/lib/posthog-client";
 
 export interface ToggleButtonsProps {
-  isDecopilot: boolean;
+  /** @deprecated unused after home/decopilot decoupling — removed in next commit */
+  isDecopilot?: boolean;
   chatOpen: boolean;
   toggleChat: () => void;
   /** When set, reveals an animated "new task" button next to the chat toggle. */
@@ -36,7 +33,6 @@ const TOGGLE_INACTIVE =
   "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground";
 
 export function ToggleButtons({
-  isDecopilot,
   chatOpen,
   toggleChat,
   onNewTask,
@@ -68,30 +64,28 @@ export function ToggleButtons({
         </TooltipTrigger>
         <TooltipContent side="bottom">Tasks</TooltipContent>
       </Tooltip>
-      {!isDecopilot && (
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              onClick={() => {
-                track("agent_toolbar_toggled", {
-                  button: "chat",
-                  next_state: !chatOpen ? "open" : "closed",
-                });
-                toggleChat();
-              }}
-              aria-pressed={chatOpen}
-              className={cn(
-                TOGGLE_BASE,
-                chatOpen ? TOGGLE_ACTIVE : TOGGLE_INACTIVE,
-              )}
-            >
-              <MessageCircle01 size={16} />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Chat</TooltipContent>
-        </Tooltip>
-      )}
+      <Tooltip delayDuration={300}>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={() => {
+              track("agent_toolbar_toggled", {
+                button: "chat",
+                next_state: !chatOpen ? "open" : "closed",
+              });
+              toggleChat();
+            }}
+            aria-pressed={chatOpen}
+            className={cn(
+              TOGGLE_BASE,
+              chatOpen ? TOGGLE_ACTIVE : TOGGLE_INACTIVE,
+            )}
+          >
+            <MessageCircle01 size={16} />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Chat</TooltipContent>
+      </Tooltip>
       <div
         className={cn(
           "grid transition-[grid-template-columns] duration-200 ease-[var(--ease-out-quart)]",
