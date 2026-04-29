@@ -69,12 +69,17 @@ import {
   getSandboxClaim,
   HTTPROUTE_CONSTANTS,
   patchSandboxClaimShutdown,
+  waitForSandboxClaimGone,
   waitForSandboxReady,
   type HttpRoute,
   type SandboxClaim,
   type SandboxResource,
 } from "./client";
-import { K8S_CONSTANTS, SandboxError } from "./constants";
+import {
+  K8S_CONSTANTS,
+  SandboxAlreadyExistsError,
+  SandboxError,
+} from "./constants";
 
 const RUNNER_KIND = "agent-sandbox" as const;
 const LOG_LABEL = "AgentSandboxRunner";
@@ -672,23 +677,52 @@ export class AgentSandboxRunner implements SandboxRunner {
       handle,
     ).catch(() => undefined);
     if (existing) {
-      const adopted = await this.adopt(id, handle, existing).catch((err) => {
-        console.warn(
-          `[${LOG_LABEL}] adopt ${handle} failed, recreating: ${err instanceof Error ? err.message : String(err)}`,
+      // Terminating claim (operator's idle-TTL fired, finalizers still
+      // draining): skip adopt entirely — the pod is going away, port-forward
+      // would fail, and the claim is on its way out. Wait for the API server
+      // to fully GC the resource before falling through to provision so we
+      // don't race into a 409 AlreadyExists.
+      if (existing.metadata?.deletionTimestamp) {
+        await waitForSandboxClaimGone(
+          this.kubeConfig,
+          this.namespace,
+          handle,
+        ).catch((err) => {
+          console.warn(
+            `[${LOG_LABEL}] wait for terminating claim ${handle} failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        });
+      } else {
+        const adopted = await this.adopt(id, handle, existing).catch((err) => {
+          console.warn(
+            `[${LOG_LABEL}] adopt ${handle} failed, recreating: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          return null;
+        });
+        if (adopted)
+          return this.finish(
+            adopted,
+            ops,
+            /* persistNow */ true,
+            /* patchTtl */ true,
+            "adopt",
+          );
+        await deleteSandboxClaim(this.kubeConfig, this.namespace, handle).catch(
+          () => {},
         );
-        return null;
-      });
-      if (adopted)
-        return this.finish(
-          adopted,
-          ops,
-          /* persistNow */ true,
-          /* patchTtl */ true,
-          "adopt",
-        );
-      await deleteSandboxClaim(this.kubeConfig, this.namespace, handle).catch(
-        () => {},
-      );
+        // Same wait as the terminating branch — our DELETE just queued a
+        // teardown that still has to drain finalizers before the next
+        // create won't 409.
+        await waitForSandboxClaimGone(
+          this.kubeConfig,
+          this.namespace,
+          handle,
+        ).catch((err) => {
+          console.warn(
+            `[${LOG_LABEL}] wait for deleted claim ${handle} failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        });
+      }
     }
     // 3. Fresh provision.
     const fresh = await this.provision(id, handle, opts);
@@ -856,7 +890,24 @@ export class AgentSandboxRunner implements SandboxRunner {
       daemonBootId,
       workdir,
     });
-    await createSandboxClaim(this.kubeConfig, this.namespace, claim);
+    try {
+      await createSandboxClaim(this.kubeConfig, this.namespace, claim);
+    } catch (err) {
+      // ensureLocked already waits for a known-terminating prior claim before
+      // falling through here. This catch covers the residual races: a
+      // concurrent ensure() from another mesh replica raced ours to create,
+      // or an external delete (operator TTL, kubectl) finished after we
+      // checked but before our POST landed. Wait for the resource to fully
+      // disappear and retry exactly once — re-raising AlreadyExists straight
+      // to the user surfaces as the "Failed to create SandboxClaim" toast
+      // they have to manually recover from.
+      if (err instanceof SandboxAlreadyExistsError) {
+        await waitForSandboxClaimGone(this.kubeConfig, this.namespace, handle);
+        await createSandboxClaim(this.kubeConfig, this.namespace, claim);
+      } else {
+        throw err;
+      }
+    }
     const { podName } = await waitForSandboxReady(
       this.kubeConfig,
       this.namespace,
