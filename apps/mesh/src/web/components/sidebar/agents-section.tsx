@@ -80,8 +80,7 @@ import { AiImageRecruitModal } from "@/web/components/home/ai-image-recruit-moda
 import { AiResearchRecruitModal } from "@/web/components/home/ai-research-recruit-modal.tsx";
 import { useTaskActions } from "@/web/hooks/use-tasks";
 import { readCachedTaskBranch } from "@/web/lib/read-cached-task-branch";
-import { readCachedLastThread } from "@/web/lib/read-cached-last-thread";
-import { authClient } from "@/web/lib/auth-client";
+import { useNavigateToAgentThread } from "@/web/hooks/use-navigate-to-agent-thread";
 
 /**
  * Hook for "spawn task on this vMCP" buttons (used by the browse-agents
@@ -126,62 +125,6 @@ function useNavigateToNewTaskWithBranchCarry(orgSlug: string) {
   };
 }
 
-/**
- * Hook for sidebar pinned-agent clicks. Resumes the user's most recent
- * thread with the clicked vMCP when one is in the local TanStack cache;
- * otherwise falls back to creating a new thread. The branch-carry
- * behavior (carrying the active task's branch into a brand-new thread
- * for the same vMCP) is preserved on the create path.
- *
- * Returns `{ resumed }` so the call site can emit the right analytics.
- */
-function useNavigateToAgentThread(orgSlug: string) {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const taskActions = useTaskActions();
-  const { locator } = useProjectContext();
-  const params = useParams({ strict: false }) as { taskId?: string };
-  const search = useSearch({ strict: false }) as { virtualmcpid?: string };
-  const { data: session } = authClient.useSession();
-  const userId = session?.user?.id;
-
-  return async (clickedVirtualMcpId: string): Promise<{ resumed: boolean }> => {
-    const last = userId
-      ? readCachedLastThread(queryClient, locator, clickedVirtualMcpId, userId)
-      : null;
-
-    if (last) {
-      navigate({
-        to: "/$org/$taskId",
-        params: { org: orgSlug, taskId: last.id },
-        search: { virtualmcpid: clickedVirtualMcpId },
-      });
-      return { resumed: true };
-    }
-
-    const taskId = crypto.randomUUID();
-    const carryBranch =
-      clickedVirtualMcpId === search.virtualmcpid
-        ? readCachedTaskBranch(queryClient, locator, params.taskId ?? "")
-        : null;
-    try {
-      await taskActions.create.mutateAsync({
-        id: taskId,
-        virtual_mcp_id: clickedVirtualMcpId,
-        ...(carryBranch ? { branch: carryBranch } : {}),
-      });
-    } catch {
-      // Toast already fired; navigate anyway so the route loader's
-      // ensure-fallback can retry.
-    }
-    navigate({
-      to: "/$org/$taskId",
-      params: { org: orgSlug, taskId },
-      search: { virtualmcpid: clickedVirtualMcpId },
-    });
-    return { resumed: false };
-  };
-}
 function AgentListItem({
   agent,
   org,
