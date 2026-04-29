@@ -1,8 +1,8 @@
 name: Helm chart checks
 
 # PR-scoped lint + render + vendor-drift checks for the Helm charts. The
-# release workflows (release-agent-sandbox-chart.yaml, publish-chart.yml)
-# are publish-only — without this gate, a helpers typo or a hand-edit to
+# release workflows (release-sandbox-charts.yaml, publish-chart.yml) are
+# publish-only — without this gate, a helpers typo or a hand-edit to
 # vendored CRDs ships straight to consumers. Runs on every PR that touches
 # deploy/helm/** so reviewers see render failures inline.
 
@@ -14,8 +14,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  agent-sandbox:
-    name: agent-sandbox chart
+  sandbox-operator:
+    name: sandbox-operator chart
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,31 +29,12 @@ jobs:
         # The chart's namespace validation (templates/validations.yaml)
         # requires `agent-sandbox-system`. Pass it here so render-time
         # checks during lint don't see the wrong namespace.
-        run: helm lint deploy/helm/agent-sandbox --namespace agent-sandbox-system
+        run: helm lint deploy/helm/sandbox-operator --namespace agent-sandbox-system
 
-      - name: Render (default values)
+      - name: Render
         run: |
-          helm template agent-sandbox deploy/helm/agent-sandbox \
+          helm template sandbox-operator deploy/helm/sandbox-operator \
             --namespace agent-sandbox-system \
-            > /dev/null
-
-      - name: Render (preview gateway enabled)
-        run: |
-          helm template agent-sandbox deploy/helm/agent-sandbox \
-            --namespace agent-sandbox-system \
-            --set previewGateway.enabled=true \
-            --set previewGateway.domain=preview.example.com \
-            --set previewGateway.clusterIssuer=letsencrypt-prod \
-            --api-versions gateway.networking.k8s.io/v1 \
-            --api-versions cert-manager.io/v1 \
-            > /dev/null
-
-      - name: Render (warm pool enabled)
-        run: |
-          helm template agent-sandbox deploy/helm/agent-sandbox \
-            --namespace agent-sandbox-system \
-            --set warmPool.enabled=true \
-            --set warmPool.size=2 \
             > /dev/null
 
       # Catches hand-edits to crds/ or templates/agent-sandbox-manifest.yaml
@@ -63,11 +44,78 @@ jobs:
       - name: Vendor drift check
         run: |
           set -euo pipefail
-          bash deploy/helm/agent-sandbox/vendor.sh
+          bash deploy/helm/sandbox-operator/vendor.sh
           if ! git diff --exit-code -- \
-              deploy/helm/agent-sandbox/crds \
-              deploy/helm/agent-sandbox/templates/agent-sandbox-manifest.yaml; then
-            echo "::error::Vendored files differ from vendor.sh output. Re-run deploy/helm/agent-sandbox/vendor.sh and commit the result."
+              deploy/helm/sandbox-operator/crds \
+              deploy/helm/sandbox-operator/templates/agent-sandbox-manifest.yaml; then
+            echo "::error::Vendored files differ from vendor.sh output. Re-run deploy/helm/sandbox-operator/vendor.sh and commit the result."
+            exit 1
+          fi
+
+  sandbox-env:
+    name: sandbox-env chart
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Lint
+        # envName is required, so lint must pass it. Use a representative
+        # value rather than `Release.Name` because helm lint doesn't drive
+        # render with a release name.
+        run: |
+          helm lint deploy/helm/sandbox-env \
+            --namespace agent-sandbox-system \
+            --set envName=ci
+
+      - name: Render (default values)
+        run: |
+          helm template sandbox-env deploy/helm/sandbox-env \
+            --namespace agent-sandbox-system \
+            --set envName=ci \
+            > /dev/null
+
+      - name: Render (preview gateway enabled)
+        run: |
+          helm template sandbox-env deploy/helm/sandbox-env \
+            --namespace agent-sandbox-system \
+            --set envName=ci \
+            --set previewGateway.enabled=true \
+            --set previewGateway.domain=preview.example.com \
+            --set previewGateway.clusterIssuer=letsencrypt-prod \
+            --api-versions gateway.networking.k8s.io/v1 \
+            --api-versions cert-manager.io/v1 \
+            > /dev/null
+
+      - name: Render (warm pool enabled)
+        run: |
+          helm template sandbox-env deploy/helm/sandbox-env \
+            --namespace agent-sandbox-system \
+            --set envName=ci \
+            --set warmPool.enabled=true \
+            --set warmPool.size=2 \
+            > /dev/null
+
+      - name: Render (envName missing must fail)
+        run: |
+          set +e
+          helm template sandbox-env deploy/helm/sandbox-env \
+            --namespace agent-sandbox-system \
+            > /tmp/render.out 2>&1
+          rc=$?
+          set -e
+          if [ "${rc}" -eq 0 ]; then
+            echo "::error::sandbox-env rendered without envName — required-value check is missing."
+            cat /tmp/render.out
+            exit 1
+          fi
+          if ! grep -q "envName is required" /tmp/render.out; then
+            echo "::error::sandbox-env failed for the wrong reason — expected envName-required error."
+            cat /tmp/render.out
             exit 1
           fi
 

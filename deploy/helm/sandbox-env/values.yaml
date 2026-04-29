@@ -1,16 +1,37 @@
-# Default values for the agent-sandbox chart.
+# Default values for the sandbox-env chart.
 #
-# This chart is independent of chart-deco-studio. It installs the upstream
-# kubernetes-sigs/agent-sandbox operator + CRDs and the Studio-side
-# resources that consume them (SandboxTemplate, RBAC, NetworkPolicy,
-# optional WarmPool, optional preview Gateway/Certificate).
+# This chart is independent of chart-deco-studio and of the sandbox-operator
+# chart. It installs the Studio-side resources that consume the operator's
+# CRDs (SandboxTemplate, RBAC, NetworkPolicy, optional WarmPool, optional
+# preview Gateway/Certificate). Install one release per environment that
+# needs to use the operator — every resource name is suffixed with
+# `envName` so multiple releases coexist in `agent-sandbox-system`.
 #
 # Cross-chart wiring lives under `mesh.*`: tell this chart where the studio
-# release runs so the RBAC RoleBinding, NetworkPolicy ingress selector, and
-# preview HTTPRoute backendRef can reach it. There is no runtime coupling
-# back the other way — studio consumes nothing from this chart at install
-# time; it simply talks to the operator's CRDs and the daemon Service the
-# operator creates per SandboxClaim.
+# release for THIS environment runs so the RBAC RoleBinding, NetworkPolicy
+# ingress selector, and preview HTTPRoute backendRef can reach it. There is
+# no runtime coupling back the other way — studio consumes nothing from
+# this chart at install time; it simply talks to the operator's CRDs and
+# the daemon Service the operator creates per SandboxClaim.
+#
+# Mesh side: the studio install for THIS environment must point its runner
+# at the env-suffixed SandboxTemplate by setting
+#   STUDIO_SANDBOX_TEMPLATE_NAME=studio-sandbox-<envName>
+# in the studio chart's `configMap.meshConfig`. Without that override mesh
+# falls back to "studio-sandbox" (no suffix) and claim creation will fail
+# with "sandboxtemplate not found".
+
+# ── env identity ───────────────────────────────────────────────────────
+# Required. Used as suffix on every resource name this chart creates so
+# multiple releases (dev / staging / prod / ...) coexist in the shared
+# `agent-sandbox-system` namespace without collisions. Examples:
+#   envName=staging  →  SandboxTemplate/studio-sandbox-staging,
+#                       Role/studio-sandbox-runner-staging,
+#                       NetworkPolicy/studio-sandbox-staging,
+#                       Gateway/agent-sandbox-preview-staging, ...
+# Use a short DNS label (a-z0-9-, 1-32 chars). Conventionally matches the
+# studio (chart-deco-studio) release name for the same environment.
+envName: ""
 
 # ── sandbox pod image (used by SandboxTemplate) ────────────────────────
 image:
@@ -149,15 +170,16 @@ previewGateway:
   # issuer, for example, needs your API token in a Secret).
   clusterIssuer: ""
   # PEM-format secret name created by cert-manager. Defaults to
-  # `agent-sandbox-preview-tls`. Override only if the cert lives under a
-  # name dictated by external tooling.
+  # `agent-sandbox-preview-<envName>-tls`. Override only if the cert
+  # lives under a name dictated by external tooling.
   tlsSecretName: ""
 
 # ── mesh cross-references ──────────────────────────────────────────────
-# Tells this chart where the chart-deco-studio release runs so the
-# RBAC RoleBinding, NetworkPolicy ingress selector, and preview-Gateway
-# HTTPRoute backendRef all point at it. These values must match the
-# namespace + release-name + service-port of the studio install.
+# Tells this chart where the chart-deco-studio release for THIS
+# environment runs so the RBAC RoleBinding, NetworkPolicy ingress
+# selector, and preview-Gateway HTTPRoute backendRef all point at it.
+# These values must match the namespace + release-name + service-port of
+# the studio install for the same env.
 mesh:
   # Namespace where the studio release runs. The mesh ServiceAccount and
   # mesh Service are looked up here.

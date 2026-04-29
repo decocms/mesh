@@ -1,8 +1,8 @@
 # Vendored upstream YAML for kubernetes-sigs/agent-sandbox (operator + CRDs).
-# Refreshed via deploy/helm/agent-sandbox/vendor.sh — do not hand-edit.
+# Refreshed via deploy/helm/sandbox-operator/vendor.sh — do not hand-edit.
 # Marking as generated so GitHub collapses the diff in PRs and excludes it
 # from language stats; bumps are still reviewable by reading vendor.sh's
-# version arg. The other templates/ files (sandbox-template.yaml, sandbox-rbac.yaml,
-# etc.) are first-party and stay reviewable.
-deploy/helm/agent-sandbox/crds/** linguist-generated=true
-deploy/helm/agent-sandbox/templates/agent-sandbox-manifest.yaml linguist-generated=true
+# version arg. The sandbox-env chart's templates are first-party and stay
+# reviewable.
+deploy/helm/sandbox-operator/crds/** linguist-generated=true
+deploy/helm/sandbox-operator/templates/agent-sandbox-manifest.yaml linguist-generated=true

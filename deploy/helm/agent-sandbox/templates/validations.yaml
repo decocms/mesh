@@ -1,5 +1,0 @@
-{{- /*
-Chart-level validations. Renders no resources.
-*/ -}}
-{{- include "agent-sandbox.validateNamespace" . -}}
-{{- include "agent-sandbox.validatePreviewGateway" . -}}

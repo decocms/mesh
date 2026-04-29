@@ -1,9 +1,11 @@
 {{- if .Values.networkPolicy.enabled }}
-# NetworkPolicy for mesh sandbox pods.
+# NetworkPolicy for mesh sandbox pods in THIS environment.
 #
 # Scope: selects pods in agent-sandbox-system labeled
-# app.kubernetes.io/name=studio-sandbox. Applies both ingress and egress rules,
-# so egress is deny-by-default (policyType Egress with only allowed rules).
+# app.kubernetes.io/name=studio-sandbox-<envName>. Applies both ingress and
+# egress rules, so egress is deny-by-default (policyType Egress with only
+# allowed rules). The label match is per-env so a release in env A doesn't
+# accidentally allow ingress from env B's mesh into env A's pods.
 #
 # Threat model: workload is arbitrary user code. Egress must not reach IMDS
 # (169.254.169.254 / fd00:ec2::254), in-cluster RFC1918 services, or
@@ -19,14 +21,14 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: studio-sandbox
+  name: {{ include "sandbox-env.sandboxName" . }}
   namespace: agent-sandbox-system
   labels:
-    {{- include "agent-sandbox.sandboxLabels" . | nindent 4 }}
+    {{- include "sandbox-env.sandboxLabels" . | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: studio-sandbox
+      app.kubernetes.io/name: {{ include "sandbox-env.sandboxName" . }}
   policyTypes:
     - Ingress
     - Egress

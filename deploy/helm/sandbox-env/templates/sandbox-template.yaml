@@ -1,16 +1,18 @@
 # Shared SandboxTemplate consumed by every SandboxClaim the mesh runner
-# creates. Resource ceilings come from values.resources.
+# creates for THIS environment. Resource ceilings come from values.resources.
 #
 # Hardcoded to the operator's own namespace (agent-sandbox-system) — the CRDs
 # ship with that as the install target, and the operator's RBAC watches it by
-# default.
+# default. The template *name* is suffixed with envName so multiple
+# environments' SandboxTemplates coexist; mesh in this env must reference
+# the suffixed name via STUDIO_SANDBOX_TEMPLATE_NAME.
 apiVersion: extensions.agents.x-k8s.io/v1alpha1
 kind: SandboxTemplate
 metadata:
-  name: studio-sandbox
+  name: {{ include "sandbox-env.sandboxName" . }}
   namespace: agent-sandbox-system
   labels:
-    {{- include "agent-sandbox.sandboxLabels" . | nindent 4 }}
+    {{- include "sandbox-env.sandboxLabels" . | nindent 4 }}
 spec:
   # Claims inject DAEMON_TOKEN per-provision via SandboxClaim.spec.env. The
   # template carries no shared secret; leakage of the template compromises
@@ -26,7 +28,12 @@ spec:
   podTemplate:
     metadata:
       labels:
-        app.kubernetes.io/name: studio-sandbox
+        # Per-env name so each env's NetworkPolicy podSelector matches only
+        # its own pods. Mesh runner stamps the same value via
+        # SandboxClaim.additionalPodMetadata (driven by
+        # STUDIO_SANDBOX_TEMPLATE_NAME pointing at the env-suffixed
+        # template) — keep these in lockstep.
+        app.kubernetes.io/name: {{ include "sandbox-env.sandboxName" . }}
         # Do NOT set `studio.decocms.com/role` here. The operator (v0.4.2+)
         # rejects claims whose additionalPodMetadata defines a label key
         # already present in the template — even when the values differ —

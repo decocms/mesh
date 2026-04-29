@@ -38,10 +38,10 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: studio-sandbox-runner
+  name: {{ include "sandbox-env.runnerRoleName" . }}
   namespace: agent-sandbox-system
   labels:
-    {{- include "agent-sandbox.labels" . | nindent 4 }}
+    {{- include "sandbox-env.labels" . | nindent 4 }}
 rules:
   - apiGroups: ["extensions.agents.x-k8s.io"]
     resources: ["sandboxclaims"]
@@ -65,15 +65,15 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: studio-sandbox-runner
+  name: {{ include "sandbox-env.runnerRoleName" . }}
   namespace: agent-sandbox-system
   labels:
-    {{- include "agent-sandbox.labels" . | nindent 4 }}
+    {{- include "sandbox-env.labels" . | nindent 4 }}
 subjects:
   - kind: ServiceAccount
     name: {{ required "mesh.serviceAccountName is required" .Values.mesh.serviceAccountName }}
     namespace: {{ required "mesh.namespace is required" .Values.mesh.namespace }}
 roleRef:
   kind: Role
-  name: studio-sandbox-runner
+  name: {{ include "sandbox-env.runnerRoleName" . }}
   apiGroup: rbac.authorization.k8s.io
