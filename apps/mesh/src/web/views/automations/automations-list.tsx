@@ -51,28 +51,21 @@ export function AutomationsList({ virtualMcpId }: { virtualMcpId: string }) {
       <Page.Content>
         <Page.Body>
           <div className="flex flex-col gap-6">
-            <Page.Title
-              actions={
-                <Button
-                  size="sm"
-                  onClick={handleNew}
-                  disabled={create.isPending}
-                >
-                  <Plus size={14} />
-                  New automation
-                </Button>
-              }
-            >
-              Automations
-            </Page.Title>
-            {automations.length > 0 && (
-              <SearchInput
-                value={search}
-                onChange={setSearch}
-                placeholder="Search automations..."
-                className="w-full md:w-[375px]"
-              />
-            )}
+            <Page.Title>Automations</Page.Title>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {automations.length > 0 && (
+                <SearchInput
+                  value={search}
+                  onChange={setSearch}
+                  placeholder="Search automations..."
+                  className="w-full md:w-[375px]"
+                />
+              )}
+              <Button size="sm" onClick={handleNew} disabled={create.isPending}>
+                <Plus size={14} />
+                New automation
+              </Button>
+            </div>
           </div>
 
           {automations.length === 0 ? (

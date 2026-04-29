@@ -350,6 +350,19 @@ const settingsMembersRoute = createRoute({
   ),
 });
 
+const settingsRolesRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/roles",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/settings/roles.tsx"),
+  ),
+  validateSearch: z.lazy(() =>
+    z.object({
+      role: z.string().optional(),
+    }),
+  ),
+});
+
 const settingsSsoRoute = createRoute({
   getParentRoute: () => settingsLayout,
   path: "/sso",
@@ -512,6 +525,7 @@ const settingsWithChildren = settingsLayout.addChildren([
   settingsBrandContextRoute,
   settingsAiProvidersRoute,
   settingsMembersRoute,
+  settingsRolesRoute,
   settingsSsoRoute,
   settingsProfileRoute,
   settingsStoreRoute,

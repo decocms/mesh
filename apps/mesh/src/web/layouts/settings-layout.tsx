@@ -34,6 +34,7 @@ import {
   LogOut01,
   Menu01,
   PackageCheck,
+  Shield01,
   User01,
   Users03,
   Zap,
@@ -68,7 +69,7 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
 
   const groups: SettingsNavGroup[] = [
     {
-      label: "",
+      label: "Organization",
       items: [
         {
           key: "general",
@@ -76,6 +77,23 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
           icon: <Building02 size={14} />,
           to: "/$org/settings/general",
         },
+        {
+          key: "brand-context",
+          label: "Brand Context",
+          icon: <BookOpen01 size={14} />,
+          to: "/$org/settings/brand-context",
+        },
+        {
+          key: "ai-providers",
+          label: "AI Providers",
+          icon: <CpuChip01 size={14} />,
+          to: "/$org/settings/ai-providers",
+        },
+      ],
+    },
+    {
+      label: "Build",
+      items: [
         {
           key: "connections",
           label: "Connections",
@@ -100,18 +118,11 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
           icon: <PackageCheck size={14} />,
           to: "/$org/settings/store",
         },
-        {
-          key: "brand-context",
-          label: "Brand Context",
-          icon: <BookOpen01 size={14} />,
-          to: "/$org/settings/brand-context",
-        },
-        {
-          key: "ai-providers",
-          label: "AI Providers",
-          icon: <CpuChip01 size={14} />,
-          to: "/$org/settings/ai-providers",
-        },
+      ],
+    },
+    {
+      label: "Manage",
+      items: [
         {
           key: "monitor",
           label: "Monitor",
@@ -125,6 +136,12 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
           to: "/$org/settings/members",
         },
         {
+          key: "roles",
+          label: "Roles",
+          icon: <Shield01 size={14} />,
+          to: "/$org/settings/roles",
+        },
+        {
           key: "sso",
           label: "SSO",
           icon: <Lock01 size={14} />,
@@ -133,7 +150,7 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
       ],
     },
     {
-      label: "",
+      label: "Extensions",
       items: [
         {
           key: "features",
@@ -144,19 +161,18 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
         ...enabledSettingsItems,
       ],
     },
+    {
+      label: "Account",
+      items: [
+        {
+          key: "profile",
+          label: "Profile & Preferences",
+          icon: <User01 size={14} />,
+          to: "/$org/settings/profile",
+        },
+      ],
+    },
   ];
-
-  groups.push({
-    label: "",
-    items: [
-      {
-        key: "profile",
-        label: "Profile & Preferences",
-        icon: <User01 size={14} />,
-        to: "/$org/settings/profile",
-      },
-    ],
-  });
 
   return groups;
 }
@@ -201,9 +217,13 @@ export function SettingsSidebar() {
             key={`${group.label}-${i}`}
             className="pt-0 pr-0 pb-0 pl-0"
           >
-            {i > 0 && <div className="mx-2 my-2 border-t border-border/50" />}
             {group.label && (
-              <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground/60">
+              <p
+                className={cn(
+                  "px-2 pt-1.5 pb-0.5 text-xs font-medium text-muted-foreground/60",
+                  i > 0 && "mt-3",
+                )}
+              >
                 {group.label}
               </p>
             )}
@@ -300,7 +320,16 @@ export function SettingsSidebarMobile({ onClose }: { onClose: () => void }) {
       <div className="flex flex-col flex-1 overflow-y-auto px-2 py-2 gap-0.5">
         {groups.map((group, i) => (
           <div key={`${group.label}-${i}`} className="flex flex-col gap-0.5">
-            {i > 0 && <div className="h-px bg-border/50 my-2" />}
+            {group.label && (
+              <p
+                className={cn(
+                  "px-3 pt-1.5 pb-0.5 text-xs font-medium text-muted-foreground/60",
+                  i > 0 && "mt-3",
+                )}
+              >
+                {group.label}
+              </p>
+            )}
             {group.items.map((item) => (
               <Link
                 key={item.key}
