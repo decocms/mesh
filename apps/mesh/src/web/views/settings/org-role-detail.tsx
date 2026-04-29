@@ -234,7 +234,7 @@ function OrgPermissionsTab({
 
   return (
     <div>
-      <div className="flex flex-col gap-6 py-4">
+      <div className="flex flex-col gap-10 py-4">
         <SettingsSection title="General">
           <SettingsCard>
             <SettingsCardItem
