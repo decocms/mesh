@@ -17,6 +17,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useRef,
   useState,
   type PropsWithChildren,
@@ -125,12 +126,6 @@ export interface ChatTaskContextValue {
   ownerFilter: TaskOwnerFilter;
   setOwnerFilter: (filter: TaskOwnerFilter) => void;
   isFilterChangePending: boolean;
-  pendingMessage: {
-    taskId: string;
-    message: SendMessageParams;
-    createdAt: number;
-  } | null;
-  clearPendingMessage: () => void;
 }
 
 export interface ChatPrefsContextValue {
@@ -235,6 +230,32 @@ function resolveActiveTier(
 const MAX_APP_CONTEXT_LENGTH = 10_000;
 const MAX_APP_CONTEXT_SOURCES = 10;
 const PENDING_MESSAGE_TTL_MS = 10_000;
+
+/**
+ * Module-level pending-message store, keyed by taskId.
+ *
+ * Lives outside the React tree because `Chat.Provider` is remounted (via
+ * `key={chatVirtualMcpId}`) whenever navigation crosses to a different vMCP
+ * — e.g. an automation's "Test" button creating a chat under the
+ * automation's agent. Holding pending messages in component state would
+ * destroy them across that remount, which manifests as an empty new chat.
+ */
+const pendingMessages = new Map<
+  string,
+  { message: SendMessageParams; createdAt: number }
+>();
+
+function setPendingMessage(taskId: string, message: SendMessageParams) {
+  pendingMessages.set(taskId, { message, createdAt: Date.now() });
+}
+
+function takePendingMessage(taskId: string): SendMessageParams | null {
+  const entry = pendingMessages.get(taskId);
+  if (!entry) return null;
+  pendingMessages.delete(taskId);
+  if (Date.now() - entry.createdAt >= PENDING_MESSAGE_TTL_MS) return null;
+  return entry.message;
+}
 
 const BRIDGE_NOOP: ChatBridgeValue = {
   sendMessage: async () => {
@@ -539,15 +560,6 @@ export function ChatContextProvider({
   // Bridge ref — ActiveTaskProvider registers sendMessage here
   const bridgeRef = useRef<ChatBridgeValue>(BRIDGE_NOOP);
 
-  // Pending message state (replaces module-level Map from useSendToChat)
-  const [pendingMessage, setPendingMessage] = useState<{
-    taskId: string;
-    message: SendMessageParams;
-    createdAt: number;
-  } | null>(null);
-
-  const clearPendingMessage = () => setPendingMessage(null);
-
   const navigateToTask = (taskId: string, opts?: { virtualMcpId?: string }) => {
     markTaskRead(taskId);
     rawNavigateToTask(taskId, {
@@ -608,11 +620,7 @@ export function ChatContextProvider({
           virtualMcpId: params.virtualMcpId,
         });
       });
-    setPendingMessage({
-      taskId: newId,
-      message: params.message,
-      createdAt: Date.now(),
-    });
+    setPendingMessage(newId, params.message);
   };
 
   // Hide task (switch to next after hiding)
@@ -650,8 +658,6 @@ export function ChatContextProvider({
     ownerFilter: taskManager.ownerFilter,
     setOwnerFilter: taskManager.setOwnerFilter,
     isFilterChangePending: taskManager.isFilterChangePending ?? false,
-    pendingMessage,
-    clearPendingMessage,
   };
 
   const prefsValue: ChatPrefsContextValue = {
@@ -728,13 +734,7 @@ export function ActiveTaskProvider({
   taskId,
   children,
 }: PropsWithChildren<{ taskId: string }>) {
-  const {
-    virtualMcpId,
-    tasks,
-    pendingMessage,
-    clearPendingMessage,
-    currentBranch,
-  } = useChatTask();
+  const { virtualMcpId, tasks, currentBranch } = useChatTask();
 
   // Fire chat_opened once per (page session × taskId). Runs during render, but
   // the Set gate keeps it idempotent. Fires for every thread a user views —
@@ -981,27 +981,22 @@ export function ActiveTaskProvider({
     isStreaming: chat.status === "submitted" || chat.status === "streaming",
   };
 
-  // Consume pending message when this task is the target
+  // Consume pending message when this task is the target. Read from the
+  // module-level store rather than React state so messages survive a
+  // Chat.Provider remount on cross-vMCP navigation. Runs in useEffect so the
+  // chat instance and its transport are fully wired up after commit — sending
+  // during render let the optimistic message + streaming state get lost.
   const pendingConsumedRef = useRef<string | null>(null);
-  if (
-    pendingMessage &&
-    pendingMessage.taskId === taskId &&
-    pendingConsumedRef.current !== taskId
-  ) {
-    // TTL check: discard stale messages
-    const age = Date.now() - pendingMessage.createdAt;
-    if (age < PENDING_MESSAGE_TTL_MS) {
-      pendingConsumedRef.current = taskId;
-      const msg = pendingMessage.message;
-      queueMicrotask(() => {
-        void sendMessageInternal(msg);
-        clearPendingMessage();
-      });
-    } else {
-      // Stale — silently discard
-      queueMicrotask(() => clearPendingMessage());
-    }
-  }
+  const sendMessageInternalRef = useRef(sendMessageInternal);
+  sendMessageInternalRef.current = sendMessageInternal;
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (!taskId || pendingConsumedRef.current === taskId) return;
+    const msg = takePendingMessage(taskId);
+    if (!msg) return;
+    pendingConsumedRef.current = taskId;
+    void sendMessageInternalRef.current(msg);
+  }, [taskId]);
 
   const streamValue: ChatStreamContextValue = {
     messages,
