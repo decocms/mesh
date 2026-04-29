@@ -61,6 +61,16 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
   }
 
   const appRoot = env.APP_ROOT ?? "/app";
+  const cacheDir = env.CACHE_DIR ?? null;
+  // Individual overrides take precedence; fall back to sub-dirs of cacheDir.
+  const gitCacheDir =
+    env.GIT_CACHE_DIR ?? (cacheDir ? `${cacheDir}/git` : null);
+  const sandboxCacheKey = env.SANDBOX_CACHE_KEY ?? null;
+  const nodeModulesCacheDir =
+    env.NODE_MODULES_CACHE_DIR ??
+    (cacheDir ? `${cacheDir}/node_modules` : null);
+  const nextCacheDir =
+    env.NEXT_CACHE_DIR ?? (cacheDir ? `${cacheDir}/next` : null);
 
   const pathPrefix =
     runtime === "bun"
@@ -83,5 +93,10 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     appRoot,
     proxyPort,
     pathPrefix,
+    cacheDir,
+    gitCacheDir,
+    sandboxCacheKey,
+    nodeModulesCacheDir,
+    nextCacheDir,
   });
 }

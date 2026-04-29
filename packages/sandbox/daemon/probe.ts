@@ -1,5 +1,11 @@
 import { FAST_PROBE_LIMIT, FAST_PROBE_MS, SLOW_PROBE_MS } from "./constants";
 
+// Frameworks like Next.js (webpack) compile on first request. HEAD / can block
+// for 10-30 seconds while compilation runs. Using a short timeout causes the
+// probe to give up, wait another FAST_PROBE_MS, and retry — adding wasted time
+// before ready=true. 60 s is enough for any realistic cold webpack compile.
+const COMPILE_PROBE_TIMEOUT_MS = 60_000;
+
 export interface ProbeState {
   ready: boolean;
   htmlSupport: boolean;
@@ -59,7 +65,7 @@ export function startUpstreamProbe(deps: ProbeDeps): ProbeState {
     try {
       const res = await fetch(url, {
         method: "HEAD",
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(COMPILE_PROBE_TIMEOUT_MS),
       });
       const ct = (res.headers.get("content-type") ?? "").toLowerCase();
       return {

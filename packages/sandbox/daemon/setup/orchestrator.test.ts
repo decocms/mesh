@@ -18,6 +18,11 @@ const cfg: Config = {
   daemonBootId: "b",
   proxyPort: 9000,
   pathPrefix: "",
+  cacheDir: null,
+  gitCacheDir: null,
+  sandboxCacheKey: null,
+  nodeModulesCacheDir: null,
+  nextCacheDir: null,
 };
 
 describe("SetupOrchestrator", () => {

@@ -181,19 +181,56 @@ previewGateway:
 # subsequent sandbox that shares a dep at the same version skips the registry
 # download entirely.
 #
-# Storage requirements:
-#   ReadWriteMany — required for concurrent mounts across pods. On EKS use
-#   the AWS EFS CSI driver (storageClass: efs-sc). On a single-node kind
-#   cluster ReadWriteOnce is sufficient because all pods land on the same node.
+# Storage requirements — ReadWriteMany:
+#   Multi-pod concurrent mounts require ReadWriteMany. On EKS the cluster
+#   default StorageClass is EBS (gp2/gp3), which does NOT support RWX —
+#   cache.storageClass MUST be set explicitly or the PVC will stay Pending.
 #
-# Sizing guidance: 50 Gi covers ~10 concurrent projects with full
-# npm/pnpm/bun/yarn stores. Scale up if many sandboxes share large dep trees.
+#   EKS (recommended):
+#     1. Install the AWS EFS CSI driver (aws-efs-csi-driver):
+#          https://docs.aws.amazon.com/eks/latest/userguide/efs-csi.html
+#     2. Create an EFS filesystem and a StorageClass that points at it.
+#        Use throughputMode: elastic for 30+ concurrent sandbox builds:
+#          kind: StorageClass
+#          provisioner: efs.csi.aws.com
+#          parameters:
+#            provisioningMode: efs-ap
+#            fileSystemId: <YOUR_EFS_ID>
+#            directoryPerms: "700"
+#          mountOptions:
+#            - tls
+#     3. Set cache.storageClass to that StorageClass name (e.g. efs-sc).
+#
+#   Single-node kind (local dev):
+#     Use examples/values-kind.yaml — it overrides to ReadWriteOnce +
+#     storageClass=standard, which local-path-provisioner supports.
+# Lifecycle note:
+#   The PVC carries `helm.sh/resource-policy: keep` so it survives
+#   `helm upgrade` and `helm uninstall`. Delete it manually to evict the cache.
 cache:
   enabled: false
-  storageClass: ""       # empty = cluster default StorageClass
+  # REQUIRED when accessMode=ReadWriteMany. Must name an RWX-capable
+  # StorageClass (EFS on EKS, NFS elsewhere). Leaving this empty with RWX
+  # falls back to the cluster default (EBS on EKS), which does not support
+  # ReadWriteMany and will cause the PVC to stay Pending. The chart validates
+  # this at template time.
+  storageClass: ""
   accessMode: ReadWriteMany
   size: 50Gi
   mountPath: /mnt/cache
+  # Garbage collection: nightly CronJob that evicts stale node_modules slots
+  # and git mirrors. Uses sentinel/HEAD mtime (last-used time) so active caches
+  # are never evicted. Requires cache.enabled=true.
+  #
+  # Cost tip: pair with EFS Intelligent Tiering (set a 30-day lifecycle policy
+  # on the EFS filesystem) so stale entries that survive until GC are billed
+  # at the Infrequent Access rate (~92% cheaper) rather than Standard.
+  gc:
+    enabled: true
+    # Cron schedule (UTC). Default: 03:00 daily — low-traffic window.
+    schedule: "0 3 * * *"
+    # Evict cache entries not used in this many days.
+    ttlDays: 30
 
 # ── mesh cross-references ──────────────────────────────────────────────
 # Tells this chart where the chart-deco-studio release for THIS

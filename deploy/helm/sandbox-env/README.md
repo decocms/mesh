@@ -49,6 +49,55 @@ envName-suffixed but the listener hostname (`*.<domain>`) must be unique
 per Gateway — two Gateways binding the same wildcard hostname conflict at
 the controller level.
 
+## Shared build cache
+
+Setting `cache.enabled=true` mounts a single PVC at `cache.mountPath` (default
+`/mnt/cache`) in every sandbox pod and redirects each package manager's cache
+directory there via env vars (`npm_config_cache`, `BUN_INSTALL_CACHE_DIR`,
+`PNPM_STORE_PATH`, `YARN_CACHE_FOLDER`, `DENO_DIR`, `XDG_CACHE_HOME`). The
+first sandbox that downloads a package version populates the cache; every
+subsequent sandbox running the same dep skips the registry download entirely.
+
+**EKS prerequisite — EFS StorageClass (required for ReadWriteMany):**
+
+The cluster default StorageClass on EKS is EBS (gp2/gp3), which does not
+support `ReadWriteMany`. Setting `cache.enabled=true` without overriding
+`cache.storageClass` will cause the PVC to stay `Pending`. The chart validates
+this at template time and fails with a clear error.
+
+1. [Install the AWS EFS CSI driver](https://docs.aws.amazon.com/eks/latest/userguide/efs-csi.html)
+2. Create an EFS filesystem (one per cluster is enough)
+3. Create a `StorageClass` pointing at it, using `throughputMode: elastic` for
+   30+ concurrent builds:
+
+```yaml
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: efs-sc
+provisioner: efs.csi.aws.com
+parameters:
+  provisioningMode: efs-ap
+  fileSystemId: <YOUR_EFS_ID>
+  directoryPerms: "700"
+mountOptions:
+  - tls
+```
+
+4. Set `cache.storageClass: efs-sc` in your values.
+
+**Kind (local dev):** use `examples/values-kind.yaml`, which overrides to
+`accessMode: ReadWriteOnce` + `storageClass: standard` — both supported by
+`local-path-provisioner` on a single-node cluster.
+
+**PVC lifecycle:** the PVC carries `helm.sh/resource-policy: keep` so it
+survives `helm upgrade` and `helm uninstall`. Delete it manually to evict the
+cache:
+
+```bash
+kubectl delete pvc studio-sandbox-<envName>-cache -n agent-sandbox-system
+```
+
 ## Install
 
 Published as an OCI artifact at
@@ -126,6 +175,7 @@ sandbox-env/
     ├── sandbox-warm-pool.yaml           # SandboxWarmPool (optional)
     ├── sandbox-network-policy.yaml      # NetworkPolicy on sandbox pods (per-env)
     ├── sandbox-rbac.yaml                # Role + cross-ns RoleBinding to mesh SA
+    ├── sandbox-cache-pvc.yaml           # shared build cache PVC (optional)
     ├── sandbox-preview-cert.yaml        # cert-manager Certificate (optional)
     └── sandbox-preview-gateway.yaml     # Gateway + HTTPRoute (optional)
 ```
@@ -151,3 +201,8 @@ See `values.yaml` for the full set. The most-tuned ones:
 | `mesh.serviceName` | `deco-studio` | mesh Service the preview HTTPRoute targets |
 | `mesh.servicePort` | `80` | match studio's `service.port` |
 | `mesh.podSelectorLabels` | `chart-deco-studio` / `deco-studio` | for the NetworkPolicy ingress rule |
+| `cache.enabled` | `false` | mount shared build/dep cache PVC in every sandbox |
+| `cache.storageClass` | _(required when RWX)_ | must name an RWX StorageClass (EFS on EKS); never leave empty with `accessMode=ReadWriteMany` |
+| `cache.accessMode` | `ReadWriteMany` | `ReadWriteOnce` is fine on single-node kind |
+| `cache.size` | `50Gi` | 
+| `cache.mountPath` | `/mnt/cache` | mount point inside every sandbox pod |

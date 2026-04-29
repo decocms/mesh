@@ -8,6 +8,7 @@ import { spawnClone } from "./clone";
 import { configureGitIdentity } from "./identity";
 import { resolveBranch } from "./branch";
 import { spawnInstall } from "./install";
+import { linkNextCache, linkNodeModules } from "./cache";
 
 export interface SetupState {
   running: boolean;
@@ -78,21 +79,30 @@ export class SetupOrchestrator {
         }
       }
 
-      const installPromise = spawnInstall({
+      linkNextCache({ config, onChunk, dropPrivileges });
+
+      const nmCached = await linkNodeModules({
         config,
         onChunk,
         dropPrivileges,
       });
-      if (installPromise) {
-        const code = await installPromise;
-        if (code !== 0) {
-          broadcaster.broadcastChunk(
-            "setup",
-            `\r\nInstall failed with exit code ${code}\r\n`,
-          );
-          this.state.running = false;
-          this.state.done = true;
-          return true;
+      if (!nmCached) {
+        const installPromise = spawnInstall({
+          config,
+          onChunk,
+          dropPrivileges,
+        });
+        if (installPromise) {
+          const code = await installPromise;
+          if (code !== 0) {
+            broadcaster.broadcastChunk(
+              "setup",
+              `\r\nInstall failed with exit code ${code}\r\n`,
+            );
+            this.state.running = false;
+            this.state.done = true;
+            return true;
+          }
         }
       }
 

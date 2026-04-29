@@ -119,6 +119,21 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
+Validate shared build cache configuration. When cache.enabled=true and
+accessMode is ReadWriteMany, storageClass must be explicitly set — the
+cluster default StorageClass on EKS is EBS (gp2/gp3), which does not
+support ReadWriteMany. Without this guard the PVC provisions against the
+wrong driver and stays Pending with an opaque provisioner error.
+*/}}
+{{- define "sandbox-env.validateCache" -}}
+{{- if .Values.cache.enabled }}
+{{- if and (eq .Values.cache.accessMode "ReadWriteMany") (not .Values.cache.storageClass) }}
+{{- fail "sandbox-env: cache.enabled=true with accessMode=ReadWriteMany requires cache.storageClass to be set explicitly. The cluster default StorageClass on EKS is EBS (gp2/gp3), which does not support ReadWriteMany — the PVC will stay Pending forever. On EKS: install the AWS EFS CSI driver, create an EFS-backed StorageClass (e.g. efs-sc with throughputMode: elastic), and set cache.storageClass=efs-sc. On single-node kind: override to cache.accessMode=ReadWriteOnce and cache.storageClass=standard (see examples/values-kind.yaml)." -}}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
 Validate that Gateway API + cert-manager CRDs are present when the sandbox
 preview gateway is enabled. Without this check, `helm install` would push
 Gateway/HTTPRoute/Certificate to an API server that doesn't know those

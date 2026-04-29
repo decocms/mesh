@@ -93,20 +93,14 @@ spec:
               value: "*"
             {{- end }}
             {{- if .Values.cache.enabled }}
-            - name: npm_config_cache
-              value: {{ .Values.cache.mountPath }}/npm
-            - name: PNPM_STORE_PATH
-              value: {{ .Values.cache.mountPath }}/pnpm
-            - name: YARN_CACHE_FOLDER
-              value: {{ .Values.cache.mountPath }}/yarn
-            - name: YARN_GLOBAL_FOLDER
-              value: {{ .Values.cache.mountPath }}/yarn-global
-            - name: BUN_INSTALL_CACHE_DIR
-              value: {{ .Values.cache.mountPath }}/bun
-            - name: DENO_DIR
-              value: {{ .Values.cache.mountPath }}/deno
-            - name: XDG_CACHE_HOME
-              value: {{ .Values.cache.mountPath }}/xdg
+            # Single mount-path handed to the daemon. The daemon derives all
+            # sub-directories (bun, npm, pnpm, yarn, deno, xdg, git,
+            # node_modules, next) and injects the corresponding env vars into
+            # every subprocess it spawns — keeping runtime behaviour in code,
+            # not in the template. SANDBOX_CACHE_KEY is injected per-claim by
+            # the runner (not from the template).
+            - name: CACHE_DIR
+              value: {{ .Values.cache.mountPath }}
             {{- end }}
           ports:
             - name: daemon

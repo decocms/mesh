@@ -16,6 +16,24 @@ export interface Config {
   readonly proxyPort: number;
   /** Derived from `runtime`; e.g. "export PATH=/opt/bun/bin:$PATH && " when bun. */
   readonly pathPrefix: string;
+  /**
+   * Root of the shared cache volume (e.g. /mnt/cache). The daemon derives
+   * all sub-directories from this single value and injects the corresponding
+   * package-manager env vars into every subprocess it spawns. Null = no cache.
+   */
+  readonly cacheDir: string | null;
+  /** Root dir for git reference mirrors. Derived from cacheDir unless overridden. */
+  readonly gitCacheDir: string | null;
+  /**
+   * Stable hash of (userId, projectRef) injected by the runner. Used to key
+   * the per-user-branch .next/cache directory on the shared PVC. Null when
+   * cache is disabled or the runner didn't provide the key.
+   */
+  readonly sandboxCacheKey: string | null;
+  /** Base dir for shared node_modules on the PVC. Derived from cacheDir unless overridden. */
+  readonly nodeModulesCacheDir: string | null;
+  /** Base dir for per-sandbox Next.js webpack caches on the PVC. Derived from cacheDir unless overridden. */
+  readonly nextCacheDir: string | null;
 }
 
 export interface BroadcastSource {

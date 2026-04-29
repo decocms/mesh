@@ -684,6 +684,7 @@ export class AgentSandboxRunner implements SandboxRunner {
   private buildEnvMap(
     opts: EnsureOptions,
     boot: { token: string; daemonBootId: string; workdir: string },
+    id?: SandboxId,
   ): Record<string, string> {
     const callerEnv: Record<string, string> = {};
     const dropped: string[] = [];
@@ -722,6 +723,18 @@ export class AgentSandboxRunner implements SandboxRunner {
       ...(opts.workload?.packageManager
         ? { PACKAGE_MANAGER: opts.workload.packageManager }
         : {}),
+      // Key .next/cache on the credential-stripped repo URL so all users and
+      // all branches of the same project share the webpack compilation cache.
+      // Webpack is content-addressed — unchanged modules are cache hits
+      // regardless of who or which branch triggered the compile. The first pod
+      // to start (any user, any branch) warms it for everyone else.
+      ...(opts.repo
+        ? {
+            SANDBOX_CACHE_KEY: repoNextCacheKey(opts.repo.cloneUrl),
+          }
+        : id
+          ? { SANDBOX_CACHE_KEY: hashSandboxId(id, 32) }
+          : {}),
     };
   }
 
@@ -729,8 +742,9 @@ export class AgentSandboxRunner implements SandboxRunner {
     handle: string,
     opts: EnsureOptions,
     boot: { token: string; daemonBootId: string; workdir: string },
+    id?: SandboxId,
   ): SandboxClaim {
-    const envMap = this.buildEnvMap(opts, boot);
+    const envMap = this.buildEnvMap(opts, boot, id);
     return {
       apiVersion: `${K8S_CONSTANTS.CLAIM_API_GROUP}/${K8S_CONSTANTS.CLAIM_API_VERSION}`,
       kind: "SandboxClaim",
@@ -744,6 +758,7 @@ export class AgentSandboxRunner implements SandboxRunner {
           "app.kubernetes.io/name": "studio-sandbox",
           "app.kubernetes.io/managed-by": "studio",
           ...buildTenantLabels(opts.tenant),
+          ...buildRepoLabels(opts.repo),
         },
       },
       spec: {
@@ -757,6 +772,7 @@ export class AgentSandboxRunner implements SandboxRunner {
           labels: buildTenantLabels(opts.tenant, {
             [LABEL_KEYS.role]: "claimed",
             [LABEL_KEYS.sandboxHandle]: handle,
+            ...buildRepoLabels(opts.repo),
           }),
         },
         // `valueFrom.secretKeyRef` isn't supported on SandboxClaim env; RBAC
@@ -785,11 +801,16 @@ export class AgentSandboxRunner implements SandboxRunner {
     const daemonBootId = randomUUID();
     const workdir = DEFAULT_WORKDIR;
 
-    const claim = this.buildClaim(handle, opts, {
-      token,
-      daemonBootId,
-      workdir,
-    });
+    const claim = this.buildClaim(
+      handle,
+      opts,
+      {
+        token,
+        daemonBootId,
+        workdir,
+      },
+      id,
+    );
     await createSandboxClaim(this.kubeConfig, this.namespace, claim);
     const { podName } = await waitForSandboxReady(
       this.kubeConfig,
@@ -1297,6 +1318,8 @@ const LABEL_KEYS = {
   sandboxHandle: "studio.decocms.com/sandbox-handle",
   orgId: "studio.decocms.com/org-id",
   userId: "studio.decocms.com/user-id",
+  repo: "studio.decocms.com/repo",
+  branch: "studio.decocms.com/branch",
 } as const;
 
 // K8s label values: ≤63 chars, must match `(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?`.
@@ -1309,6 +1332,21 @@ const MAX_LABEL_VALUE_LEN = 63;
 function sanitizeLabelValue(value: string): string {
   const truncated = value.slice(0, MAX_LABEL_VALUE_LEN);
   return LABEL_VALUE_RE.test(truncated) ? truncated : "";
+}
+
+/**
+ * Convert an arbitrary string to a valid K8s label value. Replaces any
+ * character outside [A-Za-z0-9-_.] with ".", strips leading/trailing
+ * non-alphanumeric chars, and truncates to 63 chars. Returns "" if the
+ * result is still invalid (e.g. empty string).
+ */
+function toLabelValue(value: string): string {
+  const replaced = value.replace(/[^A-Za-z0-9\-_.]/g, ".");
+  const trimmed = replaced
+    .replace(/^[^A-Za-z0-9]+/, "")
+    .replace(/[^A-Za-z0-9]+$/, "")
+    .slice(0, MAX_LABEL_VALUE_LEN);
+  return LABEL_VALUE_RE.test(trimmed) ? trimmed : "";
 }
 
 /**
@@ -1330,6 +1368,34 @@ function buildTenantLabels(
     if (userId) labels[LABEL_KEYS.userId] = userId;
   }
   return labels;
+}
+
+/** Repo/branch labels for cost attribution and cache GC selectors. */
+function buildRepoLabels(repo: EnsureOptions["repo"]): Record<string, string> {
+  if (!repo) return {};
+  const labels: Record<string, string> = {};
+  const repoVal = toLabelValue(deriveRepoLabel(repo.cloneUrl));
+  if (repoVal) labels[LABEL_KEYS.repo] = repoVal;
+  const branchVal = repo.branch ? toLabelValue(repo.branch) : "";
+  if (branchVal) labels[LABEL_KEYS.branch] = branchVal;
+  return labels;
+}
+
+/**
+ * Stable, credential-free cache key for the shared .next/cache directory.
+ * Strips username/password from the clone URL so the key is identical for all
+ * users and all branches of the same repository.
+ */
+function repoNextCacheKey(cloneUrl: string): string {
+  try {
+    const url = new URL(cloneUrl);
+    url.username = "";
+    url.password = "";
+    const canonical = `${url.hostname}${url.pathname}`.replace(/\.git$/, "");
+    return createHash("sha256").update(canonical).digest("hex").slice(0, 32);
+  } catch {
+    return createHash("sha256").update(cloneUrl).digest("hex").slice(0, 32);
+  }
 }
 
 /** Read tenant back from a claim's metadata.labels (adopt path). */

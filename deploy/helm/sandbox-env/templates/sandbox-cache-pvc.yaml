@@ -6,11 +6,19 @@
 # accessMode: ReadWriteMany is required for concurrent pod mounts.
 # On EKS, pair with an EFS-backed StorageClass (aws-efs-csi-driver).
 # On single-node kind, ReadWriteOnce is sufficient — override in values-kind.yaml.
+#
+# helm.sh/resource-policy: keep prevents Helm from deleting this PVC on
+# `helm upgrade` or `helm uninstall`. The cache is expensive to repopulate
+# (full cold bun/npm/pnpm pull for every sandboxed project); losing it on a
+# routine chart operation would be painful. Delete the PVC manually when you
+# explicitly want to evict the cache.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: {{ include "sandbox-env.sandboxName" . }}-cache
   namespace: agent-sandbox-system
+  annotations:
+    helm.sh/resource-policy: keep
   labels:
     {{- include "sandbox-env.sandboxLabels" . | nindent 4 }}
 spec:
