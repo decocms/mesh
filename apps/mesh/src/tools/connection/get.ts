@@ -50,6 +50,8 @@ export const COLLECTION_CONNECTIONS_GET = defineTool({
   handler: async (input, ctx) => {
     // Require organization context
     const organization = requireOrganization(ctx);
+
+    // Check authorization
     await ctx.access.check();
 
     // In dev mode, check if this is the dev-assets connection

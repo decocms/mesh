@@ -211,8 +211,8 @@ export const COLLECTION_VIRTUAL_MCP_LIST = defineTool({
   outputSchema: ListOutputSchema,
 
   handler: async (input, ctx) => {
-    const organization = requireOrganization(ctx);
     await ctx.access.check();
+    const organization = requireOrganization(ctx);
 
     // Fast-path: if the where clause includes connection_id eq, prefilter using the DB index.
     // We still apply the full `where` expression afterwards (in case other conditions exist).
