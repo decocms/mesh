@@ -46,6 +46,7 @@ import { pluginSettingsSidebarItems } from "@/web/index";
 import { useStatusSounds } from "../hooks/use-status-sounds";
 import { authClient } from "@/web/lib/auth-client";
 import { track } from "@/web/lib/posthog-client";
+import { useCurrentMemberPermissions } from "@/web/hooks/use-member-permissions";
 
 interface SettingsNavItem {
   key: string;
@@ -59,9 +60,35 @@ interface SettingsNavGroup {
   items: SettingsNavItem[];
 }
 
+// Maps sidebar item keys to a representative tool that gates access.
+// If the current user has this tool (or is admin), the item is visible.
+// Items without an entry are always visible.
+const SIDEBAR_ITEM_REQUIRED_TOOL: Record<string, string> = {
+  "brand-context": "BRAND_CONTEXT_LIST",
+  "ai-providers": "AI_PROVIDERS_LIST",
+  connections: "COLLECTION_CONNECTIONS_LIST",
+  agents: "COLLECTION_VIRTUAL_MCP_LIST",
+  automations: "AUTOMATION_LIST",
+  monitor: "MONITORING_LOGS_LIST",
+  members: "ORGANIZATION_MEMBER_LIST",
+  roles: "ORGANIZATION_MEMBER_LIST",
+  sso: "__admin_only__",
+};
+
 function useSettingsSidebarGroups(): SettingsNavGroup[] {
   const currentProject = useProjectContext().project;
   const enabledPlugins = currentProject.enabledPlugins ?? [];
+  const perms = useCurrentMemberPermissions();
+
+  const canAccess = (key: string): boolean => {
+    // While loading, show all items (fail open)
+    if (perms.isLoading) return true;
+    if (perms.isAdmin || perms.hasAll) return true;
+    const requiredTool = SIDEBAR_ITEM_REQUIRED_TOOL[key];
+    if (!requiredTool) return true;
+    if (requiredTool === "__admin_only__") return false;
+    return perms.tools.has(requiredTool);
+  };
 
   const enabledSettingsItems = pluginSettingsSidebarItems
     .filter((item) => enabledPlugins.includes(item.pluginId))
@@ -77,36 +104,36 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
           icon: <Building02 size={14} />,
           to: "/$org/settings/general",
         },
-        {
+        canAccess("brand-context") && {
           key: "brand-context",
           label: "Brand Context",
           icon: <BookOpen01 size={14} />,
           to: "/$org/settings/brand-context",
         },
-        {
+        canAccess("ai-providers") && {
           key: "ai-providers",
           label: "AI Providers",
           icon: <CpuChip01 size={14} />,
           to: "/$org/settings/ai-providers",
         },
-      ],
+      ].filter(Boolean) as SettingsNavItem[],
     },
     {
       label: "Build",
       items: [
-        {
+        canAccess("connections") && {
           key: "connections",
           label: "Connections",
           icon: <ZapSquare size={14} />,
           to: "/$org/settings/connections",
         },
-        {
+        canAccess("agents") && {
           key: "agents",
           label: "Agents",
           icon: <Users03 size={14} />,
           to: "/$org/settings/agents",
         },
-        {
+        canAccess("automations") && {
           key: "automations",
           label: "Automations",
           icon: <Zap size={14} />,
@@ -118,36 +145,36 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
           icon: <PackageCheck size={14} />,
           to: "/$org/settings/store",
         },
-      ],
+      ].filter(Boolean) as SettingsNavItem[],
     },
     {
       label: "Manage",
       items: [
-        {
+        canAccess("monitor") && {
           key: "monitor",
           label: "Monitor",
           icon: <BarChart10 size={14} />,
           to: "/$org/settings/monitor",
         },
-        {
+        canAccess("members") && {
           key: "members",
           label: "Members",
           icon: <Users03 size={14} />,
           to: "/$org/settings/members",
         },
-        {
+        canAccess("roles") && {
           key: "roles",
           label: "Roles",
           icon: <Shield01 size={14} />,
           to: "/$org/settings/roles",
         },
-        {
+        canAccess("sso") && {
           key: "sso",
           label: "Security",
           icon: <Lock01 size={14} />,
           to: "/$org/settings/sso",
         },
-      ],
+      ].filter(Boolean) as SettingsNavItem[],
     },
     {
       label: "Extensions",
@@ -172,7 +199,7 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
         },
       ],
     },
-  ];
+  ].filter((group) => group.items.length > 0);
 
   return groups;
 }

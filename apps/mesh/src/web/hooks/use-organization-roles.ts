@@ -186,11 +186,6 @@ export function useOrganizationRoles() {
       const roleName = customRole.role;
       if (!roleName) continue;
 
-      // Skip if it's a built-in role name (owner, admin, user)
-      if (BUILTIN_ROLES.some((b) => b.value === roleName)) {
-        continue;
-      }
-
       const {
         staticPermissions,
         allowsAllStaticPermissions,
@@ -201,6 +196,30 @@ export function useOrganizationRoles() {
         modelCount,
         allowsAllModels,
       } = parsePermission(customRole.permission);
+
+      // If it matches a built-in role (admin/user), merge stored data into it
+      const builtinIdx = allRoles.findIndex(
+        (r) => r.isBuiltin && r.role === roleName,
+      );
+      const existingBuiltin = allRoles[builtinIdx];
+      if (builtinIdx !== -1 && existingBuiltin) {
+        allRoles[builtinIdx] = {
+          ...existingBuiltin,
+          id: customRole.id,
+          permission: customRole.permission ?? undefined,
+          staticPermissionCount: allowsAllStaticPermissions
+            ? -1
+            : staticPermissions.length,
+          allowsAllStaticPermissions,
+          connectionCount: allowsAllConnections ? -1 : connectionIds.length,
+          allowsAllConnections,
+          toolCount: allowsAllTools ? -1 : toolNames.length,
+          allowsAllTools,
+          modelCount: allowsAllModels ? -1 : modelCount,
+          allowsAllModels,
+        };
+        continue;
+      }
 
       allRoles.push({
         id: customRole.id,

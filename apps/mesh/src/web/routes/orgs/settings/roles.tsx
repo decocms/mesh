@@ -3,6 +3,7 @@ import {
   type OrganizationRole,
   useOrganizationRoles,
 } from "@/web/hooks/use-organization-roles";
+import { SettingsPermissionGuard } from "@/web/components/settings-permission-guard";
 import { authClient } from "@/web/lib/auth-client";
 import { KEYS } from "@/web/lib/query-keys";
 import { track } from "@/web/lib/posthog-client";
@@ -126,7 +127,7 @@ function RolesPageContent() {
 
   const { locator } = useProjectContext();
   const queryClient = useQueryClient();
-  const { customRoles, refetch: refetchRoles } = useOrganizationRoles();
+  const { customRoles, roles, refetch: refetchRoles } = useOrganizationRoles();
 
   const setActiveRole = (value: string | undefined) =>
     navigate({
@@ -139,7 +140,15 @@ function RolesPageContent() {
     if (roleParam === "new") return { kind: "new" };
     if (roleParam.startsWith("builtin-")) {
       const slug = roleParam.slice(8) as "owner" | "admin" | "user";
-      return { kind: "builtin", role: slug };
+      const storedRole = roles.find(
+        (r) => r.isBuiltin && r.role === slug && r.id,
+      );
+      return {
+        kind: "builtin",
+        role: slug,
+        storedId: storedRole?.id,
+        storedPermission: storedRole?.permission,
+      };
     }
     const custom = customRoles.find((r) => r.id === roleParam);
     return custom ? { kind: "custom", role: custom } : null;
@@ -216,7 +225,7 @@ function RolesPageContent() {
           <span className="text-sm font-medium text-foreground truncate">
             {row.role.label}
           </span>
-          {row.kind === "builtin" && (
+          {row.kind === "builtin" && row.role.role === "owner" && (
             <Lock01 size={12} className="text-muted-foreground shrink-0" />
           )}
         </div>
@@ -427,31 +436,33 @@ function RolesPageContent() {
 
 export default function RolesPage() {
   return (
-    <ErrorBoundary
-      fallback={
-        <Page>
-          <div className="flex items-center justify-center h-full">
-            <div className="text-sm text-muted-foreground">
-              Failed to load roles
-            </div>
-          </div>
-        </Page>
-      }
-    >
-      <Suspense
+    <SettingsPermissionGuard requiredTool="ORGANIZATION_MEMBER_LIST">
+      <ErrorBoundary
         fallback={
           <Page>
             <div className="flex items-center justify-center h-full">
-              <Loading01
-                size={32}
-                className="animate-spin text-muted-foreground"
-              />
+              <div className="text-sm text-muted-foreground">
+                Failed to load roles
+              </div>
             </div>
           </Page>
         }
       >
-        <RolesPageContent />
-      </Suspense>
-    </ErrorBoundary>
+        <Suspense
+          fallback={
+            <Page>
+              <div className="flex items-center justify-center h-full">
+                <Loading01
+                  size={32}
+                  className="animate-spin text-muted-foreground"
+                />
+              </div>
+            </Page>
+          }
+        >
+          <RolesPageContent />
+        </Suspense>
+      </ErrorBoundary>
+    </SettingsPermissionGuard>
   );
 }

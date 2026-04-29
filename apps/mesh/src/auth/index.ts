@@ -97,17 +97,17 @@ const statement = { ...defaultStatements, self: ["*", ...allTools] };
 const ac = createAccessControl(statement);
 
 const user = ac.newRole({
-  self: ["*"],
+  self: ["*", ...allTools],
   ...adminAc.statements,
 }) as Role;
 
 const admin = ac.newRole({
-  self: ["*"],
+  self: ["*", ...allTools],
   ...adminAc.statements,
 }) as Role;
 
 const owner = ac.newRole({
-  self: ["*"],
+  self: ["*", ...allTools],
   ...adminAc.statements,
 }) as Role;
 

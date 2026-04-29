@@ -79,6 +79,10 @@ export const KEYS = {
   activeOrganization: (org: string | undefined) =>
     ["activeOrganization", org] as const,
 
+  // Current user's own role + permissions for the active org
+  myRolePermissions: (orgId: string | undefined) =>
+    ["my-role-permissions", orgId] as const,
+
   // Models list (scoped by organization)
   modelsList: (orgId: string) => ["models-list", orgId] as const,
 
