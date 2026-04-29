@@ -174,9 +174,14 @@ interface KubeFetchInit {
   headers?: Record<string, string>;
   /**
    * Required iff `method === "PATCH"`. Drives the patch content-type:
-   * RFC 7396 merge-patch (CRDs) vs. strategic-merge (built-in types).
+   *   - `merge`           — RFC 7396 merge-patch (default; CRDs).
+   *   - `strategic-merge` — strategic-merge-patch (built-in types).
+   *   - `apply`           — Server-Side Apply (declarative; tracks field
+   *                         ownership via `?fieldManager=<name>`). Caller
+   *                         is responsible for appending `fieldManager`
+   *                         (and optionally `force=true`) to `path`.
    */
-  patchType?: "merge" | "strategic-merge";
+  patchType?: "merge" | "strategic-merge" | "apply";
 }
 
 /**
@@ -191,10 +196,16 @@ async function kubeFetch(
   const auth = await resolveKubeAuth(kc);
   const headers: Record<string, string> = { ...auth.headers, ...init.headers };
   if (init.method === "PATCH") {
+    // SSA's canonical content-type is `application/apply-patch+yaml`; the
+    // API server treats JSON as a strict YAML subset, so we serialize the
+    // body as JSON and label it `+yaml` for compat with K8s <1.32 (the
+    // `+json` variant only landed in 1.32).
     headers["content-type"] =
-      init.patchType === "strategic-merge"
-        ? "application/strategic-merge-patch+json"
-        : "application/merge-patch+json";
+      init.patchType === "apply"
+        ? "application/apply-patch+yaml"
+        : init.patchType === "strategic-merge"
+          ? "application/strategic-merge-patch+json"
+          : "application/merge-patch+json";
   } else if (init.body !== undefined && !("content-type" in headers)) {
     headers["content-type"] = "application/json";
   }
@@ -465,6 +476,101 @@ export const HTTPROUTE_CONSTANTS = {
   API_VERSION: HTTPROUTE_API_VERSION,
   PLURAL: HTTPROUTE_PLURAL,
 } as const;
+
+// ---- Service port patching -------------------------------------------------
+
+/**
+ * Field-manager identity asserted on Server-Side Apply calls. K8s tracks
+ * ownership per-field by this string; reusing it across calls (and across
+ * mesh restarts) is what lets the second SSA see "I already own ports[]"
+ * and treat it as a no-op rather than a conflict.
+ */
+const SSA_FIELD_MANAGER = "mesh-sandbox-runner";
+
+/**
+ * Server-Side Apply a single named port onto a core Service. Establishes
+ * `mesh-sandbox-runner` as the field manager for `spec.ports[name=daemon]`,
+ * which prevents the operator's reconciler from silently reverting the
+ * field on its next pass.
+ *
+ * Why this exists: agent-sandbox v0.4.x creates per-Sandbox Services with
+ * `spec.ports: []` — the operator assumes callers reach pods via direct
+ * pod-IP DNS (`<pod>.<svc>.<ns>.svc.cluster.local`). Istio's k8s service
+ * registry only builds an upstream cluster when the Service has at least
+ * one declared port. With an empty ports list, an HTTPRoute backed by that
+ * Service is "Accepted" by the gateway controller but routes to nowhere:
+ * Envoy returns 500 with no body, which the browser misreports as a CORS
+ * error (because the empty 500 also has no `access-control-allow-origin`).
+ *
+ * Why SSA over strategic-merge-patch:
+ *   - SSA establishes mesh as the *owner* of `spec.ports`. If a future
+ *     operator revision performs a full Update of the Service (Get →
+ *     mutate → Put), the API server rejects the conflicting write unless
+ *     the operator explicitly forces — which would surface in operator
+ *     logs as a managed-fields conflict rather than silently breaking
+ *     routing in production.
+ *   - Re-applying the same body is a guaranteed no-op (the API server
+ *     diffs against our recorded managed-fields), so the call is safe
+ *     to issue from both fresh provision and adopt-backfill paths
+ *     without any caller-side "already applied?" check.
+ *
+ * `force=true` is set so the *first* apply takes ownership even if the
+ * operator initially set `ports: []` under its own field manager. After
+ * the first call, the API server records us as the owner and subsequent
+ * applies are no-ops.
+ *
+ * 404 is NOT swallowed: a missing Service when we expected one indicates
+ * a race against operator Service creation, which the caller should
+ * surface and potentially retry.
+ */
+export async function ensureServicePort(
+  kc: KubeConfig,
+  namespace: string,
+  serviceName: string,
+  port: {
+    name: string;
+    port: number;
+    targetPort: number;
+    protocol?: "TCP" | "UDP";
+  },
+): Promise<void> {
+  // SSA requires apiVersion + kind + metadata.name in the body so the API
+  // server can resolve the target type without reading it from the path.
+  const body = {
+    apiVersion: "v1",
+    kind: "Service",
+    metadata: { name: serviceName },
+    spec: {
+      ports: [
+        {
+          name: port.name,
+          port: port.port,
+          targetPort: port.targetPort,
+          protocol: port.protocol ?? "TCP",
+        },
+      ],
+    },
+  };
+  const query = new URLSearchParams({
+    fieldManager: SSA_FIELD_MANAGER,
+    force: "true",
+  });
+  const path = `/api/v1/namespaces/${encodeURIComponent(namespace)}/services/${encodeURIComponent(serviceName)}?${query}`;
+  try {
+    const resp = await kubeFetch(kc, {
+      method: "PATCH",
+      path,
+      patchType: "apply",
+      body,
+    });
+    await ensureOk(resp, "ensureServicePort");
+  } catch (error) {
+    throw new SandboxError(
+      `Failed to apply Service ports: ${serviceName}`,
+      error,
+    );
+  }
+}
 
 export interface WaitForSandboxReadyResult {
   sandboxName: string;

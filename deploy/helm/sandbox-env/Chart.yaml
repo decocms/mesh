@@ -9,6 +9,20 @@ description: |
   releases coexist in the shared `agent-sandbox-system` namespace.
   Requires the sandbox-operator chart to already be installed.
 type: application
+# 0.3.0: mesh runner now Server-Side Applies `port: 9000` onto each
+# operator-created Service after the SandboxClaim becomes Ready, taking
+# ownership of `spec.ports[name=daemon]` under field manager
+# `mesh-sandbox-runner`. agent-sandbox v0.4.x ships Services with
+# `spec.ports: []` (the operator assumes direct pod-IP DNS), which makes
+# Istio's k8s service registry refuse to register an upstream cluster —
+# HTTPRoutes "Accept" but Envoy returns 500 with no body, surfacing as a
+# phantom CORS error in browsers. SSA (vs. plain PATCH) means a future
+# operator reconciler that tries to reset ports[] will hit a
+# managed-fields conflict rather than silently breaking routing. RBAC
+# gains `services: [get, patch]` in `agent-sandbox-system`. Upgraders
+# MUST bump mesh to the matching version; without the new RBAC the
+# runner fails to apply the Service and per-claim previews stop routing.
+#
 # 0.2.0: per-claim HTTPRoutes minted by mesh runner. The chart no longer
 # renders the cluster-wide HTTPRoute that backed the in-process preview
 # proxy; mesh now mints one HTTPRoute per SandboxClaim. RBAC gains
@@ -16,7 +30,7 @@ type: application
 # an ingress rule from `previewGateway.namespace` to sandbox port 9000.
 # Upgraders MUST bump mesh to the matching version that creates per-claim
 # HTTPRoutes — otherwise preview URLs stop resolving.
-version: 0.2.0
+version: 0.3.0
 # appVersion tracks the studio-sandbox image version (image.tag default).
 appVersion: "0.1.0"
 kubeVersion: ">=1.30.0-0"

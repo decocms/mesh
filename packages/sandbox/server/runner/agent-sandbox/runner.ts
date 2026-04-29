@@ -65,6 +65,7 @@ import {
   createSandboxClaim,
   deleteHttpRoute,
   deleteSandboxClaim,
+  ensureServicePort,
   getSandboxClaim,
   HTTPROUTE_CONSTANTS,
   patchSandboxClaimShutdown,
@@ -851,12 +852,16 @@ export class AgentSandboxRunner implements SandboxRunner {
       handle,
     );
 
-    // Mint per-claim HTTPRoute before opening the port-forward so that, by
-    // the time `Sandbox.previewUrl` reaches the caller, the gateway already
-    // has a route attached. If this fails the claim is still healthy but
-    // the preview URL would be unroutable, which is worse than a fast-fail
-    // — roll back the claim so the caller's retry hits a clean slate.
+    // Patch the operator-created Service to declare port 9000, then mint the
+    // per-claim HTTPRoute. Both happen before the port-forward opens so that,
+    // by the time `Sandbox.previewUrl` reaches the caller, the gateway has a
+    // route AND its backend cluster is registered. The Service patch is a
+    // workaround for agent-sandbox v0.4.x shipping ports-less Services
+    // (`ensureServicePort` doc explains why this matters for Istio). If
+    // either step fails the claim is healthy but unroutable — roll back so
+    // the caller's retry hits a clean slate.
     try {
+      await this.ensureServicePortForHandle(handle);
       await this.ensureHttpRouteForHandle(handle, opts.tenant ?? null);
     } catch (err) {
       await deleteSandboxClaim(this.kubeConfig, this.namespace, handle).catch(
@@ -895,6 +900,24 @@ export class AgentSandboxRunner implements SandboxRunner {
       tenant: opts.tenant ?? null,
       ensureOpts: stripEnsureOpts(opts),
     };
+  }
+
+  /**
+   * No-op when `previewGateway` isn't configured. Otherwise Server-Side
+   * Apply port 9000 (named "daemon") onto the operator-created Service
+   * `<handle>`. The agent-sandbox operator (v0.4.x) ships Services with
+   * empty `spec.ports`, which makes Istio refuse to register an upstream
+   * cluster — `ensureServicePort` doc has the full rationale. Idempotent:
+   * once mesh owns `spec.ports[name=daemon]` (first SSA), subsequent calls
+   * with the same body are recorded as no-ops by the API server.
+   */
+  private async ensureServicePortForHandle(handle: string): Promise<void> {
+    if (!this.previewGateway || !this.previewUrlPattern) return;
+    await ensureServicePort(this.kubeConfig, this.namespace, handle, {
+      name: "daemon",
+      port: DAEMON_CONTAINER_PORT,
+      targetPort: DAEMON_CONTAINER_PORT,
+    });
   }
 
   /**
@@ -1026,13 +1049,21 @@ export class AgentSandboxRunner implements SandboxRunner {
     if (!live) return null;
 
     const tenant = readClaimTenant(claim);
-    // Backfill the HTTPRoute for legacy claims provisioned before per-claim
-    // routing existed. createHttpRoute swallows 409, so the steady-state
-    // path (route already present from a prior provision) is a no-op.
-    // Failures here don't block adoption — preview traffic just stays
-    // unrouted until the next ensure() picks it up; the rest of the
-    // sandbox surface (exec, port-forward) is unaffected.
+    // Backfill the Service port + HTTPRoute for legacy claims provisioned
+    // before per-claim routing existed. Both calls are idempotent — Service
+    // patch is a no-op once `port: 9000` is already declared, and
+    // createHttpRoute swallows 409. Failures here don't block adoption:
+    // preview traffic stays unrouted until the next ensure() picks it up;
+    // the rest of the sandbox surface (exec, port-forward) is unaffected.
+    // Service patch first so that, if the route is missing, recreating it
+    // immediately after will already see a working cluster on the gateway
+    // side.
     if (this.previewGateway) {
+      await this.ensureServicePortForHandle(handle).catch((err) => {
+        console.warn(
+          `[${LOG_LABEL}] Service port backfill failed for ${handle}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
       await this.ensureHttpRouteForHandle(handle, tenant).catch((err) => {
         console.warn(
           `[${LOG_LABEL}] HTTPRoute backfill failed for ${handle}: ${err instanceof Error ? err.message : String(err)}`,
