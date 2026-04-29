@@ -242,13 +242,19 @@ export function OrganizationForm() {
           {(errors.name || errors.slug || errors.logo) && (
             <div className="px-5 pb-3 flex flex-col gap-1">
               {errors.name && (
-                <p className="text-xs text-destructive">{errors.name.message}</p>
+                <p className="text-xs text-destructive">
+                  {errors.name.message}
+                </p>
               )}
               {errors.slug && (
-                <p className="text-xs text-destructive">{errors.slug.message}</p>
+                <p className="text-xs text-destructive">
+                  {errors.slug.message}
+                </p>
               )}
               {errors.logo && (
-                <p className="text-xs text-destructive">{errors.logo.message}</p>
+                <p className="text-xs text-destructive">
+                  {errors.logo.message}
+                </p>
               )}
             </div>
           )}

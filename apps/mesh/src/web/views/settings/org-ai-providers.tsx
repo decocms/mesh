@@ -1083,30 +1083,30 @@ function DecoCreditsHero() {
             </Button>
           </div>
 
-        <AlertDialog
-          open={confirmDisconnect}
-          onOpenChange={setConfirmDisconnect}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Disconnect Deco AI Gateway</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will remove the Deco AI Gateway from this workspace. Your
-                credit balance is preserved and will be available if you
-                reconnect.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => disconnect()}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                Disconnect
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          <AlertDialog
+            open={confirmDisconnect}
+            onOpenChange={setConfirmDisconnect}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Disconnect Deco AI Gateway</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will remove the Deco AI Gateway from this workspace. Your
+                  credit balance is preserved and will be available if you
+                  reconnect.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => disconnect()}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Disconnect
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           {/* Balance */}
           <div className="flex flex-col gap-2 pt-2">
@@ -1179,13 +1179,11 @@ const TIER_DESCRIPTIONS: Record<TierKey, string> = {
 };
 
 function SimpleModeModelRow({
-  label,
   slot,
   onSlotChange,
   filterModels,
   defaultKeyId,
 }: {
-  label: string;
   slot: SimpleModeConfig["chat"]["fast"];
   onSlotChange: (slot: SimpleModeConfig["chat"]["fast"]) => void;
   filterModels?: (m: AiProviderModel) => boolean;
@@ -1461,7 +1459,6 @@ function SimpleModeSection() {
                     description={TIER_DESCRIPTIONS[tier]}
                     action={
                       <SimpleModeModelRow
-                        label={TIER_LABELS[tier]}
                         slot={field.value}
                         defaultKeyId={allKeys[0]?.id ?? null}
                         onSlotChange={(slot) => field.onChange(slot)}
@@ -1480,7 +1477,6 @@ function SimpleModeSection() {
                   title="Image"
                   action={
                     <SimpleModeModelRow
-                      label="Image"
                       slot={field.value}
                       defaultKeyId={allKeys[0]?.id ?? null}
                       filterModels={filterImageModels}
@@ -1498,7 +1494,6 @@ function SimpleModeSection() {
                   title="Web research"
                   action={
                     <SimpleModeModelRow
-                      label="Web research"
                       slot={field.value}
                       defaultKeyId={allKeys[0]?.id ?? null}
                       filterModels={filterWebResearchModels}

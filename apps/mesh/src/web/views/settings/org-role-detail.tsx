@@ -1538,7 +1538,8 @@ function RoleDetailPageInner({
           <div
             className={cn(
               "h-full overflow-hidden",
-              activeTab !== "models" && "border border-border rounded-xl bg-card",
+              activeTab !== "models" &&
+                "border border-border rounded-xl bg-card",
             )}
           >
             {activeTab === "mcp" && !isBuiltin && (

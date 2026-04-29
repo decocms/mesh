@@ -127,10 +127,19 @@ function AddPrivateRegistryForm({
         }
       />
       <div className="px-5 py-4 flex justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={onCancel} disabled={isPending}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onCancel}
+          disabled={isPending}
+        >
           Cancel
         </Button>
-        <Button size="sm" onClick={() => addRegistry()} disabled={!url || isPending}>
+        <Button
+          size="sm"
+          onClick={() => addRegistry()}
+          disabled={!url || isPending}
+        >
           {isPending ? "Adding..." : "Add Registry"}
         </Button>
       </div>
@@ -173,9 +182,16 @@ function RegistryItem({
       onClick={handleClick}
       icon={
         icon ? (
-          <img src={icon} alt={name} className="size-8 rounded-md object-contain" />
+          <img
+            src={icon}
+            alt={name}
+            className="size-8 rounded-md object-contain"
+          />
         ) : (
-          <Avatar fallback={name.charAt(0)} className="size-8 bg-primary/10 text-primary" />
+          <Avatar
+            fallback={name.charAt(0)}
+            className="size-8 bg-primary/10 text-primary"
+          />
         )
       }
       action={
@@ -310,7 +326,11 @@ function OrgStoreContent() {
         title="Private Registries"
         actions={
           !showAddForm ? (
-            <Button variant="outline" size="sm" onClick={() => setShowAddForm(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAddForm(true)}
+            >
               <Plus size={14} />
               Add registry
             </Button>
@@ -353,14 +373,23 @@ function OrgStoreContent() {
               description="Community MCP registry with thousands of handy MCPs"
               icon={communityConnection.icon}
               enabled={isRegistryEnabled(effectiveCommunityId)}
-              onToggle={(enabled) => handleToggle(effectiveCommunityId, enabled)}
+              onToggle={(enabled) =>
+                handleToggle(effectiveCommunityId, enabled)
+              }
             />
           ) : (
             <SettingsCardItem
               title="MCP Registry"
               description="Community MCP registry — not yet added"
-              icon={<Avatar fallback="M" className="size-8 bg-primary/10 text-primary" />}
-              action={<Switch checked={false} disabled onCheckedChange={() => {}} />}
+              icon={
+                <Avatar
+                  fallback="M"
+                  className="size-8 bg-primary/10 text-primary"
+                />
+              }
+              action={
+                <Switch checked={false} disabled onCheckedChange={() => {}} />
+              }
             />
           )}
         </SettingsCard>

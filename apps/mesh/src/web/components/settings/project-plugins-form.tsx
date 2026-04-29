@@ -102,8 +102,7 @@ export function ProjectPluginsForm() {
                 </span>
               }
               onClick={() =>
-                !mutation.isPending &&
-                handleTogglePlugin(plugin.id, !isEnabled)
+                !mutation.isPending && handleTogglePlugin(plugin.id, !isEnabled)
               }
               action={
                 <Switch

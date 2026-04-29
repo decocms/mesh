@@ -173,7 +173,8 @@ function PreferencesSection() {
           description="Receive browser notifications for important events."
           onClick={
             typeof Notification !== "undefined"
-              ? () => handleNotificationsChange(!preferences.enableNotifications)
+              ? () =>
+                  handleNotificationsChange(!preferences.enableNotifications)
               : undefined
           }
           action={

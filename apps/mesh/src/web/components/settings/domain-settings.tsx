@@ -142,9 +142,7 @@ export function DomainSettings() {
   }
 
   return (
-    <SettingsSection
-      title="Email domain"
-    >
+    <SettingsSection title="Email domain">
       {currentDomain ? (
         <SettingsCard>
           <SettingsCardItem

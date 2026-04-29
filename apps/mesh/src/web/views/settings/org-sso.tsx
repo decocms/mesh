@@ -219,7 +219,10 @@ export function OrgSsoPage() {
                             placeholder="https://login.microsoftonline.com/{tenant}/v2.0"
                             value={formState.issuer}
                             onChange={(e) =>
-                              setFormState((s) => ({ ...s, issuer: e.target.value }))
+                              setFormState((s) => ({
+                                ...s,
+                                issuer: e.target.value,
+                              }))
                             }
                             className="w-[280px]"
                           />
@@ -233,7 +236,10 @@ export function OrgSsoPage() {
                             placeholder="your-client-id"
                             value={formState.clientId}
                             onChange={(e) =>
-                              setFormState((s) => ({ ...s, clientId: e.target.value }))
+                              setFormState((s) => ({
+                                ...s,
+                                clientId: e.target.value,
+                              }))
                             }
                             className="w-[280px]"
                           />
@@ -241,7 +247,11 @@ export function OrgSsoPage() {
                       />
                       <SettingsCardItem
                         title="Client Secret"
-                        description={isEditing && isConfigured ? "Leave empty to keep current" : undefined}
+                        description={
+                          isEditing && isConfigured
+                            ? "Leave empty to keep current"
+                            : undefined
+                        }
                         action={
                           <Input
                             id="sso-client-secret"
@@ -249,7 +259,10 @@ export function OrgSsoPage() {
                             placeholder="your-client-secret"
                             value={formState.clientSecret}
                             onChange={(e) =>
-                              setFormState((s) => ({ ...s, clientSecret: e.target.value }))
+                              setFormState((s) => ({
+                                ...s,
+                                clientSecret: e.target.value,
+                              }))
                             }
                             className="w-[280px]"
                           />
@@ -264,7 +277,10 @@ export function OrgSsoPage() {
                             placeholder="company.com"
                             value={formState.domain}
                             onChange={(e) =>
-                              setFormState((s) => ({ ...s, domain: e.target.value }))
+                              setFormState((s) => ({
+                                ...s,
+                                domain: e.target.value,
+                              }))
                             }
                             className="w-[280px]"
                           />
@@ -278,7 +294,10 @@ export function OrgSsoPage() {
                             placeholder="openid email profile"
                             value={formState.scopes}
                             onChange={(e) =>
-                              setFormState((s) => ({ ...s, scopes: e.target.value }))
+                              setFormState((s) => ({
+                                ...s,
+                                scopes: e.target.value,
+                              }))
                             }
                             className="w-[280px]"
                           />
@@ -293,7 +312,10 @@ export function OrgSsoPage() {
                             placeholder="Auto-detected from issuer"
                             value={formState.discoveryEndpoint}
                             onChange={(e) =>
-                              setFormState((s) => ({ ...s, discoveryEndpoint: e.target.value }))
+                              setFormState((s) => ({
+                                ...s,
+                                discoveryEndpoint: e.target.value,
+                              }))
                             }
                             className="w-[280px]"
                           />
@@ -301,12 +323,24 @@ export function OrgSsoPage() {
                       />
                       <SettingsCardActions>
                         {isEditing && (
-                          <Button variant="outline" size="sm" onClick={() => setIsEditing(false)}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsEditing(false)}
+                          >
                             Cancel
                           </Button>
                         )}
-                        <Button onClick={handleSave} disabled={saveMutation.isPending} size="sm">
-                          {saveMutation.isPending ? "Saving..." : isEditing ? "Update" : "Configure SSO"}
+                        <Button
+                          onClick={handleSave}
+                          disabled={saveMutation.isPending}
+                          size="sm"
+                        >
+                          {saveMutation.isPending
+                            ? "Saving..."
+                            : isEditing
+                              ? "Update"
+                              : "Configure SSO"}
                         </Button>
                       </SettingsCardActions>
                     </SettingsCard>

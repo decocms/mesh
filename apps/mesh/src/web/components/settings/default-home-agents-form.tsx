@@ -49,7 +49,6 @@ import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import {
   SettingsCard,
   SettingsCardActions,
-  SettingsCardItem,
   SettingsSection,
 } from "@/web/components/settings/settings-section";
 import {
@@ -390,7 +389,9 @@ function DefaultHomeAgentsFormContent() {
                       {i === HOME_VIEW_DISPLAY_LIMIT && (
                         <div className="flex items-center gap-2 px-1 py-1 text-xs text-muted-foreground">
                           <div className="flex-1 h-px bg-border" />
-                          <span>Below this line is hidden on the home view</span>
+                          <span>
+                            Below this line is hidden on the home view
+                          </span>
                           <div className="flex-1 h-px bg-border" />
                         </div>
                       )}

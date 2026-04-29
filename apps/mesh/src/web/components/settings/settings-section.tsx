@@ -144,7 +144,9 @@ export function SettingsCardActions({
   className,
 }: SettingsCardActionsProps) {
   return (
-    <div className={cn("flex items-center justify-end gap-2 px-4 py-4", className)}>
+    <div
+      className={cn("flex items-center justify-end gap-2 px-4 py-4", className)}
+    >
       {children}
     </div>
   );
@@ -157,8 +159,6 @@ interface SettingsPageProps {
 
 export function SettingsPage({ className, children }: SettingsPageProps) {
   return (
-    <div className={cn("flex flex-col gap-10", className)}>
-      {children}
-    </div>
+    <div className={cn("flex flex-col gap-10", className)}>{children}</div>
   );
 }
