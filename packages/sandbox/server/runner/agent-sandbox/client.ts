@@ -350,6 +350,122 @@ export async function getSandboxClaim(
   return found ?? undefined;
 }
 
+// ---- HTTPRoute (Gateway API) ------------------------------------------------
+
+/**
+ * Minimal HTTPRoute shape for per-claim preview routing. Mirrors the v1
+ * Gateway API surface, scoped to the fields the runner writes — listener
+ * attachment via `parentRefs`, exact-host match via `hostnames`, and a
+ * single same-namespace `backendRefs` to the operator-created Service.
+ *
+ * Cross-namespace backendRefs are deliberately not modeled: HTTPRoute and
+ * Service both live in `agent-sandbox-system`, which avoids the
+ * ReferenceGrant dance.
+ */
+export interface HttpRoute {
+  apiVersion: string;
+  kind: "HTTPRoute";
+  metadata: {
+    name: string;
+    namespace?: string;
+    labels?: Record<string, string>;
+    annotations?: Record<string, string>;
+  };
+  spec: {
+    parentRefs: Array<{
+      kind?: "Gateway";
+      group?: "gateway.networking.k8s.io";
+      name: string;
+      namespace: string;
+      sectionName?: string;
+    }>;
+    hostnames: string[];
+    rules: Array<{
+      backendRefs: Array<{
+        group?: "";
+        kind?: "Service";
+        name: string;
+        port: number;
+      }>;
+    }>;
+  };
+}
+
+const HTTPROUTE_API_GROUP = "gateway.networking.k8s.io";
+const HTTPROUTE_API_VERSION = "v1";
+const HTTPROUTE_PLURAL = "httproutes";
+const HTTPROUTE_PATH_PREFIX = `/apis/${HTTPROUTE_API_GROUP}/${HTTPROUTE_API_VERSION}/namespaces`;
+
+function httpRoutePath(namespace: string, routeName: string): string {
+  return `${HTTPROUTE_PATH_PREFIX}/${encodeURIComponent(namespace)}/${HTTPROUTE_PLURAL}/${encodeURIComponent(routeName)}`;
+}
+
+function httpRouteCollectionPath(namespace: string): string {
+  return `${HTTPROUTE_PATH_PREFIX}/${encodeURIComponent(namespace)}/${HTTPROUTE_PLURAL}`;
+}
+
+/**
+ * Create an HTTPRoute. 409 (AlreadyExists) is swallowed because the runner
+ * calls this from both the fresh-provision path and the adopt-backfill
+ * path — a pre-existing route from an earlier provision attempt is the
+ * intended steady state, not an error.
+ */
+export async function createHttpRoute(
+  kc: KubeConfig,
+  namespace: string,
+  route: HttpRoute,
+): Promise<void> {
+  try {
+    const resp = await kubeFetch(kc, {
+      method: "POST",
+      path: httpRouteCollectionPath(namespace),
+      body: route,
+    });
+    if (resp.status === 409) return;
+    await ensureOk(resp, "createHttpRoute");
+  } catch (error) {
+    if (error instanceof KubeHttpError && error.status === 409) return;
+    throw new SandboxError(
+      `Failed to create HTTPRoute: ${route.metadata.name}`,
+      error,
+    );
+  }
+}
+
+export async function deleteHttpRoute(
+  kc: KubeConfig,
+  namespace: string,
+  routeName: string,
+): Promise<void> {
+  await callSwallowing404(
+    kc,
+    { method: "DELETE", path: httpRoutePath(namespace, routeName) },
+    "deleteHttpRoute",
+    `Failed to delete HTTPRoute: ${routeName}`,
+  );
+}
+
+export async function getHttpRoute(
+  kc: KubeConfig,
+  namespace: string,
+  routeName: string,
+): Promise<HttpRoute | undefined> {
+  const found = await callSwallowing404<HttpRoute>(
+    kc,
+    { method: "GET", path: httpRoutePath(namespace, routeName) },
+    "getHttpRoute",
+    `Failed to get HTTPRoute: ${routeName}`,
+    "json",
+  );
+  return found ?? undefined;
+}
+
+export const HTTPROUTE_CONSTANTS = {
+  API_GROUP: HTTPROUTE_API_GROUP,
+  API_VERSION: HTTPROUTE_API_VERSION,
+  PLURAL: HTTPROUTE_PLURAL,
+} as const;
+
 export interface WaitForSandboxReadyResult {
   sandboxName: string;
   podName: string;

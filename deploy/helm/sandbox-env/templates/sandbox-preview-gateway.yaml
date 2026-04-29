@@ -4,20 +4,23 @@
 {{- $gwNamespace := .Values.previewGateway.namespace }}
 {{- $tlsSecretName := include "sandbox-env.previewTlsSecretName" . }}
 {{- $hostname := printf "*.%s" $domain }}
-{{- $meshNamespace := required "mesh.namespace is required" .Values.mesh.namespace }}
-{{- $meshServiceName := required "mesh.serviceName is required" .Values.mesh.serviceName }}
 {{- $previewName := include "sandbox-env.previewName" . }}
-# Wildcard preview-URL ingress. A single Gateway + HTTPRoute terminate
-# `*.preview.<domain>` and forward to the mesh Service; mesh inspects the
-# Host header and reverse-proxies to the matching sandbox's daemon at port
-# 9000 (daemon owns the public surface; routing browsers straight at dev
-# port 3000 would bypass the daemon's CSP/HMR rewrites and break iframe
-# embedding + SSE).
+# Wildcard preview-URL ingress. The Gateway terminates TLS for
+# `*.<domain>`; per-claim HTTPRoutes are minted by the mesh runner against
+# this Gateway and route directly to each sandbox's headless Service at
+# port 9000 (daemon owns the public surface — routing straight at the dev
+# port 3000 would bypass CSP/HMR rewrites and break iframe embedding + SSE).
 #
-# Mesh stays in the request path for the first ship; the longer-term plan
-# is per-claim HTTPRoutes that bypass mesh entirely. Switching to that
-# requires per-Service routing + RBAC for mesh to mint HTTPRoutes, which
-# is deferred.
+# This chart creates ONLY the Gateway + Certificate. It deliberately does
+# NOT render a wildcard HTTPRoute backed by mesh — keeping mesh in the
+# request path was the previous design, and it's been replaced by per-claim
+# routing. Mesh now creates one HTTPRoute per SandboxClaim in
+# `agent-sandbox-system` (same namespace as the operator's Service, no
+# ReferenceGrant needed) and tears it down on claim delete. RBAC for that
+# lives in templates/sandbox-rbac.yaml.
+#
+# Browser → Gateway → HTTPRoute(handle) → Service(handle):9000 → pod.
+# Mesh is no longer the data-path proxy.
 #
 # AUTH MODEL — read before exposing this. The Host header carries the
 # sandbox handle, which is the *only* authorization on the preview path
@@ -62,30 +65,12 @@ spec:
             namespace: {{ $gwNamespace }}
       allowedRoutes:
         namespaces:
-          # HTTPRoute lives in the mesh namespace, so we have to explicitly
-          # allow cross-namespace attachment from there. Without an explicit
-          # selector the route would silently drop.
+          # Per-claim HTTPRoutes live in `agent-sandbox-system` (same
+          # namespace as the operator-created Service they back) so mesh
+          # can write them with the same Role used for SandboxClaim
+          # CRUD. Without this selector the routes would silently drop.
           from: Selector
           selector:
             matchLabels:
-              kubernetes.io/metadata.name: {{ $meshNamespace }}
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: {{ $previewName }}
-  namespace: {{ $meshNamespace }}
-  labels:
-    {{- include "sandbox-env.sandboxPreviewLabels" . | nindent 4 }}
-spec:
-  parentRefs:
-    - kind: Gateway
-      name: {{ $previewName }}
-      namespace: {{ $gwNamespace }}
-  hostnames:
-    - {{ $hostname | quote }}
-  rules:
-    - backendRefs:
-        - name: {{ $meshServiceName }}
-          port: {{ .Values.mesh.servicePort }}
+              kubernetes.io/metadata.name: agent-sandbox-system
 {{- end }}

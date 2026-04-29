@@ -9,7 +9,14 @@ description: |
   releases coexist in the shared `agent-sandbox-system` namespace.
   Requires the sandbox-operator chart to already be installed.
 type: application
-version: 0.1.0
+# 0.2.0: per-claim HTTPRoutes minted by mesh runner. The chart no longer
+# renders the cluster-wide HTTPRoute that backed the in-process preview
+# proxy; mesh now mints one HTTPRoute per SandboxClaim. RBAC gains
+# `httproutes` (gateway.networking.k8s.io) perms, and NetworkPolicy gains
+# an ingress rule from `previewGateway.namespace` to sandbox port 9000.
+# Upgraders MUST bump mesh to the matching version that creates per-claim
+# HTTPRoutes — otherwise preview URLs stop resolving.
+version: 0.2.0
 # appVersion tracks the studio-sandbox image version (image.tag default).
 appVersion: "0.1.0"
 kubeVersion: ">=1.30.0-0"

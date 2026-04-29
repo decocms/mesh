@@ -61,6 +61,17 @@ rules:
     # as a `GET` against the subresource. Without `get`, the upgrade returns
     # 403 and the runner sees `[object ErrorEvent]`.
     verbs: ["get", "create"]
+  # Per-claim HTTPRoute lifecycle. The runner mints one HTTPRoute per
+  # SandboxClaim (same name, same namespace) so the wildcard Gateway in
+  # `istio-system` (or wherever `previewGateway.namespace` points) can
+  # route `<handle>.<domain>` traffic directly to the operator-created
+  # headless Service — bypassing mesh as a proxy. `delete` mirrors the
+  # claim teardown path. `get` is used for the create-if-missing branch
+  # in `adopt()` so legacy claims (provisioned before this rolled out)
+  # get their HTTPRoute backfilled.
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes"]
+    verbs: ["get", "create", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
