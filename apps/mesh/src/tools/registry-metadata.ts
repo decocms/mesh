@@ -1024,6 +1024,343 @@ const TOOL_LABELS: Record<ToolName, string> = {
 };
 
 // ============================================================================
+// Permission Capabilities (high-level, user-facing permissions)
+// ============================================================================
+
+export interface PermissionCapability {
+  id: string;
+  label: string;
+  description: string;
+  section: string;
+  tools: ToolName[];
+  dangerous?: boolean;
+}
+
+export const PERMISSION_CAPABILITIES: PermissionCapability[] = [
+  // Organization
+  {
+    id: "org:manage",
+    label: "Manage organization",
+    description:
+      "Edit organization settings, brand context, and domain configuration",
+    section: "Organization",
+    tools: [
+      "ORGANIZATION_GET",
+      "ORGANIZATION_LIST",
+      "ORGANIZATION_UPDATE",
+      "ORGANIZATION_SETTINGS_GET",
+      "ORGANIZATION_SETTINGS_UPDATE",
+      "BRAND_CONTEXT_LIST",
+      "BRAND_CONTEXT_GET",
+      "BRAND_CONTEXT_CREATE",
+      "BRAND_CONTEXT_UPDATE",
+      "BRAND_CONTEXT_DELETE",
+      "BRAND_CONTEXT_EXTRACT",
+      "BRAND_GET",
+      "BRAND_LIST",
+      "ORGANIZATION_DOMAIN_GET",
+      "ORGANIZATION_DOMAIN_SET",
+      "ORGANIZATION_DOMAIN_UPDATE",
+      "ORGANIZATION_DOMAIN_CLEAR",
+    ],
+  },
+  {
+    id: "members:manage",
+    label: "Manage members",
+    description: "Invite members, remove them, and change their roles",
+    section: "Organization",
+    tools: [
+      "ORGANIZATION_MEMBER_LIST",
+      "ORGANIZATION_MEMBER_ADD",
+      "ORGANIZATION_MEMBER_REMOVE",
+      "ORGANIZATION_MEMBER_UPDATE_ROLE",
+    ],
+    dangerous: true,
+  },
+  // Connections
+  {
+    id: "connections:view",
+    label: "View connections",
+    description: "Browse and test existing connections",
+    section: "Connections & Agents",
+    tools: [
+      "COLLECTION_CONNECTIONS_LIST",
+      "COLLECTION_CONNECTIONS_GET",
+      "CONNECTION_TEST",
+    ],
+  },
+  {
+    id: "connections:manage",
+    label: "Manage connections",
+    description: "Create, update, and delete connections",
+    section: "Connections & Agents",
+    tools: [
+      "COLLECTION_CONNECTIONS_CREATE",
+      "COLLECTION_CONNECTIONS_UPDATE",
+      "COLLECTION_CONNECTIONS_DELETE",
+    ],
+    dangerous: true,
+  },
+  {
+    id: "agents:view",
+    label: "View agents",
+    description: "Browse and view agent configurations",
+    section: "Connections & Agents",
+    tools: [
+      "COLLECTION_VIRTUAL_MCP_LIST",
+      "COLLECTION_VIRTUAL_MCP_GET",
+      "VIRTUAL_MCP_PLUGIN_CONFIG_GET",
+    ],
+  },
+  {
+    id: "agents:manage",
+    label: "Manage agents",
+    description: "Create, configure, and delete agents",
+    section: "Connections & Agents",
+    tools: [
+      "COLLECTION_VIRTUAL_MCP_CREATE",
+      "COLLECTION_VIRTUAL_MCP_UPDATE",
+      "COLLECTION_VIRTUAL_MCP_DELETE",
+      "VIRTUAL_MCP_PLUGIN_CONFIG_UPDATE",
+      "VIRTUAL_MCP_PINNED_VIEWS_UPDATE",
+    ],
+    dangerous: true,
+  },
+  // Automations
+  {
+    id: "automations:view",
+    label: "View automations",
+    description: "Browse automation workflows",
+    section: "Automations",
+    tools: ["AUTOMATION_GET", "AUTOMATION_LIST"],
+  },
+  {
+    id: "automations:manage",
+    label: "Manage automations",
+    description: "Create, update, run, and delete automations",
+    section: "Automations",
+    tools: [
+      "AUTOMATION_CREATE",
+      "AUTOMATION_UPDATE",
+      "AUTOMATION_DELETE",
+      "AUTOMATION_TRIGGER_ADD",
+      "AUTOMATION_TRIGGER_REMOVE",
+      "AUTOMATION_RUN",
+    ],
+    dangerous: true,
+  },
+  // Monitoring
+  {
+    id: "monitoring:view",
+    label: "View monitoring",
+    description: "Access logs and usage statistics",
+    section: "Monitoring",
+    tools: ["MONITORING_LOG_GET", "MONITORING_LOGS_LIST", "MONITORING_STATS"],
+  },
+  // AI Providers
+  {
+    id: "ai-providers:manage",
+    label: "Manage AI providers",
+    description: "Configure AI provider keys and view available models",
+    section: "AI Providers",
+    tools: [
+      "AI_PROVIDERS_LIST",
+      "AI_PROVIDERS_LIST_MODELS",
+      "AI_PROVIDERS_ACTIVE",
+      "AI_PROVIDER_KEY_CREATE",
+      "AI_PROVIDER_KEY_LIST",
+      "AI_PROVIDER_KEY_DELETE",
+      "AI_PROVIDER_OAUTH_URL",
+      "AI_PROVIDER_OAUTH_EXCHANGE",
+      "AI_PROVIDER_PROVISION_KEY",
+      "AI_PROVIDER_TOPUP_URL",
+      "AI_PROVIDER_CREDITS",
+      "AI_PROVIDER_CLI_ACTIVATE",
+    ],
+  },
+  // Developer
+  {
+    id: "api-keys:manage",
+    label: "Manage API keys",
+    description: "Create, update, and revoke API keys",
+    section: "Developer",
+    tools: [
+      "API_KEY_CREATE",
+      "API_KEY_LIST",
+      "API_KEY_UPDATE",
+      "API_KEY_DELETE",
+    ],
+  },
+  {
+    id: "event-bus:use",
+    label: "Use event bus",
+    description: "Publish events and manage subscriptions",
+    section: "Developer",
+    tools: [
+      "EVENT_PUBLISH",
+      "EVENT_SUBSCRIBE",
+      "EVENT_UNSUBSCRIBE",
+      "EVENT_CANCEL",
+      "EVENT_ACK",
+      "EVENT_SUBSCRIPTION_LIST",
+      "EVENT_SYNC_SUBSCRIPTIONS",
+    ],
+  },
+  {
+    id: "threads:manage",
+    label: "Manage threads",
+    description: "Create and manage conversation threads",
+    section: "Developer",
+    tools: [
+      "COLLECTION_THREADS_CREATE",
+      "COLLECTION_THREADS_LIST",
+      "COLLECTION_THREADS_GET",
+      "COLLECTION_THREADS_UPDATE",
+      "COLLECTION_THREADS_DELETE",
+      "COLLECTION_THREAD_MESSAGES_LIST",
+    ],
+  },
+  {
+    id: "tags:manage",
+    label: "Manage tags",
+    description: "Create, assign, and delete organization tags",
+    section: "Developer",
+    tools: [
+      "TAGS_LIST",
+      "TAGS_CREATE",
+      "TAGS_DELETE",
+      "MEMBER_TAGS_GET",
+      "MEMBER_TAGS_SET",
+    ],
+  },
+  {
+    id: "storage:access",
+    label: "Access object storage",
+    description: "List, upload, and download files",
+    section: "Developer",
+    tools: [
+      "LIST_OBJECTS",
+      "GET_OBJECT_METADATA",
+      "GET_PRESIGNED_URL",
+      "PUT_PRESIGNED_URL",
+    ],
+  },
+  {
+    id: "storage:delete",
+    label: "Delete from storage",
+    description: "Permanently delete files from object storage",
+    section: "Developer",
+    tools: ["DELETE_OBJECT", "DELETE_OBJECTS"],
+    dangerous: true,
+  },
+  {
+    id: "registry:browse",
+    label: "Browse registry",
+    description: "Search and view registry apps and items",
+    section: "Developer",
+    tools: [
+      "COLLECTION_REGISTRY_APP_LIST",
+      "COLLECTION_REGISTRY_APP_GET",
+      "COLLECTION_REGISTRY_APP_VERSIONS",
+      "COLLECTION_REGISTRY_APP_FILTERS",
+      "REGISTRY_ITEM_LIST",
+      "REGISTRY_ITEM_SEARCH",
+      "REGISTRY_ITEM_GET",
+      "REGISTRY_ITEM_VERSIONS",
+      "REGISTRY_ITEM_FILTERS",
+      "REGISTRY_DISCOVER_TOOLS",
+    ],
+  },
+  {
+    id: "registry:publish",
+    label: "Publish to registry",
+    description: "Create, update, and publish registry items",
+    section: "Developer",
+    tools: [
+      "REGISTRY_ITEM_CREATE",
+      "REGISTRY_ITEM_BULK_CREATE",
+      "REGISTRY_ITEM_UPDATE",
+      "REGISTRY_ITEM_DELETE",
+      "REGISTRY_AI_GENERATE",
+      "REGISTRY_PUBLISH_REQUEST_LIST",
+      "REGISTRY_PUBLISH_REQUEST_REVIEW",
+      "REGISTRY_PUBLISH_REQUEST_COUNT",
+      "REGISTRY_PUBLISH_REQUEST_DELETE",
+      "REGISTRY_PUBLISH_API_KEY_GENERATE",
+      "REGISTRY_PUBLISH_API_KEY_LIST",
+      "REGISTRY_PUBLISH_API_KEY_REVOKE",
+    ],
+    dangerous: true,
+  },
+  {
+    id: "registry:monitor",
+    label: "Monitor registry",
+    description: "Run registry health checks and view monitor results",
+    section: "Developer",
+    tools: [
+      "REGISTRY_MONITOR_RUN_START",
+      "REGISTRY_MONITOR_RUN_LIST",
+      "REGISTRY_MONITOR_RUN_GET",
+      "REGISTRY_MONITOR_RUN_CANCEL",
+      "REGISTRY_MONITOR_RESULT_LIST",
+      "REGISTRY_MONITOR_CONNECTION_LIST",
+      "REGISTRY_MONITOR_CONNECTION_SYNC",
+      "REGISTRY_MONITOR_CONNECTION_UPDATE_AUTH",
+      "REGISTRY_MONITOR_SCHEDULE_SET",
+      "REGISTRY_MONITOR_SCHEDULE_CANCEL",
+    ],
+  },
+  {
+    id: "connections:sql",
+    label: "Run SQL queries",
+    description: "Execute raw SQL against connected databases",
+    section: "Connections & Agents",
+    tools: ["DATABASES_RUN_SQL"],
+    dangerous: true,
+  },
+];
+
+export function getCapabilitySections(): Array<{
+  section: string;
+  capabilities: PermissionCapability[];
+}> {
+  const map = new Map<string, PermissionCapability[]>();
+  for (const cap of PERMISSION_CAPABILITIES) {
+    const arr = map.get(cap.section) ?? [];
+    arr.push(cap);
+    map.set(cap.section, arr);
+  }
+  return Array.from(map.entries()).map(([section, capabilities]) => ({
+    section,
+    capabilities,
+  }));
+}
+
+export function isCapabilityEnabled(
+  cap: PermissionCapability,
+  enabledTools: string[],
+  allowAll: boolean,
+): boolean {
+  if (allowAll) return true;
+  return cap.tools.every((tool) => enabledTools.includes(tool));
+}
+
+export function toggleCapabilityInTools(
+  cap: PermissionCapability,
+  currentTools: string[],
+  enable: boolean,
+): string[] {
+  if (enable) {
+    const toolSet = new Set(currentTools);
+    for (const tool of cap.tools) toolSet.add(tool);
+    return Array.from(toolSet);
+  }
+  const toolSet = new Set(currentTools);
+  for (const tool of cap.tools) toolSet.delete(tool);
+  return Array.from(toolSet);
+}
+
+// ============================================================================
 // Exports
 // ============================================================================
 
