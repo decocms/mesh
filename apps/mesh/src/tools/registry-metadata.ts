@@ -1036,7 +1036,7 @@ export interface PermissionCapability {
   dangerous?: boolean;
 }
 
-export const PERMISSION_CAPABILITIES: PermissionCapability[] = [
+const PERMISSION_CAPABILITIES: PermissionCapability[] = [
   // Organization
   {
     id: "org:manage",
@@ -1079,17 +1079,6 @@ export const PERMISSION_CAPABILITIES: PermissionCapability[] = [
   },
   // Connections
   {
-    id: "connections:view",
-    label: "View connections",
-    description: "Browse and test existing connections",
-    section: "Connections & Agents",
-    tools: [
-      "COLLECTION_CONNECTIONS_LIST",
-      "COLLECTION_CONNECTIONS_GET",
-      "CONNECTION_TEST",
-    ],
-  },
-  {
     id: "connections:manage",
     label: "Manage connections",
     description: "Create, update, and delete connections",
@@ -1100,17 +1089,6 @@ export const PERMISSION_CAPABILITIES: PermissionCapability[] = [
       "COLLECTION_CONNECTIONS_DELETE",
     ],
     dangerous: true,
-  },
-  {
-    id: "agents:view",
-    label: "View agents",
-    description: "Browse and view agent configurations",
-    section: "Connections & Agents",
-    tools: [
-      "COLLECTION_VIRTUAL_MCP_LIST",
-      "COLLECTION_VIRTUAL_MCP_GET",
-      "VIRTUAL_MCP_PLUGIN_CONFIG_GET",
-    ],
   },
   {
     id: "agents:manage",
@@ -1127,13 +1105,6 @@ export const PERMISSION_CAPABILITIES: PermissionCapability[] = [
     dangerous: true,
   },
   // Automations
-  {
-    id: "automations:view",
-    label: "View automations",
-    description: "Browse automation workflows",
-    section: "Automations",
-    tools: ["AUTOMATION_GET", "AUTOMATION_LIST"],
-  },
   {
     id: "automations:manage",
     label: "Manage automations",
@@ -1158,17 +1129,6 @@ export const PERMISSION_CAPABILITIES: PermissionCapability[] = [
     tools: ["MONITORING_LOG_GET", "MONITORING_LOGS_LIST", "MONITORING_STATS"],
   },
   // AI Providers
-  {
-    id: "ai-providers:view",
-    label: "View AI providers",
-    description: "List available providers and models (required for chat)",
-    section: "AI Providers",
-    tools: [
-      "AI_PROVIDERS_LIST",
-      "AI_PROVIDERS_LIST_MODELS",
-      "AI_PROVIDERS_ACTIVE",
-    ],
-  },
   {
     id: "ai-providers:manage",
     label: "Manage AI providers",
@@ -1279,31 +1239,12 @@ export const PERMISSION_CAPABILITIES: PermissionCapability[] = [
     ],
   },
   {
-    id: "storage:access",
-    label: "Access object storage",
-    description: "List, upload, and download files",
-    section: "Developer",
-    tools: [
-      "LIST_OBJECTS",
-      "GET_OBJECT_METADATA",
-      "GET_PRESIGNED_URL",
-      "PUT_PRESIGNED_URL",
-    ],
-  },
-  {
     id: "storage:delete",
     label: "Delete from storage",
     description: "Permanently delete files from object storage",
     section: "Developer",
     tools: ["DELETE_OBJECT", "DELETE_OBJECTS"],
     dangerous: true,
-  },
-  {
-    id: "vm:access",
-    label: "Use VM previews",
-    description: "Start and delete Freestyle VM dev server previews",
-    section: "Developer",
-    tools: ["VM_START", "VM_DELETE"],
   },
   {
     id: "connections:sql",
@@ -1386,16 +1327,4 @@ export function getToolsByCategory() {
   }
 
   return grouped;
-}
-
-/**
- * Get permission options for UI components (type-safe)
- * Returns flat array of all static permissions with labels
- */
-export function getPermissionOptions(): PermissionOption[] {
-  return MANAGEMENT_TOOLS.map((tool) => ({
-    value: tool.name,
-    label: TOOL_LABELS[tool.name],
-    dangerous: tool.dangerous,
-  }));
 }

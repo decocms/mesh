@@ -22,7 +22,7 @@ export const AI_PROVIDERS_ACTIVE = defineTool({
   handler: async (_input, ctx) => {
     requireAuth(ctx);
     const org = requireOrganization(ctx);
-    await ctx.access.check();
+    ctx.access.grant();
 
     const allKeys = await ctx.storage.aiProviderKeys.list({
       organizationId: org.id,

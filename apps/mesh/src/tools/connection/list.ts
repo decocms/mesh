@@ -115,7 +115,7 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
   outputSchema: ConnectionListOutputSchema,
 
   handler: async (input, ctx) => {
-    await ctx.access.check();
+    ctx.access.grant();
 
     const organization = requireOrganization(ctx);
 

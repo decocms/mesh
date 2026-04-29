@@ -46,7 +46,7 @@ export const AI_PROVIDERS_LIST_MODELS = defineTool({
   handler: async (input, ctx) => {
     requireAuth(ctx);
     const org = requireOrganization(ctx);
-    await ctx.access.check();
+    ctx.access.grant();
 
     // Claude Code uses a DB key with providerId "claude-code"
     const keyInfo = await ctx.storage.aiProviderKeys

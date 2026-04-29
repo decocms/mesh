@@ -33,7 +33,7 @@ export const CONNECTION_TEST = defineTool({
     const organization = requireOrganization(ctx);
 
     // Check authorization
-    await ctx.access.check();
+    ctx.access.grant();
 
     // Fetch connection to verify org ownership before testing
     const connection = await ctx.storage.connections.findById(input.id);
