@@ -691,7 +691,6 @@ export async function listSandboxClaims(
     ? `?labelSelector=${encodeURIComponent(labelSelector)}`
     : "";
   const path = `${CLAIM_PATH_PREFIX}/${encodeURIComponent(namespace)}/${K8S_CONSTANTS.CLAIM_PLURAL}${search}`;
-  console.log("listSandboxClaims", path);
   const found = await callSwallowing404<SandboxClaimList>(
     kc,
     { method: "GET", path },
@@ -699,7 +698,6 @@ export async function listSandboxClaims(
     `Failed to list SandboxClaims in namespace ${namespace}`,
     "json",
   );
-  console.log("listSandboxClaims found", found);
   return found?.items ?? [];
 }
 
