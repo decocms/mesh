@@ -289,6 +289,223 @@ const ChatBridgeCtx = createContext<React.RefObject<ChatBridgeValue>>({
 const TaskInternalsCtx = createContext<TaskProviderInternals | null>(null);
 
 // ============================================================================
+// ChatPrefsProvider — standalone-mountable prefs context
+// ============================================================================
+
+/**
+ * Mounts the prefs context (model/agent/mode selection) without the rest
+ * of the chat infrastructure. Use on routes that have a chat composer but
+ * no active stream — currently `/$org/`. Localstorage-backed selections
+ * (chat model, image model, deep research model, simple-mode tier) sync
+ * automatically with any other mount of this provider via storage events.
+ *
+ * `virtualMcpId` is derived from the URL search param (`virtualmcpid`) with
+ * a decopilot fallback, matching `useChatNavigation` — so the same
+ * provider works on `/$org/` and `/$org/$taskId`.
+ *
+ * On routes that mount `ChatContextProvider`, that wrapper internally
+ * mounts its own `ChatPrefsCtx.Provider` for backwards compatibility; the
+ * inner mount shadows this one. Persistent state still syncs via
+ * localStorage; transient state (chatMode, tiptapDoc, appContexts) is
+ * scoped to whichever mount the consumer is reading from — fine for our
+ * flows because home submit clears the editor and the task page starts
+ * fresh.
+ */
+export function ChatPrefsProvider({ children }: PropsWithChildren) {
+  const { locator } = useProjectContext();
+  const { virtualMcpId: urlVirtualMcpId } = useChatNavigation();
+
+  // Model selection (localStorage-backed)
+  const [storedChatRef, setStoredChatRef] = useLocalStorage<ModelRef | null>(
+    LOCALSTORAGE_KEYS.chatSelectedModel(locator),
+    null,
+  );
+  const [storedImageRef, setStoredImageRef] = useLocalStorage<ModelRef | null>(
+    LOCALSTORAGE_KEYS.chatSelectedImageModel(locator),
+    null,
+  );
+  const [storedDeepResearchRef, setStoredDeepResearchRef] =
+    useLocalStorage<ModelRef | null>(
+      LOCALSTORAGE_KEYS.chatSelectedDeepResearchModel(locator),
+      null,
+    );
+
+  const [sessionCredentialId, setSessionCredentialId] = useState<string | null>(
+    null,
+  );
+
+  const [chatMode, setChatMode] = useState<ChatMode>("default");
+  chatModeForTransportRef.current = chatMode;
+
+  // Simple Model Mode
+  const simpleMode = useSimpleMode();
+  const [storedTier, setStoredTier] = useLocalStorage<SimpleTier | null>(
+    LOCALSTORAGE_KEYS.chatSimpleModeTier(locator),
+    null,
+  );
+  const activeTier = resolveActiveTier(storedTier, simpleMode);
+
+  // AI provider keys + models
+  const keys = useAiProviderKeys();
+  const effectiveKeyId =
+    sessionCredentialId && keys.some((k) => k.id === sessionCredentialId)
+      ? sessionCredentialId
+      : storedChatRef && keys.some((k) => k.id === storedChatRef.keyId)
+        ? storedChatRef.keyId
+        : (keys[0]?.id ?? null);
+  const { models: allKeyModels, isLoading: isModelsQueryLoading } =
+    useAiProviderModels(effectiveKeyId ?? undefined);
+  const effectiveProviderId =
+    keys.find((k) => k.id === effectiveKeyId)?.providerId ?? "anthropic";
+  const defaultModel = selectDefaultModel(
+    allKeyModels,
+    effectiveProviderId,
+    effectiveKeyId ?? undefined,
+  );
+
+  const activeChatSlot = simpleMode.chat[activeTier];
+  const { models: simpleChatModels } = useAiProviderModels(
+    activeChatSlot?.keyId,
+  );
+  const { models: simpleImageModels } = useAiProviderModels(
+    simpleMode.image?.keyId,
+  );
+  const { models: simpleWebResearchModels } = useAiProviderModels(
+    simpleMode.webResearch?.keyId,
+  );
+
+  const validatedStoredChat = findModel(storedChatRef, keys, allKeyModels);
+  const selectedModel: AiProviderModel | null = simpleMode.enabled
+    ? findModel(activeChatSlot, keys, simpleChatModels, activeChatSlot?.title)
+    : (validatedStoredChat ?? defaultModel);
+  const isModelsLoading = !storedChatRef && isModelsQueryLoading;
+
+  const imageModels = allKeyModels.filter((m) =>
+    m.capabilities?.includes("image"),
+  );
+  const validatedStoredImage = findModel(storedImageRef, keys, imageModels);
+  const resolvedImageModel: AiProviderModel | null = simpleMode.enabled
+    ? findModel(
+        simpleMode.image,
+        keys,
+        simpleImageModels,
+        simpleMode.image?.title,
+      )
+    : (validatedStoredImage ?? imageModels[0] ?? null);
+
+  const deepResearchModels = allKeyModels.filter((m) => {
+    const n = m.modelId.toLowerCase().replace(/[^a-z0-9]/g, "");
+    return n.includes("sonar") || n.includes("deepresearch");
+  });
+  const validatedStoredDeepResearch = findModel(
+    storedDeepResearchRef,
+    keys,
+    deepResearchModels,
+  );
+  const defaultDeepResearchModel =
+    deepResearchModels.find((m) => m.modelId === "perplexity/sonar") ??
+    deepResearchModels[0] ??
+    null;
+  const resolvedDeepResearchModel: AiProviderModel | null = simpleMode.enabled
+    ? findModel(
+        simpleMode.webResearch,
+        keys,
+        simpleWebResearchModels,
+        simpleMode.webResearch?.title,
+      )
+    : (validatedStoredDeepResearch ?? defaultDeepResearchModel);
+
+  // selectedVirtualMcp — URL-derived
+  const selectedVirtualMcpData = useVirtualMCP(urlVirtualMcpId);
+  const selectedVirtualMcp: VirtualMCPInfo = selectedVirtualMcpData ?? {
+    id: urlVirtualMcpId,
+    title: "",
+    description: null,
+    icon: null,
+  };
+
+  // App contexts
+  const [appContexts, setAppContextsState] = useState<Record<string, string>>(
+    {},
+  );
+  const setAppContext = (sourceId: string, params: SetAppContextParams) => {
+    const textParts: string[] = [];
+    for (const block of params.content ?? []) {
+      if (block.type === "text" && block.text?.trim()) {
+        textParts.push(block.text.trim());
+      }
+    }
+    const text = textParts.join("\n");
+    if (!text) {
+      clearAppContext(sourceId);
+      return;
+    }
+    if (new TextEncoder().encode(text).length > MAX_APP_CONTEXT_LENGTH) return;
+    setAppContextsState((prev) => {
+      if (
+        Object.keys(prev).length >= MAX_APP_CONTEXT_SOURCES &&
+        !(sourceId in prev)
+      )
+        return prev;
+      return { ...prev, [sourceId]: text };
+    });
+  };
+  const clearAppContext = (sourceId: string) => {
+    setAppContextsState((prev) => {
+      const { [sourceId]: _, ...rest } = prev;
+      return rest;
+    });
+  };
+
+  // Tiptap doc (transient UI state)
+  const [tiptapDoc, setTiptapDoc] = useState<Metadata["tiptapDoc"]>(undefined);
+  const tiptapDocRef = useRef<Metadata["tiptapDoc"]>(tiptapDoc);
+  tiptapDocRef.current = tiptapDoc;
+
+  const value: ChatPrefsContextValue = {
+    selectedModel,
+    setModel: (model: AiProviderModel) => {
+      if (!model.keyId) return;
+      setStoredChatRef({ keyId: model.keyId, modelId: model.modelId });
+      setSessionCredentialId(null);
+    },
+    credentialId: effectiveKeyId,
+    setCredentialId: setSessionCredentialId,
+    allModelsConnections: keys,
+    isModelsLoading,
+    selectedVirtualMcp,
+    imageModel: resolvedImageModel,
+    setImageModel: (model: AiProviderModel | null) => {
+      setStoredImageRef(
+        model?.keyId ? { keyId: model.keyId, modelId: model.modelId } : null,
+      );
+    },
+    deepResearchModel: resolvedDeepResearchModel,
+    setDeepResearchModel: (model: AiProviderModel | null) => {
+      setStoredDeepResearchRef(
+        model?.keyId ? { keyId: model.keyId, modelId: model.modelId } : null,
+      );
+    },
+    chatMode,
+    setChatMode,
+    appContexts,
+    setAppContext,
+    clearAppContext,
+    tiptapDoc,
+    setTiptapDoc,
+    tiptapDocRef,
+    resetInteraction: () => {},
+    simpleModeEnabled: simpleMode.enabled,
+    simpleModeTier: activeTier,
+    setSimpleModeTier: setStoredTier,
+  };
+
+  return (
+    <ChatPrefsCtx.Provider value={value}>{children}</ChatPrefsCtx.Provider>
+  );
+}
+
+// ============================================================================
 // TaskProvider (outer)
 // ============================================================================
 
