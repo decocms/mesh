@@ -5,7 +5,6 @@ import { getProviders } from "@/ai-providers/registry";
 
 export const AI_PROVIDERS_LIST = defineTool({
   name: "AI_PROVIDERS_LIST",
-  basicUsage: true,
   description:
     "List all supported AI providers and their connection methods (API key, OAuth).",
   annotations: {
@@ -33,6 +32,7 @@ export const AI_PROVIDERS_LIST = defineTool({
   handler: async (_input, ctx) => {
     requireAuth(ctx);
     requireOrganization(ctx);
+    await ctx.access.check();
 
     const providers = Object.values(getProviders())
       .filter((adapter) => !!adapter)

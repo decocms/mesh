@@ -37,6 +37,7 @@ export async function requireVmEntry(
 ) {
   requireAuth(ctx);
   const organization = requireOrganization(ctx);
+  await ctx.access.check();
   const userId = getUserId(ctx);
   if (!userId) throw new Error("User ID required");
   const virtualMcp = await ctx.storage.virtualMcps.findById(input.virtualMcpId);

@@ -102,7 +102,6 @@ const ConnectionListOutputSchema = createCollectionListOutputSchema(
 
 export const COLLECTION_CONNECTIONS_LIST = defineTool({
   name: "COLLECTION_CONNECTIONS_LIST",
-  basicUsage: true,
   description:
     "List all connections in the organization with filtering, sorting, and pagination",
   annotations: {
@@ -117,6 +116,7 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
 
   handler: async (input, ctx) => {
     const organization = requireOrganization(ctx);
+    await ctx.access.check();
 
     // Determine which binding to use: well-known binding (string) or provided JSON schema (object)
     const bindingDefinition: Binder | undefined = input.binding

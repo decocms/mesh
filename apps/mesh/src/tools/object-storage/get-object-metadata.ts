@@ -8,7 +8,6 @@ import {
 
 export const GET_OBJECT_METADATA = defineTool({
   name: "GET_OBJECT_METADATA",
-  basicUsage: true,
   description: "Get metadata for an object in the organization's storage.",
   annotations: {
     title: "Get Object Metadata",
@@ -23,6 +22,7 @@ export const GET_OBJECT_METADATA = defineTool({
   handler: async (input, ctx) => {
     requireAuth(ctx);
     requireOrganization(ctx);
+    await ctx.access.check();
     const storage = requireObjectStorage(ctx);
 
     const result = await storage.head(input.key);
