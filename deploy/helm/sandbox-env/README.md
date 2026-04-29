@@ -77,9 +77,12 @@ configMap:
     STUDIO_SANDBOX_RUNNER: "agent-sandbox"
     STUDIO_SANDBOX_TEMPLATE_NAME: "studio-sandbox-staging"
     STUDIO_SANDBOX_PREVIEW_URL_PATTERN: "https://{handle}.preview.staging.example.com"
-    # Per-claim HTTPRoute attaches to this Gateway. Without these two,
-    # mesh falls back to its in-process preview proxy — which the chart
-    # no longer wires up, so set them whenever previewGateway.enabled=true.
+    # Per-claim HTTPRoute attaches to this Gateway. Both required whenever
+    # previewGateway.enabled=true — without them mesh falls back to its
+    # in-process preview proxy, which the chart no longer wires up.
+    # NAMESPACE must match `previewGateway.namespace` from the chart values
+    # (no default — different gateway controllers live in different
+    # namespaces, and a wrong default would silently fail to attach).
     STUDIO_SANDBOX_PREVIEW_GATEWAY_NAME: "agent-sandbox-preview-staging"
     STUDIO_SANDBOX_PREVIEW_GATEWAY_NAMESPACE: "istio-system"
 ```

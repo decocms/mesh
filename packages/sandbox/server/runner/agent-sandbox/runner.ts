@@ -272,6 +272,13 @@ export interface AgentSandboxRunnerOptions {
    * `parentRef = { name, namespace }` and routes `<handle>.<host>` exact
    * matches to the operator-created Service:9000 in `this.namespace`.
    *
+   * `namespace` is the gateway's namespace, NOT the route's — the route
+   * always lives in `this.namespace` (same as the Service it backends).
+   * Both `name` and `namespace` are required when this option is provided;
+   * the runner makes no assumption about which gateway controller (Istio,
+   * Envoy Gateway, Cilium, ...) is downstream and therefore can't pick a
+   * default namespace.
+   *
    * When unset (or `previewUrlPattern` unset), the runner does NOT touch
    * HTTPRoute resources. Preview traffic still works in that mode through
    * mesh's in-process proxy (the previous design), provided someone else

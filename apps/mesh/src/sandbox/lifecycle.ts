@@ -67,16 +67,32 @@ function readSandboxTemplateName(): string | undefined {
   return raw && raw.trim() !== "" ? raw : undefined;
 }
 
-// Per-claim HTTPRoute attaches to this Gateway. When set together with
-// STUDIO_SANDBOX_PREVIEW_URL_PATTERN, mesh mints one HTTPRoute per
-// SandboxClaim so the wildcard Gateway can route directly to each
-// sandbox's Service:9000 (mesh leaves the data path). Both vars unset →
-// the runner falls back to in-process preview proxying via mesh.
+// Per-claim HTTPRoute attaches to this Gateway. When NAME + NAMESPACE are
+// set alongside STUDIO_SANDBOX_PREVIEW_URL_PATTERN, mesh mints one
+// HTTPRoute per SandboxClaim so the wildcard Gateway can route directly
+// to each sandbox's Service:9000 (mesh leaves the data path).
+//
+// Both required — no default — because the runner is Gateway-API-generic
+// (Istio, Envoy Gateway, Cilium, Kong, ...) and there's no portable
+// "default gateway namespace": Istio classic uses istio-system, Istio
+// ambient prefers a separate `istio-ingress`/`gateway` ns, and other
+// implementations vary. A wrong default would silently write routes that
+// fail to attach (parentRef → non-existent Gateway) and the failure mode
+// is a 404 from the gateway with no log on the mesh side.
+//
+// Both unset → runner falls back to in-process preview proxying (legacy).
+// Half-configured (one set, the other not) → fail fast at boot rather
+// than silently choose a behavior the operator didn't ask for.
 function readPreviewGateway(): { name: string; namespace: string } | undefined {
   const name = process.env.STUDIO_SANDBOX_PREVIEW_GATEWAY_NAME?.trim();
   const namespace =
     process.env.STUDIO_SANDBOX_PREVIEW_GATEWAY_NAMESPACE?.trim();
-  if (!name || !namespace) return undefined;
+  if (!name && !namespace) return undefined;
+  if (!name || !namespace) {
+    throw new Error(
+      "STUDIO_SANDBOX_PREVIEW_GATEWAY_NAME and STUDIO_SANDBOX_PREVIEW_GATEWAY_NAMESPACE must both be set, or both unset. Half-configured per-claim HTTPRoute routing would silently fail to attach.",
+    );
+  }
   return { name, namespace };
 }
 
