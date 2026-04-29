@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeEach, mock } from "bun:test";
+import { describe, expect, test, beforeEach, afterAll, mock } from "bun:test";
 
 type GroupCall = [type: string, key: string, props: unknown];
 
@@ -8,9 +8,19 @@ let resetCount = 0;
 
 // `initPostHog` early-returns when `typeof window === "undefined"`. Bun's test
 // runtime has no DOM, so stub a minimal window before importing the module.
-if (typeof globalThis.window === "undefined") {
+// Track whether we own the stub so we can clean it up afterAll — leaving a
+// fake `window` on globalThis breaks other tests that check `typeof window`
+// and then dereference its DOM properties (e.g. PGlite's `window.location`).
+const windowStubbedHere = typeof globalThis.window === "undefined";
+if (windowStubbedHere) {
   (globalThis as unknown as { window: object }).window = {};
 }
+
+afterAll(() => {
+  if (windowStubbedHere) {
+    delete (globalThis as { window?: unknown }).window;
+  }
+});
 
 mock.module("posthog-js", () => ({
   default: {
