@@ -11,7 +11,6 @@
 
 import { MCP_MESH_KEY } from "@/core/constants";
 import type { BetterAuthInstance, BoundAuthClient } from "./mesh-context";
-import { BASIC_USAGE_TOOLS } from "../tools/registry-metadata";
 
 // ============================================================================
 // Types
@@ -159,10 +158,6 @@ export class AccessControl implements Disposable {
     // No user or bound auth = deny
     if (!this.userId && !this.boundAuth) {
       return false;
-    }
-
-    if (BASIC_USAGE_TOOLS.has(resource)) {
-      return true;
     }
 
     // Admin and owner roles bypass all checks (they have full access)
