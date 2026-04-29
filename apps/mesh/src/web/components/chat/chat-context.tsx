@@ -131,12 +131,6 @@ export interface ChatTaskContextValue {
   ownerFilter: TaskOwnerFilter;
   setOwnerFilter: (filter: TaskOwnerFilter) => void;
   isFilterChangePending: boolean;
-  pendingMessage: {
-    taskId: string;
-    message: SendMessageParams;
-    createdAt: number;
-  } | null;
-  clearPendingMessage: () => void;
 }
 
 export interface ChatPrefsContextValue {
@@ -240,7 +234,6 @@ function resolveActiveTier(
 
 const MAX_APP_CONTEXT_LENGTH = 10_000;
 const MAX_APP_CONTEXT_SOURCES = 10;
-const PENDING_MESSAGE_TTL_MS = 10_000;
 
 const BRIDGE_NOOP: ChatBridgeValue = {
   sendMessage: async () => {
@@ -762,15 +755,6 @@ export function ChatContextProvider({
   // Bridge ref — ActiveTaskProvider registers sendMessage here
   const bridgeRef = useRef<ChatBridgeValue>(BRIDGE_NOOP);
 
-  // Pending message state (replaces module-level Map from useSendToChat)
-  const [pendingMessage, setPendingMessage] = useState<{
-    taskId: string;
-    message: SendMessageParams;
-    createdAt: number;
-  } | null>(null);
-
-  const clearPendingMessage = () => setPendingMessage(null);
-
   const navigateToTask = (
     taskId: string,
     opts?: { virtualMcpId?: string; autosend?: string },
@@ -880,8 +864,6 @@ export function ChatContextProvider({
     ownerFilter: taskManager.ownerFilter,
     setOwnerFilter: taskManager.setOwnerFilter,
     isFilterChangePending: taskManager.isFilterChangePending ?? false,
-    pendingMessage,
-    clearPendingMessage,
   };
 
   const prefsValue: ChatPrefsContextValue = {
@@ -958,13 +940,7 @@ export function ActiveTaskProvider({
   taskId,
   children,
 }: PropsWithChildren<{ taskId: string }>) {
-  const {
-    virtualMcpId,
-    tasks,
-    pendingMessage,
-    clearPendingMessage,
-    currentBranch,
-  } = useChatTask();
+  const { virtualMcpId, tasks, currentBranch } = useChatTask();
 
   // Fire chat_opened once per (page session × taskId). Runs during render, but
   // the Set gate keeps it idempotent. Fires for every thread a user views —
@@ -1210,28 +1186,6 @@ export function ActiveTaskProvider({
     sendMessage: sendMessageInternal,
     isStreaming: chat.status === "submitted" || chat.status === "streaming",
   };
-
-  // Consume pending message when this task is the target
-  const pendingConsumedRef = useRef<string | null>(null);
-  if (
-    pendingMessage &&
-    pendingMessage.taskId === taskId &&
-    pendingConsumedRef.current !== taskId
-  ) {
-    // TTL check: discard stale messages
-    const age = Date.now() - pendingMessage.createdAt;
-    if (age < PENDING_MESSAGE_TTL_MS) {
-      pendingConsumedRef.current = taskId;
-      const msg = pendingMessage.message;
-      queueMicrotask(() => {
-        void sendMessageInternal(msg);
-        clearPendingMessage();
-      });
-    } else {
-      // Stale — silently discard
-      queueMicrotask(() => clearPendingMessage());
-    }
-  }
 
   // Autosend consumer — read the queued message from the URL search param
   // (set by /$org/ submit or createTaskWithMessage), fire it once, then
