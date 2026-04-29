@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DomainSettings } from "@/web/components/settings/domain-settings";
 import { toast } from "sonner";
 import { Page } from "@/web/components/page";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -122,14 +123,15 @@ export function OrgSsoPage() {
       <Page.Content>
         <Page.Body>
           <SettingsPage>
-            <Page.Title>Single Sign-On</Page.Title>
+            <Page.Title>Security</Page.Title>
+            <DomainSettings />
             {isLoading ? (
               <div className="text-sm text-muted-foreground">Loading...</div>
             ) : (
               <>
                 {/* Status */}
                 {isConfigured && !isEditing && (
-                  <SettingsSection>
+                  <SettingsSection title="Single Sign-On">
                     <SettingsCard>
                       <SettingsCardItem
                         title="Provider"
@@ -208,7 +210,7 @@ export function OrgSsoPage() {
 
                 {/* Form (new config or editing) */}
                 {(!isConfigured || isEditing) && (
-                  <SettingsSection>
+                  <SettingsSection title="Single Sign-On">
                     <SettingsCard>
                       <SettingsCardItem
                         title="Issuer URL"

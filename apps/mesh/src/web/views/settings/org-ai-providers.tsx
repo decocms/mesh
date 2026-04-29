@@ -16,10 +16,10 @@ import {
 } from "@untitledui/icons";
 import { Page } from "@/web/components/page";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Card } from "@deco/ui/components/card.tsx";
 import {
   SettingsCard,
   SettingsCardItem,
+  SettingsPage,
   SettingsSection,
 } from "@/web/components/settings/settings-section";
 import { Input } from "@deco/ui/components/input.tsx";
@@ -689,92 +689,69 @@ function ProviderCard({
     }
   };
 
+  const loadingText = isActivating
+    ? "Checking CLI..."
+    : isProvisioning
+      ? "Connecting..."
+      : isOAuthPending
+        ? "Authorizing..."
+        : null;
+
+  const statusText =
+    loadingText ??
+    (isActive && isCliActivate
+      ? `Authenticated via ${provider.name} CLI`
+      : provider.description);
+
   return (
     <>
-      <Card
+      <SettingsCardItem
+        icon={
+          provider.logo ? (
+            <img
+              src={provider.logo}
+              alt={provider.name}
+              className="size-8 rounded-md object-contain dark:bg-white dark:p-0.5"
+            />
+          ) : (
+            <Avatar
+              fallback={provider.name.charAt(0)}
+              className="size-8 bg-primary/10 text-primary"
+            />
+          )
+        }
+        title={
+          <span className="flex items-center gap-2">
+            {provider.name}
+            {isActive && !isCliActivate && !loadingText && (
+              <span className="text-xs font-normal text-muted-foreground">
+                {keys.length} key{keys.length !== 1 ? "s" : ""} configured
+                {provider.supportsCredits ? " · Managed above" : ""}
+              </span>
+            )}
+          </span>
+        }
+        description={statusText}
+        onClick={
+          !isOAuthPending && !isActivating && !isProvisioning
+            ? handleCardClick
+            : undefined
+        }
         className={cn(
-          "p-4 flex flex-col gap-3 transition-colors relative",
-          isActive && "border-primary/20",
-          !isOAuthPending &&
-            !isActivating &&
-            !isProvisioning &&
-            "cursor-pointer hover:bg-muted/30",
           (isOAuthPending || isActivating || isProvisioning) && "cursor-wait",
         )}
-        onClick={handleCardClick}
+        action={
+          <div className="flex items-center gap-2">
+            {isActive && (
+              <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+            )}
+          </div>
+        }
       >
-        {isActive && (
-          <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-green-500" />
+        {isActive && !isCliActivate && (
+          <KeyList keys={keys} onDelete={deleteKey} isDeleting={isDeleting} />
         )}
-
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            {provider.logo ? (
-              <img
-                src={provider.logo}
-                alt={provider.name}
-                className="size-8 rounded-md object-contain dark:bg-white dark:rounded-md dark:p-0.5"
-              />
-            ) : (
-              <Avatar
-                fallback={provider.name.charAt(0)}
-                className="size-8 bg-primary/10 text-primary"
-              />
-            )}
-            <div>
-              <h3 className="font-medium text-base">{provider.name}</h3>
-              <p className="text-sm text-muted-foreground line-clamp-1">
-                {isActivating
-                  ? "Checking CLI..."
-                  : isProvisioning
-                    ? "Connecting..."
-                    : isOAuthPending
-                      ? "Authorizing..."
-                      : provider.description}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {isActive && (
-          <div className="mt-1">
-            {isCliActivate ? (
-              <>
-                <p className="text-xs text-muted-foreground">
-                  Authenticated via {provider.name} CLI
-                </p>
-                <KeyList
-                  keys={keys}
-                  onDelete={deleteKey}
-                  isDeleting={isDeleting}
-                />
-              </>
-            ) : (
-              <>
-                {/* Hide balance + top-up for deco — the hero section shows it */}
-                {!provider.supportsCredits && (
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      {keys.length} key{keys.length !== 1 ? "s" : ""} configured
-                    </p>
-                  </div>
-                )}
-                {provider.supportsCredits && (
-                  <p className="text-xs text-muted-foreground">
-                    {keys.length} key{keys.length !== 1 ? "s" : ""} configured
-                    &middot; Managed above
-                  </p>
-                )}
-                <KeyList
-                  keys={keys}
-                  onDelete={deleteKey}
-                  isDeleting={isDeleting}
-                />
-              </>
-            )}
-          </div>
-        )}
-      </Card>
+      </SettingsCardItem>
 
       <Dialog
         open={isConnectFormOpen}
@@ -827,33 +804,37 @@ export function ProviderCardGrid({
   );
 
   return (
-    <div className="flex flex-col gap-5 w-full">
+    <div className="flex flex-col gap-6 w-full">
       {localProviders.length > 0 && (
-        <div className="relative rounded-xl border border-lime-400/30 bg-gradient-to-br from-lime-50/50 via-transparent to-yellow-50/30 dark:from-lime-950/20 dark:to-yellow-950/10 p-4">
-          <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-lime-400/5 to-yellow-400/5 pointer-events-none" />
-          <p className="text-xs font-medium text-lime-700 dark:text-lime-400 mb-3 relative">
-            Local models — use your existing AI provider
-          </p>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 relative">
-            {localProviders.map((provider) => (
-              <ProviderCard
-                key={provider.id}
-                provider={provider}
-                keys={allKeys.filter((k) => k.providerId === provider.id)}
-              />
-            ))}
+        <SettingsSection>
+          <div className="relative rounded-xl border border-lime-400/30 bg-gradient-to-br from-lime-50/50 via-transparent to-yellow-50/30 dark:from-lime-950/20 dark:to-yellow-950/10 p-4">
+            <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-lime-400/5 to-yellow-400/5 pointer-events-none" />
+            <p className="text-xs font-medium text-lime-700 dark:text-lime-400 mb-3 relative">
+              Local models — use your existing AI provider
+            </p>
+            <SettingsCard className="relative">
+              {localProviders.map((provider) => (
+                <ProviderCard
+                  key={provider.id}
+                  provider={provider}
+                  keys={allKeys.filter((k) => k.providerId === provider.id)}
+                />
+              ))}
+            </SettingsCard>
           </div>
-        </div>
+        </SettingsSection>
       )}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {cloudProviders.map((provider) => (
-          <ProviderCard
-            key={provider.id}
-            provider={provider}
-            keys={allKeys.filter((k) => k.providerId === provider.id)}
-          />
-        ))}
-      </div>
+      <SettingsSection>
+        <SettingsCard>
+          {cloudProviders.map((provider) => (
+            <ProviderCard
+              key={provider.id}
+              provider={provider}
+              keys={allKeys.filter((k) => k.providerId === provider.id)}
+            />
+          ))}
+        </SettingsCard>
+      </SettingsSection>
     </div>
   );
 }
@@ -1517,13 +1498,13 @@ function OrgAiProvidersContent() {
   const hasDecoKey = allKeys.some((k) => k.providerId === "deco");
 
   return (
-    <div className="flex flex-col gap-6">
+    <>
       <DecoCreditsHero />
       <ProviderCardGrid hideProviderId={hasDecoKey ? "deco" : undefined} />
       <Suspense fallback={<Skeleton className="h-16 w-full" />}>
         <SimpleModeSection />
       </Suspense>
-    </div>
+    </>
   );
 }
 
@@ -1532,7 +1513,7 @@ export function OrgAiProvidersPage() {
     <Page>
       <Page.Content>
         <Page.Body>
-          <div className="flex flex-col gap-6">
+          <SettingsPage>
             <Page.Title>AI Providers</Page.Title>
             <ErrorBoundary
               fallback={({ error }) => (
@@ -1545,7 +1526,7 @@ export function OrgAiProvidersPage() {
                 <OrgAiProvidersContent />
               </Suspense>
             </ErrorBoundary>
-          </div>
+          </SettingsPage>
         </Page.Body>
       </Page.Content>
     </Page>

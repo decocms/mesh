@@ -143,7 +143,7 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
         },
         {
           key: "sso",
-          label: "SSO",
+          label: "Security",
           icon: <Lock01 size={14} />,
           to: "/$org/settings/sso",
         },

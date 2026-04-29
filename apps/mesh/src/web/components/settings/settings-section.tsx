@@ -93,7 +93,9 @@ export function SettingsCardItem({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 px-4 py-4",
+        children
+          ? "flex items-start gap-3 px-4 py-4"
+          : "flex items-center gap-3 px-4 py-4",
         onClick && "hover:bg-muted/50 cursor-pointer",
         className,
       )}
