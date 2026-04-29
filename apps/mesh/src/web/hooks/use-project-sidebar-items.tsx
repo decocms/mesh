@@ -1,4 +1,4 @@
-import { getDecopilotId, useProjectContext } from "@decocms/mesh-sdk";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import type {
   NavigationSidebarItem,
   SidebarSection,
@@ -15,7 +15,6 @@ import { usePanelActions } from "@/web/layouts/shell-layout";
 import { formatPinnedViewTabId } from "@/web/layouts/main-panel-tabs/tab-id";
 import { pluginRootSidebarItems, pluginSidebarGroups } from "../index.tsx";
 import { PLUGIN_ID as WORKFLOWS_PLUGIN_ID } from "mesh-plugin-workflows/shared";
-import { useNavigateToAgentThread } from "@/web/hooks/use-navigate-to-agent-thread";
 
 export function useProjectSidebarItems(): SidebarSection[] {
   const { org: orgContext } = useProjectContext();
@@ -24,7 +23,6 @@ export function useProjectSidebarItems(): SidebarSection[] {
   const { setTasksOpen, openTab } = usePanelActions();
   const org = orgContext.slug;
   const currentProject = useProjectContext().project;
-  const navigateToAgentThread = useNavigateToAgentThread(org);
 
   const routeParams = useParams({ strict: false }) as {
     taskId?: string;
@@ -159,7 +157,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
     isActive: pathname === `/${org}` || pathname === `/${org}/`,
     onClick: () => {
       setTasksOpen(false);
-      void navigateToAgentThread(getDecopilotId(orgContext.id));
+      navigate({ to: "/$org", params: { org } });
     },
   };
 

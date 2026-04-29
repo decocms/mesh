@@ -7,12 +7,11 @@ import { readCachedLastThread } from "@/web/lib/read-cached-last-thread";
 import { authClient } from "@/web/lib/auth-client";
 
 /**
- * Hook for sidebar agent entry points (pinned-agent icons and the Home
- * button). Resumes the user's most recent thread with the target vMCP
- * when one is in the local TanStack cache; otherwise falls back to
- * creating a new thread. The branch-carry behavior (carrying the active
- * task's branch into a brand-new thread for the same vMCP) is preserved
- * on the create path.
+ * Hook for sidebar pinned-agent entry points. Resumes the user's most
+ * recent thread with the target vMCP when one is in the local TanStack
+ * cache; otherwise falls back to creating a new thread. The branch-carry
+ * behavior (carrying the active task's branch into a brand-new thread
+ * for the same vMCP) is preserved on the create path.
  *
  * Returns `{ resumed }` so the call site can emit the right analytics.
  */
