@@ -450,7 +450,7 @@ function SubProviderGroup({
   const hasMore = models.length > visibleCount;
 
   return (
-    <div className="card-shadow rounded-lg overflow-hidden bg-card">
+    <div className="border border-border rounded-lg overflow-hidden">
       <div
         className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/50 cursor-pointer"
         onClick={() => setExpanded((e) => !e)}
@@ -695,7 +695,7 @@ function ModelsPermissionsTab({
     <div className="flex flex-col h-full overflow-auto gap-6 px-2 pt-2 pb-6">
       <div
         className={cn(
-          "flex items-center justify-between px-4 py-3 rounded-lg card-shadow bg-card",
+          "flex items-center justify-between px-4 py-3 rounded-lg border border-border",
           !readOnly && "hover:bg-muted/50 cursor-pointer",
         )}
         onClick={() => {
