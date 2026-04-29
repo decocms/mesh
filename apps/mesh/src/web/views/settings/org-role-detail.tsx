@@ -614,7 +614,7 @@ function ConnectionModelsSection({
   const autoExpand = groups.length === 1 || q.length > 0;
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2 px-2 pt-2">
         <img
           src={PROVIDER_LOGOS[connection.providerId] ?? DEFAULT_LOGO}
@@ -626,7 +626,7 @@ function ConnectionModelsSection({
             connection.providerId}
         </h4>
       </div>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         {groups.map((group) => (
           <SubProviderGroup
             key={group.id}
@@ -692,7 +692,7 @@ function ModelsPermissionsTab({
   };
 
   return (
-    <div className="flex flex-col h-full overflow-auto gap-4 px-2 pt-2 pb-6">
+    <div className="flex flex-col h-full overflow-auto gap-6 px-2 pt-2 pb-6">
       <div
         className={cn(
           "flex items-center justify-between px-4 py-3 rounded-lg card-shadow bg-card",
