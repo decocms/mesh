@@ -67,6 +67,19 @@ function readSandboxTemplateName(): string | undefined {
   return raw && raw.trim() !== "" ? raw : undefined;
 }
 
+// Per-claim HTTPRoute attaches to this Gateway. When set together with
+// STUDIO_SANDBOX_PREVIEW_URL_PATTERN, mesh mints one HTTPRoute per
+// SandboxClaim so the wildcard Gateway can route directly to each
+// sandbox's Service:9000 (mesh leaves the data path). Both vars unset →
+// the runner falls back to in-process preview proxying via mesh.
+function readPreviewGateway(): { name: string; namespace: string } | undefined {
+  const name = process.env.STUDIO_SANDBOX_PREVIEW_GATEWAY_NAME?.trim();
+  const namespace =
+    process.env.STUDIO_SANDBOX_PREVIEW_GATEWAY_NAMESPACE?.trim();
+  if (!name || !namespace) return undefined;
+  return { name, namespace };
+}
+
 async function instantiate(
   kind: RunnerKind,
   db: Kysely<DatabaseSchema>,
@@ -98,6 +111,7 @@ async function instantiate(
         stateStore,
         previewUrlPattern,
         sandboxTemplateName: readSandboxTemplateName(),
+        previewGateway: readPreviewGateway(),
         meter,
       });
     }

@@ -61,15 +61,19 @@ import type {
   Workload,
 } from "../types";
 import {
+  createHttpRoute,
   createSandboxClaim,
+  deleteHttpRoute,
   deleteSandboxClaim,
   getSandboxClaim,
+  HTTPROUTE_CONSTANTS,
   patchSandboxClaimShutdown,
   waitForSandboxReady,
+  type HttpRoute,
   type SandboxClaim,
   type SandboxResource,
 } from "./client";
-import { K8S_CONSTANTS } from "./constants";
+import { K8S_CONSTANTS, SandboxError } from "./constants";
 
 const RUNNER_KIND = "agent-sandbox" as const;
 const LOG_LABEL = "AgentSandboxRunner";
@@ -261,6 +265,23 @@ export interface AgentSandboxRunnerOptions {
    * undefined; mesh wires `metrics.getMeter("mesh", "1.0.0")`.
    */
   meter?: Meter;
+  /**
+   * Per-claim HTTPRoute parent. When set together with `previewUrlPattern`,
+   * the runner mints one HTTPRoute per SandboxClaim (same name + namespace
+   * as the claim) and tears it down on `delete`. The route attaches to
+   * `parentRef = { name, namespace }` and routes `<handle>.<host>` exact
+   * matches to the operator-created Service:9000 in `this.namespace`.
+   *
+   * When unset (or `previewUrlPattern` unset), the runner does NOT touch
+   * HTTPRoute resources. Preview traffic still works in that mode through
+   * mesh's in-process proxy (the previous design), provided someone else
+   * (the chart, an operator, hand-rolled YAML) has wired a wildcard
+   * HTTPRoute backed by mesh.
+   */
+  previewGateway?: {
+    name: string;
+    namespace: string;
+  };
 }
 
 export class AgentSandboxRunner implements SandboxRunner {
@@ -282,6 +303,13 @@ export class AgentSandboxRunner implements SandboxRunner {
    * still allocate and dispatch on every call.
    */
   private readonly metrics: RunnerMetrics | null;
+  /**
+   * Non-null only when both `previewUrlPattern` and `previewGateway` were
+   * provided — the two together define the full route shape (hostname +
+   * parent). Used as the gate for HTTPRoute mutations across provision,
+   * adopt, and delete.
+   */
+  private readonly previewGateway: { name: string; namespace: string } | null;
 
   constructor(opts: AgentSandboxRunnerOptions = {}) {
     this.stateStore = opts.stateStore ?? null;
@@ -296,6 +324,13 @@ export class AgentSandboxRunner implements SandboxRunner {
       (() => randomBytes(DAEMON_TOKEN_BYTES).toString("hex"));
     this.idleTtlMs = opts.idleTtlMs ?? DEFAULT_IDLE_TTL_MS;
     this.metrics = opts.meter ? buildRunnerMetrics(opts.meter) : null;
+    // HTTPRoute routing requires both pieces — the hostname template (so we
+    // know what host to attach) and the gateway parent (so we know where).
+    // Either alone is meaningless, so refuse to half-enable.
+    this.previewGateway =
+      opts.previewGateway && opts.previewUrlPattern
+        ? { ...opts.previewGateway }
+        : null;
   }
 
   // ---- SandboxRunner surface ------------------------------------------------
@@ -324,6 +359,18 @@ export class AgentSandboxRunner implements SandboxRunner {
       // was never incremented for this handle in this process.
       this.metrics?.active.add(-1, tenantAttrs(rec.tenant));
     }
+    // Drop the HTTPRoute first so traffic stops resolving immediately —
+    // the operator's claim teardown can take a few seconds, and we don't
+    // want browsers landing on a half-deleted Service in the interim.
+    // Failures here are logged and continue: a stale HTTPRoute backed by a
+    // deleted Service simply 502s, and the next delete attempt (or a
+    // garbage-collection sweep) will clean it up. Blocking claim deletion
+    // on a transient gateway-API error would be worse for the caller.
+    await this.deleteHttpRouteIfManaged(handle).catch((err) => {
+      console.warn(
+        `[${LOG_LABEL}] HTTPRoute delete failed for ${handle}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    });
     await deleteSandboxClaim(this.kubeConfig, this.namespace, handle);
     if (this.stateStore) {
       if (rec) await this.stateStore.delete(rec.id, RUNNER_KIND);
@@ -797,6 +844,20 @@ export class AgentSandboxRunner implements SandboxRunner {
       handle,
     );
 
+    // Mint per-claim HTTPRoute before opening the port-forward so that, by
+    // the time `Sandbox.previewUrl` reaches the caller, the gateway already
+    // has a route attached. If this fails the claim is still healthy but
+    // the preview URL would be unroutable, which is worse than a fast-fail
+    // — roll back the claim so the caller's retry hits a clean slate.
+    try {
+      await this.ensureHttpRouteForHandle(handle, opts.tenant ?? null);
+    } catch (err) {
+      await deleteSandboxClaim(this.kubeConfig, this.namespace, handle).catch(
+        () => {},
+      );
+      throw err;
+    }
+
     const daemonForward = await this.openForwarder(
       podName,
       DAEMON_CONTAINER_PORT,
@@ -807,6 +868,7 @@ export class AgentSandboxRunner implements SandboxRunner {
       await waitForDaemonReady(daemonUrl);
     } catch (err) {
       this.closeForwarder(daemonForward);
+      await this.deleteHttpRouteIfManaged(handle).catch(() => {});
       await deleteSandboxClaim(this.kubeConfig, this.namespace, handle).catch(
         () => {},
       );
@@ -826,6 +888,69 @@ export class AgentSandboxRunner implements SandboxRunner {
       tenant: opts.tenant ?? null,
       ensureOpts: stripEnsureOpts(opts),
     };
+  }
+
+  /**
+   * No-op when `previewGateway` isn't configured. Otherwise PUT-or-create
+   * the HTTPRoute that maps `<handle>.<base>` → operator Service `<handle>`
+   * port 9000. createHttpRoute swallows 409, so this is safe to call from
+   * both fresh-provision and adopt-backfill paths.
+   */
+  private async ensureHttpRouteForHandle(
+    handle: string,
+    tenant: RunnerTenant | null,
+  ): Promise<void> {
+    if (!this.previewGateway || !this.previewUrlPattern) return;
+    const hostname = previewHostnameForHandle(this.previewUrlPattern, handle);
+    if (!hostname) {
+      throw new SandboxError(
+        `Unable to derive preview hostname for ${handle} from pattern: ${this.previewUrlPattern}`,
+      );
+    }
+    const route: HttpRoute = {
+      apiVersion: `${HTTPROUTE_CONSTANTS.API_GROUP}/${HTTPROUTE_CONSTANTS.API_VERSION}`,
+      kind: "HTTPRoute",
+      metadata: {
+        name: handle,
+        namespace: this.namespace,
+        labels: buildTenantLabels(tenant ?? undefined, {
+          [LABEL_KEYS.role]: "claimed",
+          [LABEL_KEYS.sandboxHandle]: handle,
+          "app.kubernetes.io/name": "studio-sandbox",
+          "app.kubernetes.io/managed-by": "studio",
+        }),
+      },
+      spec: {
+        parentRefs: [
+          {
+            kind: "Gateway",
+            group: "gateway.networking.k8s.io",
+            name: this.previewGateway.name,
+            namespace: this.previewGateway.namespace,
+          },
+        ],
+        hostnames: [hostname],
+        rules: [
+          {
+            backendRefs: [
+              {
+                group: "",
+                kind: "Service",
+                name: handle,
+                port: DAEMON_CONTAINER_PORT,
+              },
+            ],
+          },
+        ],
+      },
+    };
+    await createHttpRoute(this.kubeConfig, this.namespace, route);
+  }
+
+  /** No-op when `previewGateway` isn't configured. 404-tolerant otherwise. */
+  private async deleteHttpRouteIfManaged(handle: string): Promise<void> {
+    if (!this.previewGateway) return;
+    await deleteHttpRoute(this.kubeConfig, this.namespace, handle);
   }
 
   /**
@@ -893,6 +1018,21 @@ export class AgentSandboxRunner implements SandboxRunner {
     const live = await this.openAndProbeDaemon(podName, handle);
     if (!live) return null;
 
+    const tenant = readClaimTenant(claim);
+    // Backfill the HTTPRoute for legacy claims provisioned before per-claim
+    // routing existed. createHttpRoute swallows 409, so the steady-state
+    // path (route already present from a prior provision) is a no-op.
+    // Failures here don't block adoption — preview traffic just stays
+    // unrouted until the next ensure() picks it up; the rest of the
+    // sandbox surface (exec, port-forward) is unaffected.
+    if (this.previewGateway) {
+      await this.ensureHttpRouteForHandle(handle, tenant).catch((err) => {
+        console.warn(
+          `[${LOG_LABEL}] HTTPRoute backfill failed for ${handle}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+    }
+
     return {
       id,
       handle,
@@ -906,7 +1046,7 @@ export class AgentSandboxRunner implements SandboxRunner {
       // Recovered from claim labels written at provision time. Null if the
       // claim pre-dates tenant labelling (back-compat with already-running
       // sandboxes when this code rolls out).
-      tenant: readClaimTenant(claim),
+      tenant,
       // Adopt happens when the state-store is empty but a claim with our
       // deterministic name still exists in the cluster (e.g. mesh restart
       // without state-store, or state-store wipe). The original opts aren't
@@ -1371,6 +1511,25 @@ function stripEnsureOpts(opts: EnsureOptions): EnsureOptions | null {
   if (opts.env && Object.keys(opts.env).length > 0) out.env = opts.env;
   if (opts.tenant) out.tenant = opts.tenant;
   return Object.keys(out).length > 0 ? out : null;
+}
+
+/**
+ * Extract the bare hostname `<handle>.<base>` from a preview URL pattern.
+ * Reuses `applyPreviewPattern` to guarantee parity with the URL the runner
+ * advertises in `Sandbox.previewUrl` — drift between "URL the user sees"
+ * and "hostname the gateway routes" would silently break iframe loading.
+ * Returns null when the pattern doesn't parse as a URL (e.g. someone set
+ * `{handle}/foo` without a scheme).
+ */
+function previewHostnameForHandle(
+  pattern: string,
+  handle: string,
+): string | null {
+  try {
+    return new URL(applyPreviewPattern(pattern, handle)).hostname || null;
+  } catch {
+    return null;
+  }
 }
 
 /** Fallback for when callers don't provide `repo.displayName`. */

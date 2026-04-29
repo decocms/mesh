@@ -33,12 +33,12 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Daemon port (9000) — mesh server pods call this to exec tools, stream
-    # logs, etc. Also the *preview* request path: when previewGateway is
-    # enabled, mesh reverse-proxies `*.preview.<domain>` traffic to the
-    # daemon here so the daemon's CSP/HMR rewrites apply (port 3000 would
-    # bypass them). Selectors point at the studio release identified via
-    # `mesh.namespace` + `mesh.podSelectorLabels`.
+    # Daemon port (9000) — mesh server pods call this for control-plane
+    # operations (tool exec, log streaming) when path-2 in-cluster routing
+    # is used. The control plane also reaches the daemon over the API
+    # server's port-forward channel, which doesn't transit a Pod IP and
+    # therefore doesn't need a NetworkPolicy rule; this entry covers the
+    # direct-Service path.
     - from:
         - namespaceSelector:
             matchLabels:
@@ -49,6 +49,22 @@ spec:
       ports:
         - protocol: TCP
           port: 9000
+    {{- if .Values.previewGateway.enabled }}
+    # Per-claim HTTPRoutes in `agent-sandbox-system` route `*.<domain>`
+    # traffic from the wildcard Gateway directly to each sandbox's headless
+    # Service:9000. The actual sender is the gateway controller's data plane
+    # Pod, which lives in `previewGateway.namespace` (Istio default:
+    # `istio-system`). Without this rule the route attaches but the Envoy
+    # proxy can't reach the sandbox pod and the browser sees a connect
+    # timeout. Mesh is no longer in this path.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.previewGateway.namespace }}
+      ports:
+        - protocol: TCP
+          port: 9000
+    {{- end }}
     {{- with .Values.networkPolicy.previewGatewayNamespace }}
     # DEPRECATED — direct ingress on dev port 3000 from a configured
     # gateway namespace. Only needed for setups that route preview traffic
