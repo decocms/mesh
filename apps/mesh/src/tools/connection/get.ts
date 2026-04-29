@@ -34,7 +34,6 @@ const ConnectionGetOutputSchema = createCollectionGetOutputSchema(
 
 export const COLLECTION_CONNECTIONS_GET = defineTool({
   name: "COLLECTION_CONNECTIONS_GET",
-  basicUsage: true,
   description:
     "Get a connection's configuration, tools list, and status by ID.",
   annotations: {
@@ -51,6 +50,7 @@ export const COLLECTION_CONNECTIONS_GET = defineTool({
   handler: async (input, ctx) => {
     // Require organization context
     const organization = requireOrganization(ctx);
+    await ctx.access.check();
 
     // In dev mode, check if this is the dev-assets connection
     if (isDevMode() && isDevAssetsConnection(input.id, organization.id)) {

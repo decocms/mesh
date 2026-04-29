@@ -10,7 +10,6 @@ import { requireAuth, requireOrganization } from "../../core/mesh-context";
 
 export const AUTOMATION_LIST = defineTool({
   name: "AUTOMATION_LIST",
-  basicUsage: true,
   description:
     "List automations with their status, triggers, and configuration.",
   annotations: {
@@ -41,6 +40,7 @@ export const AUTOMATION_LIST = defineTool({
   handler: async (input, ctx) => {
     requireAuth(ctx);
     const organization = requireOrganization(ctx);
+    await ctx.access.check();
 
     const automations = await ctx.storage.automations.listWithTriggerCounts(
       organization.id,

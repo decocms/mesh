@@ -5,7 +5,6 @@ import { getProviders } from "../../ai-providers/registry";
 
 export const AI_PROVIDERS_ACTIVE = defineTool({
   name: "AI_PROVIDERS_ACTIVE",
-  basicUsage: true,
   description:
     "List AI providers that have at least one API key configured and ready to use.",
   inputSchema: z.object({}),
@@ -23,6 +22,7 @@ export const AI_PROVIDERS_ACTIVE = defineTool({
   handler: async (_input, ctx) => {
     requireAuth(ctx);
     const org = requireOrganization(ctx);
+    await ctx.access.check();
 
     const allKeys = await ctx.storage.aiProviderKeys.list({
       organizationId: org.id,

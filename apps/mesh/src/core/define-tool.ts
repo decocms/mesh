@@ -58,7 +58,6 @@ export interface ToolBinder<
    * ```
    */
   _meta?: Record<string, unknown>;
-  basicUsage?: boolean;
 }
 /**
  * Tool definition structure
@@ -157,7 +156,6 @@ export function defineTool<
                 // Set tool name for audit logging and access control
                 ctx.toolName = definition.name;
                 ctx.access.setToolName?.(definition.name);
-                if (definition.basicUsage) ctx.access.grant();
 
                 // MCP protocol already validated input against JSON Schema
                 // We trust the validation and execute the handler directly
