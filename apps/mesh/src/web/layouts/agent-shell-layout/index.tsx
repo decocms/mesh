@@ -294,64 +294,53 @@ function AgentInsetProvider() {
     entity,
   };
 
-  if (ensureState.status === "creating" || ensureState.status === "loading") {
-    return (
-      <InsetContext value={insetContextValue}>
-        <div className="flex-1 min-h-0 pr-1.5 pb-1.5 overflow-hidden">
-          <div className="flex h-full items-center justify-center bg-background card-shadow rounded-[0.75rem] text-sm text-muted-foreground">
-            <Loading01 className="size-4 animate-spin mr-2" />
-            Creating task…
+  // The route may transition between states (loading task → ready → loading
+  // a new task) without unmounting `Chat.Provider`. Hoisting the provider
+  // above these branches preserves TaskProvider state — notably
+  // `pendingMessage`, which the home → task autosend flow depends on.
+  const stateBranch =
+    ensureState.status === "creating" || ensureState.status === "loading" ? (
+      <div className="flex-1 min-h-0 pr-1.5 pb-1.5 overflow-hidden">
+        <div className="flex h-full items-center justify-center bg-background card-shadow rounded-[0.75rem] text-sm text-muted-foreground">
+          <Loading01 className="size-4 animate-spin mr-2" />
+          Creating task…
+        </div>
+      </div>
+    ) : ensureState.status === "error" ? (
+      <div className="flex-1 min-h-0 pr-1.5 pb-1.5 overflow-hidden">
+        <div className="flex flex-col h-full items-center justify-center gap-2 bg-background card-shadow rounded-[0.75rem] p-8 text-sm">
+          <div className="font-medium">Task unavailable</div>
+          <div className="text-muted-foreground">
+            {ensureState.error.message}
           </div>
         </div>
-      </InsetContext>
-    );
-  }
+      </div>
+    ) : !entity ? (
+      <div className="flex-1 min-h-0 pr-1.5 pb-1.5 overflow-hidden">
+        <div className="flex flex-col h-full bg-background overflow-hidden card-shadow rounded-[0.75rem]">
+          <EmptyState
+            image={<AlertCircle size={48} className="text-muted-foreground" />}
+            title="Agent not found"
+            description={`The agent "${virtualMcpId}" does not exist in this organization.`}
+            actions={
+              <Button
+                variant="outline"
+                onClick={() =>
+                  navigate({
+                    to: "/$org",
+                    params: { org: orgSlug },
+                  })
+                }
+              >
+                Go to organization home
+              </Button>
+            }
+          />
+        </div>
+      </div>
+    ) : null;
 
-  if (ensureState.status === "error") {
-    return (
-      <InsetContext value={insetContextValue}>
-        <div className="flex-1 min-h-0 pr-1.5 pb-1.5 overflow-hidden">
-          <div className="flex flex-col h-full items-center justify-center gap-2 bg-background card-shadow rounded-[0.75rem] p-8 text-sm">
-            <div className="font-medium">Task unavailable</div>
-            <div className="text-muted-foreground">
-              {ensureState.error.message}
-            </div>
-          </div>
-        </div>
-      </InsetContext>
-    );
-  }
-
-  if (!entity) {
-    return (
-      <InsetContext value={insetContextValue}>
-        <div className="flex-1 min-h-0 pr-1.5 pb-1.5 overflow-hidden">
-          <div className="flex flex-col h-full bg-background overflow-hidden card-shadow rounded-[0.75rem]">
-            <EmptyState
-              image={
-                <AlertCircle size={48} className="text-muted-foreground" />
-              }
-              title="Agent not found"
-              description={`The agent "${virtualMcpId}" does not exist in this organization.`}
-              actions={
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    navigate({
-                      to: "/$org",
-                      params: { org: orgSlug },
-                    })
-                  }
-                >
-                  Go to organization home
-                </Button>
-              }
-            />
-          </div>
-        </div>
-      </InsetContext>
-    );
-  }
+  const showShell = stateBranch === null;
 
   // Mobile layout — unchanged semantics, just inlined here for clarity.
   if (isMobile) {
@@ -384,21 +373,27 @@ function AgentInsetProvider() {
       <InsetContext value={insetContextValue}>
         <div className="flex flex-col flex-1 bg-background min-h-0">
           <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
-            <VmEventsBridge
-              virtualMcpId={virtualMcpId}
-              hasActiveGithubRepo={hasActiveGithubRepo}
-              vmMap={entity?.metadata?.vmMap}
-            >
-              <NewTaskBridge
-                onNewTaskRef={onNewTask}
-                createNewTask={layout.createNewTask}
-              />
-              <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
-              <div className="flex-1 min-h-0 overflow-hidden">
-                {params.taskId ? <ActiveTaskBoundary /> : <HomePage />}
-              </div>
-              {mobileSidebarSheet}
-            </VmEventsBridge>
+            {showShell ? (
+              <VmEventsBridge
+                virtualMcpId={virtualMcpId}
+                hasActiveGithubRepo={hasActiveGithubRepo}
+                vmMap={entity?.metadata?.vmMap}
+              >
+                <NewTaskBridge
+                  onNewTaskRef={onNewTask}
+                  createNewTask={layout.createNewTask}
+                />
+                <MobileToolbar
+                  onOpenSidebar={() => setMobileSidebarOpen(true)}
+                />
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  {params.taskId ? <ActiveTaskBoundary /> : <HomePage />}
+                </div>
+                {mobileSidebarSheet}
+              </VmEventsBridge>
+            ) : (
+              stateBranch
+            )}
           </Chat.Provider>
         </div>
       </InsetContext>
@@ -408,48 +403,56 @@ function AgentInsetProvider() {
   // Desktop — portal toggle buttons into outer toolbar, render chat+main group.
   return (
     <InsetContext value={insetContextValue}>
-      <Toolbar.Toggles>
-        <ToggleButtons
-          chatOpen={layout.chatOpen}
-          toggleChat={layout.toggleChat}
-          onNewTask={tasksOpen ? undefined : layout.createNewTask}
-        />
-      </Toolbar.Toggles>
+      {showShell && (
+        <Toolbar.Toggles>
+          <ToggleButtons
+            chatOpen={layout.chatOpen}
+            toggleChat={layout.toggleChat}
+            onNewTask={tasksOpen ? undefined : layout.createNewTask}
+          />
+        </Toolbar.Toggles>
+      )}
 
       <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
-        {params.taskId && (
-          <Toolbar.Tabs>
-            <MainPanelTabsBar
-              virtualMcpId={virtualMcpId}
-              taskId={layout.taskId}
-            />
-          </Toolbar.Tabs>
-        )}
+        {showShell ? (
+          <>
+            {params.taskId && (
+              <Toolbar.Tabs>
+                <MainPanelTabsBar
+                  virtualMcpId={virtualMcpId}
+                  taskId={layout.taskId}
+                />
+              </Toolbar.Tabs>
+            )}
 
-        <VmEventsBridge
-          virtualMcpId={virtualMcpId}
-          hasActiveGithubRepo={hasActiveGithubRepo}
-          vmMap={entity?.metadata?.vmMap}
-        >
-          {params.taskId ? (
-            <>
-              <VirtualMcpHeaderInfo virtualMcp={entity} />
-              <NewTaskBridge
-                onNewTaskRef={onNewTask}
-                createNewTask={layout.createNewTask}
-              />
-              <ChatMainPanelGroup
-                virtualMcpId={virtualMcpId}
-                taskId={layout.taskId}
-                chatOpen={layout.chatOpen}
-                mainOpen={layout.mainOpen}
-                chatContent={<ActiveTaskBoundary />}
-              />
-            </>
-          ) : (
-            <HomePage />
-          )}
-        </VmEventsBridge>
+            <VmEventsBridge
+              virtualMcpId={virtualMcpId}
+              hasActiveGithubRepo={hasActiveGithubRepo}
+              vmMap={entity?.metadata?.vmMap}
+            >
+              {params.taskId && entity ? (
+                <>
+                  <VirtualMcpHeaderInfo virtualMcp={entity} />
+                  <NewTaskBridge
+                    onNewTaskRef={onNewTask}
+                    createNewTask={layout.createNewTask}
+                  />
+                  <ChatMainPanelGroup
+                    virtualMcpId={virtualMcpId}
+                    taskId={layout.taskId}
+                    chatOpen={layout.chatOpen}
+                    mainOpen={layout.mainOpen}
+                    chatContent={<ActiveTaskBoundary />}
+                  />
+                </>
+              ) : (
+                <HomePage />
+              )}
+            </VmEventsBridge>
+          </>
+        ) : (
+          stateBranch
+        )}
       </Chat.Provider>
     </InsetContext>
   );
