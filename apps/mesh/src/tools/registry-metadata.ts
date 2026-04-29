@@ -1034,10 +1034,47 @@ export interface PermissionCapability {
   section: string;
   tools: ToolName[];
   dangerous?: boolean;
-  basicUsage?: boolean;
 }
 
+/**
+ * Capability id for tools all authenticated org members can use by default.
+ * AccessControl auto-grants any tool listed here; the UI hides this capability.
+ */
+const BASIC_USAGE_CAPABILITY_ID = "basic-usage";
+
 const PERMISSION_CAPABILITIES: PermissionCapability[] = [
+  // Basic usage — granted to all org members, hidden from UI
+  {
+    id: BASIC_USAGE_CAPABILITY_ID,
+    label: "Basic Usage",
+    description: "Tools all org members can access by default",
+    section: "Basic Usage",
+    tools: [
+      // View connections
+      "COLLECTION_CONNECTIONS_LIST",
+      "COLLECTION_CONNECTIONS_GET",
+      "CONNECTION_TEST",
+      // View agents
+      "COLLECTION_VIRTUAL_MCP_LIST",
+      "COLLECTION_VIRTUAL_MCP_GET",
+      "VIRTUAL_MCP_PLUGIN_CONFIG_GET",
+      // View automations
+      "AUTOMATION_GET",
+      "AUTOMATION_LIST",
+      // View AI providers
+      "AI_PROVIDERS_LIST",
+      "AI_PROVIDERS_LIST_MODELS",
+      "AI_PROVIDERS_ACTIVE",
+      // Object storage access
+      "LIST_OBJECTS",
+      "GET_OBJECT_METADATA",
+      "GET_PRESIGNED_URL",
+      "PUT_PRESIGNED_URL",
+      // VM previews
+      "VM_START",
+      "VM_DELETE",
+    ],
+  },
   // Organization
   {
     id: "org:manage",
@@ -1080,18 +1117,6 @@ const PERMISSION_CAPABILITIES: PermissionCapability[] = [
   },
   // Connections
   {
-    id: "connections:view",
-    label: "View connections",
-    description: "Browse and test existing connections",
-    section: "Connections & Agents",
-    basicUsage: true,
-    tools: [
-      "COLLECTION_CONNECTIONS_LIST",
-      "COLLECTION_CONNECTIONS_GET",
-      "CONNECTION_TEST",
-    ],
-  },
-  {
     id: "connections:manage",
     label: "Manage connections",
     description: "Create, update, and delete connections",
@@ -1102,18 +1127,6 @@ const PERMISSION_CAPABILITIES: PermissionCapability[] = [
       "COLLECTION_CONNECTIONS_DELETE",
     ],
     dangerous: true,
-  },
-  {
-    id: "agents:view",
-    label: "View agents",
-    description: "Browse and view agent configurations",
-    section: "Connections & Agents",
-    basicUsage: true,
-    tools: [
-      "COLLECTION_VIRTUAL_MCP_LIST",
-      "COLLECTION_VIRTUAL_MCP_GET",
-      "VIRTUAL_MCP_PLUGIN_CONFIG_GET",
-    ],
   },
   {
     id: "agents:manage",
@@ -1130,14 +1143,6 @@ const PERMISSION_CAPABILITIES: PermissionCapability[] = [
     dangerous: true,
   },
   // Automations
-  {
-    id: "automations:view",
-    label: "View automations",
-    description: "Browse automation workflows",
-    section: "Automations",
-    basicUsage: true,
-    tools: ["AUTOMATION_GET", "AUTOMATION_LIST"],
-  },
   {
     id: "automations:manage",
     label: "Manage automations",
@@ -1162,18 +1167,6 @@ const PERMISSION_CAPABILITIES: PermissionCapability[] = [
     tools: ["MONITORING_LOG_GET", "MONITORING_LOGS_LIST", "MONITORING_STATS"],
   },
   // AI Providers
-  {
-    id: "ai-providers:view",
-    label: "View AI providers",
-    description: "List available providers and models (required for chat)",
-    section: "AI Providers",
-    basicUsage: true,
-    tools: [
-      "AI_PROVIDERS_LIST",
-      "AI_PROVIDERS_LIST_MODELS",
-      "AI_PROVIDERS_ACTIVE",
-    ],
-  },
   {
     id: "ai-providers:manage",
     label: "Manage AI providers",
@@ -1284,27 +1277,6 @@ const PERMISSION_CAPABILITIES: PermissionCapability[] = [
     ],
   },
   {
-    id: "storage:access",
-    label: "Access object storage",
-    description: "List, upload, and download files",
-    section: "Developer",
-    basicUsage: true,
-    tools: [
-      "LIST_OBJECTS",
-      "GET_OBJECT_METADATA",
-      "GET_PRESIGNED_URL",
-      "PUT_PRESIGNED_URL",
-    ],
-  },
-  {
-    id: "vm:access",
-    label: "Use VM previews",
-    description: "Start and delete Freestyle VM dev server previews",
-    section: "Developer",
-    basicUsage: true,
-    tools: ["VM_START", "VM_DELETE"],
-  },
-  {
     id: "storage:delete",
     label: "Delete from storage",
     description: "Permanently delete files from object storage",
@@ -1323,7 +1295,8 @@ const PERMISSION_CAPABILITIES: PermissionCapability[] = [
 ];
 
 export const BASIC_USAGE_TOOLS: ReadonlySet<string> = new Set(
-  PERMISSION_CAPABILITIES.filter((c) => c.basicUsage).flatMap((c) => c.tools),
+  PERMISSION_CAPABILITIES.find((c) => c.id === BASIC_USAGE_CAPABILITY_ID)
+    ?.tools ?? [],
 );
 
 export function getCapabilitySections(): Array<{
@@ -1332,6 +1305,7 @@ export function getCapabilitySections(): Array<{
 }> {
   const map = new Map<string, PermissionCapability[]>();
   for (const cap of PERMISSION_CAPABILITIES) {
+    if (cap.id === BASIC_USAGE_CAPABILITY_ID) continue;
     const arr = map.get(cap.section) ?? [];
     arr.push(cap);
     map.set(cap.section, arr);
