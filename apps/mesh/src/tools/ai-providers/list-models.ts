@@ -10,6 +10,7 @@ import { CODEX_MODELS } from "@/ai-providers/adapters/codex";
 
 export const AI_PROVIDERS_LIST_MODELS = defineTool({
   name: "AI_PROVIDERS_LIST_MODELS",
+  basicUsage: true,
   description:
     "List models available from an AI provider. Requires a valid stored API key.",
   annotations: {
@@ -46,7 +47,6 @@ export const AI_PROVIDERS_LIST_MODELS = defineTool({
   handler: async (input, ctx) => {
     requireAuth(ctx);
     const org = requireOrganization(ctx);
-    ctx.access.grant();
 
     // Claude Code uses a DB key with providerId "claude-code"
     const keyInfo = await ctx.storage.aiProviderKeys

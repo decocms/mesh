@@ -29,6 +29,7 @@ const GetOutputSchema = z.object({
 
 export const COLLECTION_VIRTUAL_MCP_GET = defineTool({
   name: "COLLECTION_VIRTUAL_MCP_GET",
+  basicUsage: true,
   description:
     "Get a Virtual MCP's configuration, connections, and virtual tools by ID.",
   annotations: {
@@ -44,8 +45,6 @@ export const COLLECTION_VIRTUAL_MCP_GET = defineTool({
   handler: async (input, ctx) => {
     requireAuth(ctx);
     const organization = requireOrganization(ctx);
-
-    ctx.access.grant();
 
     // Get the virtual MCP
     const virtualMcp = await ctx.storage.virtualMcps.findById(input.id);

@@ -8,6 +8,7 @@ import {
 
 export const LIST_OBJECTS = defineTool({
   name: "LIST_OBJECTS",
+  basicUsage: true,
   description:
     "List objects in the organization's object storage with pagination and prefix filtering support.",
   annotations: {
@@ -23,7 +24,6 @@ export const LIST_OBJECTS = defineTool({
   handler: async (input, ctx) => {
     requireAuth(ctx);
     requireOrganization(ctx);
-    ctx.access.grant();
     const storage = requireObjectStorage(ctx);
 
     const result = await storage.list({

@@ -10,6 +10,7 @@ const DEFAULT_EXPIRES_IN = 3600;
 
 export const GET_PRESIGNED_URL = defineTool({
   name: "GET_PRESIGNED_URL",
+  basicUsage: true,
   description:
     "Generate a presigned URL for downloading an object from the organization's storage.",
   annotations: {
@@ -25,7 +26,6 @@ export const GET_PRESIGNED_URL = defineTool({
   handler: async (input, ctx) => {
     requireAuth(ctx);
     requireOrganization(ctx);
-    ctx.access.grant();
     const storage = requireObjectStorage(ctx);
 
     const expiresIn = input.expiresIn ?? DEFAULT_EXPIRES_IN;

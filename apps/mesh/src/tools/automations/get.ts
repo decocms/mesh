@@ -10,6 +10,7 @@ import { requireAuth, requireOrganization } from "../../core/mesh-context";
 
 export const AUTOMATION_GET = defineTool({
   name: "AUTOMATION_GET",
+  basicUsage: true,
   description: "Get an automation's full configuration and triggers by ID.",
   annotations: {
     title: "Get Automation",
@@ -52,7 +53,6 @@ export const AUTOMATION_GET = defineTool({
   handler: async (input, ctx) => {
     requireAuth(ctx);
     const organization = requireOrganization(ctx);
-    ctx.access.grant();
 
     const automation = await ctx.storage.automations.findById(
       input.id,

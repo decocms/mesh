@@ -46,6 +46,7 @@ type GithubRepoMeta = {
 
 export const VM_START = defineTool({
   name: "VM_START",
+  basicUsage: true,
   description: "Start a sandbox with the connected GitHub repo and dev server.",
   annotations: {
     title: "Start VM Preview",

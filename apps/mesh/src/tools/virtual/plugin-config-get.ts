@@ -20,6 +20,7 @@ const serializedPluginConfigSchema = z.object({
 
 export const VIRTUAL_MCP_PLUGIN_CONFIG_GET = defineTool({
   name: "VIRTUAL_MCP_PLUGIN_CONFIG_GET" as const,
+  basicUsage: true,
   description:
     "Get a plugin's current configuration for a specific virtual MCP.",
   annotations: {
@@ -41,9 +42,6 @@ export const VIRTUAL_MCP_PLUGIN_CONFIG_GET = defineTool({
   handler: async (input, ctx) => {
     // Require authentication
     requireAuth(ctx);
-
-    // Check authorization
-    ctx.access.grant();
 
     const { virtualMcpId, pluginId } = input;
 
