@@ -285,11 +285,20 @@ housekeeper:
   # Clean up finished pod objects faster than failedJobsHistoryLimit.
   ttlSecondsAfterFinished: 300
 
-  # Label selectors that match what mesh stamps on claims and pods. Mirrors
-  # buildClaim in packages/sandbox/server/runner/agent-sandbox/runner.ts.
-  # Override only if mesh's selector changes — the two MUST stay in sync.
-  claimSelector: "app.kubernetes.io/managed-by=studio,app.kubernetes.io/name=studio-sandbox"
-  podSelector: "studio.decocms.com/role=claimed"
+  # Label selectors. Empty = chart computes env-scoped defaults via the
+  # housekeeperClaimSelector / housekeeperPodSelector helpers, which match
+  # only this env's claims and pods (mesh stamps studio.decocms.com/env=
+  # <envName> when STUDIO_ENV is set in the studio chart's configMap).
+  #
+  # Override to an explicit string only during a phased rollout, before
+  # mesh has been upgraded with STUDIO_ENV — without the env label being
+  # stamped on claims, the env-scoped selector matches nothing. Use the
+  # broad selector to keep sweeping during the transition:
+  #   claimSelector: "app.kubernetes.io/managed-by=studio,app.kubernetes.io/name=studio-sandbox"
+  #   podSelector: "studio.decocms.com/role=claimed"
+  # and switch back to "" once every claim is env-labeled.
+  claimSelector: ""
+  podSelector: ""
 
   # Pinned for reproducibility — `latest` would silently change behavior
   # at the next scheduled run. Bump deliberately.

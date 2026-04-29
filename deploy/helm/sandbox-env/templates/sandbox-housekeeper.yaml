@@ -157,9 +157,9 @@ spec:
                 - name: PROBE_TIMEOUT_SEC
                   value: {{ .Values.housekeeper.probeTimeoutSeconds | quote }}
                 - name: CLAIM_SELECTOR
-                  value: {{ .Values.housekeeper.claimSelector | quote }}
+                  value: {{ default (include "sandbox-env.housekeeperClaimSelector" .) .Values.housekeeper.claimSelector | quote }}
                 - name: POD_SELECTOR
-                  value: {{ .Values.housekeeper.podSelector | quote }}
+                  value: {{ default (include "sandbox-env.housekeeperPodSelector" .) .Values.housekeeper.podSelector | quote }}
               command: ["/bin/sh", "/scripts/sweep.sh"]
               volumeMounts:
                 - name: script

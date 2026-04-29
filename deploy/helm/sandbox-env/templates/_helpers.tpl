@@ -143,3 +143,28 @@ Housekeeper CronJob / ServiceAccount / Role / RoleBinding name.
 {{- define "sandbox-env.housekeeperName" -}}
 {{- printf "sandbox-housekeeper-%s" (include "sandbox-env.envName" .) -}}
 {{- end }}
+
+{{/*
+Default housekeeper claim selector. Mirrors the labels mesh's runner.ts
+buildClaim stamps on every SandboxClaim, with the env scope appended so
+each env release only sweeps its own claims (mesh stamps
+studio.decocms.com/env=<envName> when STUDIO_ENV is set).
+
+Operators that haven't rolled mesh with STUDIO_ENV yet should override
+.Values.housekeeper.claimSelector to the unscoped 2-label selector
+(README has the copy-paste) until they roll the upgrade — the scoped
+selector matches zero claims if STUDIO_ENV isn't propagated, and the
+housekeeper does nothing useful in that state.
+*/}}
+{{- define "sandbox-env.housekeeperClaimSelector" -}}
+{{- printf "app.kubernetes.io/managed-by=studio,app.kubernetes.io/name=studio-sandbox,studio.decocms.com/env=%s" (include "sandbox-env.envName" .) -}}
+{{- end }}
+
+{{/*
+Default housekeeper pod selector. Same env-scoping idea — mesh stamps
+studio.decocms.com/env on additionalPodMetadata so each housekeeper only
+enumerates its env's pods.
+*/}}
+{{- define "sandbox-env.housekeeperPodSelector" -}}
+{{- printf "studio.decocms.com/role=claimed,studio.decocms.com/env=%s" (include "sandbox-env.envName" .) -}}
+{{- end }}

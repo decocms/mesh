@@ -28,6 +28,13 @@ installed (it ships the CRDs + controller).
   chart's `configMap.meshConfig`. Without that override the runner falls
   back to `studio-sandbox` (no suffix) and claim creation fails with
   `sandboxtemplate not found`.
+- The studio release must also set `STUDIO_ENV=<envName>` (same envName)
+  so mesh stamps `studio.decocms.com/env=<envName>` on every SandboxClaim,
+  pod, and HTTPRoute it creates. The housekeeper's default selectors
+  scope sweeps to that env label — without it the housekeeper matches
+  zero claims and reaps nothing. Single-env installs that don't enable
+  the housekeeper can leave `STUDIO_ENV` unset (the label is then
+  omitted and behavior is unchanged).
 
 ## Preview gateway auth model
 
@@ -75,6 +82,7 @@ this runner:
 configMap:
   meshConfig:
     STUDIO_SANDBOX_RUNNER: "agent-sandbox"
+    STUDIO_ENV: "staging"
     STUDIO_SANDBOX_TEMPLATE_NAME: "studio-sandbox-staging"
     STUDIO_SANDBOX_PREVIEW_URL_PATTERN: "https://{handle}.preview.staging.example.com"
     # Per-claim HTTPRoute attaches to this Gateway. Both required whenever

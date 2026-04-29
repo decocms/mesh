@@ -262,6 +262,22 @@ export interface AgentSandboxRunnerOptions {
   /** SandboxTemplate all claims reference. */
   sandboxTemplateName?: string;
   /**
+   * Studio environment name (e.g. "prod", "staging"). When set, every
+   * SandboxClaim, claimed Pod, and per-claim HTTPRoute is stamped with
+   * `studio.decocms.com/env=<envName>` so the sandbox-env Helm chart's
+   * housekeeper can scope its sweep to a single environment instead of
+   * every studio claim in the namespace.
+   *
+   * Optional — single-env installs that don't run a per-env housekeeper
+   * can leave this unset and the label is omitted (no behavioral change
+   * for them). Mesh wires it from `STUDIO_ENV`.
+   *
+   * Constraint: must be a DNS-label-safe value (a-z0-9-, starts with a
+   * letter, ≤63 chars). Validated at construction; an invalid value
+   * throws rather than letting the operator silently reject the claim.
+   */
+  envName?: string;
+  /**
    * Deterministic DAEMON_TOKEN override — tests inject a fixed value so
    * recorded fetch payloads are stable. Prod leaves this undefined.
    */
@@ -316,6 +332,7 @@ export class AgentSandboxRunner implements SandboxRunner {
   private readonly portForward: PortForward;
   private readonly namespace: string;
   private readonly sandboxTemplateName: string;
+  private readonly envName: string | null;
   private readonly tokenGenerator: () => string;
   private readonly idleTtlMs: number;
   /**
@@ -340,6 +357,7 @@ export class AgentSandboxRunner implements SandboxRunner {
     this.namespace = opts.namespace ?? DEFAULT_NAMESPACE;
     this.sandboxTemplateName =
       opts.sandboxTemplateName ?? DEFAULT_TEMPLATE_NAME;
+    this.envName = normalizeEnvName(opts.envName);
     this.tokenGenerator =
       opts.tokenGenerator ??
       (() => randomBytes(DAEMON_TOKEN_BYTES).toString("hex"));
@@ -843,6 +861,7 @@ export class AgentSandboxRunner implements SandboxRunner {
         labels: {
           "app.kubernetes.io/name": "studio-sandbox",
           "app.kubernetes.io/managed-by": "studio",
+          ...(this.envName ? { [ENV_LABEL_KEY]: this.envName } : {}),
           ...buildTenantLabels(opts.tenant),
         },
       },
@@ -857,6 +876,7 @@ export class AgentSandboxRunner implements SandboxRunner {
           labels: buildTenantLabels(opts.tenant, {
             [LABEL_KEYS.role]: "claimed",
             [LABEL_KEYS.sandboxHandle]: handle,
+            ...(this.envName ? { [ENV_LABEL_KEY]: this.envName } : {}),
           }),
         },
         // `valueFrom.secretKeyRef` isn't supported on SandboxClaim env; RBAC
@@ -1010,6 +1030,7 @@ export class AgentSandboxRunner implements SandboxRunner {
           [LABEL_KEYS.sandboxHandle]: handle,
           "app.kubernetes.io/name": "studio-sandbox",
           "app.kubernetes.io/managed-by": "studio",
+          ...(this.envName ? { [ENV_LABEL_KEY]: this.envName } : {}),
         }),
       },
       spec: {
@@ -1549,6 +1570,31 @@ const MAX_LABEL_VALUE_LEN = 63;
 function sanitizeLabelValue(value: string): string {
   const truncated = value.slice(0, MAX_LABEL_VALUE_LEN);
   return LABEL_VALUE_RE.test(truncated) ? truncated : "";
+}
+
+// Studio environment label key. Stamped on claims, claimed pods, and
+// per-claim HTTPRoutes when a runner is constructed with envName, so the
+// sandbox-env Helm chart's housekeeper can scope its sweep to a single
+// environment. Same key shape as the chart's studio.decocms.com/env.
+const ENV_LABEL_KEY = "studio.decocms.com/env";
+
+// Same DNS-label rules the sandbox-env chart enforces on envName: lowercase
+// alphanumeric or '-', start with a letter, end alphanumeric, ≤32 chars.
+// Tighter than the generic LABEL_VALUE_RE because envName flows into K8s
+// resource names (housekeeper-<env>, studio-sandbox-<env>) where the longer
+// charset would break things.
+const ENV_NAME_RE = /^[a-z]([a-z0-9-]{0,30}[a-z0-9])?$/;
+
+function normalizeEnvName(raw: string | undefined): string | null {
+  if (raw === undefined) return null;
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  if (!ENV_NAME_RE.test(trimmed)) {
+    throw new Error(
+      `AgentSandboxRunner: envName=${JSON.stringify(trimmed)} is not a valid DNS-label-safe environment name (lowercase alphanumeric or '-', starts with a letter, ends alphanumeric, ≤32 chars). Mesh sets this from STUDIO_ENV; check the studio chart's configMap.`,
+    );
+  }
+  return trimmed;
 }
 
 /**

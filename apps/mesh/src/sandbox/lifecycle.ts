@@ -67,6 +67,21 @@ function readSandboxTemplateName(): string | undefined {
   return raw && raw.trim() !== "" ? raw : undefined;
 }
 
+// Studio environment name. Stamped on every SandboxClaim, claimed Pod, and
+// per-claim HTTPRoute as `studio.decocms.com/env=<envName>` so the
+// sandbox-env chart's housekeeper can scope its sweep to a single env
+// instead of every studio claim in the namespace. Single-env installs that
+// don't run a per-env housekeeper can leave this unset; the label is then
+// omitted and behavior is unchanged.
+//
+// Format must be DNS-label-safe (validated in AgentSandboxRunner); the
+// chart enforces the same regex on its envName value so the two stay
+// compatible.
+function readEnvName(): string | undefined {
+  const raw = process.env.STUDIO_ENV;
+  return raw && raw.trim() !== "" ? raw : undefined;
+}
+
 // Per-claim HTTPRoute attaches to this Gateway. When NAME + NAMESPACE are
 // set alongside STUDIO_SANDBOX_PREVIEW_URL_PATTERN, mesh mints one
 // HTTPRoute per SandboxClaim so the wildcard Gateway can route directly
@@ -127,6 +142,7 @@ async function instantiate(
         stateStore,
         previewUrlPattern,
         sandboxTemplateName: readSandboxTemplateName(),
+        envName: readEnvName(),
         previewGateway: readPreviewGateway(),
         meter,
       });
