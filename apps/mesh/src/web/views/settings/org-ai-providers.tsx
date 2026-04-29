@@ -17,11 +17,11 @@ import {
 import { Page } from "@/web/components/page";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@deco/ui/components/card.tsx";
+  SettingsCard,
+  SettingsCardItem,
+  SettingsPage,
+  SettingsSection,
+} from "@/web/components/settings/settings-section";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
 import {
@@ -689,92 +689,69 @@ function ProviderCard({
     }
   };
 
+  const loadingText = isActivating
+    ? "Checking CLI..."
+    : isProvisioning
+      ? "Connecting..."
+      : isOAuthPending
+        ? "Authorizing..."
+        : null;
+
+  const statusText =
+    loadingText ??
+    (isActive && isCliActivate
+      ? `Authenticated via ${provider.name} CLI`
+      : provider.description);
+
   return (
     <>
-      <Card
+      <SettingsCardItem
+        icon={
+          provider.logo ? (
+            <img
+              src={provider.logo}
+              alt={provider.name}
+              className="size-8 rounded-md object-contain dark:bg-white dark:p-0.5"
+            />
+          ) : (
+            <Avatar
+              fallback={provider.name.charAt(0)}
+              className="size-8 bg-primary/10 text-primary"
+            />
+          )
+        }
+        title={
+          <span className="flex items-center gap-2">
+            {provider.name}
+            {isActive && !isCliActivate && !loadingText && (
+              <span className="text-xs font-normal text-muted-foreground">
+                {keys.length} key{keys.length !== 1 ? "s" : ""} configured
+                {provider.supportsCredits ? " · Managed above" : ""}
+              </span>
+            )}
+          </span>
+        }
+        description={statusText}
+        onClick={
+          !isOAuthPending && !isActivating && !isProvisioning
+            ? handleCardClick
+            : undefined
+        }
         className={cn(
-          "p-4 flex flex-col gap-3 transition-colors relative",
-          isActive && "border-primary/20",
-          !isOAuthPending &&
-            !isActivating &&
-            !isProvisioning &&
-            "cursor-pointer hover:bg-muted/30",
           (isOAuthPending || isActivating || isProvisioning) && "cursor-wait",
         )}
-        onClick={handleCardClick}
+        action={
+          <div className="flex items-center gap-2">
+            {isActive && (
+              <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+            )}
+          </div>
+        }
       >
-        {isActive && (
-          <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-green-500" />
+        {isActive && !isCliActivate && (
+          <KeyList keys={keys} onDelete={deleteKey} isDeleting={isDeleting} />
         )}
-
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            {provider.logo ? (
-              <img
-                src={provider.logo}
-                alt={provider.name}
-                className="size-8 rounded-md object-contain dark:bg-white dark:rounded-md dark:p-0.5"
-              />
-            ) : (
-              <Avatar
-                fallback={provider.name.charAt(0)}
-                className="size-8 bg-primary/10 text-primary"
-              />
-            )}
-            <div>
-              <h3 className="font-medium text-base">{provider.name}</h3>
-              <p className="text-sm text-muted-foreground line-clamp-1">
-                {isActivating
-                  ? "Checking CLI..."
-                  : isProvisioning
-                    ? "Connecting..."
-                    : isOAuthPending
-                      ? "Authorizing..."
-                      : provider.description}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {isActive && (
-          <div className="mt-1">
-            {isCliActivate ? (
-              <>
-                <p className="text-xs text-muted-foreground">
-                  Authenticated via {provider.name} CLI
-                </p>
-                <KeyList
-                  keys={keys}
-                  onDelete={deleteKey}
-                  isDeleting={isDeleting}
-                />
-              </>
-            ) : (
-              <>
-                {/* Hide balance + top-up for deco — the hero section shows it */}
-                {!provider.supportsCredits && (
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      {keys.length} key{keys.length !== 1 ? "s" : ""} configured
-                    </p>
-                  </div>
-                )}
-                {provider.supportsCredits && (
-                  <p className="text-xs text-muted-foreground">
-                    {keys.length} key{keys.length !== 1 ? "s" : ""} configured
-                    &middot; Managed above
-                  </p>
-                )}
-                <KeyList
-                  keys={keys}
-                  onDelete={deleteKey}
-                  isDeleting={isDeleting}
-                />
-              </>
-            )}
-          </div>
-        )}
-      </Card>
+      </SettingsCardItem>
 
       <Dialog
         open={isConnectFormOpen}
@@ -827,33 +804,37 @@ export function ProviderCardGrid({
   );
 
   return (
-    <div className="flex flex-col gap-5 w-full">
+    <div className="flex flex-col gap-6 w-full">
       {localProviders.length > 0 && (
-        <div className="relative rounded-xl border border-lime-400/30 bg-gradient-to-br from-lime-50/50 via-transparent to-yellow-50/30 dark:from-lime-950/20 dark:to-yellow-950/10 p-4">
-          <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-lime-400/5 to-yellow-400/5 pointer-events-none" />
-          <p className="text-xs font-medium text-lime-700 dark:text-lime-400 mb-3 relative">
-            Local models — use your existing AI provider
-          </p>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 relative">
-            {localProviders.map((provider) => (
-              <ProviderCard
-                key={provider.id}
-                provider={provider}
-                keys={allKeys.filter((k) => k.providerId === provider.id)}
-              />
-            ))}
+        <SettingsSection>
+          <div className="relative rounded-xl border border-lime-400/30 bg-gradient-to-br from-lime-50/50 via-transparent to-yellow-50/30 dark:from-lime-950/20 dark:to-yellow-950/10 p-4">
+            <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-lime-400/5 to-yellow-400/5 pointer-events-none" />
+            <p className="text-xs font-medium text-lime-700 dark:text-lime-400 mb-3 relative">
+              Local models — use your existing AI provider
+            </p>
+            <SettingsCard className="relative">
+              {localProviders.map((provider) => (
+                <ProviderCard
+                  key={provider.id}
+                  provider={provider}
+                  keys={allKeys.filter((k) => k.providerId === provider.id)}
+                />
+              ))}
+            </SettingsCard>
           </div>
-        </div>
+        </SettingsSection>
       )}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {cloudProviders.map((provider) => (
-          <ProviderCard
-            key={provider.id}
-            provider={provider}
-            keys={allKeys.filter((k) => k.providerId === provider.id)}
-          />
-        ))}
-      </div>
+      <SettingsSection>
+        <SettingsCard>
+          {cloudProviders.map((provider) => (
+            <ProviderCard
+              key={provider.id}
+              provider={provider}
+              keys={allKeys.filter((k) => k.providerId === provider.id)}
+            />
+          ))}
+        </SettingsCard>
+      </SettingsSection>
     </div>
   );
 }
@@ -1055,107 +1036,102 @@ function DecoCreditsHero() {
     balanceDollars != null ? `$${balanceDollars.toFixed(2)}` : "—";
 
   return (
-    <div
-      className={cn(
-        "relative rounded-xl overflow-hidden",
-        "border border-border",
-        "bg-gradient-to-br from-background via-muted/30 to-background",
-      )}
-    >
-      <div className="relative p-6">
-        {/* Provider identity */}
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-3">
-            <img
-              src="/logos/deco%20logo.svg"
-              alt="Deco AI Gateway"
-              className="size-9 rounded-lg object-contain dark:bg-white dark:p-0.5"
-            />
-            <div>
-              <h3 className="text-sm font-semibold text-foreground">
-                Deco AI Gateway
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Access to 100+ models
-              </p>
+    <SettingsSection title="Deco AI Gateway">
+      <SettingsCard>
+        <div className="px-5 py-5 flex flex-col gap-5">
+          {/* Provider info and disconnect button */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <img
+                src="/logos/deco%20logo.svg"
+                alt="Deco AI Gateway"
+                className="size-9 rounded-lg object-contain dark:bg-white dark:p-0.5"
+              />
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  Access to 100+ models
+                </p>
+              </div>
             </div>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-xs text-muted-foreground hover:text-destructive"
-            onClick={() => setConfirmDisconnect(true)}
-            disabled={isDisconnecting}
-          >
-            Disconnect
-          </Button>
-        </div>
-
-        <AlertDialog
-          open={confirmDisconnect}
-          onOpenChange={setConfirmDisconnect}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Disconnect Deco AI Gateway</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will remove the Deco AI Gateway from this workspace. Your
-                credit balance is preserved and will be available if you
-                reconnect.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => disconnect()}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                Disconnect
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        {/* Balance */}
-        <div className="flex items-baseline gap-2">
-          {isLoading || isFetching ? (
-            <Skeleton className="h-9 w-24" />
-          ) : (
-            <span
-              className={cn(
-                "text-3xl font-semibold tabular-nums tracking-tight",
-                balanceDollars != null && creditColorClass(balanceDollars),
-              )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-muted-foreground hover:text-destructive"
+              onClick={() => setConfirmDisconnect(true)}
+              disabled={isDisconnecting}
             >
-              {displayBalance}
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors p-1 rounded-md hover:bg-muted/50"
-            aria-label="Refresh balance"
-          >
-            <RefreshCw01
-              size={14}
-              className={cn(isFetching && "animate-spin")}
-            />
-          </button>
-        </div>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Available credit balance
-        </p>
+              Disconnect
+            </Button>
+          </div>
 
-        {/* Quick top-up */}
-        <div className="mt-5 pt-4 border-t border-border/60">
-          <p className="text-xs font-medium text-muted-foreground mb-2.5">
-            Add credits
-          </p>
-          <QuickTopUp />
+          <AlertDialog
+            open={confirmDisconnect}
+            onOpenChange={setConfirmDisconnect}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Disconnect Deco AI Gateway</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will remove the Deco AI Gateway from this workspace. Your
+                  credit balance is preserved and will be available if you
+                  reconnect.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => disconnect()}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Disconnect
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Balance */}
+          <div className="flex flex-col gap-2 pt-2">
+            <div className="flex items-baseline gap-2">
+              {isLoading || isFetching ? (
+                <Skeleton className="h-9 w-24" />
+              ) : (
+                <span
+                  className={cn(
+                    "text-3xl font-semibold tabular-nums tracking-tight",
+                    balanceDollars != null && creditColorClass(balanceDollars),
+                  )}
+                >
+                  {displayBalance}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => refetch()}
+                disabled={isFetching}
+                className="text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors p-1 rounded-md hover:bg-muted/50"
+                aria-label="Refresh balance"
+              >
+                <RefreshCw01
+                  size={14}
+                  className={cn(isFetching && "animate-spin")}
+                />
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Available credit balance
+            </p>
+          </div>
+
+          {/* Quick top-up */}
+          <div className="pt-4 border-t border-border/60">
+            <p className="text-xs font-medium text-muted-foreground mb-2.5">
+              Add credits
+            </p>
+            <QuickTopUp />
+          </div>
         </div>
-      </div>
-    </div>
+      </SettingsCard>
+    </SettingsSection>
   );
 }
 
@@ -1184,15 +1160,11 @@ const TIER_DESCRIPTIONS: Record<TierKey, string> = {
 };
 
 function SimpleModeModelRow({
-  label,
-  description,
   slot,
   onSlotChange,
   filterModels,
   defaultKeyId,
 }: {
-  label: string;
-  description?: string;
   slot: SimpleModeConfig["chat"]["fast"];
   onSlotChange: (slot: SimpleModeConfig["chat"]["fast"]) => void;
   filterModels?: (m: AiProviderModel) => boolean;
@@ -1203,8 +1175,6 @@ function SimpleModeModelRow({
     slot?.keyId ?? defaultKeyId,
   );
 
-  // Adopt slot's keyId when it actually transitions (e.g. auto-fill from defaults)
-  // — NOT on every render, or it would revert user's in-modal credential changes.
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
     if (slot?.keyId) setLocalCredentialId(slot.keyId);
@@ -1235,36 +1205,28 @@ function SimpleModeModelRow({
       } as AiProviderModel)
     : null;
 
+  if (filterModels && !hasFilteredModels) {
+    return (
+      <p className="text-xs text-muted-foreground italic">
+        Not available with current provider
+      </p>
+    );
+  }
+
   return (
-    <div className="flex items-center justify-between gap-4 py-2">
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        {description && (
-          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
-        )}
-      </div>
-      <div className="shrink-0">
-        {filterModels && !hasFilteredModels ? (
-          <p className="text-xs text-muted-foreground italic">
-            Not available with current provider
-          </p>
-        ) : (
-          <ModelSelector
-            variant="bordered"
-            placeholder="Pick model"
-            model={resolvedModel}
-            credentialId={activeKeyId}
-            filterModels={filterModels}
-            onCredentialChange={(keyId) => setLocalCredentialId(keyId)}
-            onModelChange={(m) => {
-              const keyId = m.keyId ?? activeKeyId ?? "";
-              setLocalCredentialId(keyId);
-              onSlotChange({ keyId, modelId: m.modelId, title: m.title });
-            }}
-          />
-        )}
-      </div>
-    </div>
+    <ModelSelector
+      variant="bordered"
+      placeholder="Pick model"
+      model={resolvedModel}
+      credentialId={activeKeyId}
+      filterModels={filterModels}
+      onCredentialChange={(keyId) => setLocalCredentialId(keyId)}
+      onModelChange={(m) => {
+        const keyId = m.keyId ?? activeKeyId ?? "";
+        setLocalCredentialId(keyId);
+        onSlotChange({ keyId, modelId: m.modelId, title: m.title });
+      }}
+    />
   );
 }
 
@@ -1442,68 +1404,66 @@ function SimpleModeSection() {
   const effectiveEnabled = enabled && hasProvider;
 
   return (
-    <Card className="p-6">
-      <CardHeader className="p-0">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-sm">Simple model mode</CardTitle>
+    <SettingsSection title="Simple model mode">
+      <SettingsCard>
+        <SettingsCardItem
+          title="Enable simple model mode"
+          description={
+            hasProvider
+              ? "Replace the model picker with a Fast / Smart / Thinking toggle for all members of this org."
+              : "Connect an AI provider above to enable this feature."
+          }
+          action={
+            <div className="flex items-center gap-3">
               <AutosaveStatus
                 isPending={isPending}
                 showSaved={isSuccess && !isDirty}
               />
+              <Switch
+                checked={effectiveEnabled}
+                onCheckedChange={handleToggle}
+                disabled={isPending || !hasProvider}
+              />
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {hasProvider
-                ? "Replace the model picker with a Fast / Smart / Thinking toggle for all members of this org."
-                : "Connect an AI provider above to enable this feature."}
-            </p>
-          </div>
-          <Switch
-            checked={effectiveEnabled}
-            onCheckedChange={handleToggle}
-            disabled={isPending || !hasProvider}
-          />
-        </div>
-      </CardHeader>
-
-      {effectiveEnabled && (
-        <CardContent className="flex flex-col p-0 mt-6">
-          <div className="flex flex-col gap-1 pb-6">
-            <p className="text-xs font-medium text-muted-foreground mb-1">
-              Chat models
-            </p>
+          }
+        />
+        {effectiveEnabled && (
+          <>
             {(["fast", "smart", "thinking"] as TierKey[]).map((tier) => (
               <Controller
                 key={tier}
                 control={form.control}
                 name={`chat.${tier}` as const}
                 render={({ field }) => (
-                  <SimpleModeModelRow
-                    label={TIER_LABELS[tier]}
+                  <SettingsCardItem
+                    title={TIER_LABELS[tier]}
                     description={TIER_DESCRIPTIONS[tier]}
-                    slot={field.value}
-                    defaultKeyId={allKeys[0]?.id ?? null}
-                    onSlotChange={(slot) => field.onChange(slot)}
+                    action={
+                      <SimpleModeModelRow
+                        slot={field.value}
+                        defaultKeyId={allKeys[0]?.id ?? null}
+                        onSlotChange={(slot) => field.onChange(slot)}
+                      />
+                    }
                   />
                 )}
               />
             ))}
-          </div>
-          <div className="flex flex-col gap-1 pt-6 border-t border-border/50">
-            <p className="text-xs font-medium text-muted-foreground mb-1">
-              Other models
-            </p>
+            <div className="h-px bg-border mx-5" />
             <Controller
               control={form.control}
               name="image"
               render={({ field }) => (
-                <SimpleModeModelRow
-                  label="Image"
-                  slot={field.value}
-                  defaultKeyId={allKeys[0]?.id ?? null}
-                  filterModels={filterImageModels}
-                  onSlotChange={(slot) => field.onChange(slot)}
+                <SettingsCardItem
+                  title="Image"
+                  action={
+                    <SimpleModeModelRow
+                      slot={field.value}
+                      defaultKeyId={allKeys[0]?.id ?? null}
+                      filterModels={filterImageModels}
+                      onSlotChange={(slot) => field.onChange(slot)}
+                    />
+                  }
                 />
               )}
             />
@@ -1511,19 +1471,23 @@ function SimpleModeSection() {
               control={form.control}
               name="webResearch"
               render={({ field }) => (
-                <SimpleModeModelRow
-                  label="Web research"
-                  slot={field.value}
-                  defaultKeyId={allKeys[0]?.id ?? null}
-                  filterModels={filterWebResearchModels}
-                  onSlotChange={(slot) => field.onChange(slot)}
+                <SettingsCardItem
+                  title="Web research"
+                  action={
+                    <SimpleModeModelRow
+                      slot={field.value}
+                      defaultKeyId={allKeys[0]?.id ?? null}
+                      filterModels={filterWebResearchModels}
+                      onSlotChange={(slot) => field.onChange(slot)}
+                    />
+                  }
                 />
               )}
             />
-          </div>
-        </CardContent>
-      )}
-    </Card>
+          </>
+        )}
+      </SettingsCard>
+    </SettingsSection>
   );
 }
 
@@ -1534,13 +1498,13 @@ function OrgAiProvidersContent() {
   const hasDecoKey = allKeys.some((k) => k.providerId === "deco");
 
   return (
-    <div className="flex flex-col gap-6">
+    <>
       <DecoCreditsHero />
       <ProviderCardGrid hideProviderId={hasDecoKey ? "deco" : undefined} />
       <Suspense fallback={<Skeleton className="h-16 w-full" />}>
         <SimpleModeSection />
       </Suspense>
-    </div>
+    </>
   );
 }
 
@@ -1549,7 +1513,7 @@ export function OrgAiProvidersPage() {
     <Page>
       <Page.Content>
         <Page.Body>
-          <div className="flex flex-col gap-6">
+          <SettingsPage>
             <Page.Title>AI Providers</Page.Title>
             <ErrorBoundary
               fallback={({ error }) => (
@@ -1562,7 +1526,7 @@ export function OrgAiProvidersPage() {
                 <OrgAiProvidersContent />
               </Suspense>
             </ErrorBoundary>
-          </div>
+          </SettingsPage>
         </Page.Body>
       </Page.Content>
     </Page>
