@@ -166,6 +166,67 @@ if ! grep -q '^[[:space:]]*-[[:space:]]*--extensions[[:space:]]*$' "${WORK}/mani
   exit 1
 fi
 
+# Inject PodSecurity admission labels into the agent-sandbox-system Namespace.
+#
+# Upstream ships a bare Namespace; we enforce `baseline` and warn/audit on
+# `restricted` so violations from sandbox pods or the controller surface in
+# audit logs without rejecting admission. When the operator's pod spec
+# hardens to restricted, flip enforce. See README + the LOCAL EDIT comment
+# in HEADER_TMPL below.
+log "injecting PodSecurity admission labels into agent-sandbox-system Namespace"
+awk '
+  function flush(   i, is_target, has_kind, name_line, indent) {
+    if (n == 0) return
+    is_target = 0
+    has_kind = 0
+    name_line = 0
+    for (i = 1; i <= n; i++) {
+      if (buf[i] ~ /^kind:[[:space:]]*Namespace[[:space:]]*$/) has_kind = 1
+      if (has_kind && buf[i] ~ /^[[:space:]]+name:[[:space:]]*agent-sandbox-system[[:space:]]*$/) {
+        is_target = 1
+        name_line = i
+        break
+      }
+    }
+    if (!is_target) {
+      for (i = 1; i <= n; i++) print buf[i]
+      print "---"
+      n = 0
+      return
+    }
+    for (i = 1; i <= n; i++) {
+      print buf[i]
+      if (i == name_line) {
+        match(buf[i], /^[[:space:]]*/)
+        indent = substr(buf[i], RSTART, RLENGTH)
+        print indent "labels:"
+        print indent "  pod-security.kubernetes.io/enforce: baseline"
+        print indent "  pod-security.kubernetes.io/enforce-version: latest"
+        print indent "  pod-security.kubernetes.io/warn: restricted"
+        print indent "  pod-security.kubernetes.io/warn-version: latest"
+        print indent "  pod-security.kubernetes.io/audit: restricted"
+        print indent "  pod-security.kubernetes.io/audit-version: latest"
+      }
+    }
+    print "---"
+    n = 0
+  }
+  /^---[[:space:]]*$/ { flush(); next }
+  { buf[++n] = $0 }
+  END { flush() }
+' "${WORK}/manifest.yaml" > "${WORK}/manifest.patched.yaml"
+sed -i.bak -e '$d' "${WORK}/manifest.patched.yaml" && rm "${WORK}/manifest.patched.yaml.bak"
+mv "${WORK}/manifest.patched.yaml" "${WORK}/manifest.yaml"
+if ! grep -q '^[[:space:]]*pod-security.kubernetes.io/enforce:[[:space:]]*baseline[[:space:]]*$' "${WORK}/manifest.yaml"; then
+  err "post-patch: PodSecurity labels were not injected into the Namespace doc"
+  err "  upstream may have moved the Namespace into extensions.yaml or changed its name;"
+  err "  inspect ${WORK}/manifest.yaml and update the awk patch in this script"
+  exit 1
+fi
+# If upstream ever adds its own labels: block, our awk would produce a
+# duplicate `labels:` key and helm lint would fail. That's the canary —
+# fix the awk to merge into the existing labels block when it happens.
+
 # Split each multi-doc YAML by `---` boundaries, classify each doc by kind.
 # awk is portable (no yq dependency) and good enough for manifests that only
 # need a kind: line scanned.
@@ -212,6 +273,14 @@ HEADER_CRDS="# Vendored from ${REPO} ${UPSTREAM_VERSION} via vendor.sh.
 HEADER_TMPL="# Vendored from ${REPO} ${UPSTREAM_VERSION} via vendor.sh.
 # Do not edit by hand — re-run vendor.sh to refresh.
 # Contains: controller Deployments, RBAC, Namespace, Service, ServiceAccount.
+#
+# LOCAL EDIT — preserve when re-running vendor.sh:
+#   PodSecurity admission labels added to the Namespace below. \`baseline\`
+#   is enforced (operator controller pod runs without an explicit
+#   securityContext; \`restricted\` would block it until that's patched).
+#   \`restricted\` is set as warn/audit so violations from sandbox pods or
+#   the controller surface in audit logs without rejecting admission.
+#   When the operator's pod spec hardens to \`restricted\`, flip enforce.
 "
 
 printf "%s" "${HEADER_CRDS}" > "${CRDS_FILE}"
