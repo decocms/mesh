@@ -13,6 +13,7 @@ import { removeVmMapEntry } from "./vm-map";
 
 export const VM_DELETE = defineTool({
   name: "VM_DELETE",
+  basicUsage: true,
   description: "Delete a sandbox.",
   annotations: {
     title: "Delete VM Preview",

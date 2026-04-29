@@ -10,6 +10,7 @@ import { requireOrganization } from "../../core/mesh-context";
 
 export const CONNECTION_TEST = defineTool({
   name: "CONNECTION_TEST",
+  basicUsage: true,
   description: "Test connection health and latency",
   annotations: {
     title: "Test Connection",
@@ -31,9 +32,6 @@ export const CONNECTION_TEST = defineTool({
   handler: async (input, ctx) => {
     // Require organization context
     const organization = requireOrganization(ctx);
-
-    // Check authorization
-    ctx.access.grant();
 
     // Fetch connection to verify org ownership before testing
     const connection = await ctx.storage.connections.findById(input.id);
