@@ -129,7 +129,7 @@ function PageTitle({
         className,
       )}
     >
-      <div className="text-lg font-medium min-w-0">{children}</div>
+      <div className="text-xl font-medium min-w-0">{children}</div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>
   );

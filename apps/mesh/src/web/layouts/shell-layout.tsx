@@ -5,6 +5,7 @@ import { isModKey } from "@/web/lib/keyboard-shortcuts";
 import RequiredAuthLayout from "@/web/layouts/required-auth-layout";
 import { authClient } from "@/web/lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
+import { PostHogGroupSync } from "@/web/providers/posthog-group-sync";
 import { ProjectContextProvider, useProjectContext } from "@decocms/mesh-sdk";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import {
@@ -228,6 +229,7 @@ function ShellLayoutContent() {
 
   return (
     <ShellProjectProvider org={{ ...activeOrg, logo: activeOrg.logo ?? null }}>
+      <PostHogGroupSync activeOrg={activeOrg} />
       <Outlet />
 
       {/* Keyboard Shortcuts Dialog */}

@@ -3,7 +3,7 @@ export const PLUGIN_DESCRIPTION =
   "Isolated per-user sandboxes for MCP tool execution";
 
 export const DAEMON_PORT = 9000;
-export const DEFAULT_IMAGE = "mesh-sandbox:local";
+export const DEFAULT_IMAGE = "studio-sandbox:local";
 
 /** Shell-quote a value for safe inclusion in a `bash -lc` script. */
 export function shellQuote(value: string): string {

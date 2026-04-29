@@ -56,6 +56,17 @@ function readPreviewUrlPattern(): string | undefined {
   return raw && raw.trim() !== "" ? raw : undefined;
 }
 
+// Per-env SandboxTemplate name. The sandbox-env Helm chart suffixes the
+// template name with envName so multiple envs share `agent-sandbox-system`
+// without collisions; mesh in this env must point its claims at the
+// matching suffixed name. Empty/unset → AgentSandboxRunner's built-in
+// default ("studio-sandbox") so single-env installs that didn't suffix
+// keep working.
+function readSandboxTemplateName(): string | undefined {
+  const raw = process.env.STUDIO_SANDBOX_TEMPLATE_NAME;
+  return raw && raw.trim() !== "" ? raw : undefined;
+}
+
 async function instantiate(
   kind: RunnerKind,
   db: Kysely<DatabaseSchema>,
@@ -86,6 +97,7 @@ async function instantiate(
       return new AgentSandboxRunner({
         stateStore,
         previewUrlPattern,
+        sandboxTemplateName: readSandboxTemplateName(),
         meter,
       });
     }

@@ -24,8 +24,8 @@ const child = Bun.spawn(
     stdio: ["inherit", "inherit", "inherit"],
     env: {
       ...process.env,
-      MESH_SANDBOX_DEV_DAEMON_DIR:
-        process.env.MESH_SANDBOX_DEV_DAEMON_DIR ?? sandboxDaemonDir,
+      STUDIO_SANDBOX_DEV_DAEMON_DIR:
+        process.env.STUDIO_SANDBOX_DEV_DAEMON_DIR ?? sandboxDaemonDir,
     },
   },
 );

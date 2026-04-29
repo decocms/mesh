@@ -41,7 +41,7 @@ export async function sweepDockerOrphansOnBoot(
 }
 
 /**
- * Caveat: filters only by `mesh-sandbox=1`, so multiple mesh pods sharing
+ * Caveat: filters only by `studio-sandbox=1`, so multiple studio pods sharing
  * one docker host would nuke each other's containers on SIGTERM. Fine for
  * single-pod-per-host (the only sane docker deployment shape today).
  */

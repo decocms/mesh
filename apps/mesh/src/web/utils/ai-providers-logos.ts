@@ -21,7 +21,7 @@ function inferUpstreamFromModelId(modelId: string): string | null {
     return "openai";
   if (id.startsWith("claude-") || id.startsWith("claude.")) return "anthropic";
   if (id.startsWith("gemini")) return "google";
-  if (id.startsWith("llama") || id.includes("/llama")) return "meta-llama";
+  if (id.startsWith("llama")) return "meta-llama";
   if (id.startsWith("mistral") || id.startsWith("mixtral")) return "mistralai";
   if (id.startsWith("qwen")) return "qwen";
   if (id.startsWith("deepseek")) return "deepseek";

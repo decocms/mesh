@@ -78,6 +78,10 @@ export function buildChildEnv(
 
     // Sandbox runner: read from env by resolveRunnerKindFromEnv() in workers
     STUDIO_SANDBOX_RUNNER: process.env.STUDIO_SANDBOX_RUNNER,
+    // Per-env SandboxTemplate name override (sandbox-env Helm chart suffixes
+    // it with envName). Workers must inherit so claim creation hits the
+    // right template.
+    STUDIO_SANDBOX_TEMPLATE_NAME: process.env.STUDIO_SANDBOX_TEMPLATE_NAME,
     FREESTYLE_API_KEY: process.env.FREESTYLE_API_KEY,
 
     // Browserless

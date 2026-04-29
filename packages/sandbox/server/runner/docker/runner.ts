@@ -43,8 +43,8 @@ import type {
 } from "../types";
 
 const RUNNER_KIND = "docker" as const;
-const LABEL_ROOT = "mesh-sandbox";
-const LABEL_ID = "mesh-sandbox.id";
+const LABEL_ROOT = "studio-sandbox";
+const LABEL_ID = "studio-sandbox.id";
 const DEFAULT_DEV_PORT = 3000;
 const PORT_READBACK_ATTEMPTS = 15;
 const PORT_READBACK_INTERVAL_MS = 200;
@@ -120,7 +120,7 @@ export class DockerSandboxRunner implements SandboxRunner {
 
   constructor(opts: DockerRunnerOptions = {}) {
     this.defaultImage =
-      opts.image ?? process.env.MESH_SANDBOX_IMAGE ?? DEFAULT_IMAGE;
+      opts.image ?? process.env.STUDIO_SANDBOX_IMAGE ?? DEFAULT_IMAGE;
     this.exec_ = opts.exec ?? dockerExec;
     this.labelPrefix = opts.labelPrefix ?? LABEL_ROOT;
     this.stateStore = opts.stateStore ?? null;
