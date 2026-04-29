@@ -1,6 +1,5 @@
 # Shared SandboxTemplate consumed by every SandboxClaim the mesh runner
-# creates. Mirrors deploy/k8s-sandbox/local/sandbox-template.yaml with prod
-# ceilings from values.resources.
+# creates. Resource ceilings come from values.resources.
 #
 # Hardcoded to the operator's own namespace (agent-sandbox-system) — the CRDs
 # ship with that as the install target, and the operator's RBAC watches it by

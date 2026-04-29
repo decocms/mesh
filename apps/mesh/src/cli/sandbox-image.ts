@@ -7,13 +7,13 @@ import { addLogEntry } from "./cli-store";
  * awaits the same singleton, so any failure surfaces there with context.
  *
  * Skipped in production (image is expected to be registry-hosted) and when
- * `MESH_SANDBOX_IMAGE` points elsewhere (user opted into a registry image).
+ * `STUDIO_SANDBOX_IMAGE` points elsewhere (user opted into a registry image).
  */
 export async function kickoffSandboxImageBuild(opts: {
   noTui: boolean;
 }): Promise<void> {
   if (process.env.NODE_ENV === "production") return;
-  if (process.env.MESH_SANDBOX_IMAGE) return;
+  if (process.env.STUDIO_SANDBOX_IMAGE) return;
 
   const { tryResolveRunnerKindFromEnv, ensureSandboxImage } = await import(
     "@decocms/sandbox/runner"

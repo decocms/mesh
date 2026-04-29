@@ -120,7 +120,7 @@ export class DockerSandboxRunner implements SandboxRunner {
 
   constructor(opts: DockerRunnerOptions = {}) {
     this.defaultImage =
-      opts.image ?? process.env.MESH_SANDBOX_IMAGE ?? DEFAULT_IMAGE;
+      opts.image ?? process.env.STUDIO_SANDBOX_IMAGE ?? DEFAULT_IMAGE;
     this.exec_ = opts.exec ?? dockerExec;
     this.labelPrefix = opts.labelPrefix ?? LABEL_ROOT;
     this.stateStore = opts.stateStore ?? null;

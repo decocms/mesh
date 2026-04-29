@@ -1,7 +1,6 @@
 # Local kind cluster overrides for the agent-sandbox chart.
-#
-# Used by deploy/k8s-sandbox/local/up.sh — installs the operator, CRDs,
-# SandboxTemplate, RBAC, and NetworkPolicy into a kind cluster.
+# Use to install the operator, CRDs, SandboxTemplate, RBAC, and
+# NetworkPolicy into a kind cluster for local development.
 
 # ── sandbox image (built locally + `kind load`ed) ──────────────────────
 image:
@@ -10,8 +9,7 @@ image:
   pullPolicy: Never
 
 # ── modest sandbox limits for laptop kind ──────────────────────────────
-# Mirrors deploy/k8s-sandbox/local/sandbox-template.yaml. Bump back up
-# when stress-testing.
+# Bump back up when stress-testing.
 resources:
   requests:
     cpu: "100m"
