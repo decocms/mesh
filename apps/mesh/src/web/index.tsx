@@ -199,6 +199,7 @@ const unifiedChatSearchSchema = z.object({
   tasks: z.number().optional(),
   mainOpen: z.number().optional(),
   chat: z.number().optional(),
+  autosend: z.string().optional(),
 });
 
 const unifiedChatRoute = createRoute({

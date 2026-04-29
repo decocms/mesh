@@ -21,7 +21,9 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useChat as useAIChat, type UseChatHelpers } from "@ai-sdk/react";
+import { AUTOSEND_TTL_MS, decodeAutosend } from "@/web/lib/autosend";
 import {
   lastAssistantMessageIsCompleteWithToolCalls,
   lastAssistantMessageIsCompleteWithApprovalResponses,
@@ -1000,6 +1002,49 @@ export function ActiveTaskProvider({
     } else {
       // Stale — silently discard
       queueMicrotask(() => clearPendingMessage());
+    }
+  }
+
+  // Autosend consumer — read the queued message from the URL search param
+  // (set by /$org/ submit or createTaskWithMessage), fire it once, then
+  // strip the param so reload doesn't refire.
+  const autosendNavigate = useNavigate();
+  const autosendSearch = useSearch({ strict: false }) as { autosend?: string };
+  const autosendConsumedRef = useRef<string | null>(null);
+  if (autosendSearch.autosend) {
+    const decoded = decodeAutosend(autosendSearch.autosend);
+    const consumeKey = `${taskId}:${decoded?.createdAt ?? "?"}`;
+    if (
+      decoded &&
+      Date.now() - decoded.createdAt < AUTOSEND_TTL_MS &&
+      autosendConsumedRef.current !== consumeKey
+    ) {
+      autosendConsumedRef.current = consumeKey;
+      const msg = decoded.message;
+      queueMicrotask(() => {
+        void sendMessageInternal(msg);
+        autosendNavigate({
+          to: ".",
+          search: (prev: Record<string, unknown>) => {
+            const { autosend: _omit, ...rest } = prev;
+            return rest;
+          },
+          replace: true,
+        });
+      });
+    } else if (autosendConsumedRef.current !== consumeKey) {
+      // Invalid or stale — silently strip it.
+      autosendConsumedRef.current = consumeKey;
+      queueMicrotask(() => {
+        autosendNavigate({
+          to: ".",
+          search: (prev: Record<string, unknown>) => {
+            const { autosend: _omit, ...rest } = prev;
+            return rest;
+          },
+          replace: true,
+        });
+      });
     }
   }
 
