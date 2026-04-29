@@ -92,6 +92,22 @@ spec:
             - name: GIT_CONFIG_VALUE_0
               value: "*"
             {{- end }}
+            {{- if .Values.cache.enabled }}
+            - name: npm_config_cache
+              value: {{ .Values.cache.mountPath }}/npm
+            - name: PNPM_STORE_PATH
+              value: {{ .Values.cache.mountPath }}/pnpm
+            - name: YARN_CACHE_FOLDER
+              value: {{ .Values.cache.mountPath }}/yarn
+            - name: YARN_GLOBAL_FOLDER
+              value: {{ .Values.cache.mountPath }}/yarn-global
+            - name: BUN_INSTALL_CACHE_DIR
+              value: {{ .Values.cache.mountPath }}/bun
+            - name: DENO_DIR
+              value: {{ .Values.cache.mountPath }}/deno
+            - name: XDG_CACHE_HOME
+              value: {{ .Values.cache.mountPath }}/xdg
+            {{- end }}
           ports:
             - name: daemon
               containerPort: 9000
@@ -106,17 +122,24 @@ spec:
             capabilities:
               drop: ["ALL"]
             readOnlyRootFilesystem: {{ .Values.readOnlyRootFilesystem }}
-          {{- if .Values.readOnlyRootFilesystem }}
+          {{- if or .Values.readOnlyRootFilesystem .Values.cache.enabled }}
           volumeMounts:
+            {{- if .Values.readOnlyRootFilesystem }}
             - name: workdir
               mountPath: /app
             - name: tmp
               mountPath: /tmp
             - name: home
               mountPath: /home/sandbox
+            {{- end }}
+            {{- if .Values.cache.enabled }}
+            - name: build-cache
+              mountPath: {{ .Values.cache.mountPath }}
+            {{- end }}
           {{- end }}
-      {{- if .Values.readOnlyRootFilesystem }}
+      {{- if or .Values.readOnlyRootFilesystem .Values.cache.enabled }}
       volumes:
+        {{- if .Values.readOnlyRootFilesystem }}
         # Sized to match the per-container ephemeral-storage limit shape;
         # individual mounts get a slice. Adjust if a workload needs more.
         - name: workdir
@@ -128,4 +151,10 @@ spec:
         - name: home
           emptyDir:
             sizeLimit: 2Gi
+        {{- end }}
+        {{- if .Values.cache.enabled }}
+        - name: build-cache
+          persistentVolumeClaim:
+            claimName: {{ include "sandbox-env.sandboxName" . }}-cache
+        {{- end }}
       {{- end }}

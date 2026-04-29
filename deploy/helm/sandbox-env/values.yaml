@@ -174,6 +174,27 @@ previewGateway:
   # lives under a name dictated by external tooling.
   tlsSecretName: ""
 
+# ── shared build / dependency cache ───────────────────────────────────
+# Mounts a single PVC at `mountPath` inside every sandbox pod and redirects
+# each package manager's cache directory there via env vars. On a cold start
+# the first `bun install` (or npm/pnpm/yarn/deno) populates the cache; every
+# subsequent sandbox that shares a dep at the same version skips the registry
+# download entirely.
+#
+# Storage requirements:
+#   ReadWriteMany — required for concurrent mounts across pods. On EKS use
+#   the AWS EFS CSI driver (storageClass: efs-sc). On a single-node kind
+#   cluster ReadWriteOnce is sufficient because all pods land on the same node.
+#
+# Sizing guidance: 50 Gi covers ~10 concurrent projects with full
+# npm/pnpm/bun/yarn stores. Scale up if many sandboxes share large dep trees.
+cache:
+  enabled: false
+  storageClass: ""       # empty = cluster default StorageClass
+  accessMode: ReadWriteMany
+  size: 50Gi
+  mountPath: /mnt/cache
+
 # ── mesh cross-references ──────────────────────────────────────────────
 # Tells this chart where the chart-deco-studio release for THIS
 # environment runs so the RBAC RoleBinding, NetworkPolicy ingress

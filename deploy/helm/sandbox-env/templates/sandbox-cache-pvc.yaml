@@ -1,0 +1,25 @@
+{{- if .Values.cache.enabled -}}
+# Shared build and dependency cache PVC. Mounted at {{ .Values.cache.mountPath }}
+# in every sandbox pod. Package managers are redirected here via env vars in
+# the SandboxTemplate so tarballs downloaded by one sandbox are reused by all.
+#
+# accessMode: ReadWriteMany is required for concurrent pod mounts.
+# On EKS, pair with an EFS-backed StorageClass (aws-efs-csi-driver).
+# On single-node kind, ReadWriteOnce is sufficient — override in values-kind.yaml.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "sandbox-env.sandboxName" . }}-cache
+  namespace: agent-sandbox-system
+  labels:
+    {{- include "sandbox-env.sandboxLabels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.cache.accessMode }}
+  {{- if .Values.cache.storageClass }}
+  storageClassName: {{ .Values.cache.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.cache.size }}
+{{- end }}

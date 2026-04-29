@@ -51,6 +51,16 @@ previewGateway:
 warmPool:
   enabled: false
 
+# ── shared build cache ─────────────────────────────────────────────────
+# local-path-provisioner only supports ReadWriteOnce, but that is fine on a
+# single-node kind cluster — all pods land on the same node so concurrent
+# mounts work. 10 Gi is enough for local dev; bump if you need more.
+cache:
+  enabled: true
+  storageClass: standard
+  accessMode: ReadWriteOnce
+  size: 10Gi
+
 # ── mesh cross-references (point at the kind studio install) ───────────
 # studio kind install conventionally lands in `deco-studio` namespace
 # with release name `deco-studio`. Override here if you `helm install`
