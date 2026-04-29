@@ -24,7 +24,12 @@ import {
   type KubeConfig,
   type V1Status as V1StatusUpstream,
 } from "@kubernetes/client-node";
-import { K8S_CONSTANTS, SandboxError, SandboxTimeoutError } from "./constants";
+import {
+  K8S_CONSTANTS,
+  SandboxAlreadyExistsError,
+  SandboxError,
+  SandboxTimeoutError,
+} from "./constants";
 
 type V1Status = Partial<V1StatusUpstream> & { reason?: string };
 
@@ -86,6 +91,20 @@ export interface SandboxResource {
     name?: string;
     labels?: Record<string, string>;
     annotations?: Record<string, string>;
+    /**
+     * Set by the API server when a delete is in flight. While the resource
+     * still has finalizers, GETs return the object with this field populated
+     * and a Ready=False condition. The runner uses this to detect the
+     * terminating window and avoid recreating into a 409 AlreadyExists.
+     */
+    deletionTimestamp?: string;
+    /**
+     * Finalizer keys the API server must see drained before it actually
+     * removes the resource. Surfaced so the runner can log which controller
+     * is blocking deletion when `waitForSandboxClaimGone` times out — that's
+     * the difference between "operator is slow" and "operator is broken".
+     */
+    finalizers?: string[];
   };
   /**
    * Present when this came back from `getSandboxClaim` (CRD has a spec);
@@ -282,14 +301,82 @@ export async function createSandboxClaim(
   claim: SandboxClaim,
 ): Promise<void> {
   const path = `${CLAIM_PATH_PREFIX}/${encodeURIComponent(namespace)}/${K8S_CONSTANTS.CLAIM_PLURAL}`;
+  let resp: Response;
   try {
-    const resp = await kubeFetch(kc, { method: "POST", path, body: claim });
-    await ensureOk(resp, "createSandboxClaim");
+    resp = await kubeFetch(kc, { method: "POST", path, body: claim });
   } catch (error) {
     throw new SandboxError(
       `Failed to create SandboxClaim: ${claim.metadata.name}`,
       error,
     );
+  }
+  if (resp.ok) return;
+  // The status + reason + message must reach the surface — when the user
+  // sees "Failed to create SandboxClaim" with no further context, we have no
+  // way to tell whether this was a 409 finalizer-drain race (recoverable),
+  // a 422 admission-webhook rejection (claim shape problem), a 403/RBAC, or
+  // a stuck-terminating claim that the operator never finishes deleting.
+  const body = await readStatusBody(resp);
+  const reason = body?.reason ? ` ${body.reason}` : "";
+  const detail = body?.message ?? resp.statusText;
+  const summary = `Failed to create SandboxClaim: ${claim.metadata.name} (${resp.status}${reason}: ${detail})`;
+  // Server-side log mirrors the surface error and adds the response body so
+  // operators triaging an incident can tell which K8s subsystem rejected
+  // the create even if the only artifact in front of them is the user's
+  // toast/MCP response.
+  console.warn(
+    `[agent-sandbox/client] createSandboxClaim ${claim.metadata.name} rejected: status=${resp.status} reason=${body?.reason ?? "<none>"} message=${detail}`,
+  );
+  // 409 is split out so the runner can wait for the still-terminating prior
+  // claim to drain finalizers and retry. This is the canonical race when the
+  // operator's idle-TTL just reaped a claim and mesh's next ensure() hits
+  // before the resource is fully GC'd. Stuck-finalizer cases also surface as
+  // 409 but never recover from a wait — those need operator intervention.
+  if (resp.status === 409) {
+    throw new SandboxAlreadyExistsError(summary);
+  }
+  throw new SandboxError(summary);
+}
+
+/**
+ * Poll until the named SandboxClaim no longer exists in the API server (i.e.
+ * its DELETE has drained all finalizers and the API server has GC'd the
+ * resource). Returns immediately if the claim is already gone.
+ *
+ * The agent-sandbox operator's idle-TTL deletes the claim, but pod teardown +
+ * any per-claim finalizers can take several seconds. Recreating during that
+ * window 409s; this helper bridges the gap so the runner's recreate path is
+ * deterministic instead of probabilistic. Polling at 500ms keeps the recovery
+ * latency low without hammering the API server (≤120 requests over a 60s
+ * window).
+ */
+export async function waitForSandboxClaimGone(
+  kc: KubeConfig,
+  namespace: string,
+  claimName: string,
+  timeoutMs = 60_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  const intervalMs = 500;
+  let lastClaim: SandboxResource | undefined;
+  while (true) {
+    const claim = await getSandboxClaim(kc, namespace, claimName).catch(
+      () => undefined,
+    );
+    if (!claim) return;
+    lastClaim = claim;
+    if (Date.now() >= deadline) {
+      // Include the deletionTimestamp + finalizer set in the error: a
+      // stuck finalizer is the most plausible non-recoverable cause and
+      // distinguishes "operator is slow" from "operator dropped the claim
+      // on the floor and won't ever finish".
+      const finalizers = lastClaim.metadata?.finalizers ?? [];
+      const since = lastClaim.metadata?.deletionTimestamp ?? "<unknown>";
+      throw new SandboxTimeoutError(
+        `SandboxClaim ${claimName} still terminating after ${timeoutMs}ms (deletionTimestamp=${since}, finalizers=[${finalizers.join(", ")}])`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
 }
 

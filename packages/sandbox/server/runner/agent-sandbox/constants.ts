@@ -36,3 +36,16 @@ export class SandboxTimeoutError extends SandboxError {
     this.name = "SandboxTimeoutError";
   }
 }
+
+/**
+ * Surfaced when the API server rejects a SandboxClaim create with 409
+ * AlreadyExists — typically because the operator's idle-TTL deletion of a
+ * prior claim is still draining finalizers when mesh tries to recreate.
+ * Callers wait for the resource to fully disappear and retry.
+ */
+export class SandboxAlreadyExistsError extends SandboxError {
+  constructor(message: string, cause?: unknown) {
+    super(message, cause);
+    this.name = "SandboxAlreadyExistsError";
+  }
+}
