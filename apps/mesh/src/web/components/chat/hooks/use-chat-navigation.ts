@@ -8,8 +8,11 @@ export interface ChatNavigation {
   virtualMcpId: string;
   /** Always defined — `/$org/$taskId` path param, or a stable fallback for routes that don't have it. */
   taskId: string;
-  /** Navigate to a task. `virtualMcpId` becomes `?virtualmcpid=` — used as bootstrap for the route loader. */
-  navigateToTask: (taskId: string, opts?: { virtualMcpId?: string }) => void;
+  /** Navigate to a task. `virtualMcpId` becomes `?virtualmcpid=` — used as bootstrap for the route loader. `autosend` carries an encoded message for the new task to consume. */
+  navigateToTask: (
+    taskId: string,
+    opts?: { virtualMcpId?: string; autosend?: string },
+  ) => void;
 }
 
 export function useChatNavigation(): ChatNavigation {
@@ -21,7 +24,10 @@ export function useChatNavigation(): ChatNavigation {
   const virtualMcpId =
     search.virtualmcpid ?? getWellKnownDecopilotVirtualMCP(org.id).id;
 
-  const navigateToTask = (taskId: string, opts?: { virtualMcpId?: string }) => {
+  const navigateToTask = (
+    taskId: string,
+    opts?: { virtualMcpId?: string; autosend?: string },
+  ) => {
     navigate({
       to: "/$org/$taskId",
       params: { org: org.slug, taskId },
@@ -30,6 +36,7 @@ export function useChatNavigation(): ChatNavigation {
         const vmcp = opts?.virtualMcpId ?? prev.virtualmcpid;
         if (vmcp) next.virtualmcpid = vmcp;
         if (prev.tasks) next.tasks = prev.tasks;
+        if (opts?.autosend) next.autosend = opts.autosend;
         return next;
       },
     });

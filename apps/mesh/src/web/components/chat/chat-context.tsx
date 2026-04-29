@@ -23,7 +23,11 @@ import {
 } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useChat as useAIChat, type UseChatHelpers } from "@ai-sdk/react";
-import { AUTOSEND_TTL_MS, decodeAutosend } from "@/web/lib/autosend";
+import {
+  AUTOSEND_TTL_MS,
+  decodeAutosend,
+  encodeAutosend,
+} from "@/web/lib/autosend";
 import {
   lastAssistantMessageIsCompleteWithToolCalls,
   lastAssistantMessageIsCompleteWithApprovalResponses,
@@ -550,10 +554,14 @@ export function ChatContextProvider({
 
   const clearPendingMessage = () => setPendingMessage(null);
 
-  const navigateToTask = (taskId: string, opts?: { virtualMcpId?: string }) => {
+  const navigateToTask = (
+    taskId: string,
+    opts?: { virtualMcpId?: string; autosend?: string },
+  ) => {
     markTaskRead(taskId);
     rawNavigateToTask(taskId, {
       virtualMcpId: opts?.virtualMcpId,
+      autosend: opts?.autosend,
     });
   };
 
@@ -584,9 +592,11 @@ export function ChatContextProvider({
     return newId;
   };
 
-  // Create task + queue a pending message. Propagates currentBranch only
-  // when the new task is on the same vMCP (different vMCPs have their own
-  // vmMap, so carrying a branch across them would land on a cold sandbox).
+  // Create task + hand off the message via URL ?autosend= so the new
+  // task's ActiveTaskProvider fires it on mount. Propagates currentBranch
+  // only when the new task is on the same vMCP (different vMCPs have their
+  // own vmMap, so carrying a branch across them would land on a cold
+  // sandbox).
   const createTaskWithMessage = (params: {
     message: SendMessageParams;
     virtualMcpId?: string;
@@ -594,6 +604,10 @@ export function ChatContextProvider({
     const newId = crypto.randomUUID();
     const targetVmcp = params.virtualMcpId ?? virtualMcpId;
     const carryBranch = targetVmcp === virtualMcpId ? currentBranch : null;
+    const autosend = encodeAutosend({
+      message: params.message,
+      createdAt: Date.now(),
+    });
     void taskActions.create
       .mutateAsync({
         id: newId,
@@ -603,18 +617,15 @@ export function ChatContextProvider({
       .then(() =>
         navigateToTask(newId, {
           virtualMcpId: params.virtualMcpId,
+          autosend,
         }),
       )
       .catch(() => {
         navigateToTask(newId, {
           virtualMcpId: params.virtualMcpId,
+          autosend,
         });
       });
-    setPendingMessage({
-      taskId: newId,
-      message: params.message,
-      createdAt: Date.now(),
-    });
   };
 
   // Hide task (switch to next after hiding)
