@@ -11,7 +11,7 @@ import { HomePage } from "@/web/layouts/home-page";
 
 export default function OrgHome() {
   return (
-    <div className="flex-1 min-h-0 pr-1.5 pb-1.5 overflow-hidden">
+    <div className="flex-1 min-h-0 p-1.5 overflow-hidden">
       <div className="flex h-full flex-col bg-background overflow-hidden card-shadow rounded-[0.75rem]">
         <HomePage />
       </div>
