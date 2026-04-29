@@ -4,8 +4,13 @@
  * Returns a discriminated union so the consumer can render the right UI:
  *   - { status: "loading" }   — initial GET in flight
  *   - { status: "creating" }  — create mutation in flight (after a 404)
- *   - { status: "ready", task: Task } — resolved
+ *   - { status: "ready", task: Task | null } — resolved (null when id is empty)
  *   - { status: "error", error: Error } — non-404 failure
+ *
+ * Empty id is a no-op: GET and CREATE are skipped and the hook returns a
+ * ready state with `task: null`. Lets routes that don't have a taskId in
+ * URL params (e.g. /$org/) call the hook unconditionally so Rules of Hooks
+ * stays happy across the home/task branch.
  *
  * Race safety: the create mutation is server-side idempotent (`INSERT … ON
  * CONFLICT DO NOTHING RETURNING *`). Two tabs hitting the same URL both end
@@ -25,7 +30,7 @@ import type { Task } from "./use-tasks";
 type State =
   | { status: "loading" }
   | { status: "creating" }
-  | { status: "ready"; task: Task }
+  | { status: "ready"; task: Task | null }
   | { status: "error"; error: Error };
 
 export function useEnsureTask(id: string, virtualMcpId: string): State {
@@ -47,6 +52,7 @@ export function useEnsureTask(id: string, virtualMcpId: string): State {
         .structuredContent as { item?: Task } | undefined;
       return payload?.item ?? null;
     },
+    enabled: id.length > 0,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -101,12 +107,14 @@ export function useEnsureTask(id: string, virtualMcpId: string): State {
   // the duplicate request and the private mutation has no toast.
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
+    if (!id) return;
     if (!query.isSuccess || query.data) return;
     if (ensureCreate.isPending) return;
     if (ensureCreate.variables === id) return;
     ensureCreate.mutate(id);
   }, [id, query.isSuccess, query.data, ensureCreate]);
 
+  if (!id) return { status: "ready", task: null };
   if (query.isLoading) return { status: "loading" };
   if (query.isError) return { status: "error", error: query.error as Error };
   if (query.isSuccess && query.data) {

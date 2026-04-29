@@ -8,7 +8,7 @@
  *   │   • Toolbar.TabsSlot    (portal target — main-panel tab bar)
  *   │   • Toolbar.TogglesSlot (portal target — tasks/chat)
  *   └── flex-row
- *       ├── TasksPanelColumn               (outside Suspense, 212px fixed)
+ *       ├── TasksPanelColumn               (owned by org-shell-layout)
  *       └── Suspense
  *           └── AgentInsetProvider
  *               • useVirtualMCP (suspends here)
@@ -33,18 +33,12 @@ import { ChatCenterPanel } from "@/web/layouts/chat-center-panel";
 import { TasksPanel } from "@/web/layouts/tasks-panel";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { isModKey } from "@/web/lib/keyboard-shortcuts";
-import { StudioSidebar, StudioSidebarMobile } from "@/web/components/sidebar";
-import {
-  SidebarInset,
-  SidebarLayout,
-  SidebarProvider,
-  useSidebar,
-} from "@deco/ui/components/sidebar.tsx";
+import { StudioSidebarMobile } from "@/web/components/sidebar";
+import { useSidebar } from "@deco/ui/components/sidebar.tsx";
 import { Sheet, SheetContent, SheetTitle } from "@deco/ui/components/sheet.tsx";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { AlertCircle, Loading01, Menu01 } from "@untitledui/icons";
 import {
-  getDecopilotId,
   getWellKnownDecopilotVirtualMCP,
   SELF_MCP_ALIAS_ID,
   useMCPClient,
@@ -60,12 +54,8 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "@/web/components/empty-state";
 import { useChatMainPanelState } from "@/web/hooks/use-layout-state";
 import { getActiveGithubRepo } from "@/web/lib/github-repo";
-import {
-  TasksPanelStateProvider,
-  useOptionalTasksPanelState,
-} from "@/web/hooks/use-tasks-panel-state";
+import { useOptionalTasksPanelState } from "@/web/hooks/use-tasks-panel-state";
 import { Toolbar } from "./toolbar";
-import { TasksPanelColumn } from "./tasks-panel-column";
 import { ChatMainPanelGroup } from "./chat-main-panel-group";
 import { ToggleButtons } from "./toggle-buttons";
 import { MainPanelTabsBar } from "@/web/layouts/main-panel-tabs/main-panel-tabs-bar";
@@ -93,13 +83,7 @@ export function useInsetContext(): InsetContextValue | null {
 // Agent inset sub-components
 // ---------------------------------------------------------------------------
 
-function ActiveTaskBoundary({
-  children,
-  variant,
-}: {
-  children?: React.ReactNode;
-  variant?: "home" | "default";
-}) {
+function ActiveTaskBoundary({ children }: { children?: React.ReactNode }) {
   const { taskId } = useChatTask();
   return (
     <ErrorBoundary
@@ -111,7 +95,7 @@ function ActiveTaskBoundary({
     >
       <Suspense fallback={<Chat.Skeleton />}>
         <Chat.ActiveTaskProvider taskId={taskId}>
-          {children ?? <ChatCenterPanel variant={variant} />}
+          {children ?? <ChatCenterPanel />}
         </Chat.ActiveTaskProvider>
       </Suspense>
     </ErrorBoundary>
@@ -227,7 +211,7 @@ function VmEventsBridge({
 
 // ---------------------------------------------------------------------------
 // AgentInsetProvider — resolves virtualMcpId, provides InsetContext,
-// wraps in Chat.Provider, renders chat+main panel group.
+// wraps in Chat.Provider, renders the task-scoped chat+main panel group.
 // ---------------------------------------------------------------------------
 
 function AgentInsetProvider() {
@@ -250,8 +234,6 @@ function AgentInsetProvider() {
   };
   const virtualMcpId =
     search.virtualmcpid ?? getWellKnownDecopilotVirtualMCP(org.id).id;
-  const isDecopilot = virtualMcpId === getDecopilotId(org.id);
-  const isAgentRoute = !isDecopilot;
 
   // Ensure the thread row exists for this URL before rendering the chat. On
   // 404 the hook fires COLLECTION_THREADS_CREATE (idempotent) and surfaces a
@@ -275,7 +257,7 @@ function AgentInsetProvider() {
   const layout = useChatMainPanelState(entityMetadata, {
     virtualMcpId,
     orgSlug,
-    isAgentRoute,
+    isAgentRoute: true,
   });
 
   const { setOpenMobile, openMobile: mobileSidebarOpen } = useSidebar();
@@ -345,10 +327,7 @@ function AgentInsetProvider() {
                 <Button
                   variant="outline"
                   onClick={() =>
-                    navigate({
-                      to: "/$org",
-                      params: { org: orgSlug },
-                    })
+                    navigate({ to: "/$org", params: { org: orgSlug } })
                   }
                 >
                   Go to organization home
@@ -403,9 +382,7 @@ function AgentInsetProvider() {
               />
               <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
               <div className="flex-1 min-h-0 overflow-hidden">
-                <ActiveTaskBoundary
-                  variant={isDecopilot ? "home" : undefined}
-                />
+                <ActiveTaskBoundary />
               </div>
               {mobileSidebarSheet}
             </VmEventsBridge>
@@ -416,139 +393,70 @@ function AgentInsetProvider() {
   }
 
   // Desktop — portal toggle buttons into outer toolbar, render chat+main group.
+  // The org-wide tasks column is owned by org-shell-layout, outside this
+  // Suspense boundary, so it stays mounted while this task-scoped content loads.
   return (
-    <InsetContext value={insetContextValue}>
-      <Toolbar.Toggles>
-        <ToggleButtons
-          isDecopilot={isDecopilot}
-          chatOpen={layout.chatOpen}
-          toggleChat={layout.toggleChat}
-          onNewTask={tasksOpen ? undefined : layout.createNewTask}
-        />
-      </Toolbar.Toggles>
+    <div className="flex-1 min-w-0 flex flex-col">
+      <InsetContext value={insetContextValue}>
+        <Toolbar.Toggles>
+          <ToggleButtons
+            chatOpen={layout.chatOpen}
+            toggleChat={layout.toggleChat}
+            onNewTask={tasksOpen ? undefined : layout.createNewTask}
+          />
+        </Toolbar.Toggles>
 
-      <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
-        {!isDecopilot && (
+        <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
           <Toolbar.Tabs>
             <MainPanelTabsBar
               virtualMcpId={virtualMcpId}
               taskId={layout.taskId}
             />
           </Toolbar.Tabs>
-        )}
 
-        <VmEventsBridge
-          virtualMcpId={virtualMcpId}
-          hasActiveGithubRepo={hasActiveGithubRepo}
-          vmMap={entity?.metadata?.vmMap}
-        >
-          {!isDecopilot && <VirtualMcpHeaderInfo virtualMcp={entity} />}
-          <NewTaskBridge
-            onNewTaskRef={onNewTask}
-            createNewTask={layout.createNewTask}
-          />
-          <ChatMainPanelGroup
+          <VmEventsBridge
             virtualMcpId={virtualMcpId}
-            taskId={layout.taskId}
-            chatOpen={layout.chatOpen}
-            mainOpen={layout.mainOpen}
-            chatContent={
-              <ActiveTaskBoundary variant={isDecopilot ? "home" : undefined} />
-            }
-          />
-        </VmEventsBridge>
-      </Chat.Provider>
-    </InsetContext>
+            hasActiveGithubRepo={hasActiveGithubRepo}
+            vmMap={entity?.metadata?.vmMap}
+          >
+            <VirtualMcpHeaderInfo virtualMcp={entity} />
+            <NewTaskBridge
+              onNewTaskRef={onNewTask}
+              createNewTask={layout.createNewTask}
+            />
+            <ChatMainPanelGroup
+              virtualMcpId={virtualMcpId}
+              taskId={layout.taskId}
+              chatOpen={layout.chatOpen}
+              mainOpen={layout.mainOpen}
+              chatContent={<ActiveTaskBoundary />}
+            />
+          </VmEventsBridge>
+        </Chat.Provider>
+      </InsetContext>
+    </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Default export — the shell layout component for agent routes
+// Default export — the per-task content for /$org/$taskId.
+//
+// Sidebar, toolbar shell, org-wide tasks panel, ChatPrefsProvider, and
+// TasksPanelStateProvider all live in `org-shell-layout` (the parent route).
+// This component just renders the per-task chrome inside the flex-row Outlet
+// on desktop, or directly inside SidebarInset on mobile.
 // ---------------------------------------------------------------------------
 
 export default function AgentShellLayout() {
-  const isMobile = useIsMobile();
-
   return (
-    <SidebarProvider defaultOpen={false}>
-      <div className="flex flex-col h-dvh overflow-hidden">
-        <SidebarLayout
-          className="flex-1 bg-sidebar"
-          style={
-            {
-              "--sidebar-width-icon": "3.5rem",
-            } as Record<string, string>
-          }
-        >
-          <StudioSidebar />
-          <SidebarInset
-            className="flex flex-col"
-            style={{
-              background: "transparent",
-              containerType: "inline-size",
-            }}
-          >
-            {isMobile ? (
-              <Suspense
-                fallback={
-                  <div className="flex-1 flex items-center justify-center">
-                    <Loading01
-                      size={20}
-                      className="animate-spin text-muted-foreground"
-                    />
-                  </div>
-                }
-              >
-                <AgentInsetProvider />
-              </Suspense>
-            ) : (
-              <Suspense
-                fallback={
-                  <div className="flex-1 flex items-center justify-center">
-                    <Loading01
-                      size={20}
-                      className="animate-spin text-muted-foreground"
-                    />
-                  </div>
-                }
-              >
-                <TasksPanelStateProvider>
-                  <Toolbar>
-                    <Toolbar.Header>
-                      <Toolbar.LeftColumn>
-                        <Toolbar.Nav />
-                        <Toolbar.TogglesSlot />
-                      </Toolbar.LeftColumn>
-                      <Toolbar.CenterSlot />
-                      <Toolbar.RightColumn>
-                        <Toolbar.TabsSlot />
-                        <Toolbar.RightSlot />
-                      </Toolbar.RightColumn>
-                    </Toolbar.Header>
-                    <div className="flex-1 min-h-0 flex flex-row">
-                      <TasksPanelColumn />
-                      <div className="flex-1 min-w-0 flex flex-col">
-                        <Suspense
-                          fallback={
-                            <div className="flex-1 flex items-center justify-center">
-                              <Loading01
-                                size={20}
-                                className="animate-spin text-muted-foreground"
-                              />
-                            </div>
-                          }
-                        >
-                          <AgentInsetProvider />
-                        </Suspense>
-                      </div>
-                    </div>
-                  </Toolbar>
-                </TasksPanelStateProvider>
-              </Suspense>
-            )}
-          </SidebarInset>
-        </SidebarLayout>
-      </div>
-    </SidebarProvider>
+    <Suspense
+      fallback={
+        <div className="flex-1 flex items-center justify-center">
+          <Loading01 size={20} className="animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <AgentInsetProvider />
+    </Suspense>
   );
 }

@@ -9,9 +9,11 @@
 
 export {
   ChatContextProvider as ChatProvider,
+  ChatPrefsProvider,
   ActiveTaskProvider,
   useChatBridge,
   useChatTask,
+  useOptionalChatTask,
   useChatStream,
   useOptionalChatStream,
   useChatPrefs,

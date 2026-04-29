@@ -22,7 +22,14 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
+import { useSearch } from "@tanstack/react-router";
 import { useChat as useAIChat, type UseChatHelpers } from "@ai-sdk/react";
+import {
+  AUTOSEND_QUERY_VALUE,
+  claimStoredAutosend,
+  markStoredAutosendSent,
+  writeStoredAutosend,
+} from "@/web/lib/autosend";
 import {
   lastAssistantMessageIsCompleteWithToolCalls,
   lastAssistantMessageIsCompleteWithApprovalResponses,
@@ -229,33 +236,6 @@ function resolveActiveTier(
 
 const MAX_APP_CONTEXT_LENGTH = 10_000;
 const MAX_APP_CONTEXT_SOURCES = 10;
-const PENDING_MESSAGE_TTL_MS = 10_000;
-
-/**
- * Module-level pending-message store, keyed by taskId.
- *
- * Lives outside the React tree because `Chat.Provider` is remounted (via
- * `key={chatVirtualMcpId}`) whenever navigation crosses to a different vMCP
- * — e.g. an automation's "Test" button creating a chat under the
- * automation's agent. Holding pending messages in component state would
- * destroy them across that remount, which manifests as an empty new chat.
- */
-const pendingMessages = new Map<
-  string,
-  { message: SendMessageParams; createdAt: number }
->();
-
-function setPendingMessage(taskId: string, message: SendMessageParams) {
-  pendingMessages.set(taskId, { message, createdAt: Date.now() });
-}
-
-function takePendingMessage(taskId: string): SendMessageParams | null {
-  const entry = pendingMessages.get(taskId);
-  if (!entry) return null;
-  pendingMessages.delete(taskId);
-  if (Date.now() - entry.createdAt >= PENDING_MESSAGE_TTL_MS) return null;
-  return entry.message;
-}
 
 const BRIDGE_NOOP: ChatBridgeValue = {
   sendMessage: async () => {
@@ -302,6 +282,223 @@ const ChatBridgeCtx = createContext<React.RefObject<ChatBridgeValue>>({
 
 /** Internal context for passing TaskProvider internals to ActiveTaskProvider */
 const TaskInternalsCtx = createContext<TaskProviderInternals | null>(null);
+
+// ============================================================================
+// ChatPrefsProvider — standalone-mountable prefs context
+// ============================================================================
+
+/**
+ * Mounts the prefs context (model/agent/mode selection) without the rest
+ * of the chat infrastructure. Use on routes that have a chat composer but
+ * no active stream — currently `/$org/`. Localstorage-backed selections
+ * (chat model, image model, deep research model, simple-mode tier) sync
+ * automatically with any other mount of this provider via storage events.
+ *
+ * `virtualMcpId` is derived from the URL search param (`virtualmcpid`) with
+ * a decopilot fallback, matching `useChatNavigation` — so the same
+ * provider works on `/$org/` and `/$org/$taskId`.
+ *
+ * On routes that mount `ChatContextProvider`, that wrapper internally
+ * mounts its own `ChatPrefsCtx.Provider` for backwards compatibility; the
+ * inner mount shadows this one. Persistent state still syncs via
+ * localStorage; transient state (chatMode, tiptapDoc, appContexts) is
+ * scoped to whichever mount the consumer is reading from — fine for our
+ * flows because home submit clears the editor and the task page starts
+ * fresh.
+ */
+export function ChatPrefsProvider({ children }: PropsWithChildren) {
+  const { locator } = useProjectContext();
+  const { virtualMcpId: urlVirtualMcpId } = useChatNavigation();
+
+  // Model selection (localStorage-backed)
+  const [storedChatRef, setStoredChatRef] = useLocalStorage<ModelRef | null>(
+    LOCALSTORAGE_KEYS.chatSelectedModel(locator),
+    null,
+  );
+  const [storedImageRef, setStoredImageRef] = useLocalStorage<ModelRef | null>(
+    LOCALSTORAGE_KEYS.chatSelectedImageModel(locator),
+    null,
+  );
+  const [storedDeepResearchRef, setStoredDeepResearchRef] =
+    useLocalStorage<ModelRef | null>(
+      LOCALSTORAGE_KEYS.chatSelectedDeepResearchModel(locator),
+      null,
+    );
+
+  const [sessionCredentialId, setSessionCredentialId] = useState<string | null>(
+    null,
+  );
+
+  const [chatMode, setChatMode] = useState<ChatMode>("default");
+  chatModeForTransportRef.current = chatMode;
+
+  // Simple Model Mode
+  const simpleMode = useSimpleMode();
+  const [storedTier, setStoredTier] = useLocalStorage<SimpleTier | null>(
+    LOCALSTORAGE_KEYS.chatSimpleModeTier(locator),
+    null,
+  );
+  const activeTier = resolveActiveTier(storedTier, simpleMode);
+
+  // AI provider keys + models
+  const keys = useAiProviderKeys();
+  const effectiveKeyId =
+    sessionCredentialId && keys.some((k) => k.id === sessionCredentialId)
+      ? sessionCredentialId
+      : storedChatRef && keys.some((k) => k.id === storedChatRef.keyId)
+        ? storedChatRef.keyId
+        : (keys[0]?.id ?? null);
+  const { models: allKeyModels, isLoading: isModelsQueryLoading } =
+    useAiProviderModels(effectiveKeyId ?? undefined);
+  const effectiveProviderId =
+    keys.find((k) => k.id === effectiveKeyId)?.providerId ?? "anthropic";
+  const defaultModel = selectDefaultModel(
+    allKeyModels,
+    effectiveProviderId,
+    effectiveKeyId ?? undefined,
+  );
+
+  const activeChatSlot = simpleMode.chat[activeTier];
+  const { models: simpleChatModels } = useAiProviderModels(
+    activeChatSlot?.keyId,
+  );
+  const { models: simpleImageModels } = useAiProviderModels(
+    simpleMode.image?.keyId,
+  );
+  const { models: simpleWebResearchModels } = useAiProviderModels(
+    simpleMode.webResearch?.keyId,
+  );
+
+  const validatedStoredChat = findModel(storedChatRef, keys, allKeyModels);
+  const selectedModel: AiProviderModel | null = simpleMode.enabled
+    ? findModel(activeChatSlot, keys, simpleChatModels, activeChatSlot?.title)
+    : (validatedStoredChat ?? defaultModel);
+  const isModelsLoading = !storedChatRef && isModelsQueryLoading;
+
+  const imageModels = allKeyModels.filter((m) =>
+    m.capabilities?.includes("image"),
+  );
+  const validatedStoredImage = findModel(storedImageRef, keys, imageModels);
+  const resolvedImageModel: AiProviderModel | null = simpleMode.enabled
+    ? findModel(
+        simpleMode.image,
+        keys,
+        simpleImageModels,
+        simpleMode.image?.title,
+      )
+    : (validatedStoredImage ?? imageModels[0] ?? null);
+
+  const deepResearchModels = allKeyModels.filter((m) => {
+    const n = m.modelId.toLowerCase().replace(/[^a-z0-9]/g, "");
+    return n.includes("sonar") || n.includes("deepresearch");
+  });
+  const validatedStoredDeepResearch = findModel(
+    storedDeepResearchRef,
+    keys,
+    deepResearchModels,
+  );
+  const defaultDeepResearchModel =
+    deepResearchModels.find((m) => m.modelId === "perplexity/sonar") ??
+    deepResearchModels[0] ??
+    null;
+  const resolvedDeepResearchModel: AiProviderModel | null = simpleMode.enabled
+    ? findModel(
+        simpleMode.webResearch,
+        keys,
+        simpleWebResearchModels,
+        simpleMode.webResearch?.title,
+      )
+    : (validatedStoredDeepResearch ?? defaultDeepResearchModel);
+
+  // selectedVirtualMcp — URL-derived
+  const selectedVirtualMcpData = useVirtualMCP(urlVirtualMcpId);
+  const selectedVirtualMcp: VirtualMCPInfo = selectedVirtualMcpData ?? {
+    id: urlVirtualMcpId,
+    title: "",
+    description: null,
+    icon: null,
+  };
+
+  // App contexts
+  const [appContexts, setAppContextsState] = useState<Record<string, string>>(
+    {},
+  );
+  const setAppContext = (sourceId: string, params: SetAppContextParams) => {
+    const textParts: string[] = [];
+    for (const block of params.content ?? []) {
+      if (block.type === "text" && block.text?.trim()) {
+        textParts.push(block.text.trim());
+      }
+    }
+    const text = textParts.join("\n");
+    if (!text) {
+      clearAppContext(sourceId);
+      return;
+    }
+    if (new TextEncoder().encode(text).length > MAX_APP_CONTEXT_LENGTH) return;
+    setAppContextsState((prev) => {
+      if (
+        Object.keys(prev).length >= MAX_APP_CONTEXT_SOURCES &&
+        !(sourceId in prev)
+      )
+        return prev;
+      return { ...prev, [sourceId]: text };
+    });
+  };
+  const clearAppContext = (sourceId: string) => {
+    setAppContextsState((prev) => {
+      const { [sourceId]: _, ...rest } = prev;
+      return rest;
+    });
+  };
+
+  // Tiptap doc (transient UI state)
+  const [tiptapDoc, setTiptapDoc] = useState<Metadata["tiptapDoc"]>(undefined);
+  const tiptapDocRef = useRef<Metadata["tiptapDoc"]>(tiptapDoc);
+  tiptapDocRef.current = tiptapDoc;
+
+  const value: ChatPrefsContextValue = {
+    selectedModel,
+    setModel: (model: AiProviderModel) => {
+      if (!model.keyId) return;
+      setStoredChatRef({ keyId: model.keyId, modelId: model.modelId });
+      setSessionCredentialId(null);
+    },
+    credentialId: effectiveKeyId,
+    setCredentialId: setSessionCredentialId,
+    allModelsConnections: keys,
+    isModelsLoading,
+    selectedVirtualMcp,
+    imageModel: resolvedImageModel,
+    setImageModel: (model: AiProviderModel | null) => {
+      setStoredImageRef(
+        model?.keyId ? { keyId: model.keyId, modelId: model.modelId } : null,
+      );
+    },
+    deepResearchModel: resolvedDeepResearchModel,
+    setDeepResearchModel: (model: AiProviderModel | null) => {
+      setStoredDeepResearchRef(
+        model?.keyId ? { keyId: model.keyId, modelId: model.modelId } : null,
+      );
+    },
+    chatMode,
+    setChatMode,
+    appContexts,
+    setAppContext,
+    clearAppContext,
+    tiptapDoc,
+    setTiptapDoc,
+    tiptapDocRef,
+    resetInteraction: () => {},
+    simpleModeEnabled: simpleMode.enabled,
+    simpleModeTier: activeTier,
+    setSimpleModeTier: setStoredTier,
+  };
+
+  return (
+    <ChatPrefsCtx.Provider value={value}>{children}</ChatPrefsCtx.Provider>
+  );
+}
 
 // ============================================================================
 // TaskProvider (outer)
@@ -560,10 +757,14 @@ export function ChatContextProvider({
   // Bridge ref — ActiveTaskProvider registers sendMessage here
   const bridgeRef = useRef<ChatBridgeValue>(BRIDGE_NOOP);
 
-  const navigateToTask = (taskId: string, opts?: { virtualMcpId?: string }) => {
+  const navigateToTask = (
+    taskId: string,
+    opts?: { virtualMcpId?: string; autosend?: boolean },
+  ) => {
     markTaskRead(taskId);
     rawNavigateToTask(taskId, {
       virtualMcpId: opts?.virtualMcpId,
+      autosend: opts?.autosend,
     });
   };
 
@@ -594,9 +795,11 @@ export function ChatContextProvider({
     return newId;
   };
 
-  // Create task + queue a pending message. Propagates currentBranch only
-  // when the new task is on the same vMCP (different vMCPs have their own
-  // vmMap, so carrying a branch across them would land on a cold sandbox).
+  // Create task + hand off the message via URL ?autosend= so the new
+  // task's ActiveTaskProvider fires it on mount. Propagates currentBranch
+  // only when the new task is on the same vMCP (different vMCPs have their
+  // own vmMap, so carrying a branch across them would land on a cold
+  // sandbox).
   const createTaskWithMessage = (params: {
     message: SendMessageParams;
     virtualMcpId?: string;
@@ -604,6 +807,7 @@ export function ChatContextProvider({
     const newId = crypto.randomUUID();
     const targetVmcp = params.virtualMcpId ?? virtualMcpId;
     const carryBranch = targetVmcp === virtualMcpId ? currentBranch : null;
+    writeStoredAutosend(localStorage, locator, newId, params.message);
     void taskActions.create
       .mutateAsync({
         id: newId,
@@ -613,14 +817,15 @@ export function ChatContextProvider({
       .then(() =>
         navigateToTask(newId, {
           virtualMcpId: params.virtualMcpId,
+          autosend: true,
         }),
       )
       .catch(() => {
         navigateToTask(newId, {
           virtualMcpId: params.virtualMcpId,
+          autosend: true,
         });
       });
-    setPendingMessage(newId, params.message);
   };
 
   // Hide task (switch to next after hiding)
@@ -772,7 +977,7 @@ export function ActiveTaskProvider({
     bridgeRef,
   } = internals;
 
-  const { org } = useProjectContext();
+  const { org, locator } = useProjectContext();
 
   // Messages for current task (from React Query / server) — this is what suspends
   const serverMessages = useTaskMessages(taskId || null);
@@ -981,22 +1186,24 @@ export function ActiveTaskProvider({
     isStreaming: chat.status === "submitted" || chat.status === "streaming",
   };
 
-  // Consume pending message when this task is the target. Read from the
-  // module-level store rather than React state so messages survive a
-  // Chat.Provider remount on cross-vMCP navigation. Runs in useEffect so the
-  // chat instance and its transport are fully wired up after commit — sending
-  // during render let the optimistic message + streaming state get lost.
-  const pendingConsumedRef = useRef<string | null>(null);
-  const sendMessageInternalRef = useRef(sendMessageInternal);
-  sendMessageInternalRef.current = sendMessageInternal;
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  // Autosend consumer: the URL carries only `autosend=true`; the message
+  // body lives in localStorage keyed by locator + taskId. It only boots empty
+  // threads, and the stored status gates duplicate sends across remounts.
+  const autosendSearch = useSearch({ strict: false }) as { autosend?: string };
+  const shouldAutosend = autosendSearch.autosend === AUTOSEND_QUERY_VALUE;
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect, react-hooks/exhaustive-deps -- storage status, not function identity, gates duplicate sends
   useEffect(() => {
-    if (!taskId || pendingConsumedRef.current === taskId) return;
-    const msg = takePendingMessage(taskId);
-    if (!msg) return;
-    pendingConsumedRef.current = taskId;
-    void sendMessageInternalRef.current(msg);
-  }, [taskId]);
+    if (!shouldAutosend) return;
+    if (messages.length > 0) return;
+
+    const payload = claimStoredAutosend(localStorage, locator, taskId);
+    if (!payload) return;
+
+    void sendMessageInternal(payload.message).then(() => {
+      markStoredAutosendSent(localStorage, locator, taskId);
+    });
+    // oxlint-disable-next-line eslint-plugin-react-hooks/exhaustive-deps -- storage status, not function identity, gates duplicate sends
+  }, [shouldAutosend, messages.length, locator, taskId, sendMessageInternal]);
 
   const streamValue: ChatStreamContextValue = {
     messages,
@@ -1054,6 +1261,10 @@ export function useChatPrefs(): ChatPrefsContextValue {
 
 export function useOptionalChatPrefs(): ChatPrefsContextValue | null {
   return useContext(ChatPrefsCtx);
+}
+
+export function useOptionalChatTask(): ChatTaskContextValue | null {
+  return useContext(ChatTaskCtx);
 }
 
 export function useChatBridge(): ChatBridgeValue {

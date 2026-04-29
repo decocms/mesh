@@ -175,11 +175,23 @@ const orgLayout = createRoute({
 });
 
 // ============================================
-// AGENT SHELL LAYOUT (pathless — wraps agent/org-home routes with sidebar + 3-panel)
+// ORG SHELL LAYOUT (pathless — sidebar + Toolbar + ChatPrefsProvider for / and /$taskId)
+// ============================================
+
+const orgShellLayout = createRoute({
+  getParentRoute: () => orgLayout,
+  id: "org-shell",
+  component: lazyRouteComponent(
+    () => import("./layouts/org-shell-layout/index.tsx"),
+  ),
+});
+
+// ============================================
+// AGENT SHELL LAYOUT (pathless — per-task chrome under orgShellLayout)
 // ============================================
 
 const agentShellLayout = createRoute({
-  getParentRoute: () => orgLayout,
+  getParentRoute: () => orgShellLayout,
   id: "agent-shell",
   component: lazyRouteComponent(
     () => import("./layouts/agent-shell-layout/index.tsx"),
@@ -199,6 +211,7 @@ const unifiedChatSearchSchema = z.object({
   tasks: z.number().optional(),
   mainOpen: z.number().optional(),
   chat: z.number().optional(),
+  autosend: z.string().optional(),
 });
 
 const unifiedChatRoute = createRoute({
@@ -208,18 +221,12 @@ const unifiedChatRoute = createRoute({
   component: () => null,
 });
 
-// Org index redirects to a fresh decopilot task
+// Org index renders the home landing page (single-panel + HomePage), no
+// agent shell.
 const orgIndexRoute = createRoute({
-  getParentRoute: () => agentShellLayout,
+  getParentRoute: () => orgShellLayout,
   path: "/",
-  beforeLoad: ({ params }) => {
-    const taskId = crypto.randomUUID();
-    throw redirect({
-      to: "/$org/$taskId",
-      params: { org: params.org, taskId },
-    });
-  },
-  component: () => null,
+  component: lazyRouteComponent(() => import("./layouts/org-home/index.tsx")),
 });
 
 // ============================================
@@ -540,13 +547,17 @@ const unifiedChatWithChildren = unifiedChatRoute.addChildren([
 ]);
 
 const agentShellWithChildren = agentShellLayout.addChildren([
-  orgIndexRoute,
   unifiedChatWithChildren,
   orgPluginRoute,
 ]);
 
-const orgLayoutWithChildren = orgLayout.addChildren([
+const orgShellWithChildren = orgShellLayout.addChildren([
+  orgIndexRoute,
   agentShellWithChildren,
+]);
+
+const orgLayoutWithChildren = orgLayout.addChildren([
+  orgShellWithChildren,
   settingsWithChildren,
 ]);
 

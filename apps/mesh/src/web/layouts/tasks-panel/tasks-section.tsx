@@ -65,8 +65,8 @@ export function TasksSection({
         : memberFiltered;
 
   return (
-    <div className="flex flex-col gap-0.5 mt-1">
-      <div className="pl-2 pr-1.5 h-7 flex items-center justify-between text-xs font-medium text-muted-foreground mb-1">
+    <div className="flex flex-col h-full min-h-0 mt-1">
+      <div className="shrink-0 pl-2 pr-1.5 h-7 flex items-center justify-between text-xs font-medium text-muted-foreground mb-1">
         <span>{title}</span>
         <div className="flex items-center gap-0.5">
           <DropdownMenu>
@@ -153,37 +153,39 @@ export function TasksSection({
           )}
         </div>
       </div>
-      {visibleTasks.length === 0 && emptyLabel ? (
-        <div className="px-2 py-1.5 text-xs text-muted-foreground/70">
-          {emptyLabel}
-        </div>
-      ) : (
-        visibleTasks.map((t) => (
-          <TaskRow
-            key={t.id}
-            task={t}
-            isActive={activeTaskId === t.id}
-            onClick={() => {
-              if (activeTaskId !== t.id) {
-                track("tasks_panel_task_clicked", {
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-0.5">
+        {visibleTasks.length === 0 && emptyLabel ? (
+          <div className="px-2 py-1.5 text-xs text-muted-foreground/70">
+            {emptyLabel}
+          </div>
+        ) : (
+          visibleTasks.map((t) => (
+            <TaskRow
+              key={t.id}
+              task={t}
+              isActive={activeTaskId === t.id}
+              onClick={() => {
+                if (activeTaskId !== t.id) {
+                  track("tasks_panel_task_clicked", {
+                    thread_id: t.id,
+                    virtual_mcp_id: t.virtual_mcp_id ?? null,
+                    from_automation: Boolean(t.fromAutomation),
+                  });
+                }
+                onSelect(t);
+              }}
+              onArchive={() => {
+                track("tasks_panel_task_archived", {
                   thread_id: t.id,
                   virtual_mcp_id: t.virtual_mcp_id ?? null,
-                  from_automation: Boolean(t.fromAutomation),
                 });
-              }
-              onSelect(t);
-            }}
-            onArchive={() => {
-              track("tasks_panel_task_archived", {
-                thread_id: t.id,
-                virtual_mcp_id: t.virtual_mcp_id ?? null,
-              });
-              onArchive(t);
-            }}
-            showAutomationBadge={showAutomationBadge || t.fromAutomation}
-          />
-        ))
-      )}
+                onArchive(t);
+              }}
+              showAutomationBadge={showAutomationBadge || t.fromAutomation}
+            />
+          ))
+        )}
+      </div>
     </div>
   );
 }

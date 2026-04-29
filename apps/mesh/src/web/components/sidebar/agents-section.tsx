@@ -80,13 +80,18 @@ import { AiImageRecruitModal } from "@/web/components/home/ai-image-recruit-moda
 import { AiResearchRecruitModal } from "@/web/components/home/ai-research-recruit-modal.tsx";
 import { useTaskActions } from "@/web/hooks/use-tasks";
 import { readCachedTaskBranch } from "@/web/lib/read-cached-task-branch";
+import { useNavigateToAgentThread } from "@/web/hooks/use-navigate-to-agent-thread";
 
 /**
- * Hook for sidebar "spawn task on this vMCP" buttons. When the user clicks
- * a vMCP that matches the URL's current virtualmcpid, the active task's
- * branch is carried into the new thread so the new task lands on the same
- * warm sandbox. When the clicked vMCP differs, no branch is passed and the
- * server picks the most-recently-touched vmMap entry for that vMCP.
+ * Hook for "spawn task on this vMCP" buttons (used by the browse-agents
+ * popover). When the user clicks a vMCP that matches the URL's current
+ * virtualmcpid, the active task's branch is carried into the new thread
+ * so the new task lands on the same warm sandbox. When the clicked vMCP
+ * differs, no branch is passed and the server picks the most-recently-
+ * touched vmMap entry for that vMCP.
+ *
+ * The sidebar pinned-agent click uses `useNavigateToAgentThread` instead,
+ * which resumes the user's last thread when one exists.
  */
 function useNavigateToNewTaskWithBranchCarry(orgSlug: string) {
   const navigate = useNavigate();
@@ -119,6 +124,7 @@ function useNavigateToNewTaskWithBranchCarry(orgSlug: string) {
     });
   };
 }
+
 function AgentListItem({
   agent,
   org,
@@ -132,7 +138,7 @@ function AgentListItem({
 }) {
   const navigate = useNavigate();
   const { isMobile, setOpenMobile } = useSidebar();
-  const navigateToNewTask = useNavigateToNewTaskWithBranchCarry(org);
+  const navigateToAgentThread = useNavigateToAgentThread(org);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isActive = pathname.startsWith(`/${org}/${agent.id}`);
   const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
@@ -183,13 +189,14 @@ function AgentListItem({
           <SidebarMenuButton
             tooltip={buttonRect ? undefined : agent.title}
             isActive={isActive}
-            onClick={() => {
+            onClick={async () => {
+              if (isMobile) setOpenMobile(false);
+              const { resumed } = await navigateToAgentThread(agent.id);
               track("sidebar_agent_pin_clicked", {
                 agent_id: agent.id,
                 agent_title: agent.title,
+                resumed,
               });
-              navigateToNewTask(agent.id);
-              if (isMobile) setOpenMobile(false);
             }}
             onMouseEnter={handleIconMouseEnter}
             onMouseLeave={handleIconMouseLeave}
