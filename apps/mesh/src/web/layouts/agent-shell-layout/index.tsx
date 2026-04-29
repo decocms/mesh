@@ -33,13 +33,8 @@ import { ChatCenterPanel } from "@/web/layouts/chat-center-panel";
 import { TasksPanel } from "@/web/layouts/tasks-panel";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { isModKey } from "@/web/lib/keyboard-shortcuts";
-import { StudioSidebar, StudioSidebarMobile } from "@/web/components/sidebar";
-import {
-  SidebarInset,
-  SidebarLayout,
-  SidebarProvider,
-  useSidebar,
-} from "@deco/ui/components/sidebar.tsx";
+import { StudioSidebarMobile } from "@/web/components/sidebar";
+import { useSidebar } from "@deco/ui/components/sidebar.tsx";
 import { Sheet, SheetContent, SheetTitle } from "@deco/ui/components/sheet.tsx";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { AlertCircle, Loading01, Menu01 } from "@untitledui/icons";
@@ -59,10 +54,7 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "@/web/components/empty-state";
 import { useChatMainPanelState } from "@/web/hooks/use-layout-state";
 import { getActiveGithubRepo } from "@/web/lib/github-repo";
-import {
-  TasksPanelStateProvider,
-  useOptionalTasksPanelState,
-} from "@/web/hooks/use-tasks-panel-state";
+import { useOptionalTasksPanelState } from "@/web/hooks/use-tasks-panel-state";
 import { Toolbar } from "./toolbar";
 import { TasksPanelColumn } from "./tasks-panel-column";
 import { ChatMainPanelGroup } from "./chat-main-panel-group";
@@ -72,7 +64,6 @@ import { VirtualMcpHeaderInfo } from "../../views/virtual-mcp/header-info.tsx";
 import { VmEventsProvider } from "@/web/components/vm/hooks/vm-events-context.tsx";
 import type { VmMapEntry } from "@decocms/mesh-sdk";
 import { useEnsureTask } from "@/web/hooks/use-tasks";
-import { HomePage } from "@/web/layouts/home-page";
 
 // ---------------------------------------------------------------------------
 // Types & Context
@@ -294,53 +285,61 @@ function AgentInsetProvider() {
     entity,
   };
 
-  // The route may transition between states (loading task → ready → loading
-  // a new task) without unmounting `Chat.Provider`. Hoisting the provider
-  // above these branches preserves TaskProvider state — notably
-  // `pendingMessage`, which the home → task autosend flow depends on.
-  const stateBranch =
-    ensureState.status === "creating" || ensureState.status === "loading" ? (
-      <div className="flex-1 min-h-0 pr-1.5 pb-1.5 overflow-hidden">
-        <div className="flex h-full items-center justify-center bg-background card-shadow rounded-[0.75rem] text-sm text-muted-foreground">
-          <Loading01 className="size-4 animate-spin mr-2" />
-          Creating task…
-        </div>
-      </div>
-    ) : ensureState.status === "error" ? (
-      <div className="flex-1 min-h-0 pr-1.5 pb-1.5 overflow-hidden">
-        <div className="flex flex-col h-full items-center justify-center gap-2 bg-background card-shadow rounded-[0.75rem] p-8 text-sm">
-          <div className="font-medium">Task unavailable</div>
-          <div className="text-muted-foreground">
-            {ensureState.error.message}
+  if (ensureState.status === "creating" || ensureState.status === "loading") {
+    return (
+      <InsetContext value={insetContextValue}>
+        <div className="flex-1 min-h-0 pr-1.5 pb-1.5 overflow-hidden">
+          <div className="flex h-full items-center justify-center bg-background card-shadow rounded-[0.75rem] text-sm text-muted-foreground">
+            <Loading01 className="size-4 animate-spin mr-2" />
+            Creating task…
           </div>
         </div>
-      </div>
-    ) : !entity ? (
-      <div className="flex-1 min-h-0 pr-1.5 pb-1.5 overflow-hidden">
-        <div className="flex flex-col h-full bg-background overflow-hidden card-shadow rounded-[0.75rem]">
-          <EmptyState
-            image={<AlertCircle size={48} className="text-muted-foreground" />}
-            title="Agent not found"
-            description={`The agent "${virtualMcpId}" does not exist in this organization.`}
-            actions={
-              <Button
-                variant="outline"
-                onClick={() =>
-                  navigate({
-                    to: "/$org",
-                    params: { org: orgSlug },
-                  })
-                }
-              >
-                Go to organization home
-              </Button>
-            }
-          />
-        </div>
-      </div>
-    ) : null;
+      </InsetContext>
+    );
+  }
 
-  const showShell = stateBranch === null;
+  if (ensureState.status === "error") {
+    return (
+      <InsetContext value={insetContextValue}>
+        <div className="flex-1 min-h-0 pr-1.5 pb-1.5 overflow-hidden">
+          <div className="flex flex-col h-full items-center justify-center gap-2 bg-background card-shadow rounded-[0.75rem] p-8 text-sm">
+            <div className="font-medium">Task unavailable</div>
+            <div className="text-muted-foreground">
+              {ensureState.error.message}
+            </div>
+          </div>
+        </div>
+      </InsetContext>
+    );
+  }
+
+  if (!entity) {
+    return (
+      <InsetContext value={insetContextValue}>
+        <div className="flex-1 min-h-0 pr-1.5 pb-1.5 overflow-hidden">
+          <div className="flex flex-col h-full bg-background overflow-hidden card-shadow rounded-[0.75rem]">
+            <EmptyState
+              image={
+                <AlertCircle size={48} className="text-muted-foreground" />
+              }
+              title="Agent not found"
+              description={`The agent "${virtualMcpId}" does not exist in this organization.`}
+              actions={
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    navigate({ to: "/$org", params: { org: orgSlug } })
+                  }
+                >
+                  Go to organization home
+                </Button>
+              }
+            />
+          </div>
+        </div>
+      </InsetContext>
+    );
+  }
 
   // Mobile layout — unchanged semantics, just inlined here for clarity.
   if (isMobile) {
@@ -373,27 +372,21 @@ function AgentInsetProvider() {
       <InsetContext value={insetContextValue}>
         <div className="flex flex-col flex-1 bg-background min-h-0">
           <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
-            {showShell ? (
-              <VmEventsBridge
-                virtualMcpId={virtualMcpId}
-                hasActiveGithubRepo={hasActiveGithubRepo}
-                vmMap={entity?.metadata?.vmMap}
-              >
-                <NewTaskBridge
-                  onNewTaskRef={onNewTask}
-                  createNewTask={layout.createNewTask}
-                />
-                <MobileToolbar
-                  onOpenSidebar={() => setMobileSidebarOpen(true)}
-                />
-                <div className="flex-1 min-h-0 overflow-hidden">
-                  {params.taskId ? <ActiveTaskBoundary /> : <HomePage />}
-                </div>
-                {mobileSidebarSheet}
-              </VmEventsBridge>
-            ) : (
-              stateBranch
-            )}
+            <VmEventsBridge
+              virtualMcpId={virtualMcpId}
+              hasActiveGithubRepo={hasActiveGithubRepo}
+              vmMap={entity?.metadata?.vmMap}
+            >
+              <NewTaskBridge
+                onNewTaskRef={onNewTask}
+                createNewTask={layout.createNewTask}
+              />
+              <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <ActiveTaskBoundary />
+              </div>
+              {mobileSidebarSheet}
+            </VmEventsBridge>
           </Chat.Provider>
         </div>
       </InsetContext>
@@ -401,150 +394,73 @@ function AgentInsetProvider() {
   }
 
   // Desktop — portal toggle buttons into outer toolbar, render chat+main group.
+  // Renders alongside <TasksPanelColumn /> as siblings inside the org-shell-layout's
+  // flex-row outlet, so this branch returns a fragment of [tasks column, content].
   return (
-    <InsetContext value={insetContextValue}>
-      {showShell && (
-        <Toolbar.Toggles>
-          <ToggleButtons
-            chatOpen={layout.chatOpen}
-            toggleChat={layout.toggleChat}
-            onNewTask={tasksOpen ? undefined : layout.createNewTask}
-          />
-        </Toolbar.Toggles>
-      )}
+    <>
+      <TasksPanelColumn />
+      <div className="flex-1 min-w-0 flex flex-col">
+        <InsetContext value={insetContextValue}>
+          <Toolbar.Toggles>
+            <ToggleButtons
+              chatOpen={layout.chatOpen}
+              toggleChat={layout.toggleChat}
+              onNewTask={tasksOpen ? undefined : layout.createNewTask}
+            />
+          </Toolbar.Toggles>
 
-      <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
-        {showShell ? (
-          <>
-            {params.taskId && (
-              <Toolbar.Tabs>
-                <MainPanelTabsBar
-                  virtualMcpId={virtualMcpId}
-                  taskId={layout.taskId}
-                />
-              </Toolbar.Tabs>
-            )}
+          <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
+            <Toolbar.Tabs>
+              <MainPanelTabsBar
+                virtualMcpId={virtualMcpId}
+                taskId={layout.taskId}
+              />
+            </Toolbar.Tabs>
 
             <VmEventsBridge
               virtualMcpId={virtualMcpId}
               hasActiveGithubRepo={hasActiveGithubRepo}
               vmMap={entity?.metadata?.vmMap}
             >
-              {params.taskId && entity ? (
-                <>
-                  <VirtualMcpHeaderInfo virtualMcp={entity} />
-                  <NewTaskBridge
-                    onNewTaskRef={onNewTask}
-                    createNewTask={layout.createNewTask}
-                  />
-                  <ChatMainPanelGroup
-                    virtualMcpId={virtualMcpId}
-                    taskId={layout.taskId}
-                    chatOpen={layout.chatOpen}
-                    mainOpen={layout.mainOpen}
-                    chatContent={<ActiveTaskBoundary />}
-                  />
-                </>
-              ) : (
-                <HomePage />
-              )}
+              <VirtualMcpHeaderInfo virtualMcp={entity} />
+              <NewTaskBridge
+                onNewTaskRef={onNewTask}
+                createNewTask={layout.createNewTask}
+              />
+              <ChatMainPanelGroup
+                virtualMcpId={virtualMcpId}
+                taskId={layout.taskId}
+                chatOpen={layout.chatOpen}
+                mainOpen={layout.mainOpen}
+                chatContent={<ActiveTaskBoundary />}
+              />
             </VmEventsBridge>
-          </>
-        ) : (
-          stateBranch
-        )}
-      </Chat.Provider>
-    </InsetContext>
+          </Chat.Provider>
+        </InsetContext>
+      </div>
+    </>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Default export — the shell layout component for agent routes
+// Default export — the per-task content for /$org/$taskId.
+//
+// Sidebar, toolbar shell, ChatPrefsProvider, and TasksPanelStateProvider all
+// live in `org-shell-layout` (the parent route). This component just renders
+// the per-task chrome inside the flex-row Outlet on desktop, or directly
+// inside SidebarInset on mobile.
 // ---------------------------------------------------------------------------
 
 export default function AgentShellLayout() {
-  const isMobile = useIsMobile();
-
   return (
-    <SidebarProvider defaultOpen={false}>
-      <div className="flex flex-col h-dvh overflow-hidden">
-        <SidebarLayout
-          className="flex-1 bg-sidebar"
-          style={
-            {
-              "--sidebar-width-icon": "3.5rem",
-            } as Record<string, string>
-          }
-        >
-          <StudioSidebar />
-          <SidebarInset
-            className="flex flex-col"
-            style={{
-              background: "transparent",
-              containerType: "inline-size",
-            }}
-          >
-            {isMobile ? (
-              <Suspense
-                fallback={
-                  <div className="flex-1 flex items-center justify-center">
-                    <Loading01
-                      size={20}
-                      className="animate-spin text-muted-foreground"
-                    />
-                  </div>
-                }
-              >
-                <AgentInsetProvider />
-              </Suspense>
-            ) : (
-              <Suspense
-                fallback={
-                  <div className="flex-1 flex items-center justify-center">
-                    <Loading01
-                      size={20}
-                      className="animate-spin text-muted-foreground"
-                    />
-                  </div>
-                }
-              >
-                <TasksPanelStateProvider>
-                  <Toolbar>
-                    <Toolbar.Header>
-                      <Toolbar.LeftColumn>
-                        <Toolbar.Nav />
-                        <Toolbar.TogglesSlot />
-                      </Toolbar.LeftColumn>
-                      <Toolbar.CenterSlot />
-                      <Toolbar.RightColumn>
-                        <Toolbar.TabsSlot />
-                        <Toolbar.RightSlot />
-                      </Toolbar.RightColumn>
-                    </Toolbar.Header>
-                    <div className="flex-1 min-h-0 flex flex-row">
-                      <TasksPanelColumn />
-                      <div className="flex-1 min-w-0 flex flex-col">
-                        <Suspense
-                          fallback={
-                            <div className="flex-1 flex items-center justify-center">
-                              <Loading01
-                                size={20}
-                                className="animate-spin text-muted-foreground"
-                              />
-                            </div>
-                          }
-                        >
-                          <AgentInsetProvider />
-                        </Suspense>
-                      </div>
-                    </div>
-                  </Toolbar>
-                </TasksPanelStateProvider>
-              </Suspense>
-            )}
-          </SidebarInset>
-        </SidebarLayout>
-      </div>
-    </SidebarProvider>
+    <Suspense
+      fallback={
+        <div className="flex-1 flex items-center justify-center">
+          <Loading01 size={20} className="animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <AgentInsetProvider />
+    </Suspense>
   );
 }
