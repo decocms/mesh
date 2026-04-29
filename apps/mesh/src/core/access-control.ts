@@ -10,6 +10,7 @@
  */
 
 import { MCP_MESH_KEY } from "@/core/constants";
+import { BASIC_USAGE_TOOLS } from "../tools/registry-metadata";
 import type { BetterAuthInstance, BoundAuthClient } from "./mesh-context";
 
 // ============================================================================
@@ -155,6 +156,12 @@ export class AccessControl implements Disposable {
    * Delegates to Better Auth's Organization plugin via boundAuth
    */
   private async checkResource(resource: string): Promise<boolean> {
+    // Basic-usage tools are always granted to authenticated org members,
+    // regardless of role. The basic-usage capability lives in the registry
+    // and is hidden from the role editor UI.
+    if (BASIC_USAGE_TOOLS.has(resource)) {
+      return true;
+    }
     // No user or bound auth = deny
     if (!this.userId && !this.boundAuth) {
       return false;
