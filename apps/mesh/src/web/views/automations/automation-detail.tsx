@@ -41,7 +41,7 @@ import {
   XClose,
   Zap,
 } from "@untitledui/icons";
-import { Suspense, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
 import type { Metadata } from "@/web/components/chat/types.ts";
@@ -318,6 +318,10 @@ export function SettingsTab({
   const editorInitializedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tiptapDirtyRef = useRef(false);
+  // The save runs from a debounced setTimeout. Reading state through a closure
+  // there would give us the value from the render that scheduled the timer,
+  // not the latest keystroke — that's how trailing characters got lost.
+  const tiptapDocRef = useRef<Metadata["tiptapDoc"]>(initialTiptapDoc);
 
   const handleImprovePrompt = () => {
     const parts = derivePartsFromTiptapDoc(tiptapDoc);
@@ -411,6 +415,7 @@ export function SettingsTab({
     tiptapDirtyRef.current = false;
 
     const values = form.getValues();
+    const tiptapDocAtSave = tiptapDocRef.current;
     try {
       const coercedCredentialId =
         values.credential_id && values.model_id ? values.credential_id : "";
@@ -430,7 +435,7 @@ export function SettingsTab({
             id: coercedModelId,
           },
         },
-        messages: tiptapDocToMessages(tiptapDoc),
+        messages: tiptapDocToMessages(tiptapDocAtSave),
         temperature: 0,
       };
       await updateMutation.mutateAsync(updatePayload);
@@ -450,10 +455,19 @@ export function SettingsTab({
         EDIT_SESSION_QUIET_MS,
       );
 
+      // Re-read values at reset time so any keystrokes that landed during the
+      // in-flight mutation aren't clobbered by a stale snapshot.
+      const latestValues = form.getValues();
       form.reset({
-        ...values,
-        credential_id: coercedCredentialId,
-        model_id: coercedModelId,
+        ...latestValues,
+        credential_id:
+          latestValues.credential_id === values.credential_id
+            ? coercedCredentialId
+            : latestValues.credential_id,
+        model_id:
+          latestValues.model_id === values.model_id
+            ? coercedModelId
+            : latestValues.model_id,
       });
       return true;
     } catch {
@@ -462,19 +476,31 @@ export function SettingsTab({
     }
   };
 
+  // Always-fresh ref to saveForm so debounced timers and the form-watch
+  // subscription (which is registered once) call the latest closure that reads
+  // current state, not whichever closure happened to be in scope at scheduling
+  // time.
+  const saveFormRef = useRef(saveForm);
+  saveFormRef.current = saveForm;
+
   const debouncedSave = () => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      saveForm();
+      saveTimerRef.current = null;
+      saveFormRef.current();
     }, 1000);
   };
 
   const flushAndSave = async () => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    return saveForm();
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    return saveFormRef.current();
   };
 
   const setTiptapDoc = (doc: Metadata["tiptapDoc"]) => {
+    tiptapDocRef.current = doc;
     setTiptapDocRaw(doc);
     if (!editorInitializedRef.current) {
       editorInitializedRef.current = true;
@@ -491,6 +517,19 @@ export function SettingsTab({
       debouncedSave();
     });
   }
+
+  // Flush any pending save on unmount so navigating away within the 1s
+  // debounce window doesn't drop the last edit.
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+        saveFormRef.current();
+      }
+    };
+  }, []);
 
   const handleRunClick = async () => {
     track("automation_test_clicked", {
