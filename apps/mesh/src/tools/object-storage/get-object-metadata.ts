@@ -22,7 +22,7 @@ export const GET_OBJECT_METADATA = defineTool({
   handler: async (input, ctx) => {
     requireAuth(ctx);
     requireOrganization(ctx);
-    await ctx.access.check();
+    ctx.access.grant();
     const storage = requireObjectStorage(ctx);
 
     const result = await storage.head(input.key);

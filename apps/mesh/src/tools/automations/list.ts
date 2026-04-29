@@ -40,7 +40,7 @@ export const AUTOMATION_LIST = defineTool({
   handler: async (input, ctx) => {
     requireAuth(ctx);
     const organization = requireOrganization(ctx);
-    await ctx.access.check();
+    ctx.access.grant();
 
     const automations = await ctx.storage.automations.listWithTriggerCounts(
       organization.id,

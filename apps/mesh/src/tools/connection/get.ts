@@ -52,7 +52,7 @@ export const COLLECTION_CONNECTIONS_GET = defineTool({
     const organization = requireOrganization(ctx);
 
     // Check authorization
-    await ctx.access.check();
+    ctx.access.grant();
 
     // In dev mode, check if this is the dev-assets connection
     if (isDevMode() && isDevAssetsConnection(input.id, organization.id)) {

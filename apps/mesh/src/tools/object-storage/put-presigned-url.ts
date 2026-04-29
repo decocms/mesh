@@ -25,7 +25,7 @@ export const PUT_PRESIGNED_URL = defineTool({
   handler: async (input, ctx) => {
     requireAuth(ctx);
     requireOrganization(ctx);
-    await ctx.access.check();
+    ctx.access.grant();
     const storage = requireObjectStorage(ctx);
 
     const expiresIn = input.expiresIn ?? DEFAULT_EXPIRES_IN;

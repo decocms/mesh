@@ -23,7 +23,7 @@ export const LIST_OBJECTS = defineTool({
   handler: async (input, ctx) => {
     requireAuth(ctx);
     requireOrganization(ctx);
-    await ctx.access.check();
+    ctx.access.grant();
     const storage = requireObjectStorage(ctx);
 
     const result = await storage.list({

@@ -43,7 +43,7 @@ export const VIRTUAL_MCP_PLUGIN_CONFIG_GET = defineTool({
     requireAuth(ctx);
 
     // Check authorization
-    await ctx.access.check();
+    ctx.access.grant();
 
     const { virtualMcpId, pluginId } = input;
 

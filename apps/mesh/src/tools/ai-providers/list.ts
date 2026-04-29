@@ -32,7 +32,7 @@ export const AI_PROVIDERS_LIST = defineTool({
   handler: async (_input, ctx) => {
     requireAuth(ctx);
     requireOrganization(ctx);
-    await ctx.access.check();
+    ctx.access.grant();
 
     const providers = Object.values(getProviders())
       .filter((adapter) => !!adapter)
