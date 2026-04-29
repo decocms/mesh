@@ -16,12 +16,12 @@ import {
 } from "@untitledui/icons";
 import { Page } from "@/web/components/page";
 import { Button } from "@deco/ui/components/button.tsx";
+import { Card } from "@deco/ui/components/card.tsx";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@deco/ui/components/card.tsx";
+  SettingsCard,
+  SettingsCardItem,
+  SettingsSection,
+} from "@/web/components/settings/settings-section";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
 import {
@@ -1055,41 +1055,33 @@ function DecoCreditsHero() {
     balanceDollars != null ? `$${balanceDollars.toFixed(2)}` : "—";
 
   return (
-    <div
-      className={cn(
-        "relative rounded-xl overflow-hidden",
-        "border border-border",
-        "bg-gradient-to-br from-background via-muted/30 to-background",
-      )}
-    >
-      <div className="relative p-6">
-        {/* Provider identity */}
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-3">
-            <img
-              src="/logos/deco%20logo.svg"
-              alt="Deco AI Gateway"
-              className="size-9 rounded-lg object-contain dark:bg-white dark:p-0.5"
-            />
-            <div>
-              <h3 className="text-sm font-semibold text-foreground">
-                Deco AI Gateway
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Access to 100+ models
-              </p>
+    <SettingsSection title="Deco AI Gateway">
+      <SettingsCard>
+        <div className="px-5 py-5 flex flex-col gap-5">
+          {/* Provider info and disconnect button */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <img
+                src="/logos/deco%20logo.svg"
+                alt="Deco AI Gateway"
+                className="size-9 rounded-lg object-contain dark:bg-white dark:p-0.5"
+              />
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  Access to 100+ models
+                </p>
+              </div>
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-muted-foreground hover:text-destructive"
+              onClick={() => setConfirmDisconnect(true)}
+              disabled={isDisconnecting}
+            >
+              Disconnect
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-xs text-muted-foreground hover:text-destructive"
-            onClick={() => setConfirmDisconnect(true)}
-            disabled={isDisconnecting}
-          >
-            Disconnect
-          </Button>
-        </div>
 
         <AlertDialog
           open={confirmDisconnect}
@@ -1116,46 +1108,49 @@ function DecoCreditsHero() {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Balance */}
-        <div className="flex items-baseline gap-2">
-          {isLoading || isFetching ? (
-            <Skeleton className="h-9 w-24" />
-          ) : (
-            <span
-              className={cn(
-                "text-3xl font-semibold tabular-nums tracking-tight",
-                balanceDollars != null && creditColorClass(balanceDollars),
+          {/* Balance */}
+          <div className="flex flex-col gap-2 pt-2">
+            <div className="flex items-baseline gap-2">
+              {isLoading || isFetching ? (
+                <Skeleton className="h-9 w-24" />
+              ) : (
+                <span
+                  className={cn(
+                    "text-3xl font-semibold tabular-nums tracking-tight",
+                    balanceDollars != null && creditColorClass(balanceDollars),
+                  )}
+                >
+                  {displayBalance}
+                </span>
               )}
-            >
-              {displayBalance}
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors p-1 rounded-md hover:bg-muted/50"
-            aria-label="Refresh balance"
-          >
-            <RefreshCw01
-              size={14}
-              className={cn(isFetching && "animate-spin")}
-            />
-          </button>
-        </div>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Available credit balance
-        </p>
+              <button
+                type="button"
+                onClick={() => refetch()}
+                disabled={isFetching}
+                className="text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors p-1 rounded-md hover:bg-muted/50"
+                aria-label="Refresh balance"
+              >
+                <RefreshCw01
+                  size={14}
+                  className={cn(isFetching && "animate-spin")}
+                />
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Available credit balance
+            </p>
+          </div>
 
-        {/* Quick top-up */}
-        <div className="mt-5 pt-4 border-t border-border/60">
-          <p className="text-xs font-medium text-muted-foreground mb-2.5">
-            Add credits
-          </p>
-          <QuickTopUp />
+          {/* Quick top-up */}
+          <div className="pt-4 border-t border-border/60">
+            <p className="text-xs font-medium text-muted-foreground mb-2.5">
+              Add credits
+            </p>
+            <QuickTopUp />
+          </div>
         </div>
-      </div>
-    </div>
+      </SettingsCard>
+    </SettingsSection>
   );
 }
 
@@ -1185,14 +1180,12 @@ const TIER_DESCRIPTIONS: Record<TierKey, string> = {
 
 function SimpleModeModelRow({
   label,
-  description,
   slot,
   onSlotChange,
   filterModels,
   defaultKeyId,
 }: {
   label: string;
-  description?: string;
   slot: SimpleModeConfig["chat"]["fast"];
   onSlotChange: (slot: SimpleModeConfig["chat"]["fast"]) => void;
   filterModels?: (m: AiProviderModel) => boolean;
@@ -1203,8 +1196,6 @@ function SimpleModeModelRow({
     slot?.keyId ?? defaultKeyId,
   );
 
-  // Adopt slot's keyId when it actually transitions (e.g. auto-fill from defaults)
-  // — NOT on every render, or it would revert user's in-modal credential changes.
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
     if (slot?.keyId) setLocalCredentialId(slot.keyId);
@@ -1235,36 +1226,28 @@ function SimpleModeModelRow({
       } as AiProviderModel)
     : null;
 
+  if (filterModels && !hasFilteredModels) {
+    return (
+      <p className="text-xs text-muted-foreground italic">
+        Not available with current provider
+      </p>
+    );
+  }
+
   return (
-    <div className="flex items-center justify-between gap-4 py-2">
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        {description && (
-          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
-        )}
-      </div>
-      <div className="shrink-0">
-        {filterModels && !hasFilteredModels ? (
-          <p className="text-xs text-muted-foreground italic">
-            Not available with current provider
-          </p>
-        ) : (
-          <ModelSelector
-            variant="bordered"
-            placeholder="Pick model"
-            model={resolvedModel}
-            credentialId={activeKeyId}
-            filterModels={filterModels}
-            onCredentialChange={(keyId) => setLocalCredentialId(keyId)}
-            onModelChange={(m) => {
-              const keyId = m.keyId ?? activeKeyId ?? "";
-              setLocalCredentialId(keyId);
-              onSlotChange({ keyId, modelId: m.modelId, title: m.title });
-            }}
-          />
-        )}
-      </div>
-    </div>
+    <ModelSelector
+      variant="bordered"
+      placeholder="Pick model"
+      model={resolvedModel}
+      credentialId={activeKeyId}
+      filterModels={filterModels}
+      onCredentialChange={(keyId) => setLocalCredentialId(keyId)}
+      onModelChange={(m) => {
+        const keyId = m.keyId ?? activeKeyId ?? "";
+        setLocalCredentialId(keyId);
+        onSlotChange({ keyId, modelId: m.modelId, title: m.title });
+      }}
+    />
   );
 }
 
@@ -1442,68 +1425,68 @@ function SimpleModeSection() {
   const effectiveEnabled = enabled && hasProvider;
 
   return (
-    <Card className="p-6">
-      <CardHeader className="p-0">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-sm">Simple model mode</CardTitle>
+    <SettingsSection title="Simple model mode">
+      <SettingsCard>
+        <SettingsCardItem
+          title="Enable simple model mode"
+          description={
+            hasProvider
+              ? "Replace the model picker with a Fast / Smart / Thinking toggle for all members of this org."
+              : "Connect an AI provider above to enable this feature."
+          }
+          action={
+            <div className="flex items-center gap-3">
               <AutosaveStatus
                 isPending={isPending}
                 showSaved={isSuccess && !isDirty}
               />
+              <Switch
+                checked={effectiveEnabled}
+                onCheckedChange={handleToggle}
+                disabled={isPending || !hasProvider}
+              />
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {hasProvider
-                ? "Replace the model picker with a Fast / Smart / Thinking toggle for all members of this org."
-                : "Connect an AI provider above to enable this feature."}
-            </p>
-          </div>
-          <Switch
-            checked={effectiveEnabled}
-            onCheckedChange={handleToggle}
-            disabled={isPending || !hasProvider}
-          />
-        </div>
-      </CardHeader>
-
-      {effectiveEnabled && (
-        <CardContent className="flex flex-col p-0 mt-6">
-          <div className="flex flex-col gap-1 pb-6">
-            <p className="text-xs font-medium text-muted-foreground mb-1">
-              Chat models
-            </p>
+          }
+        />
+        {effectiveEnabled && (
+          <>
             {(["fast", "smart", "thinking"] as TierKey[]).map((tier) => (
               <Controller
                 key={tier}
                 control={form.control}
                 name={`chat.${tier}` as const}
                 render={({ field }) => (
-                  <SimpleModeModelRow
-                    label={TIER_LABELS[tier]}
+                  <SettingsCardItem
+                    title={TIER_LABELS[tier]}
                     description={TIER_DESCRIPTIONS[tier]}
-                    slot={field.value}
-                    defaultKeyId={allKeys[0]?.id ?? null}
-                    onSlotChange={(slot) => field.onChange(slot)}
+                    action={
+                      <SimpleModeModelRow
+                        label={TIER_LABELS[tier]}
+                        slot={field.value}
+                        defaultKeyId={allKeys[0]?.id ?? null}
+                        onSlotChange={(slot) => field.onChange(slot)}
+                      />
+                    }
                   />
                 )}
               />
             ))}
-          </div>
-          <div className="flex flex-col gap-1 pt-6 border-t border-border/50">
-            <p className="text-xs font-medium text-muted-foreground mb-1">
-              Other models
-            </p>
+            <div className="h-px bg-border mx-5" />
             <Controller
               control={form.control}
               name="image"
               render={({ field }) => (
-                <SimpleModeModelRow
-                  label="Image"
-                  slot={field.value}
-                  defaultKeyId={allKeys[0]?.id ?? null}
-                  filterModels={filterImageModels}
-                  onSlotChange={(slot) => field.onChange(slot)}
+                <SettingsCardItem
+                  title="Image"
+                  action={
+                    <SimpleModeModelRow
+                      label="Image"
+                      slot={field.value}
+                      defaultKeyId={allKeys[0]?.id ?? null}
+                      filterModels={filterImageModels}
+                      onSlotChange={(slot) => field.onChange(slot)}
+                    />
+                  }
                 />
               )}
             />
@@ -1511,19 +1494,24 @@ function SimpleModeSection() {
               control={form.control}
               name="webResearch"
               render={({ field }) => (
-                <SimpleModeModelRow
-                  label="Web research"
-                  slot={field.value}
-                  defaultKeyId={allKeys[0]?.id ?? null}
-                  filterModels={filterWebResearchModels}
-                  onSlotChange={(slot) => field.onChange(slot)}
+                <SettingsCardItem
+                  title="Web research"
+                  action={
+                    <SimpleModeModelRow
+                      label="Web research"
+                      slot={field.value}
+                      defaultKeyId={allKeys[0]?.id ?? null}
+                      filterModels={filterWebResearchModels}
+                      onSlotChange={(slot) => field.onChange(slot)}
+                    />
+                  }
                 />
               )}
             />
-          </div>
-        </CardContent>
-      )}
-    </Card>
+          </>
+        )}
+      </SettingsCard>
+    </SettingsSection>
   );
 }
 

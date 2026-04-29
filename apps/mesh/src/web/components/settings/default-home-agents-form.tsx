@@ -36,13 +36,6 @@ import {
 } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@deco/ui/components/card.tsx";
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -53,6 +46,12 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import { Plus, RefreshCw01, Menu02, X, Users03 } from "@untitledui/icons";
 import { toast } from "sonner";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import {
+  SettingsCard,
+  SettingsCardActions,
+  SettingsCardItem,
+  SettingsSection,
+} from "@/web/components/settings/settings-section";
 import {
   useDefaultHomeAgents,
   useUpdateDefaultHomeAgents,
@@ -354,16 +353,9 @@ function DefaultHomeAgentsFormContent() {
   const overflowCount = Math.max(0, draftIds.length - HOME_VIEW_DISPLAY_LIMIT);
 
   return (
-    <Card className="p-6">
-      <CardHeader className="p-0 flex flex-row items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <CardTitle className="text-sm">Default home agents</CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Choose which agents appear on the home view for everyone in this
-            organization. Drag to reorder. Up to {HOME_VIEW_DISPLAY_LIMIT} tiles
-            render on the home view.
-          </p>
-        </div>
+    <SettingsSection
+      title="Default home agents"
+      actions={
         <Button
           type="button"
           variant="ghost"
@@ -374,89 +366,89 @@ function DefaultHomeAgentsFormContent() {
           <RefreshCw01 size={14} />
           Reset defaults
         </Button>
-      </CardHeader>
-
-      <CardContent className="p-0 flex flex-col gap-3">
-        {resolvedDraft.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
-            No agents selected. The home view will only show "Create agent".
-          </div>
-        ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={draftIds}
-              strategy={verticalListSortingStrategy}
+      }
+    >
+      <SettingsCard>
+        <div className="px-5 py-5 flex flex-col gap-3">
+          {resolvedDraft.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+              No agents selected. The home view will only show "Create agent".
+            </div>
+          ) : (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
             >
-              <div className="flex flex-col gap-1.5">
-                {resolvedDraft.map((agent, i) => (
-                  <div key={agent.id} className="flex flex-col gap-1.5">
-                    {i === HOME_VIEW_DISPLAY_LIMIT && (
-                      <div className="flex items-center gap-2 px-1 py-1 text-xs text-muted-foreground">
-                        <div className="flex-1 h-px bg-border" />
-                        <span>Below this line is hidden on the home view</span>
-                        <div className="flex-1 h-px bg-border" />
-                      </div>
-                    )}
-                    <SortableAgentRow
-                      agent={agent}
-                      onRemove={() => handleRemove(agent.id)}
-                    />
-                  </div>
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
-        )}
-        <div className="flex items-center justify-between">
-          <AddAgentPopover selectedIds={draftIds} onAdd={handleAdd} />
-          {overflowCount > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {overflowCount} agent{overflowCount === 1 ? "" : "s"} won&apos;t
-              fit on the home view
-            </span>
+              <SortableContext
+                items={draftIds}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="flex flex-col gap-1.5">
+                  {resolvedDraft.map((agent, i) => (
+                    <div key={agent.id} className="flex flex-col gap-1.5">
+                      {i === HOME_VIEW_DISPLAY_LIMIT && (
+                        <div className="flex items-center gap-2 px-1 py-1 text-xs text-muted-foreground">
+                          <div className="flex-1 h-px bg-border" />
+                          <span>Below this line is hidden on the home view</span>
+                          <div className="flex-1 h-px bg-border" />
+                        </div>
+                      )}
+                      <SortableAgentRow
+                        agent={agent}
+                        onRemove={() => handleRemove(agent.id)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           )}
+          <div className="flex items-center justify-between">
+            <AddAgentPopover selectedIds={draftIds} onAdd={handleAdd} />
+            {overflowCount > 0 && (
+              <span className="text-xs text-muted-foreground">
+                {overflowCount} agent{overflowCount === 1 ? "" : "s"} won&apos;t
+                fit on the home view
+              </span>
+            )}
+          </div>
         </div>
-      </CardContent>
-
-      {isDirty && (
-        <CardFooter className="p-0 pt-2 gap-2">
-          <Button
-            type="button"
-            onClick={handleSave}
-            disabled={updateMutation.isPending}
-          >
-            {updateMutation.isPending ? "Saving…" : "Save"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setDraftIds(initialIds)}
-            disabled={updateMutation.isPending}
-          >
-            Cancel
-          </Button>
-        </CardFooter>
-      )}
-    </Card>
+        {isDirty && (
+          <SettingsCardActions>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDraftIds(initialIds)}
+              disabled={updateMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSave}
+              disabled={updateMutation.isPending}
+            >
+              {updateMutation.isPending ? "Saving…" : "Save"}
+            </Button>
+          </SettingsCardActions>
+        )}
+      </SettingsCard>
+    </SettingsSection>
   );
 }
 
 function DefaultHomeAgentsFormSkeleton() {
   return (
-    <Card className="p-6">
-      <CardHeader className="p-0">
-        <CardTitle className="text-sm">Default home agents</CardTitle>
-      </CardHeader>
-      <CardContent className="p-0 flex flex-col gap-2">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-12 w-full rounded-lg" />
-        ))}
-      </CardContent>
-    </Card>
+    <SettingsSection title="Default home agents">
+      <SettingsCard>
+        <div className="px-5 py-5 flex flex-col gap-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full rounded-lg" />
+          ))}
+        </div>
+      </SettingsCard>
+    </SettingsSection>
   );
 }
 

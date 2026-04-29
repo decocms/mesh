@@ -1,13 +1,6 @@
 import { useState } from "react";
 import { Page } from "@/web/components/page";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@deco/ui/components/card.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
 import {
   Select,
@@ -21,7 +14,6 @@ import {
 } from "@deco/ui/components/toggle-group.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Label } from "@deco/ui/components/label.tsx";
 import { Moon01, Monitor01, Play, Sun } from "@untitledui/icons";
 import { authClient } from "@/web/lib/auth-client";
 import {
@@ -33,50 +25,13 @@ import { playSound } from "@deco/ui/lib/sound-engine.ts";
 import { question004Sound } from "@deco/ui/lib/question-004.ts";
 import { toast } from "@deco/ui/components/sonner.js";
 import { track } from "@/web/lib/posthog-client";
-
-function PreferenceRow({
-  label,
-  description,
-  control,
-  onClick,
-  disabled,
-}: {
-  label: string;
-  description?: string;
-  control: React.ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div
-      className="flex items-center justify-between gap-4 py-3 border-b border-border/50 last:border-0"
-      onClick={disabled ? undefined : onClick}
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick && !disabled ? 0 : undefined}
-      onKeyDown={
-        onClick && !disabled
-          ? (e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onClick();
-              }
-            }
-          : undefined
-      }
-      style={{ cursor: onClick && !disabled ? "pointer" : undefined }}
-    >
-      <div className="min-w-0 flex-1">
-        <p className="text-sm text-foreground">{label}</p>
-        {description && (
-          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
-        )}
-      </div>
-      <div onClick={(e) => e.stopPropagation()} className="shrink-0">
-        {control}
-      </div>
-    </div>
-  );
-}
+import {
+  SettingsCard,
+  SettingsCardActions,
+  SettingsCardItem,
+  SettingsPage,
+  SettingsSection,
+} from "@/web/components/settings/settings-section";
 
 function ProfileSection() {
   const { data: session, isPending } = authClient.useSession();
@@ -106,56 +61,57 @@ function ProfileSection() {
   if (isPending) return null;
 
   return (
-    <Card className="p-6">
-      <CardHeader className="p-0">
-        <CardTitle className="text-sm">Profile</CardTitle>
-      </CardHeader>
-
-      <CardContent className="flex flex-col gap-6 p-0">
-        <div className="flex flex-col sm:flex-row items-start gap-6">
-          <Avatar
-            url={userImage}
-            fallback={user?.name ?? "U"}
-            shape="circle"
-            size="lg"
-            className="shrink-0 mt-0.5"
-          />
-          <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 gap-5 w-full">
-            <div className="flex flex-col gap-1.5">
-              <Label
-                htmlFor="display-name"
-                className="text-xs text-muted-foreground"
-              >
-                Display name
-              </Label>
-              <Input
-                id="display-name"
-                value={name}
-                onChange={(e) => setEditedName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void handleSave();
-                }}
-                placeholder="Your name"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <span className="text-xs text-muted-foreground">Email</span>
-              <span className="text-sm text-foreground/80 pt-2 break-all">
-                {user?.email}
-              </span>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-
-      {isDirty && (
-        <CardFooter className="p-0 pt-2 gap-2">
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Saving…" : "Save"}
-          </Button>
-        </CardFooter>
-      )}
-    </Card>
+    <SettingsSection>
+      <SettingsCard>
+        <SettingsCardItem
+          title="Avatar"
+          action={
+            <Avatar
+              url={userImage}
+              fallback={user?.name ?? "U"}
+              shape="circle"
+              size="base"
+            />
+          }
+        />
+        <SettingsCardItem
+          title="Display name"
+          action={
+            <Input
+              id="display-name"
+              value={name}
+              onChange={(e) => setEditedName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void handleSave();
+              }}
+              placeholder="Your name"
+              className="w-[280px]"
+            />
+          }
+        />
+        <SettingsCardItem
+          title="Email"
+          action={
+            <span className="text-sm text-muted-foreground">{user?.email}</span>
+          }
+        />
+        {isDirty && (
+          <SettingsCardActions>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditedName(null)}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saving} size="sm">
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          </SettingsCardActions>
+        )}
+      </SettingsCard>
+    </SettingsSection>
   );
 }
 
@@ -179,15 +135,12 @@ function PreferencesSection() {
   };
 
   return (
-    <Card className="p-6">
-      <CardHeader className="p-0">
-        <CardTitle className="text-sm">Preferences</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col p-0">
-        <PreferenceRow
-          label="Theme"
+    <SettingsSection title="Preferences">
+      <SettingsCard>
+        <SettingsCardItem
+          title="Theme"
           description="Your preferred color scheme."
-          control={
+          action={
             <ToggleGroup
               type="single"
               size="sm"
@@ -215,14 +168,15 @@ function PreferencesSection() {
             </ToggleGroup>
           }
         />
-        <PreferenceRow
-          label="Notifications"
+        <SettingsCardItem
+          title="Notifications"
           description="Receive browser notifications for important events."
-          disabled={typeof Notification === "undefined"}
-          onClick={() =>
-            handleNotificationsChange(!preferences.enableNotifications)
+          onClick={
+            typeof Notification !== "undefined"
+              ? () => handleNotificationsChange(!preferences.enableNotifications)
+              : undefined
           }
-          control={
+          action={
             <Switch
               disabled={typeof Notification === "undefined"}
               checked={preferences.enableNotifications}
@@ -230,8 +184,8 @@ function PreferencesSection() {
             />
           }
         />
-        <PreferenceRow
-          label="Sounds"
+        <SettingsCardItem
+          title="Sounds"
           description="Play sounds for agent actions and notifications."
           onClick={() => {
             track("preferences_sounds_toggled", {
@@ -242,7 +196,7 @@ function PreferencesSection() {
               enableSounds: !prev.enableSounds,
             }));
           }}
-          control={
+          action={
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -268,10 +222,10 @@ function PreferencesSection() {
             </div>
           }
         />
-        <PreferenceRow
-          label="Tool Approval"
+        <SettingsCardItem
+          title="Tool Approval"
           description="Control how tools are approved before execution."
-          control={
+          action={
             <Select
               value={preferences.toolApprovalLevel}
               onValueChange={(value) => {
@@ -313,8 +267,8 @@ function PreferencesSection() {
             </Select>
           }
         />
-      </CardContent>
-    </Card>
+      </SettingsCard>
+    </SettingsSection>
   );
 }
 
@@ -322,13 +276,10 @@ function ExperimentalSection() {
   const [preferences, setPreferences] = usePreferences();
 
   return (
-    <Card className="p-6">
-      <CardHeader className="p-0">
-        <CardTitle className="text-sm">Experimental</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col p-0">
-        <PreferenceRow
-          label="Import from GitHub"
+    <SettingsSection title="Experimental">
+      <SettingsCard>
+        <SettingsCardItem
+          title="Import from GitHub"
           description="Enable importing agents from GitHub repositories."
           onClick={() => {
             track("preferences_experimental_vibecode_toggled", {
@@ -339,7 +290,7 @@ function ExperimentalSection() {
               experimental_vibecode: !prev.experimental_vibecode,
             }));
           }}
-          control={
+          action={
             <Switch
               checked={preferences.experimental_vibecode}
               onCheckedChange={(checked) => {
@@ -354,8 +305,8 @@ function ExperimentalSection() {
             />
           }
         />
-      </CardContent>
-    </Card>
+      </SettingsCard>
+    </SettingsSection>
   );
 }
 
@@ -364,14 +315,12 @@ export function ProfilePreferencesPage() {
     <Page>
       <Page.Content>
         <Page.Body>
-          <div className="flex flex-col gap-6">
+          <SettingsPage>
             <Page.Title>Profile & Preferences</Page.Title>
-            <div className="flex flex-col gap-10">
-              <ProfileSection />
-              <PreferencesSection />
-              <ExperimentalSection />
-            </div>
-          </div>
+            <ProfileSection />
+            <PreferencesSection />
+            <ExperimentalSection />
+          </SettingsPage>
         </Page.Body>
       </Page.Content>
     </Page>
