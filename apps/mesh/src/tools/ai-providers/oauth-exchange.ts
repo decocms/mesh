@@ -67,6 +67,7 @@ export const AI_PROVIDER_OAUTH_EXCHANGE = defineTool({
       id: key.id,
       providerId: key.providerId,
       label: key.label,
+      presetId: key.presetId,
       createdAt: key.createdAt,
     };
   },

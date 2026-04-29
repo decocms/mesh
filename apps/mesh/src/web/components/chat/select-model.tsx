@@ -57,6 +57,7 @@ import { ErrorBoundary } from "../error-boundary";
 import { track } from "@/web/lib/posthog-client";
 import { useChatPrefs } from "./context";
 import { getProviderLogo } from "@/web/utils/ai-providers-logos";
+import { getPreset } from "@/web/utils/openai-compatible-presets";
 import { useNavigate } from "@tanstack/react-router";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import { NoAiProviderEmptyState } from "./no-ai-provider-empty-state";
@@ -1172,24 +1173,27 @@ function ModelSelectorInner({
                       const provider = key
                         ? providerMap[key.providerId]
                         : undefined;
+                      const preset = getPreset(key?.presetId);
+                      const logo = preset?.logo ?? provider?.logo;
+                      const name =
+                        preset?.name ??
+                        provider?.name ??
+                        key?.providerId ??
+                        "Key";
                       return (
                         <span className="flex items-center gap-1.5 min-w-0">
-                          {provider?.logo ? (
+                          {logo ? (
                             <img
-                              src={provider.logo}
-                              alt={provider.name}
+                              src={logo}
+                              alt={name}
                               className="w-4 h-4 rounded shrink-0 dark:bg-white dark:rounded-sm dark:p-px"
                             />
                           ) : (
                             <div className="w-4 h-4 rounded bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary shrink-0">
-                              {(provider?.name ?? key?.providerId ?? "?")
-                                .slice(0, 1)
-                                .toUpperCase()}
+                              {name.slice(0, 1).toUpperCase()}
                             </div>
                           )}
-                          <span className="text-xs truncate">
-                            {provider?.name ?? key?.providerId ?? "Key"}
-                          </span>
+                          <span className="text-xs truncate">{name}</span>
                         </span>
                       );
                     })()}
@@ -1199,24 +1203,26 @@ function ModelSelectorInner({
                 <SelectContent>
                   {keys.map((key) => {
                     const provider = providerMap[key.providerId];
+                    const preset = getPreset(key.presetId);
+                    const logo = preset?.logo ?? provider?.logo;
+                    const name =
+                      preset?.name ?? provider?.name ?? key.providerId;
                     return (
                       <SelectItem key={key.id} value={key.id}>
                         <div className="flex items-center gap-2">
-                          {provider?.logo ? (
+                          {logo ? (
                             <img
-                              src={provider.logo}
-                              alt={provider.name}
+                              src={logo}
+                              alt={name}
                               className="w-4 h-4 rounded dark:bg-white dark:rounded-sm dark:p-px"
                             />
                           ) : (
                             <div className="w-4 h-4 rounded bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
-                              {(provider?.name ?? key.providerId)
-                                .slice(0, 1)
-                                .toUpperCase()}
+                              {name.slice(0, 1).toUpperCase()}
                             </div>
                           )}
                           <span>
-                            {provider?.name ?? key.providerId} — {key.label}
+                            {name} — {key.label}
                           </span>
                         </div>
                       </SelectItem>

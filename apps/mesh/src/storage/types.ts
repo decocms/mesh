@@ -255,6 +255,12 @@ export interface AIProviderKeyTable {
   label: string;
   encrypted_api_key: string;
   key_hash: string | null; // SHA-256 of the plaintext key; null for legacy rows
+  /**
+   * Frontend-controlled subtype for grouping keys under branded preset cards
+   * (e.g. "litellm", "ollama" all map to provider_id = "openai-compatible").
+   * Null for non-preset keys.
+   */
+  preset_id: string | null;
   created_by: string;
   created_at: ColumnType<Date, Date | string, never>;
 }
@@ -264,6 +270,7 @@ export interface ProviderKeyInfo {
   id: string;
   providerId: ProviderId;
   label: string;
+  presetId: string | null;
   organizationId: string;
   createdBy: string;
   createdAt: string;
