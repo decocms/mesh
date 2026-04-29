@@ -31,6 +31,25 @@ if (!process.env.DAEMON_BOOT_ID) {
 }
 
 const config = loadConfig(process.env);
+
+// Inject package-manager cache dirs and corepack behaviour into the process
+// environment so every subprocess (install, dev server, user scripts) inherits
+// them. Done here rather than in the Kubernetes template so the daemon is the
+// single source of truth for sandbox runtime behaviour. Uses ??= so an
+// explicit container env var still wins (useful in tests / local overrides).
+if (config.cacheDir) {
+  process.env.npm_config_cache ??= `${config.cacheDir}/npm`;
+  process.env.PNPM_STORE_PATH ??= `${config.cacheDir}/pnpm`;
+  process.env.YARN_CACHE_FOLDER ??= `${config.cacheDir}/yarn`;
+  process.env.YARN_GLOBAL_FOLDER ??= `${config.cacheDir}/yarn-global`;
+  process.env.BUN_INSTALL_CACHE_DIR ??= `${config.cacheDir}/bun`;
+  process.env.DENO_DIR ??= `${config.cacheDir}/deno`;
+  process.env.XDG_CACHE_HOME ??= `${config.cacheDir}/xdg`;
+}
+// Always suppress corepack's interactive download prompt — the daemon owns
+// install and the dev server must never block on stdin.
+process.env.COREPACK_ENABLE_DOWNLOAD_PROMPT ??= "0";
+
 const dropPrivileges = process.env.DAEMON_DROP_PRIVILEGES === "1";
 
 const broadcaster = new Broadcaster(REPLAY_BYTES);

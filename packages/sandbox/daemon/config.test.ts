@@ -18,6 +18,11 @@ describe("loadConfig", () => {
     expect(cfg.appRoot).toBe("/app");
     expect(cfg.proxyPort).toBe(9000);
     expect(cfg.pathPrefix).toBe("");
+    expect(cfg.cacheDir).toBeNull();
+    expect(cfg.gitCacheDir).toBeNull();
+    expect(cfg.sandboxCacheKey).toBeNull();
+    expect(cfg.nodeModulesCacheDir).toBeNull();
+    expect(cfg.nextCacheDir).toBeNull();
   });
 
   it("derives pathPrefix from runtime=bun", () => {
@@ -89,5 +94,28 @@ describe("loadConfig", () => {
     expect(cfg.packageManager).toBe("pnpm");
     expect(cfg.devPort).toBe(4321);
     expect(cfg.pathPrefix).toBe("export PATH=/opt/bun/bin:$PATH && ");
+  });
+
+  it("derives cache sub-dirs from CACHE_DIR", () => {
+    const cfg = loadConfig({
+      ...base,
+      CACHE_DIR: "/mnt/cache",
+      SANDBOX_CACHE_KEY: "abc123",
+    });
+    expect(cfg.cacheDir).toBe("/mnt/cache");
+    expect(cfg.gitCacheDir).toBe("/mnt/cache/git");
+    expect(cfg.nodeModulesCacheDir).toBe("/mnt/cache/node_modules");
+    expect(cfg.nextCacheDir).toBe("/mnt/cache/next");
+    expect(cfg.sandboxCacheKey).toBe("abc123");
+  });
+
+  it("individual overrides take precedence over CACHE_DIR", () => {
+    const cfg = loadConfig({
+      ...base,
+      CACHE_DIR: "/mnt/cache",
+      GIT_CACHE_DIR: "/custom/git",
+    });
+    expect(cfg.gitCacheDir).toBe("/custom/git");
+    expect(cfg.nodeModulesCacheDir).toBe("/mnt/cache/node_modules");
   });
 });

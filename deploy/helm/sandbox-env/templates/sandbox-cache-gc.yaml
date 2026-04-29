@@ -1,0 +1,101 @@
+{{- if and .Values.cache.enabled .Values.cache.gc.enabled }}
+# Cache garbage-collection CronJob.
+#
+# Deletes node_modules cache slots and git mirrors that haven't been used in
+# cache.gc.ttlDays days. "Used" is defined by:
+#   - node_modules: mtime of the sentinel file (.deco_cache_ok), which the
+#     daemon touches on every cache hit so it reflects last-used, not
+#     last-created time.
+#   - git mirrors: mtime of HEAD, which git updates on every fetch and which
+#     the daemon touches after each TTL refresh.
+#
+# The CronJob runs inside agent-sandbox-system, mounts the same PVC as the
+# sandbox pods, and removes stale entries with `find … -mtime +N -exec rm`.
+# concurrencyPolicy: Forbid ensures at most one GC run at a time.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "sandbox-env.sandboxName" . }}-cache-gc
+  namespace: agent-sandbox-system
+  labels:
+    {{- include "sandbox-env.sandboxLabels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.cache.gc.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "sandbox-env.sandboxLabels" . | nindent 12 }}
+            app.kubernetes.io/component: cache-gc
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: gc
+              image: busybox:1.36
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  TTL={{ .Values.cache.gc.ttlDays }}
+                  CACHE={{ .Values.cache.mountPath }}
+
+                  echo "=== cache-gc start (ttl=${TTL}d) ==="
+
+                  # node_modules: evict slots whose sentinel mtime > TTL days.
+                  # Sentinel is touched on every cache hit so mtime = last-used.
+                  NM_DIR="${CACHE}/node_modules"
+                  if [ -d "$NM_DIR" ]; then
+                    find "$NM_DIR" -maxdepth 2 -name ".deco_cache_ok" \
+                        -mtime "+${TTL}" | while IFS= read -r sentinel; do
+                      slot="$(dirname "$sentinel")"
+                      echo "evict node_modules: $slot"
+                      rm -rf "$slot" "${slot}.lock" 2>/dev/null || true
+                    done
+                  fi
+
+                  # git mirrors: evict bare clones whose HEAD mtime > TTL days.
+                  # HEAD is touched after every fetch (TTL refresh) so mtime = last-used.
+                  GIT_DIR="${CACHE}/git"
+                  if [ -d "$GIT_DIR" ]; then
+                    find "$GIT_DIR" -maxdepth 4 -name "HEAD" \
+                        -mtime "+${TTL}" | while IFS= read -r head; do
+                      mirror="$(dirname "$head")"
+                      echo "evict git mirror: $mirror"
+                      rm -rf "$mirror" "${mirror}.lock" 2>/dev/null || true
+                    done
+                  fi
+
+                  echo "=== cache-gc done ==="
+              volumeMounts:
+                - name: build-cache
+                  mountPath: {{ .Values.cache.mountPath }}
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+          volumes:
+            - name: build-cache
+              persistentVolumeClaim:
+                claimName: {{ include "sandbox-env.sandboxName" . }}-cache
+{{- end }}
