@@ -16,9 +16,10 @@
  *      (sandbox handle missing → operator-evicted on idle TTL). Mapped to
  *      `notFound` which preview.tsx's self-heal flow turns into a VM_START.
  *
- * `ClaimPhase` is duplicated from the server's discriminated union rather
- * than imported — the canonical type lives in `@decocms/sandbox/runner/agent-sandbox`
- * which pulls in K8s deps and is server-only.
+ * `ClaimPhase` is imported as a type-only reference from the canonical
+ * server-side definition; `import type` is erased at build time, so the
+ * web bundle does not pull in `@kubernetes/client-node` or any of the
+ * runner's runtime code.
  */
 
 import {
@@ -29,27 +30,12 @@ import {
   type ReactNode,
 } from "react";
 
-export type ClaimFailureReason =
-  | "image-pull-backoff"
-  | "crash-loop-backoff"
-  | "scheduling-timeout"
-  | "claim-never-created"
-  | "reconciler-error"
-  | "unknown";
+import type {
+  ClaimFailureReason,
+  ClaimPhase,
+} from "@decocms/sandbox/runner/agent-sandbox";
 
-export type ClaimPhase =
-  | { kind: "claiming"; since: number }
-  | {
-      kind: "waiting-for-capacity";
-      since: number;
-      message?: string;
-      nodeClaim?: string;
-    }
-  | { kind: "pulling-image"; since: number }
-  | { kind: "starting-container"; since: number }
-  | { kind: "warming-daemon"; since: number }
-  | { kind: "ready" }
-  | { kind: "failed"; reason: ClaimFailureReason; message: string };
+export type { ClaimFailureReason, ClaimPhase };
 
 export interface VmStatus {
   ready: boolean;
@@ -241,7 +227,26 @@ export function VmEventsProvider({
     };
 
     const handleGone = () => {
+      // The sandbox is gone (idle-evicted, VM_DELETE'd, or its pod terminated
+      // and mesh has stopped finding the handle). Everything we've cached is
+      // about to be stale, so reset:
+      //   - phase: residual `ready` would otherwise keep `lifecycleActive`
+      //     stuck on "Almost ready" in the booting overlay even though
+      //     nothing is starting.
+      //   - status / scripts / processes / branchStatus / log buffers: these
+      //     describe a sandbox that no longer exists. preview.tsx's
+      //     `bootTrackedRef` keys on previewUrl, so flipping `status.ready`
+      //     to false ensures the next provisioned sandbox is treated as a
+      //     fresh boot rather than instantly-ready.
+      // `notFound = true` then drives preview.tsx's self-heal flow when a
+      // vmEntry exists; the empty "Start Server" state when it doesn't.
       setNotFound(true);
+      setPhase(null);
+      setStatus({ ready: false, htmlSupport: false });
+      setScripts([]);
+      setActiveProcesses([]);
+      setBranchStatus(null);
+      buffers.current.clear();
     };
 
     const handleDaemonEvent = (e: MessageEvent) => {

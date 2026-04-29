@@ -14,6 +14,7 @@ import {
   type RunnerKind,
   type SandboxRunner,
 } from "@decocms/sandbox/runner";
+import type { ClaimPhase } from "@decocms/sandbox/runner/agent-sandbox";
 import { getDb } from "@/database";
 import type { Kysely } from "kysely";
 import { meter } from "@/observability";
@@ -209,4 +210,198 @@ export function asLifecycleWatchable(
     return null;
   }
   return runner as unknown as SupportsLifecycleWatch;
+}
+
+// ---------------------------------------------------------------------------
+// Shared lifecycle subscriptions (multi-tab dedup)
+//
+// Each browser tab opening `/api/vm-events` for the same `(orgId, virtualMcpId,
+// branch, callerUserId)` produces the same `claimName` — so without dedup,
+// every tab would open its own set of K8s watches (Pod / Sandbox CR / Events
+// = 3 long-lived API streams per tab). Real users keep 2–3 tabs of the same
+// project open while iterating.
+//
+// `subscribeLifecycle` collapses those onto a single source generator per
+// claim, ref-counted by listener. Last unsubscribe aborts the source and
+// removes the cache entry. New subscribers get the most recent phase replayed
+// synchronously so they don't appear stuck on `claiming` while waiting for
+// the next watch event.
+// ---------------------------------------------------------------------------
+
+interface SharedLifecycleEntry {
+  /** Last phase emitted by the source. Replayed to late joiners. */
+  lastPhase: ClaimPhase | null;
+  /** True after the source emitted a terminal (`ready`/`failed`) phase. */
+  terminated: boolean;
+  /** Active subscriber callbacks. Source is torn down when this hits zero. */
+  listeners: Set<(phase: ClaimPhase) => void>;
+  /** Aborted when listeners drains; closes the underlying watches. */
+  abort: AbortController;
+}
+
+const sharedLifecycles = new Map<string, SharedLifecycleEntry>();
+
+export interface LifecycleHandle {
+  unsubscribe(): void;
+}
+
+/**
+ * Subscribe to a SandboxClaim's lifecycle phase stream. Multiple subscribers
+ * for the same `claimName` share one underlying watcher; `onPhase` is called
+ * for every phase transition observed, plus an immediate replay of the last
+ * known phase if the entry already exists.
+ *
+ * The returned handle's `unsubscribe()` is idempotent. The source watcher is
+ * aborted when the last listener drops or when a terminal phase has been
+ * observed (whichever comes first).
+ */
+export function subscribeLifecycle(
+  watchable: SupportsLifecycleWatch,
+  claimName: string,
+  onPhase: (phase: ClaimPhase) => void,
+): LifecycleHandle {
+  let entry = sharedLifecycles.get(claimName);
+
+  if (entry) {
+    // Already terminated entries are kept around only briefly (until the
+    // generator's finally clears them) — replay the terminal phase to the
+    // new subscriber and skip the listener add. Caller doesn't need more
+    // events from a finished lifecycle.
+    if (entry.terminated) {
+      if (entry.lastPhase) {
+        try {
+          onPhase(entry.lastPhase);
+        } catch {
+          /* swallow */
+        }
+      }
+      return { unsubscribe: noopUnsubscribe };
+    }
+    entry.listeners.add(onPhase);
+    if (entry.lastPhase) {
+      try {
+        onPhase(entry.lastPhase);
+      } catch {
+        /* swallow */
+      }
+    }
+    return makeUnsubscribeHandle(claimName, entry, onPhase);
+  }
+
+  // First subscriber for this claim — create the entry and pump the source.
+  const abort = new AbortController();
+  const newEntry: SharedLifecycleEntry = {
+    lastPhase: null,
+    terminated: false,
+    listeners: new Set([onPhase]),
+    abort,
+  };
+  sharedLifecycles.set(claimName, newEntry);
+
+  void pumpLifecycleSource(watchable, claimName, newEntry);
+
+  return makeUnsubscribeHandle(claimName, newEntry, onPhase);
+}
+
+function noopUnsubscribe() {
+  /* no-op */
+}
+
+function makeUnsubscribeHandle(
+  claimName: string,
+  entry: SharedLifecycleEntry,
+  onPhase: (phase: ClaimPhase) => void,
+): LifecycleHandle {
+  return {
+    unsubscribe() {
+      // Guard against the entry having been recycled — only mutate the entry
+      // we attached to.
+      if (sharedLifecycles.get(claimName) !== entry) return;
+      entry.listeners.delete(onPhase);
+      if (entry.listeners.size === 0) {
+        // Synchronous cleanup avoids a window where a fresh subscribe would
+        // attach to a soon-to-be-aborted entry. The source's finally clause
+        // only deletes if the map still points at this entry.
+        sharedLifecycles.delete(claimName);
+        entry.abort.abort();
+      }
+    },
+  };
+}
+
+async function pumpLifecycleSource(
+  watchable: SupportsLifecycleWatch,
+  claimName: string,
+  entry: SharedLifecycleEntry,
+): Promise<void> {
+  let sourceError: unknown = null;
+  try {
+    for await (const phaseUntyped of watchable.watchClaimLifecycle(
+      claimName,
+      entry.abort.signal,
+    )) {
+      if (entry.abort.signal.aborted) break;
+      const phase = phaseUntyped as ClaimPhase;
+      entry.lastPhase = phase;
+      const isTerminal = phase.kind === "ready" || phase.kind === "failed";
+      if (isTerminal) entry.terminated = true;
+      // Snapshot the listener set — a callback may unsubscribe synchronously
+      // and we don't want to skip subsequent listeners or re-iterate.
+      const snapshot = Array.from(entry.listeners);
+      for (const listener of snapshot) {
+        try {
+          listener(phase);
+        } catch {
+          /* swallow — one bad subscriber shouldn't break the others */
+        }
+      }
+      if (isTerminal) break;
+    }
+  } catch (err) {
+    sourceError = err;
+  } finally {
+    // Source ended without a terminal phase (kube client gave up, generator
+    // threw, etc) and listeners are still attached — surface a synthetic
+    // `failed: unknown` so they don't hang. Listeners that already saw a
+    // terminal phase won't trigger this branch (entry.terminated short-
+    // circuits the loop earlier).
+    if (
+      !entry.terminated &&
+      !entry.abort.signal.aborted &&
+      entry.listeners.size > 0
+    ) {
+      const synthetic: ClaimPhase = {
+        kind: "failed",
+        reason: "unknown",
+        message:
+          sourceError instanceof Error
+            ? sourceError.message
+            : "Lifecycle watcher ended unexpectedly",
+      };
+      entry.lastPhase = synthetic;
+      entry.terminated = true;
+      for (const listener of Array.from(entry.listeners)) {
+        try {
+          listener(synthetic);
+        } catch {
+          /* swallow */
+        }
+      }
+    }
+    if (sharedLifecycles.get(claimName) === entry) {
+      sharedLifecycles.delete(claimName);
+    }
+  }
+}
+
+/**
+ * Test-only escape hatch: the in-memory shared-lifecycle cache is pod-local
+ * and survives across requests. Tests that exercise the dedup flow need to
+ * reset it between runs.
+ *
+ * @internal
+ */
+export function __resetSharedLifecyclesForTesting(): void {
+  for (const entry of sharedLifecycles.values()) entry.abort.abort();
+  sharedLifecycles.clear();
 }

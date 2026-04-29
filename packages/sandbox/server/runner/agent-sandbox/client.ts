@@ -208,9 +208,10 @@ interface KubeFetchInit {
  * Returns the raw `Response` so streaming callers (watch) can consume the
  * body themselves; non-streaming callers parse JSON explicitly.
  *
- * Package-internal: re-exported only for sibling modules in this directory
- * (e.g. lifecycle-watcher) that need the same transport. Not surfaced via
- * `index.ts` — callers outside the runner should not depend on this.
+ * @internal Package-internal — re-exported only for sibling modules in this
+ *   directory (e.g. lifecycle-watcher) that need the same transport. Not
+ *   surfaced via `index.ts` and not part of the package's public API.
+ *   External consumers must use `proxyDaemonRequest` or the runner methods.
  */
 export async function kubeFetch(
   kc: KubeConfig,
@@ -808,8 +809,9 @@ export function waitForSandboxReady(
 /**
  * ND-JSON line reader over a WHATWG ReadableStream.
  *
- * Package-internal export: sibling modules (lifecycle-watcher) consume the
- * same kube watch streams and parse them this way. Not exposed via index.ts.
+ * @internal Package-internal — sibling modules (lifecycle-watcher) consume the
+ *   same kube watch streams and parse them this way. Not exposed via
+ *   `index.ts` and not part of the package's public API.
  */
 export async function* readNdJson<T>(
   stream: ReadableStream<Uint8Array>,

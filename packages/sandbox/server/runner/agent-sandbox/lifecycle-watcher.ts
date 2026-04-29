@@ -41,36 +41,17 @@ import { type KubeConfig } from "@kubernetes/client-node";
 import { K8S_CONSTANTS } from "./constants";
 import { kubeFetch, readNdJson } from "./client";
 import type { SandboxResource } from "./client";
+import type { ClaimPhase } from "./lifecycle-types";
+
+export type {
+  ClaimFailureReason,
+  ClaimPhase,
+} from "./lifecycle-types";
 
 const SANDBOX_HANDLE_LABEL = "studio.decocms.com/sandbox-handle";
 const MAIN_CONTAINER_NAME = "sandbox";
 
 const DEFAULT_SCHEDULING_TIMEOUT_MS = 5 * 60 * 1000;
-
-// ---- Public types -----------------------------------------------------------
-
-export type ClaimFailureReason =
-  | "image-pull-backoff"
-  | "crash-loop-backoff"
-  | "scheduling-timeout"
-  | "claim-never-created"
-  | "reconciler-error"
-  | "unknown";
-
-export type ClaimPhase =
-  | { kind: "claiming"; since: number }
-  | {
-      kind: "waiting-for-capacity";
-      since: number;
-      message?: string;
-      /** Karpenter-emitted nodeclaim name when a node is being provisioned. */
-      nodeClaim?: string;
-    }
-  | { kind: "pulling-image"; since: number }
-  | { kind: "starting-container"; since: number }
-  | { kind: "warming-daemon"; since: number }
-  | { kind: "ready" }
-  | { kind: "failed"; reason: ClaimFailureReason; message: string };
 
 export interface WatchClaimLifecycleOptions {
   kc: KubeConfig;
@@ -224,11 +205,13 @@ export async function* watchClaimLifecycle(
     }
   }
 
-  // Periodic tick re-evaluates the phase reducer without needing a fresh
-  // watch event — used to drive the scheduling-timeout failure transition
-  // when the cluster goes silent (no fresh FailedScheduling events for a
-  // while but also no progress).
-  const tickInterval = setInterval(() => push("tick"), 5_000);
+  // The only time-based transition the reducer makes is `scheduling-timeout`,
+  // which fires when `now() - startedAt > schedulingTimeoutMs` *and* a
+  // FailedScheduling event has been observed. A single deadline timer is
+  // therefore enough to drive that transition — no need to poll every 5s.
+  // Anything earlier is reducer-driven by a fresh pod/sandbox/event signal.
+  const deadlineMs = Math.max(0, schedulingTimeoutMs - (now() - startedAt));
+  const deadlineTimer = setTimeout(() => push("tick"), deadlineMs + 100);
 
   // Run watches concurrently. They each push signals into the queue and
   // never throw out of the watch loop — closure is via `controller.abort()`.
@@ -263,7 +246,6 @@ export async function* watchClaimLifecycle(
 
   try {
     let lastEmittedKey: string | null = null;
-    let lastEmitted: ClaimPhase | null = null;
     // Monotonic floor: track the highest non-terminal phase we've emitted so
     // we don't regress on transient observations (e.g. a container that
     // briefly enters `terminated` state between restarts has no waiting
@@ -275,7 +257,6 @@ export async function* watchClaimLifecycle(
     // Emit an initial phase immediately so the caller sees something even
     // before the first watch event lands.
     const initial = derivePhase(state, schedulingTimeoutMs, now);
-    lastEmitted = initial;
     lastEmittedKey = phaseKey(initial);
     if (!isTerminal(initial)) highestRank = phaseRank(initial);
     yield initial;
@@ -290,7 +271,6 @@ export async function* watchClaimLifecycle(
       if (isTerminal(phase)) {
         const key = phaseKey(phase);
         if (key !== lastEmittedKey) {
-          lastEmitted = phase;
           lastEmittedKey = key;
           yield phase;
         }
@@ -300,21 +280,13 @@ export async function* watchClaimLifecycle(
       if (rank < highestRank) continue; // Don't regress.
       const key = phaseKey(phase);
       if (key !== lastEmittedKey) {
-        lastEmitted = phase;
         lastEmittedKey = key;
         highestRank = rank;
         yield phase;
       }
     }
-
-    // Closed without a terminal phase — yield the last seen phase if it
-    // hasn't been emitted, otherwise nothing to do.
-    if (!lastEmitted) {
-      const phase = derivePhase(state, schedulingTimeoutMs, now);
-      yield phase;
-    }
   } finally {
-    clearInterval(tickInterval);
+    clearTimeout(deadlineTimer);
     controller.abort();
     if (opts.signal) opts.signal.removeEventListener("abort", onAbort);
     close();

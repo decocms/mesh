@@ -10,7 +10,8 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import { derivePhase, type ClaimPhase } from "./lifecycle-watcher";
+import { derivePhase } from "./lifecycle-watcher";
+import type { ClaimPhase } from "./lifecycle-types";
 
 type State = Parameters<typeof derivePhase>[0];
 

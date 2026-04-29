@@ -80,7 +80,8 @@ import {
   SandboxAlreadyExistsError,
   SandboxError,
 } from "./constants";
-import { watchClaimLifecycle, type ClaimPhase } from "./lifecycle-watcher";
+import { watchClaimLifecycle } from "./lifecycle-watcher";
+import type { ClaimPhase } from "./lifecycle-types";
 
 const RUNNER_KIND = "agent-sandbox" as const;
 const LOG_LABEL = "AgentSandboxRunner";

@@ -45,6 +45,7 @@ import type { ClaimPhase } from "@decocms/sandbox/runner/agent-sandbox";
 import {
   asLifecycleWatchable,
   getOrInitSharedRunner,
+  subscribeLifecycle,
 } from "../../sandbox/lifecycle";
 import {
   getUserId,
@@ -54,11 +55,14 @@ import {
 import type { Env } from "../hono-env";
 
 /**
- * Hard cap on how long we'll keep the SSE open if a claim never materializes
- * (e.g. caller raced VM_START but VM_START failed before
- * `createSandboxClaim`). Prevents indefinite "claiming" streams.
+ * Cap on how long we keep the SSE open if a claim never materializes (e.g.
+ * caller raced VM_START but VM_START failed before `createSandboxClaim`).
+ * 90s is enough to absorb karpenter cold-start (~60–90s) plus a few seconds
+ * of operator latency; longer waits indicate VM_START never posted the claim
+ * and the user benefits from a faster failure surface so the retry button
+ * appears promptly.
  */
-const NO_CLAIM_MAX_MS = 5 * 60 * 1000;
+const NO_CLAIM_MAX_MS = 90_000;
 
 const HEARTBEAT_MS = 15_000;
 
@@ -161,10 +165,13 @@ app.get("/", async (c) => {
 });
 
 /**
- * Drives the lifecycle generator (or its no-op equivalent for non-agent-sandbox
- * runners) until a terminal phase. Returns `true` if the terminal phase was
- * `ready` (caller proceeds to daemon proxy), `false` otherwise (failed,
- * aborted, or watchdog-tripped).
+ * Drives the lifecycle phase stream (or its no-op equivalent for
+ * non-agent-sandbox runners) until a terminal phase. Returns `true` if the
+ * terminal phase was `ready` (caller proceeds to daemon proxy), `false`
+ * otherwise (failed, aborted, or watchdog-tripped).
+ *
+ * Subscribes via `subscribeLifecycle` so multiple SSE clients for the same
+ * claim (multi-tab) share one underlying set of K8s watches.
  */
 async function emitLifecycle(args: {
   stream: import("hono/streaming").SSEStreamingApi;
@@ -198,62 +205,53 @@ async function emitLifecycle(args: {
     return true;
   }
 
-  const startedAt = Date.now();
-  let claimSeen = false;
+  return new Promise<boolean>((resolve) => {
+    let settled = false;
+    let claimSeen = false;
+    let handle: { unsubscribe(): void } | null = null;
 
-  // Watchdog: if we've been streaming for NO_CLAIM_MAX_MS and the watcher
-  // has only ever surfaced `claiming` (i.e. the SandboxClaim never
-  // materialized), close with a `claim-never-created` failure. Prevents
-  // zombie streams when VM_START failed before posting the claim.
-  const watchdogAbort = new AbortController();
-  const composedSignal = composeSignals(signal, watchdogAbort.signal);
-  const watchdog = setInterval(() => {
-    if (claimSeen) return;
-    if (Date.now() - startedAt < NO_CLAIM_MAX_MS) return;
-    stream
-      .writeSSE({
-        event: "phase",
-        data: JSON.stringify({
-          kind: "failed",
-          reason: "claim-never-created",
-          message:
-            "Sandbox claim was never created. The VM_START call may have failed earlier — check the start error.",
-        } satisfies ClaimPhase),
-      })
-      .catch(() => {});
-    watchdogAbort.abort();
-  }, 30_000);
+    const settle = (result: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(watchdogTimer);
+      signal.removeEventListener("abort", onAbort);
+      handle?.unsubscribe();
+      resolve(result);
+    };
 
-  try {
-    for await (const phaseUntyped of watchable.watchClaimLifecycle(
-      claimName,
-      composedSignal,
-    )) {
-      const phase = phaseUntyped as ClaimPhase;
+    // Watchdog: if the source has only ever surfaced `claiming` after
+    // NO_CLAIM_MAX_MS, the SandboxClaim was never posted (VM_START likely
+    // failed earlier). Surface `claim-never-created` so the UI shows the
+    // retry affordance instead of stalling.
+    const watchdogTimer = setTimeout(() => {
+      if (claimSeen || settled) return;
+      stream
+        .writeSSE({
+          event: "phase",
+          data: JSON.stringify({
+            kind: "failed",
+            reason: "claim-never-created",
+            message:
+              "Sandbox claim was never created. The VM_START call may have failed earlier — check the start error.",
+          } satisfies ClaimPhase),
+        })
+        .catch(() => {});
+      settle(false);
+    }, NO_CLAIM_MAX_MS);
+
+    const onAbort = () => settle(false);
+    signal.addEventListener("abort", onAbort, { once: true });
+
+    handle = subscribeLifecycle(watchable, claimName, (phase) => {
+      if (settled) return;
       if (phase.kind !== "claiming") claimSeen = true;
-      await stream.writeSSE({
-        event: "phase",
-        data: JSON.stringify(phase),
-      });
-      if (phase.kind === "ready") return true;
-      if (phase.kind === "failed") return false;
-    }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    await stream
-      .writeSSE({
-        event: "phase",
-        data: JSON.stringify({
-          kind: "failed",
-          reason: "unknown",
-          message,
-        } satisfies ClaimPhase),
-      })
-      .catch(() => {});
-  } finally {
-    clearInterval(watchdog);
-  }
-  return false;
+      stream
+        .writeSSE({ event: "phase", data: JSON.stringify(phase) })
+        .catch(() => {});
+      if (phase.kind === "ready") settle(true);
+      else if (phase.kind === "failed") settle(false);
+    });
+  });
 }
 
 /**
@@ -408,22 +406,6 @@ function sleepAbortable(ms: number, signal: AbortSignal): Promise<void> {
     };
     signal.addEventListener("abort", onAbort, { once: true });
   });
-}
-
-/**
- * Combine two AbortSignals into one. Aborts whenever either source aborts.
- * Used so the lifecycle generator stops both on client disconnect *and* on
- * the no-claim watchdog tripping.
- */
-function composeSignals(a: AbortSignal, b: AbortSignal): AbortSignal {
-  if (a.aborted) return a;
-  if (b.aborted) return b;
-  const composed = new AbortController();
-  const onAbortA = () => composed.abort();
-  const onAbortB = () => composed.abort();
-  a.addEventListener("abort", onAbortA, { once: true });
-  b.addEventListener("abort", onAbortB, { once: true });
-  return composed.signal;
 }
 
 export const vmEventsRoutes = app;
