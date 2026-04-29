@@ -44,7 +44,6 @@ import { Sheet, SheetContent, SheetTitle } from "@deco/ui/components/sheet.tsx";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { AlertCircle, Loading01, Menu01 } from "@untitledui/icons";
 import {
-  getDecopilotId,
   getWellKnownDecopilotVirtualMCP,
   SELF_MCP_ALIAS_ID,
   useMCPClient,
@@ -94,13 +93,7 @@ export function useInsetContext(): InsetContextValue | null {
 // Agent inset sub-components
 // ---------------------------------------------------------------------------
 
-function ActiveTaskBoundary({
-  children,
-  variant,
-}: {
-  children?: React.ReactNode;
-  variant?: "home" | "default";
-}) {
+function ActiveTaskBoundary({ children }: { children?: React.ReactNode }) {
   const { taskId } = useChatTask();
   return (
     <ErrorBoundary
@@ -112,7 +105,7 @@ function ActiveTaskBoundary({
     >
       <Suspense fallback={<Chat.Skeleton />}>
         <Chat.ActiveTaskProvider taskId={taskId}>
-          {children ?? <ChatCenterPanel variant={variant} />}
+          {children ?? <ChatCenterPanel />}
         </Chat.ActiveTaskProvider>
       </Suspense>
     </ErrorBoundary>
@@ -251,8 +244,6 @@ function AgentInsetProvider() {
   };
   const virtualMcpId =
     search.virtualmcpid ?? getWellKnownDecopilotVirtualMCP(org.id).id;
-  const isDecopilot = virtualMcpId === getDecopilotId(org.id);
-  const isAgentRoute = !isDecopilot;
 
   // Ensure the thread row exists for this URL before rendering the chat. On
   // 404 the hook fires COLLECTION_THREADS_CREATE (idempotent) and surfaces a
@@ -276,7 +267,7 @@ function AgentInsetProvider() {
   const layout = useChatMainPanelState(entityMetadata, {
     virtualMcpId,
     orgSlug,
-    isAgentRoute,
+    isAgentRoute: true,
   });
 
   const { setOpenMobile, openMobile: mobileSidebarOpen } = useSidebar();
@@ -404,13 +395,7 @@ function AgentInsetProvider() {
               />
               <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
               <div className="flex-1 min-h-0 overflow-hidden">
-                {params.taskId ? (
-                  <ActiveTaskBoundary
-                    variant={isDecopilot ? "home" : undefined}
-                  />
-                ) : (
-                  <HomePage />
-                )}
+                {params.taskId ? <ActiveTaskBoundary /> : <HomePage />}
               </div>
               {mobileSidebarSheet}
             </VmEventsBridge>
@@ -425,7 +410,6 @@ function AgentInsetProvider() {
     <InsetContext value={insetContextValue}>
       <Toolbar.Toggles>
         <ToggleButtons
-          isDecopilot={isDecopilot}
           chatOpen={layout.chatOpen}
           toggleChat={layout.toggleChat}
           onNewTask={tasksOpen ? undefined : layout.createNewTask}
@@ -433,7 +417,7 @@ function AgentInsetProvider() {
       </Toolbar.Toggles>
 
       <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
-        {params.taskId && !isDecopilot && (
+        {params.taskId && (
           <Toolbar.Tabs>
             <MainPanelTabsBar
               virtualMcpId={virtualMcpId}
@@ -449,7 +433,7 @@ function AgentInsetProvider() {
         >
           {params.taskId ? (
             <>
-              {!isDecopilot && <VirtualMcpHeaderInfo virtualMcp={entity} />}
+              <VirtualMcpHeaderInfo virtualMcp={entity} />
               <NewTaskBridge
                 onNewTaskRef={onNewTask}
                 createNewTask={layout.createNewTask}
@@ -459,11 +443,7 @@ function AgentInsetProvider() {
                 taskId={layout.taskId}
                 chatOpen={layout.chatOpen}
                 mainOpen={layout.mainOpen}
-                chatContent={
-                  <ActiveTaskBoundary
-                    variant={isDecopilot ? "home" : undefined}
-                  />
-                }
+                chatContent={<ActiveTaskBoundary />}
               />
             </>
           ) : (
