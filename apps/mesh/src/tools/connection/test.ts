@@ -31,6 +31,8 @@ export const CONNECTION_TEST = defineTool({
   handler: async (input, ctx) => {
     // Require organization context
     const organization = requireOrganization(ctx);
+
+    // Check authorization
     await ctx.access.check();
 
     // Fetch connection to verify org ownership before testing

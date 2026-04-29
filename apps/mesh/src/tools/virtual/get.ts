@@ -44,6 +44,7 @@ export const COLLECTION_VIRTUAL_MCP_GET = defineTool({
   handler: async (input, ctx) => {
     requireAuth(ctx);
     const organization = requireOrganization(ctx);
+
     await ctx.access.check();
 
     // Get the virtual MCP
