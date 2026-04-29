@@ -8,19 +8,27 @@
 # provision time; this job cuts claims earlier when the daemon reports the
 # pod has been idle for longer than idleTtlSeconds.
 #
-# Probe failure (network error, non-2xx, timeout) is treated as idle — an
-# unreachable daemon means a broken pod that should be reaped. The 2s curl
-# timeout is intentionally short; a healthy daemon responds in <50ms.
+# Probe failure handling: a single connect error or timeout is retried once
+# (`curl --retry 1 --retry-all-errors --max-time 2 --retry-delay 1`). If both
+# attempts fail OR the body has no parseable idleMs the claim is SKIPPED, not
+# reaped. Truly broken pods are caught by the ReconcilerError branch above
+# (operator-side liveness) — reaping a Ready=True pod just because the script
+# couldn't reach it once means a NetworkPolicy/CNI/DNS blip wipes every
+# sandbox in one sweep. Cost of skipping: at most one extra TTL window of
+# resource hold; cost of false reap: user loses live work.
+#
+# Each reap also deletes the per-claim HTTPRoute first so traffic stops
+# resolving to the pod before it enters termination (avoids 502s in the
+# shutdown window). The route is matched by label
+# `studio.decocms.com/sandbox-handle=<claim>` rather than by name so this
+# survives any future change to the operator's route-naming convention.
+# (mesh stamps both the route name AND the handle label — see
+#  packages/sandbox/server/runner/agent-sandbox/runner.ts:1039,1043)
 #
 # Enable in exactly ONE env release per namespace — SandboxClaims carry no
 # env label so every enabled housekeeper sweeps all studio claims in
 # agent-sandbox-system. Multiple active housekeepers cause duplicate probes
 # and competing deletes (harmless but wasteful).
-#
-# Each reap also deletes the per-claim HTTPRoute (same name as the claim,
-# created by the operator for preview URL routing). The operator does not
-# attach an ownerReference from HTTPRoute → SandboxClaim, so without this
-# the routes leak into agent-sandbox-system every time a claim disappears.
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -38,18 +46,23 @@ metadata:
   labels:
     {{- include "sandbox-env.labels" . | nindent 4 }}
 rules:
+  # SandboxClaim is the reap target. Annotate is used to stamp the reap
+  # reason just before delete so kube-audit retains a breadcrumb.
   - apiGroups: ["extensions.agents.x-k8s.io"]
     resources: ["sandboxclaims"]
-    verbs: ["get", "list", "delete"]
-  - apiGroups: ["agents.x-k8s.io"]
-    resources: ["sandboxes"]
-    verbs: ["get"]
+    verbs: ["get", "list", "patch", "delete"]
+  # Pod IPs are read directly via a label-selected list, so we don't need
+  # `agents.x-k8s.io/sandboxes` get permission anymore. Pods carry the
+  # `studio.decocms.com/sandbox-handle` label set by mesh's runner.ts
+  # buildClaim → additionalPodMetadata path.
   - apiGroups: [""]
     resources: ["pods"]
-    verbs: ["get"]
+    verbs: ["list"]
+  # HTTPRoute deletion is by label selector (studio.decocms.com/sandbox-handle),
+  # which requires `list` in addition to `delete`.
   - apiGroups: ["gateway.networking.k8s.io"]
     resources: ["httproutes"]
-    verbs: ["delete"]
+    verbs: ["list", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -77,11 +90,18 @@ metadata:
 spec:
   schedule: {{ .Values.housekeeper.schedule | quote }}
   concurrencyPolicy: Forbid
+  # Without this, a missed slot (controller-manager downtime, scheduling
+  # pressure) is silently skipped instead of catching up. 240s gives the
+  # next sweep ~one schedule interval to recover before being abandoned.
+  startingDeadlineSeconds: 240
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
       activeDeadlineSeconds: {{ .Values.housekeeper.activeDeadlineSeconds }}
+      # Clean up finished pod objects faster than failedJobsHistoryLimit
+      # alone — keeps `kubectl get pods` in agent-sandbox-system tidy.
+      ttlSecondsAfterFinished: 300
       template:
         metadata:
           labels:
@@ -89,90 +109,159 @@ spec:
         spec:
           serviceAccountName: {{ include "sandbox-env.housekeeperName" . }}
           restartPolicy: Never
+          # Restricted-PSS-compliant: runs as non-root, no privilege
+          # escalation, no capabilities, read-only rootfs. /tmp is mounted
+          # via emptyDir for any temporary scratch curl/sh might need.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            fsGroup: 1001
+            seccompProfile:
+              type: RuntimeDefault
           containers:
             - name: housekeeper
-              image: bitnami/kubectl:latest
+              image: {{ .Values.housekeeper.image.repository }}:{{ .Values.housekeeper.image.tag }}
+              imagePullPolicy: {{ .Values.housekeeper.image.pullPolicy }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                {{- toYaml .Values.housekeeper.resources | nindent 16 }}
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+              env:
+                - name: RUN_ID
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
               command: ["/bin/sh", "-c"]
               args:
                 - |
-                  set -e
+                  set -eu
                   NS="agent-sandbox-system"
                   TTL_MS={{ mul .Values.housekeeper.idleTtlSeconds 1000 }}
-                  echo "[housekeeper] idle TTL=${TTL_MS}ms — scanning claims..."
+                  NOW_ISO=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+                  echo "[housekeeper] run=$RUN_ID ttl=${TTL_MS}ms ns=$NS — scanning"
 
-                  # Delete the HTTPRoute before the SandboxClaim so traffic
-                  # stops resolving to the pod before it enters termination
-                  # (avoids 502s in the shutdown window). The operator
-                  # creates the HTTPRoute with metadata.name = claim name,
-                  # so we can address it by the claim name directly.
-                  reap_claim() {
-                    local claim="$1"
-                    kubectl delete httproute "$claim" -n "$NS" --ignore-not-found || true
-                    kubectl delete sandboxclaim "$claim" -n "$NS" --ignore-not-found || true
-                  }
+                  # The selector below mirrors STUDIO_CLAIM_LABEL_SELECTOR /
+                  # buildClaim() in mesh's runner.ts (~line 877). Keep both
+                  # in sync; if mesh ever adds a third selector label, this
+                  # silently drifts to wrong scope otherwise.
+                  CLAIM_SELECTOR="app.kubernetes.io/managed-by=studio,app.kubernetes.io/name=studio-sandbox"
 
-                  CLAIMS=$(kubectl get sandboxclaims -n "$NS" \
-                    -l "app.kubernetes.io/managed-by=studio,app.kubernetes.io/name=studio-sandbox" \
-                    -o jsonpath='{.items[*].metadata.name}')
+                  # Single API call returns name + Ready status + Ready reason
+                  # for every studio claim. One JSONPath line per claim, fields
+                  # separated by '|' so awk/cut can split without jq.
+                  CLAIMS_TSV=$(kubectl get sandboxclaims -n "$NS" \
+                    -l "$CLAIM_SELECTOR" \
+                    -o jsonpath='{range .items[*]}{.metadata.name}|{.status.conditions[?(@.type=="Ready")].status}|{.status.conditions[?(@.type=="Ready")].reason}{"\n"}{end}' \
+                    2>/dev/null || true)
 
-                  if [ -z "$CLAIMS" ]; then
+                  if [ -z "$CLAIMS_TSV" ]; then
                     echo "[housekeeper] no studio sandbox claims found"
                     exit 0
                   fi
 
-                  for CLAIM in $CLAIMS; do
-                    echo "[housekeeper] checking $CLAIM"
+                  # Pod IPs in one call, keyed by sandbox-handle. The
+                  # additionalPodMetadata path in mesh runner.ts:892 stamps
+                  # `studio.decocms.com/sandbox-handle=<handle>` and
+                  # `studio.decocms.com/role=claimed` on every claimed pod.
+                  PODS_TSV=$(kubectl get pods -n "$NS" \
+                    -l "studio.decocms.com/role=claimed" \
+                    -o jsonpath='{range .items[*]}{.metadata.labels.studio\.decocms\.com/sandbox-handle}|{.status.podIP}{"\n"}{end}' \
+                    2>/dev/null || true)
 
-                    READY=$(kubectl get sandboxclaim "$CLAIM" -n "$NS" \
-                      -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' \
-                      2>/dev/null || true)
-                    REASON=$(kubectl get sandboxclaim "$CLAIM" -n "$NS" \
-                      -o jsonpath='{.status.conditions[?(@.type=="Ready")].reason}' \
-                      2>/dev/null || true)
+                  pod_ip_for() {
+                    # $1 = claim handle. Echoes pod IP or empty.
+                    printf '%s\n' "$PODS_TSV" \
+                      | awk -F'|' -v h="$1" '$1==h && $2!="" { print $2; exit }'
+                  }
 
+                  reap_claim() {
+                    # $1 = claim handle, $2 = reason (idle|reconciler-error)
+                    local claim="$1" reason="$2"
+                    # Annotate first so kube-audit retains why this claim
+                    # disappeared. The annotation lives only as long as the
+                    # claim object itself, so this is best-effort breadcrumbs
+                    # rather than long-term forensics.
+                    kubectl annotate sandboxclaim "$claim" -n "$NS" --overwrite \
+                      "studio.decocms.com/reap-reason=$reason" \
+                      "studio.decocms.com/reap-at=$NOW_ISO" \
+                      "studio.decocms.com/reap-run=$RUN_ID" >/dev/null 2>&1 || true
+                    # Route deletion uses the sandbox-handle label
+                    # (LABEL_KEYS.sandboxHandle in mesh runner.ts:1570) to
+                    # survive any future operator route-naming change.
+                    kubectl delete httproute -n "$NS" \
+                      -l "studio.decocms.com/sandbox-handle=$claim" \
+                      --ignore-not-found >/dev/null 2>&1 || true
+                    kubectl delete sandboxclaim "$claim" -n "$NS" \
+                      --ignore-not-found >/dev/null 2>&1 || true
+                    echo "[housekeeper] reap=ok claim=$claim reason=$reason"
+                  }
+
+                  # Strip blank lines, then iterate.
+                  echo "$CLAIMS_TSV" | awk -F'|' 'NF>=1 && $1!=""' | while IFS='|' read -r CLAIM READY REASON; do
                     if [ "$READY" = "False" ] && [ "$REASON" = "ReconcilerError" ]; then
-                      echo "[housekeeper] $CLAIM stuck in ReconcilerError — reaping"
-                      reap_claim "$CLAIM"
+                      reap_claim "$CLAIM" "reconciler-error"
                       continue
                     fi
 
                     if [ "$READY" != "True" ]; then
-                      echo "[housekeeper] $CLAIM not ready (ready=$READY reason=$REASON) — skipping"
+                      echo "[housekeeper] skip=not-ready claim=$CLAIM ready=${READY:-<none>} reason=${REASON:-<none>}"
                       continue
                     fi
 
-                    POD_NAME=$(kubectl get sandbox "$CLAIM" -n "$NS" \
-                      -o jsonpath='{.metadata.annotations.agents\.x-k8s\.io/pod-name}' \
-                      2>/dev/null || true)
-                    if [ -z "$POD_NAME" ]; then
-                      echo "[housekeeper] $CLAIM: no pod annotation — skipping"
-                      continue
-                    fi
-
-                    POD_IP=$(kubectl get pod "$POD_NAME" -n "$NS" \
-                      -o jsonpath='{.status.podIP}' 2>/dev/null || true)
+                    POD_IP=$(pod_ip_for "$CLAIM")
                     if [ -z "$POD_IP" ]; then
-                      echo "[housekeeper] $POD_NAME: no pod IP — skipping"
+                      echo "[housekeeper] skip=no-pod-ip claim=$CLAIM"
                       continue
                     fi
 
-                    # Probe the daemon. Failure (network error, non-2xx, timeout)
-                    # falls back to TTL_MS so the claim is treated as idle and reaped.
-                    RESPONSE=$(curl -sf --max-time 2 \
-                      "http://${POD_IP}:9000/_decopilot_vm/idle" 2>/dev/null \
-                      || printf '{"idleMs":%s}' "$TTL_MS")
+                    # Probe daemon. `--retry 1 --retry-all-errors --retry-delay 1`
+                    # absorbs a single transient blip (CNI churn, brief net hiccup).
+                    # Two failed attempts → SKIP (don't reap); see top-of-file
+                    # rationale.
+                    #
+                    # Daemon contract: 200 OK with body `{"idleMs":<int>,...}`.
+                    # Coupling lives at /_decopilot_vm/idle in the daemon image.
+                    # If that field is renamed or nested, the sed regex below
+                    # silently produces no match and the claim is skipped.
+                    if RESPONSE=$(curl -sf --max-time 2 \
+                          --retry 1 --retry-all-errors --retry-delay 1 \
+                          "http://${POD_IP}:9000/_decopilot_vm/idle" 2>/dev/null); then
+                      :
+                    else
+                      echo "[housekeeper] skip=probe-failed claim=$CLAIM pod_ip=$POD_IP"
+                      continue
+                    fi
+
                     IDLE_MS=$(printf '%s' "$RESPONSE" \
-                      | sed -n 's/.*"idleMs":\([0-9][0-9]*\).*/\1/p')
-                    IDLE_MS=${IDLE_MS:-$TTL_MS}
+                      | sed -n 's/.*"idleMs"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p')
+
+                    # Defensive: only digits past this point. set -eu would
+                    # otherwise abort the loop on a bad numeric compare.
+                    case "$IDLE_MS" in
+                      ''|*[!0-9]*)
+                        echo "[housekeeper] skip=bad-response claim=$CLAIM body=$(printf '%s' "$RESPONSE" | head -c 80)"
+                        continue
+                        ;;
+                    esac
 
                     if [ "$IDLE_MS" -ge "$TTL_MS" ]; then
-                      echo "[housekeeper] reaping $CLAIM — idle ${IDLE_MS}ms >= ttl ${TTL_MS}ms"
-                      reap_claim "$CLAIM"
+                      echo "[housekeeper] decision=reap claim=$CLAIM idle_ms=$IDLE_MS ttl_ms=$TTL_MS"
+                      reap_claim "$CLAIM" "idle"
                     else
                       REMAINING=$((TTL_MS - IDLE_MS))
-                      echo "[housekeeper] $CLAIM active — idle ${IDLE_MS}ms, ${REMAINING}ms until ttl"
+                      echo "[housekeeper] decision=keep claim=$CLAIM idle_ms=$IDLE_MS remaining_ms=$REMAINING"
                     fi
                   done
 
-                  echo "[housekeeper] done"
+                  echo "[housekeeper] run=$RUN_ID done"
+          volumes:
+            - name: tmp
+              emptyDir: {}
 {{- end }}

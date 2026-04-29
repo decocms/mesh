@@ -238,7 +238,8 @@ mesh:
 # ── idle-reap housekeeper ──────────────────────────────────────────────
 # CronJob that probes each Ready sandbox daemon's /_decopilot_vm/idle and
 # deletes claims idle longer than idleTtlSeconds. Also clears claims stuck
-# in ReconcilerError.
+# in ReconcilerError. Probe failures are SKIPPED (not reaped) — see
+# templates/sandbox-housekeeper.yaml header for the full rationale.
 #
 # Enable in exactly ONE env release per namespace — SandboxClaims carry no
 # env label so every active housekeeper sweeps all studio claims in
@@ -246,9 +247,26 @@ mesh:
 housekeeper:
   enabled: false
   # Seconds of inactivity before a claim is deleted. Should match (or be
-  # shorter than) DEFAULT_IDLE_TTL_MS in runner.ts (default 900s / 15min).
+  # shorter than) DEFAULT_IDLE_TTL_MS in mesh's runner.ts (default 900s).
   idleTtlSeconds: 900
   # How often to sweep. Every 5min gives ≤5min overshoot on a 15min TTL.
   schedule: "*/5 * * * *"
-  # Hard job deadline. 300s handles ~100 sandboxes at 2s/probe with headroom.
-  activeDeadlineSeconds: 300
+  # Hard job deadline. The script now batches API calls (1 list of claims +
+  # 1 list of pods) instead of 4 per-claim, so the bottleneck is the curl
+  # probe at ~1.5s/claim worst-case. 600s ≈ 400 sandboxes with headroom.
+  activeDeadlineSeconds: 600
+  # Pinned for reproducibility — `latest` would silently change behavior
+  # at the next scheduled run. Bump on a deliberate version refresh.
+  image:
+    repository: bitnami/kubectl
+    tag: "1.32"
+    pullPolicy: IfNotPresent
+  # Tight by design: the script does N kubectl calls + N curls and exits.
+  # Scale up only if you observe OOMKills under high claim counts.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
