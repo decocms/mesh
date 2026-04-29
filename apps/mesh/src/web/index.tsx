@@ -208,17 +208,11 @@ const unifiedChatRoute = createRoute({
   component: () => null,
 });
 
-// Org index redirects to a fresh decopilot task
+// Org index renders the home page (handled by AgentInsetProvider's
+// branch on params.taskId).
 const orgIndexRoute = createRoute({
   getParentRoute: () => agentShellLayout,
   path: "/",
-  beforeLoad: ({ params }) => {
-    const taskId = crypto.randomUUID();
-    throw redirect({
-      to: "/$org/$taskId",
-      params: { org: params.org, taskId },
-    });
-  },
   component: () => null,
 });
 
