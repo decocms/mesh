@@ -76,7 +76,7 @@ function SidebarEmptyState() {
 
 // ---------- Panel content ----------
 
-function ChatPanelContent(_: { variant?: "home" | "default" }) {
+function ChatPanelContent() {
   const { org } = useProjectContext();
   const allKeys = useAiProviderKeys();
   const { isChatEmpty } = useChatStream();
@@ -158,11 +158,11 @@ function ChatPanelContent(_: { variant?: "home" | "default" }) {
   );
 }
 
-export function ChatPanel({ variant }: { variant?: "home" | "default" }) {
+export function ChatPanel() {
   return (
     <ErrorBoundary fallback={<Chat.Skeleton />}>
       <Suspense fallback={<Chat.Skeleton />}>
-        <ChatPanelContent variant={variant} />
+        <ChatPanelContent />
       </Suspense>
     </ErrorBoundary>
   );

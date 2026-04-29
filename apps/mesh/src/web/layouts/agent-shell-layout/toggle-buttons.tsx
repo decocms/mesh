@@ -18,8 +18,6 @@ import { useTasksPanelState } from "@/web/hooks/use-tasks-panel-state";
 import { track } from "@/web/lib/posthog-client";
 
 export interface ToggleButtonsProps {
-  /** @deprecated unused after home/decopilot decoupling — removed in next commit */
-  isDecopilot?: boolean;
   chatOpen: boolean;
   toggleChat: () => void;
   /** When set, reveals an animated "new task" button next to the chat toggle. */
