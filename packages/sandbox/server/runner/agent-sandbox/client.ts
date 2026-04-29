@@ -668,6 +668,41 @@ export async function ensureServicePort(
   }
 }
 
+interface SandboxClaimList {
+  items: SandboxResource[];
+}
+
+/**
+ * List SandboxClaims in `namespace`, optionally filtered by a label selector
+ * (e.g. `app.kubernetes.io/managed-by=studio`). Used by the idle-sweep to
+ * iterate every claim mesh has ever provisioned, not just the ones in the
+ * in-process records cache (which is cold after a mesh restart while the pods
+ * are still alive).
+ *
+ * Returns an empty array on a missing namespace (404) so callers don't have
+ * to special-case fresh installs.
+ */
+export async function listSandboxClaims(
+  kc: KubeConfig,
+  namespace: string,
+  labelSelector?: string,
+): Promise<SandboxResource[]> {
+  const search = labelSelector
+    ? `?labelSelector=${encodeURIComponent(labelSelector)}`
+    : "";
+  const path = `${CLAIM_PATH_PREFIX}/${encodeURIComponent(namespace)}/${K8S_CONSTANTS.CLAIM_PLURAL}${search}`;
+  console.log("listSandboxClaims", path);
+  const found = await callSwallowing404<SandboxClaimList>(
+    kc,
+    { method: "GET", path },
+    "listSandboxClaims",
+    `Failed to list SandboxClaims in namespace ${namespace}`,
+    "json",
+  );
+  console.log("listSandboxClaims found", found);
+  return found?.items ?? [];
+}
+
 export interface WaitForSandboxReadyResult {
   sandboxName: string;
   podName: string;

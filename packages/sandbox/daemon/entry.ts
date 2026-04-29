@@ -17,9 +17,11 @@ import { makeKillHandler } from "./routes/kill";
 import { makeScriptsHandler } from "./routes/scripts";
 import { makeHealthHandler } from "./routes/health";
 import { makeEventsHandler } from "./routes/events-stream";
+import { makeIdleHandler } from "./routes/idle";
 import { makeProxyHandler } from "./proxy";
 import { makeWsUpgrader, type WsProxyData } from "./ws-proxy";
 import { jsonResponse } from "./routes/body-parser";
+import { bumpActivity } from "./activity";
 import { startUpstreamProbe } from "./probe";
 import { BranchStatusMonitor } from "./git/branch-status";
 import { discoverDescendantListeningPorts } from "./process/port-discovery";
@@ -125,6 +127,7 @@ const eventsH = makeEventsHandler({
   getActiveProcesses: () => processManager.activeNames(),
   getLastBranchStatus: () => branchStatus.getLast(),
 });
+const idleH = makeIdleHandler();
 const proxyH = makeProxyHandler({ broadcaster, getDevPort });
 const wsProxy = makeWsUpgrader(getDevPort);
 
@@ -135,6 +138,14 @@ Bun.serve<WsProxyData, never>({
   async fetch(req, server) {
     const url = new URL(req.url);
     const p = url.pathname;
+
+    // Bump activity for any meaningful inbound request. Skipped paths must
+    // not count as "user activity" or the idle sweep would never see the
+    // pod as idle: /health is mesh's readiness probe (polled at boot only,
+    // but cheap to skip anyway); /_decopilot_vm/idle is the sweep itself.
+    if (p !== "/health" && p !== "/_decopilot_vm/idle") {
+      bumpActivity();
+    }
 
     // WebSocket upgrade — Vite HMR + any other dev-server WS. We forward
     // to in-pod localhost:devPort so HMR survives the daemon's reverse
@@ -150,6 +161,7 @@ Bun.serve<WsProxyData, never>({
 
     if (p === "/health" && req.method === "GET") return healthH();
 
+    if (req.method === "GET" && p === "/_decopilot_vm/idle") return idleH();
     if (req.method === "GET" && p === "/_decopilot_vm/events") return eventsH();
     if (req.method === "GET" && p === "/_decopilot_vm/scripts")
       return scriptsHandler();

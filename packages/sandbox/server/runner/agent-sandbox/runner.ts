@@ -40,6 +40,7 @@ import type {
 import {
   daemonBash,
   probeDaemonHealth,
+  probeDaemonIdle,
   proxyDaemonRequest,
   waitForDaemonReady,
 } from "../../daemon-client";
@@ -68,6 +69,7 @@ import {
   ensureServicePort,
   getSandboxClaim,
   HTTPROUTE_CONSTANTS,
+  listSandboxClaims,
   patchSandboxClaimShutdown,
   waitForSandboxClaimGone,
   waitForSandboxReady,
@@ -122,11 +124,23 @@ const RESERVED_ENV_KEYS = new Set([
   "PACKAGE_MANAGER",
 ]);
 
-// Default idle-reap TTL: 15 min from each ensure() hit. Every code-initiated
-// request flows through ensure() (or touches a record via getRecord, which
-// bumps the TTL on the K8s side), so an active sandbox pushes this forward;
-// abandoned sandboxes roll off at T+15m via the operator.
+// Default idle-reap TTL: 15 min. Encoded into the claim's
+// `spec.lifecycle.shutdownTime` at provision time and refreshed by the
+// idle-sweep loop (`startIdleSweep`) whenever the daemon reports recent
+// activity. Mesh code paths don't push the deadline directly — the daemon
+// is the single source of truth because it sees 100% of traffic to the pod
+// (preview reverse-proxy, /_decopilot_vm/* admin, exec, SSE, websocket).
 const DEFAULT_IDLE_TTL_MS = 15 * 60 * 1000;
+// Sweep cadence: idleTtlMs / 5 → ~3 min on the default 15-min TTL. Picks
+// up activity well before the deadline elapses while keeping the K8s API
+// call rate proportional to (active sandboxes / sweep period).
+const IDLE_SWEEP_DIVISOR = 5;
+const IDLE_SWEEP_MIN_INTERVAL_MS = 30_000;
+// Selector matches the labels `buildClaim` writes on every studio claim.
+// Filters out any non-studio sandboxes that share the namespace (e.g. the
+// deco/ai workload's `purpose=deco-environment` claims).
+const STUDIO_CLAIM_LABEL_SELECTOR =
+  "app.kubernetes.io/managed-by=studio,app.kubernetes.io/name=studio-sandbox";
 
 /**
  * Handle shape: `studio-sb-<slug>-<hash16>` when a branch is supplied,
@@ -316,6 +330,17 @@ export interface AgentSandboxRunnerOptions {
     name: string;
     namespace: string;
   };
+  /**
+   * Set `false` to disable the idle-sweep background loop. Defaults to
+   * enabled. Tests that want to drive ticks deterministically pass `false`
+   * and call `runIdleSweepOnce()` themselves.
+   */
+  idleSweepEnabled?: boolean;
+  /**
+   * Override sweep cadence (ms). Defaults to `idleTtlMs / IDLE_SWEEP_DIVISOR`,
+   * floored to `IDLE_SWEEP_MIN_INTERVAL_MS`.
+   */
+  idleSweepIntervalMs?: number;
 }
 
 export class AgentSandboxRunner implements SandboxRunner {
@@ -344,6 +369,11 @@ export class AgentSandboxRunner implements SandboxRunner {
    * adopt, and delete.
    */
   private readonly previewGateway: { name: string; namespace: string } | null;
+  private readonly idleSweepIntervalMs: number;
+  private idleSweepTimer: ReturnType<typeof setInterval> | null = null;
+  /** True while a sweep is in flight; the next tick skips so they don't pile up. */
+  private idleSweepRunning = false;
+  private closed = false;
 
   constructor(opts: AgentSandboxRunnerOptions = {}) {
     this.stateStore = opts.stateStore ?? null;
@@ -365,6 +395,15 @@ export class AgentSandboxRunner implements SandboxRunner {
       opts.previewGateway && opts.previewUrlPattern
         ? { ...opts.previewGateway }
         : null;
+    this.idleSweepIntervalMs =
+      opts.idleSweepIntervalMs ??
+      Math.max(
+        IDLE_SWEEP_MIN_INTERVAL_MS,
+        Math.floor(this.idleTtlMs / IDLE_SWEEP_DIVISOR),
+      );
+    if (opts.idleSweepEnabled !== false) {
+      this.startIdleSweep();
+    }
   }
 
   // ---- SandboxRunner surface ------------------------------------------------
@@ -1375,7 +1414,12 @@ export class AgentSandboxRunner implements SandboxRunner {
     return new Promise((resolve, reject) => {
       const tryBind = (port: number, attempt: number) => {
         const server = net.createServer((socket) =>
-          this.handleForwardedConnection(socket, podName, containerPort),
+          this.handleForwardedConnection(
+            socket,
+            podName,
+            containerPort,
+            handle,
+          ),
         );
         server.once("error", (err: NodeJS.ErrnoException) => {
           if (err.code === "EADDRINUSE" && attempt < PORT_WALK_LIMIT) {
@@ -1411,6 +1455,7 @@ export class AgentSandboxRunner implements SandboxRunner {
     socket: net.Socket,
     podName: string,
     containerPort: number,
+    handle: string,
   ): void {
     // Inbound bytes pipe through a PassThrough rather than the socket
     // directly: `portForward` attaches its 'data' listener only after the
@@ -1455,7 +1500,10 @@ export class AgentSandboxRunner implements SandboxRunner {
         }
         ws = opened as ForwardWebSocket;
         ws.on("close", cleanup);
-        ws.on("error", cleanup);
+        ws.on("error", () => {
+          this.invalidateRecord(handle);
+          cleanup();
+        });
         if (closed) {
           try {
             ws.close();
@@ -1466,6 +1514,7 @@ export class AgentSandboxRunner implements SandboxRunner {
         console.warn(
           `[${LOG_LABEL}] port-forward to ${podName}:${containerPort} failed: ${err instanceof Error ? err.message : String(err)}`,
         );
+        this.invalidateRecord(handle);
         cleanup();
       });
   }
@@ -1478,6 +1527,127 @@ export class AgentSandboxRunner implements SandboxRunner {
         );
       }
     });
+  }
+
+  // ---- Idle sweep -----------------------------------------------------------
+
+  /**
+   * Start the periodic sweep that refreshes `spec.lifecycle.shutdownTime` on
+   * any claim whose daemon reports recent activity (`idleMs < idleTtlMs`).
+   * Idle claims are intentionally left alone — the operator's deadline is
+   * already correct and will reap them.
+   *
+   * Idempotent: a second call with the timer already running is a no-op.
+   * `unref()` so the sweep doesn't keep the Bun process alive on shutdown.
+   */
+  private startIdleSweep(): void {
+    if (this.idleSweepTimer || this.closed) return;
+    const timer = setInterval(() => {
+      void this.runIdleSweepOnce();
+    }, this.idleSweepIntervalMs);
+    if (typeof timer.unref === "function") timer.unref();
+    this.idleSweepTimer = timer;
+  }
+
+  /**
+   * One sweep tick. Public-ish (called via the public `close()` and from
+   * tests) — never throws; logs and continues per claim so a single failed
+   * probe doesn't block the rest. Skips if already running so a slow K8s
+   * apiserver can't stack up overlapping sweeps.
+   */
+  async runIdleSweepOnce(): Promise<void> {
+    if (this.idleSweepRunning || this.closed) return;
+    this.idleSweepRunning = true;
+    try {
+      const claims = await listSandboxClaims(
+        this.kubeConfig,
+        this.namespace,
+        STUDIO_CLAIM_LABEL_SELECTOR,
+      ).catch((err) => {
+        console.warn(
+          `[${LOG_LABEL}] idle-sweep list failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        return [] as SandboxResource[];
+      });
+      // Process serially. Sweep is bounded by the number of active studio
+      // sandboxes (tens, not thousands) and runs every ~3 min — burst-firing
+      // K8s API patches in parallel is unnecessary load.
+      for (const claim of claims) {
+        if (this.closed) break;
+        await this.refreshClaimIfActive(claim);
+      }
+    } finally {
+      this.idleSweepRunning = false;
+    }
+  }
+
+  /**
+   * Probe one claim's daemon and patch `shutdownTime` if it's been touched
+   * within `idleTtlMs`. No-op when:
+   *  - claim isn't ready (operator will mark not-ready or reap on its own),
+   *  - daemon URL can't be resolved (dev mode + cold records cache: skip
+   *    rather than burn a port-forward solely for the sweep),
+   *  - `/idle` is unreachable (transient pod issue; let the operator decide),
+   *  - daemon reports `idleMs >= idleTtlMs` (operator's deadline is correct;
+   *    leaving shutdownTime alone allows reaping).
+   */
+  private async refreshClaimIfActive(claim: SandboxResource): Promise<void> {
+    const handle = claim.metadata?.name;
+    if (!handle) return;
+    if (!isSandboxReady(claim)) return;
+    const daemonUrl = this.resolveSweepDaemonUrl(claim);
+    if (!daemonUrl) return;
+    const idle = await probeDaemonIdle(daemonUrl);
+    if (!idle) return;
+    if (idle.idleMs >= this.idleTtlMs) return;
+    await patchSandboxClaimShutdown(
+      this.kubeConfig,
+      this.namespace,
+      handle,
+      this.computeShutdownTime(),
+    ).catch((err) =>
+      console.warn(
+        `[${LOG_LABEL}] idle-sweep TTL refresh failed for ${handle}: ${err instanceof Error ? err.message : String(err)}`,
+      ),
+    );
+  }
+
+  /**
+   * Pick a URL the sweep can use to reach the daemon without disturbing
+   * the in-memory record state.
+   *  - prod (in-cluster mesh, `previewUrlPattern` set): synthesize the
+   *    in-cluster Service URL straight from the handle. No port-forward,
+   *    no rehydrate.
+   *  - dev: use only the cached record's port-forwarder. Skipping cold
+   *    sandboxes is fine because dev usage is single-user; if the user
+   *    isn't actively using it, letting it reap is correct.
+   */
+  private resolveSweepDaemonUrl(claim: SandboxResource): string | null {
+    const handle = claim.metadata?.name;
+    if (!handle) return null;
+    if (this.previewUrlPattern) {
+      return `http://${handle}.${this.namespace}.svc.cluster.local:${DAEMON_CONTAINER_PORT}`;
+    }
+    const cached = this.records.get(handle);
+    return cached?.daemonUrl ?? null;
+  }
+
+  /**
+   * Stop the idle sweep, close any open port-forwarders, and prevent
+   * further provisioning. Tests call this in afterEach; mesh wires it to
+   * graceful-shutdown if/when one exists.
+   */
+  close(): void {
+    if (this.closed) return;
+    this.closed = true;
+    if (this.idleSweepTimer) {
+      clearInterval(this.idleSweepTimer);
+      this.idleSweepTimer = null;
+    }
+    for (const rec of this.records.values()) {
+      this.closeForwarder(rec.daemonForward);
+    }
+    this.records.clear();
   }
 }
 

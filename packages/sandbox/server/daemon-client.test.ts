@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import {
   daemonBash,
   probeDaemonHealth,
+  probeDaemonIdle,
   proxyDaemonRequest,
 } from "./daemon-client";
 
@@ -92,6 +93,50 @@ describe("probeDaemonHealth", () => {
         }),
     );
     expect(await probeDaemonHealth("http://daemon:9000")).toBeNull();
+  });
+});
+
+describe("probeDaemonIdle", () => {
+  it("returns DaemonIdleStatus when fetch resolves with valid shape", async () => {
+    const { calls } = installFetch(
+      () =>
+        new Response(
+          JSON.stringify({
+            lastActivityAt: "2026-04-01T12:00:00.000Z",
+            idleMs: 1234,
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    );
+    const result = await probeDaemonIdle("http://daemon:9000");
+    expect(result).toEqual({
+      lastActivityAt: "2026-04-01T12:00:00.000Z",
+      idleMs: 1234,
+    });
+    expect(calls[0]!.input).toBe("http://daemon:9000/_decopilot_vm/idle");
+  });
+
+  it("returns null when fetch rejects (network error)", async () => {
+    installFetch(() => {
+      throw new Error("ECONNREFUSED");
+    });
+    expect(await probeDaemonIdle("http://daemon:9000")).toBeNull();
+  });
+
+  it("returns null on non-2xx status", async () => {
+    installFetch(() => new Response("boom", { status: 502 }));
+    expect(await probeDaemonIdle("http://daemon:9000")).toBeNull();
+  });
+
+  it("returns null when body shape is wrong", async () => {
+    installFetch(
+      () =>
+        new Response(JSON.stringify({ idleMs: "nope" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+    expect(await probeDaemonIdle("http://daemon:9000")).toBeNull();
   });
 });
 

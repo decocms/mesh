@@ -97,6 +97,22 @@ function readPreviewGateway(): { name: string; namespace: string } | undefined {
   return { name, namespace };
 }
 
+// Idle-reap window for agent-sandbox claims, in milliseconds. Encoded into
+// the claim's `spec.lifecycle.shutdownTime` at provision time and refreshed
+// by the runner's idle-sweep loop whenever the daemon reports recent
+// activity. The daemon is the single source of truth — it sees 100% of pod
+// traffic (preview, exec, SSE), so iframe-only sessions stay alive without
+// mesh having to instrument every code path that represents activity.
+// Empty/unset → AgentSandboxRunner's built-in 15-minute default. Lower
+// values reclaim cluster capacity faster but make the resurrection path
+// (re-clone + re-install on revisit) more user-visible.
+function readSandboxIdleTtlMs(): number | undefined {
+  const raw = process.env.STUDIO_SANDBOX_IDLE_TTL_MS;
+  if (!raw || raw.trim() === "") return undefined;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
 async function instantiate(
   kind: RunnerKind,
   db: Kysely<DatabaseSchema>,
@@ -129,6 +145,7 @@ async function instantiate(
         previewUrlPattern,
         sandboxTemplateName: readSandboxTemplateName(),
         previewGateway: readPreviewGateway(),
+        idleTtlMs: readSandboxIdleTtlMs(),
         meter,
       });
     }
