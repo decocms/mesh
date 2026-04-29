@@ -984,32 +984,34 @@ export function ProviderCardGrid({
       )}
       <SettingsSection>
         <SettingsCard>
-          {cloudProviders.map((provider) => (
-            <ProviderCard
-              key={provider.id}
-              provider={provider}
-              keys={allKeys.filter((k) => k.providerId === provider.id)}
-            />
-          ))}
-          {showOpenAICompatibleSection && (
-            <>
-              {OPENAI_COMPATIBLE_PRESETS.map((preset) => (
-                <OpenAICompatiblePresetCard
-                  key={preset.id}
-                  preset={preset}
-                  keys={openaiCompatibleKeys.filter(
-                    (k) => k.presetId === preset.id,
-                  )}
-                />
-              ))}
-              <OpenAICompatiblePresetCard
-                key="custom"
-                preset={null}
-                keys={openaiCompatibleKeys.filter((k) => !k.presetId)}
-                fallbackLogo={openaiCompatibleProvider?.logo}
+          {[
+            ...cloudProviders.map((provider) => (
+              <ProviderCard
+                key={provider.id}
+                provider={provider}
+                keys={allKeys.filter((k) => k.providerId === provider.id)}
               />
-            </>
-          )}
+            )),
+            ...(showOpenAICompatibleSection
+              ? [
+                  ...OPENAI_COMPATIBLE_PRESETS.map((preset) => (
+                    <OpenAICompatiblePresetCard
+                      key={preset.id}
+                      preset={preset}
+                      keys={openaiCompatibleKeys.filter(
+                        (k) => k.presetId === preset.id,
+                      )}
+                    />
+                  )),
+                  <OpenAICompatiblePresetCard
+                    key="custom"
+                    preset={null}
+                    keys={openaiCompatibleKeys.filter((k) => !k.presetId)}
+                    fallbackLogo={openaiCompatibleProvider?.logo}
+                  />,
+                ]
+              : []),
+          ]}
         </SettingsCard>
       </SettingsSection>
     </div>
