@@ -156,7 +156,7 @@ export function startLocalSandboxIngress(
     // one per retry and trip MaxListenersExceededWarning after ~10 EADDRINUSE.
     server.on("listening", () => {
       console.log(
-        `[mesh-sandbox-ingress] forwarding *.localhost → ${host}:${port}`,
+        `[studio-sandbox-ingress] forwarding *.localhost → ${host}:${port}`,
       );
     });
     const tryListen = (): void => {
@@ -167,7 +167,7 @@ export function startLocalSandboxIngress(
         if (!warnedInUse) {
           warnedInUse = true;
           console.warn(
-            `[mesh-sandbox-ingress] ${host}:${port} in use — waiting for previous process to release (up to ${MAX_RETRIES / 2}s)...`,
+            `[studio-sandbox-ingress] ${host}:${port} in use — waiting for previous process to release (up to ${MAX_RETRIES / 2}s)...`,
           );
         }
         attempt++;
@@ -182,12 +182,12 @@ export function startLocalSandboxIngress(
               port +
               " -sTCP:LISTEN -n -P`";
         console.warn(
-          `[mesh-sandbox-ingress] ${host}:${port} still in use after ${MAX_RETRIES / 2}s; giving up${hint}.`,
+          `[studio-sandbox-ingress] ${host}:${port} still in use after ${MAX_RETRIES / 2}s; giving up${hint}.`,
         );
         return;
       }
       console.warn(
-        `[mesh-sandbox-ingress] ${host}:${port} listen error: ${err.message}`,
+        `[studio-sandbox-ingress] ${host}:${port} listen error: ${err.message}`,
       );
     });
     tryListen();

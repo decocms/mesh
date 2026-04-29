@@ -1,0 +1,201 @@
+# Default values for the sandbox-env chart.
+#
+# This chart is independent of chart-deco-studio and of the sandbox-operator
+# chart. It installs the Studio-side resources that consume the operator's
+# CRDs (SandboxTemplate, RBAC, NetworkPolicy, optional WarmPool, optional
+# preview Gateway/Certificate). Install one release per environment that
+# needs to use the operator — every resource name is suffixed with
+# `envName` so multiple releases coexist in `agent-sandbox-system`.
+#
+# Cross-chart wiring lives under `mesh.*`: tell this chart where the studio
+# release for THIS environment runs so the RBAC RoleBinding, NetworkPolicy
+# ingress selector, and preview HTTPRoute backendRef can reach it. There is
+# no runtime coupling back the other way — studio consumes nothing from
+# this chart at install time; it simply talks to the operator's CRDs and
+# the daemon Service the operator creates per SandboxClaim.
+#
+# Mesh side: the studio install for THIS environment must point its runner
+# at the env-suffixed SandboxTemplate by setting
+#   STUDIO_SANDBOX_TEMPLATE_NAME=studio-sandbox-<envName>
+# in the studio chart's `configMap.meshConfig`. Without that override mesh
+# falls back to "studio-sandbox" (no suffix) and claim creation will fail
+# with "sandboxtemplate not found".
+
+# ── env identity ───────────────────────────────────────────────────────
+# Required. Used as suffix on every resource name this chart creates so
+# multiple releases (dev / staging / prod / ...) coexist in the shared
+# `agent-sandbox-system` namespace without collisions. Examples:
+#   envName=staging  →  SandboxTemplate/studio-sandbox-staging,
+#                       Role/studio-sandbox-runner-staging,
+#                       NetworkPolicy/studio-sandbox-staging,
+#                       Gateway/agent-sandbox-preview-staging, ...
+# Use a short DNS label (a-z0-9-, 1-32 chars). Conventionally matches the
+# studio (chart-deco-studio) release name for the same environment.
+envName: ""
+
+# ── sandbox pod image (used by SandboxTemplate) ────────────────────────
+image:
+  repository: ghcr.io/decocms/studio/studio-sandbox
+  # Pinned to a specific version so chart upgrades pull a matching image
+  # instead of silently moving with `:latest`. Bump in lockstep with
+  # packages/sandbox/package.json — release-studio-sandbox.yaml tags
+  # images using that version. NEVER set this to "latest" in prod.
+  tag: "0.1.0"
+  # Override to Never on local kind clusters that load via `kind load`.
+  pullPolicy: IfNotPresent
+
+# ── sandbox pod resources (per SandboxClaim) ───────────────────────────
+# Prod ceilings. Adjust per measured workload.
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 4Gi
+    ephemeral-storage: 10Gi
+
+# ── sandbox NetworkPolicy ──────────────────────────────────────────────
+networkPolicy:
+  enabled: true
+  # DEPRECATED: kept only for installs whose external gateway terminates
+  # *directly* on the sandbox's port 3000 (dev server). The default
+  # preview path goes through mesh and lands on port 9000 (daemon)
+  # instead, so all standard installs leave this empty. See
+  # `previewGateway` below for the supported Istio Gateway API path.
+  # Will be removed in a future chart version — open an issue if you
+  # still need it.
+  previewGatewayNamespace: ""
+  # Operator-supplied egress rules (NetworkPolicyEgressRule[]) merged
+  # into the sandbox NetworkPolicy. The base policy denies in-cluster
+  # egress; use this to grant *specific* exceptions (e.g. an in-cluster
+  # OTel collector if the daemon ever emits OTLP). Empty = no extra
+  # egress.
+  #
+  # extraEgress:
+  #   - to:
+  #       - namespaceSelector:
+  #           matchLabels:
+  #             kubernetes.io/metadata.name: monitoring
+  #         podSelector:
+  #           matchLabels:
+  #             app.kubernetes.io/name: opentelemetry-collector
+  #     ports:
+  #       - protocol: TCP
+  #         port: 4318
+  extraEgress: []
+
+# ── sandbox-pod scheduling ─────────────────────────────────────────────
+# Pin sandbox pods to a dedicated NodePool so a container escape lands on
+# a node that has no mesh / postgres / NATS / OTel pods on it. Pair with a
+# Karpenter NodePool that taints + labels matching nodes; see README.md
+# for the snippet. Empty defaults run sandbox pods on whatever the
+# scheduler picks.
+nodeSelector: {}
+# nodeSelector:
+#   workload: sandbox
+tolerations: []
+# tolerations:
+#   - key: workload
+#     operator: Equal
+#     value: sandbox
+#     effect: NoSchedule
+# Affinity rules merged into the sandbox PodSpec. Use podAffinity to
+# co-locate sandbox pods on the same node (cheaper warm-pool packing,
+# shared image cache); use nodeAffinity for soft node preferences that
+# nodeSelector can't express. Empty default = scheduler picks.
+affinity: {}
+
+# ── sandbox-pod hardening ──────────────────────────────────────────────
+# User namespace remap (`spec.hostUsers: false`): UID 1000 inside the pod
+# maps to a high, unprivileged subordinate UID on the node, so a
+# container escape doesn't land as a real node UID. Requires K8s 1.30+
+# with a containerd/kernel that support userns (EKS default AMIs from
+# late 2024 onward are fine; kind nodes vary).
+#
+# Defaults to the secure path because this chart runs untrusted user
+# code. Override to true (back to host users) ONLY on clusters whose
+# kernel/containerd doesn't support userns — symptoms of unsupported
+# runtime are pod scheduling failures with messages like "user
+# namespaces are not enabled".
+hostUsers: false
+
+# Read-only root filesystem. When true, /app + /tmp + /home/sandbox are
+# remounted as emptyDirs and `safe.directory '*'` is set so git works
+# against the chowned mount.
+#
+# Defaults to true (secure path). Override to false ONLY if a workload
+# writes outside the three covered emptyDirs and you've measured the
+# resulting failure mode. Validate end-to-end (clone + bun/npm install +
+# dev server start) on staging before merging an override.
+readOnlyRootFilesystem: true
+
+# ── warm pool ──────────────────────────────────────────────────────────
+warmPool:
+  # Enable only after measuring cold-start pain; every warm pod costs
+  # the full resources.requests above.
+  enabled: false
+  size: 0
+
+# ── preview URL gateway (optional) ─────────────────────────────────────
+# Wildcard preview-URL ingress (Approach B in the K8s sandbox plan).
+# Renders an Istio Gateway + HTTPRoute that send all *.preview.<domain>
+# traffic to the mesh Service; mesh recognises the Host header and
+# reverse-proxies to the matching sandbox's daemon at port 9000 (daemon,
+# not dev port 3000 — the daemon's reverse proxy injects the HMR
+# bootstrap + strips CSP that the iframe needs).
+#
+# Manual prerequisites (not templated):
+#   1. DNS: Cloudflare (or other) wildcard `*.preview.<domain>` → cluster
+#      external LB hostname.
+#   2. cert-manager ClusterIssuer for the wildcard cert. DNS-01 is
+#      required (HTTP-01 doesn't work for wildcards). Set `clusterIssuer`
+#      to that issuer's name.
+previewGateway:
+  enabled: false
+  # gatewayClassName for the Gateway. EKS clusters running Istio
+  # ambient/sidecar default to "istio". Confirm with
+  # `kubectl get gatewayclasses` before flipping enabled=true.
+  gatewayClassName: "istio"
+  # Namespace where the Gateway + HTTPRoute land. Mesh's existing gateway
+  # typically lives in `istio-system`; some setups use a dedicated
+  # `gateway` ns. The cert Secret is created in the same ns.
+  namespace: "istio-system"
+  # Wildcard domain for previews — e.g. "preview.decocms.com" yields
+  # `*.preview.decocms.com`. Required when enabled=true.
+  domain: ""
+  # cert-manager ClusterIssuer that issues the wildcard cert. Required
+  # when enabled=true. The chart does NOT template the ClusterIssuer
+  # itself — that is per-cluster infrastructure (a Cloudflare DNS-01
+  # issuer, for example, needs your API token in a Secret).
+  clusterIssuer: ""
+  # PEM-format secret name created by cert-manager. Defaults to
+  # `agent-sandbox-preview-<envName>-tls`. Override only if the cert
+  # lives under a name dictated by external tooling.
+  tlsSecretName: ""
+
+# ── mesh cross-references ──────────────────────────────────────────────
+# Tells this chart where the chart-deco-studio release for THIS
+# environment runs so the RBAC RoleBinding, NetworkPolicy ingress
+# selector, and preview-Gateway HTTPRoute backendRef all point at it.
+# These values must match the namespace + release-name + service-port of
+# the studio install for the same env.
+mesh:
+  # Namespace where the studio release runs. The mesh ServiceAccount and
+  # mesh Service are looked up here.
+  namespace: "deco-studio"
+  # Name of the mesh ServiceAccount that gets the RoleBinding allowing
+  # SandboxClaim CRUD + portforward against agent-sandbox-system.
+  # Conventionally the studio release name (chart.fullname).
+  serviceAccountName: "deco-studio"
+  # Name of the mesh Service the preview HTTPRoute forwards traffic to.
+  # Conventionally the studio release name.
+  serviceName: "deco-studio"
+  # Port on the mesh Service the preview HTTPRoute targets. Match
+  # studio's `service.port` (default 80).
+  servicePort: 80
+  # Pod selector labels that identify mesh pods for the NetworkPolicy
+  # ingress rule. Should match the studio chart's selectorLabels.
+  podSelectorLabels:
+    app.kubernetes.io/name: "chart-deco-studio"
+    app.kubernetes.io/instance: "deco-studio"

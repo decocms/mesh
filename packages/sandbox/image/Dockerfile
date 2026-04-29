@@ -1,4 +1,4 @@
-# Build: docker build -t mesh-sandbox:local -f packages/sandbox/image/Dockerfile packages/sandbox
+# Build: docker build -t studio-sandbox:local -f packages/sandbox/image/Dockerfile packages/sandbox
 FROM oven/bun:1.3.13-debian
 
 ARG NODE_MAJOR=22

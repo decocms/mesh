@@ -240,12 +240,12 @@ describe("DockerSandboxRunner.ensure() — fresh provision", () => {
 
     // Labels: root + id-scoped.
     const labelRoot = runArgs.findIndex(
-      (a, i) => a === "--label" && runArgs[i + 1] === "mesh-sandbox=1",
+      (a, i) => a === "--label" && runArgs[i + 1] === "studio-sandbox=1",
     );
     expect(labelRoot).toBeGreaterThanOrEqual(0);
     const labelId = runArgs.findIndex(
       (a, i) =>
-        a === "--label" && runArgs[i + 1]?.startsWith("mesh-sandbox.id="),
+        a === "--label" && runArgs[i + 1]?.startsWith("studio-sandbox.id="),
     );
     expect(labelId).toBeGreaterThanOrEqual(0);
 
