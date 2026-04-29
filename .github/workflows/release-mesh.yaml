@@ -3,10 +3,6 @@ name: Release Mesh
 on:
   push:
     branches: [main]
-    # Keep this in sync with apps/mesh/package.json's workspace deps —
-    # any path mesh imports from at build time should fire the release,
-    # otherwise a fix landed only in a workspace package (like the
-    # agent-sandbox runner under packages/sandbox) ships nothing.
     paths:
       - "apps/mesh/**"
       - "packages/runtime/**"

@@ -1,16 +1,10 @@
 name: Release Tagging
 
 on:
-  # Keep these path lists in sync with release-mesh.yaml — anything that
-  # ships in the mesh image needs to fire the version-bump tagging too,
-  # otherwise a workspace-only change merges to main without a tag and
-  # the user has to touch apps/mesh/ by hand to force a release.
   pull_request_target:
     types: [opened, synchronize]
     paths:
       - "apps/mesh/**"
-      - "packages/bindings/**"
-      - "packages/mcp-utils/**"
       - "packages/mesh-plugin-*/**"
       - "packages/sandbox/**"
   push:
@@ -18,8 +12,6 @@ on:
       - main
     paths:
       - "apps/mesh/**"
-      - "packages/bindings/**"
-      - "packages/mcp-utils/**"
       - "packages/mesh-plugin-*/**"
       - "packages/sandbox/**"
 
