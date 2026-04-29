@@ -5,6 +5,7 @@ import {
   readFileSync,
   readlinkSync,
   symlinkSync,
+  unlinkSync,
   utimesSync,
 } from "node:fs";
 import { dirname } from "node:path";
@@ -200,6 +201,14 @@ export async function linkNodeModules(deps: CacheDeps): Promise<boolean> {
       "setup",
       `\r\nWarning: node_modules cache install failed (exit ${code}), falling back to direct install\r\n`,
     );
+    // Remove the symlink so the fallback install writes to real node_modules
+    // on ephemeral storage instead of the (possibly full) PVC slot.
+    try {
+      unlinkSync(nmPath);
+    } catch {
+      // Non-fatal: fallback install will likely also fail but the error will
+      // be surfaced to the user.
+    }
     return false;
   }
 

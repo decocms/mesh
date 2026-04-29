@@ -54,7 +54,23 @@ async function spawnCloneWithReference(deps: CloneDeps): Promise<number> {
   const headFile = `${mirror}/HEAD`;
   const lockFile = `${mirror}.lock`;
 
-  mkdirSync(dirname(mirror), { recursive: true });
+  try {
+    mkdirSync(dirname(mirror), { recursive: true });
+  } catch {
+    // PVC full or unavailable — skip the mirror and fall back to direct clone.
+    onChunk(
+      "setup",
+      `\r\nWarning: git cache dir unavailable, falling back to direct clone\r\n`,
+    );
+    onChunk(
+      "setup",
+      `$ git clone --depth 1 ${config.repoName} ${config.appRoot}\r\n`,
+    );
+    return spawnShell(
+      `git clone --depth 1 ${config.cloneUrl} ${config.appRoot}`,
+      { dropPrivileges, onChunk },
+    );
+  }
 
   // Check mirror state before acquiring flock (cheap, best-effort).
   let headMtimeMs: number | null = null;
