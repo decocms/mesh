@@ -8,7 +8,7 @@
  *   │   • Toolbar.TabsSlot    (portal target — main-panel tab bar)
  *   │   • Toolbar.TogglesSlot (portal target — tasks/chat)
  *   └── flex-row
- *       ├── TasksPanelColumn               (outside Suspense, 212px fixed)
+ *       ├── TasksPanelColumn               (owned by org-shell-layout)
  *       └── Suspense
  *           └── AgentInsetProvider
  *               • useVirtualMCP (suspends here)
@@ -56,7 +56,6 @@ import { useChatMainPanelState } from "@/web/hooks/use-layout-state";
 import { getActiveGithubRepo } from "@/web/lib/github-repo";
 import { useOptionalTasksPanelState } from "@/web/hooks/use-tasks-panel-state";
 import { Toolbar } from "./toolbar";
-import { TasksPanelColumn } from "./tasks-panel-column";
 import { ChatMainPanelGroup } from "./chat-main-panel-group";
 import { ToggleButtons } from "./toggle-buttons";
 import { MainPanelTabsBar } from "@/web/layouts/main-panel-tabs/main-panel-tabs-bar";
@@ -212,7 +211,7 @@ function VmEventsBridge({
 
 // ---------------------------------------------------------------------------
 // AgentInsetProvider — resolves virtualMcpId, provides InsetContext,
-// wraps in Chat.Provider, renders chat+main panel group.
+// wraps in Chat.Provider, renders the task-scoped chat+main panel group.
 // ---------------------------------------------------------------------------
 
 function AgentInsetProvider() {
@@ -394,61 +393,58 @@ function AgentInsetProvider() {
   }
 
   // Desktop — portal toggle buttons into outer toolbar, render chat+main group.
-  // Renders alongside <TasksPanelColumn /> as siblings inside the org-shell-layout's
-  // flex-row outlet, so this branch returns a fragment of [tasks column, content].
+  // The org-wide tasks column is owned by org-shell-layout, outside this
+  // Suspense boundary, so it stays mounted while this task-scoped content loads.
   return (
-    <>
-      <TasksPanelColumn />
-      <div className="flex-1 min-w-0 flex flex-col">
-        <InsetContext value={insetContextValue}>
-          <Toolbar.Toggles>
-            <ToggleButtons
-              chatOpen={layout.chatOpen}
-              toggleChat={layout.toggleChat}
-              onNewTask={tasksOpen ? undefined : layout.createNewTask}
-            />
-          </Toolbar.Toggles>
+    <div className="flex-1 min-w-0 flex flex-col">
+      <InsetContext value={insetContextValue}>
+        <Toolbar.Toggles>
+          <ToggleButtons
+            chatOpen={layout.chatOpen}
+            toggleChat={layout.toggleChat}
+            onNewTask={tasksOpen ? undefined : layout.createNewTask}
+          />
+        </Toolbar.Toggles>
 
-          <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
-            <Toolbar.Tabs>
-              <MainPanelTabsBar
-                virtualMcpId={virtualMcpId}
-                taskId={layout.taskId}
-              />
-            </Toolbar.Tabs>
-
-            <VmEventsBridge
+        <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
+          <Toolbar.Tabs>
+            <MainPanelTabsBar
               virtualMcpId={virtualMcpId}
-              hasActiveGithubRepo={hasActiveGithubRepo}
-              vmMap={entity?.metadata?.vmMap}
-            >
-              <VirtualMcpHeaderInfo virtualMcp={entity} />
-              <NewTaskBridge
-                onNewTaskRef={onNewTask}
-                createNewTask={layout.createNewTask}
-              />
-              <ChatMainPanelGroup
-                virtualMcpId={virtualMcpId}
-                taskId={layout.taskId}
-                chatOpen={layout.chatOpen}
-                mainOpen={layout.mainOpen}
-                chatContent={<ActiveTaskBoundary />}
-              />
-            </VmEventsBridge>
-          </Chat.Provider>
-        </InsetContext>
-      </div>
-    </>
+              taskId={layout.taskId}
+            />
+          </Toolbar.Tabs>
+
+          <VmEventsBridge
+            virtualMcpId={virtualMcpId}
+            hasActiveGithubRepo={hasActiveGithubRepo}
+            vmMap={entity?.metadata?.vmMap}
+          >
+            <VirtualMcpHeaderInfo virtualMcp={entity} />
+            <NewTaskBridge
+              onNewTaskRef={onNewTask}
+              createNewTask={layout.createNewTask}
+            />
+            <ChatMainPanelGroup
+              virtualMcpId={virtualMcpId}
+              taskId={layout.taskId}
+              chatOpen={layout.chatOpen}
+              mainOpen={layout.mainOpen}
+              chatContent={<ActiveTaskBoundary />}
+            />
+          </VmEventsBridge>
+        </Chat.Provider>
+      </InsetContext>
+    </div>
   );
 }
 
 // ---------------------------------------------------------------------------
 // Default export — the per-task content for /$org/$taskId.
 //
-// Sidebar, toolbar shell, ChatPrefsProvider, and TasksPanelStateProvider all
-// live in `org-shell-layout` (the parent route). This component just renders
-// the per-task chrome inside the flex-row Outlet on desktop, or directly
-// inside SidebarInset on mobile.
+// Sidebar, toolbar shell, org-wide tasks panel, ChatPrefsProvider, and
+// TasksPanelStateProvider all live in `org-shell-layout` (the parent route).
+// This component just renders the per-task chrome inside the flex-row Outlet
+// on desktop, or directly inside SidebarInset on mobile.
 // ---------------------------------------------------------------------------
 
 export default function AgentShellLayout() {
