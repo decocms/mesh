@@ -615,7 +615,7 @@ function ConnectionModelsSection({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2 px-2 pt-2">
+      <div className="flex items-center gap-2">
         <img
           src={PROVIDER_LOGOS[connection.providerId] ?? DEFAULT_LOGO}
           alt={connection.providerId}
@@ -692,7 +692,7 @@ function ModelsPermissionsTab({
   };
 
   return (
-    <div className="flex flex-col h-full overflow-auto gap-6 px-2 pt-2 pb-6">
+    <div className="flex flex-col h-full overflow-auto gap-6 pb-6">
       <div
         className={cn(
           "flex items-center justify-between px-4 py-3 rounded-lg border border-border",
