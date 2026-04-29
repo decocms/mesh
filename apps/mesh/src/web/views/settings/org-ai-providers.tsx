@@ -72,6 +72,10 @@ import {
 } from "@/web/hooks/use-organization-settings";
 import { SimpleModeConfigSchema } from "@/tools/organization/schema";
 import { ModelSelector } from "@/web/components/chat/select-model";
+import {
+  OPENAI_COMPATIBLE_PRESETS,
+  type OpenAICompatiblePreset,
+} from "@/web/utils/openai-compatible-presets";
 
 function ErrorFallback({ error }: { error: Error }) {
   return (
@@ -287,9 +291,11 @@ const openaiCompatibleFormSchema = z.object({
 type OpenAICompatibleFormData = z.infer<typeof openaiCompatibleFormSchema>;
 
 function ConnectOpenAICompatibleForm({
+  preset,
   onCancel,
   onSuccess,
 }: {
+  preset?: OpenAICompatiblePreset;
   onCancel: () => void;
   onSuccess: () => void;
 }) {
@@ -324,8 +330,9 @@ function ConnectOpenAICompatibleForm({
         name: "AI_PROVIDER_KEY_CREATE",
         arguments: {
           providerId: "openai-compatible",
-          label: data.label || data.baseUrl,
+          label: data.label || preset?.name || data.baseUrl,
           apiKey: encodedKey,
+          ...(preset ? { presetId: preset.id } : {}),
         },
       });
     },
@@ -340,6 +347,12 @@ function ConnectOpenAICompatibleForm({
     },
   });
 
+  const labelPlaceholder = preset
+    ? `e.g. ${preset.name} prod, ${preset.name} dev`
+    : "e.g. My OpenAI-compatible server";
+  const baseUrlPlaceholder =
+    preset?.baseUrlPlaceholder ?? "http://localhost:4000/v1";
+
   return (
     <form
       onSubmit={handleSubmit((data) => createKey(data))}
@@ -350,7 +363,7 @@ function ConnectOpenAICompatibleForm({
           Label
         </label>
         <Input
-          placeholder="e.g. LiteLLM, Ollama"
+          placeholder={labelPlaceholder}
           {...register("label")}
           className="h-8 text-sm"
         />
@@ -361,7 +374,7 @@ function ConnectOpenAICompatibleForm({
         </label>
         <Input
           type="url"
-          placeholder="http://localhost:4000/v1"
+          placeholder={baseUrlPlaceholder}
           {...register("baseUrl")}
           className="h-8 text-sm"
         />
@@ -371,7 +384,10 @@ function ConnectOpenAICompatibleForm({
       </div>
       <div className="space-y-1">
         <label className="text-xs font-medium text-muted-foreground">
-          API Key <span className="text-muted-foreground/60">(optional)</span>
+          API Key{" "}
+          <span className="text-muted-foreground/60">
+            ({preset?.apiKeyRecommended ? "recommended" : "optional"})
+          </span>
         </label>
         <div className="relative">
           <Input
@@ -389,6 +405,10 @@ function ConnectOpenAICompatibleForm({
           </button>
         </div>
       </div>
+
+      {preset?.helpText && (
+        <p className="text-xs text-muted-foreground">{preset.helpText}</p>
+      )}
 
       {error && <p className="text-xs text-destructive">{error.message}</p>}
 
@@ -809,6 +829,139 @@ function ProviderCard({
   );
 }
 
+/**
+ * Card for an OpenAI-compatible "preset" (LiteLLM, Ollama, ...) or the generic
+ * Custom fallback (preset = null). All keys are stored under
+ * providerId="openai-compatible"; the preset_id column distinguishes them so
+ * users can configure many of each.
+ */
+function OpenAICompatiblePresetCard({
+  preset,
+  keys,
+}: {
+  preset: OpenAICompatiblePreset | null;
+  keys: AiProviderKey[];
+}) {
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+  const queryClient = useQueryClient();
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const isActive = keys.length > 0;
+
+  const displayName = preset?.name ?? "Custom OpenAI Compatible";
+  const description =
+    preset?.description ?? "Connect any OpenAI-compatible endpoint by URL";
+  const logo = preset?.logo;
+
+  const { mutate: deleteKey, isPending: isDeleting } = useMutation({
+    mutationFn: async (keyId: string) => {
+      await client.callTool({
+        name: "AI_PROVIDER_KEY_DELETE",
+        arguments: { keyId },
+      });
+      return keyId;
+    },
+    onSuccess: (deletedKeyId) => {
+      queryClient.invalidateQueries({ queryKey: KEYS.aiProviderKeys(org.id) });
+      queryClient.invalidateQueries({ queryKey: KEYS.aiProviders(org.id) });
+      queryClient.invalidateQueries({
+        queryKey: KEYS.aiProviderModels(org.id, deletedKeyId),
+      });
+      toast.success("Connection deleted");
+    },
+    onError: (err) => {
+      toast.error(`Failed to delete connection: ${err.message}`);
+    },
+  });
+
+  return (
+    <>
+      <Card
+        className={cn(
+          "p-4 flex flex-col gap-3 transition-colors relative cursor-pointer hover:bg-muted/30",
+          isActive && "border-primary/20",
+        )}
+        onClick={() => {
+          if (!isFormOpen) {
+            track("ai_provider_connect_clicked", {
+              provider_id: "openai-compatible",
+              preset_id: preset?.id ?? null,
+              method: "api-key",
+            });
+            setIsFormOpen(true);
+          }
+        }}
+      >
+        {isActive && (
+          <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-green-500" />
+        )}
+
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            {logo ? (
+              <img
+                src={logo}
+                alt={displayName}
+                className="size-8 rounded-md object-contain dark:bg-white dark:rounded-md dark:p-0.5"
+              />
+            ) : (
+              <Avatar
+                fallback={displayName.charAt(0)}
+                className="size-8 bg-primary/10 text-primary"
+              />
+            )}
+            <div>
+              <h3 className="font-medium text-base">{displayName}</h3>
+              <p className="text-sm text-muted-foreground line-clamp-1">
+                {description}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {isActive && (
+          <div className="mt-1">
+            <p className="text-xs font-medium text-muted-foreground">
+              {keys.length} connection{keys.length !== 1 ? "s" : ""} configured
+              <span className="text-muted-foreground/60">
+                {" "}
+                — click to add another
+              </span>
+            </p>
+            <KeyList keys={keys} onDelete={deleteKey} isDeleting={isDeleting} />
+          </div>
+        )}
+      </Card>
+
+      <Dialog
+        open={isFormOpen}
+        onOpenChange={(open) => {
+          if (!open) setIsFormOpen(false);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Connect {displayName}</DialogTitle>
+            <DialogDescription>
+              {preset
+                ? `Add a ${preset.name} connection. Multiple connections of the same kind are supported.`
+                : "Enter the base URL and optional API key for any OpenAI-compatible endpoint."}
+            </DialogDescription>
+          </DialogHeader>
+          <ConnectOpenAICompatibleForm
+            preset={preset ?? undefined}
+            onCancel={() => setIsFormOpen(false)}
+            onSuccess={() => setIsFormOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 export function ProviderCardGrid({
   hideProviderId,
 }: {
@@ -823,8 +976,16 @@ export function ProviderCardGrid({
     p.supportedMethods.includes("cli-activate"),
   );
   const cloudProviders = providers.filter(
-    (p) => !p.supportedMethods.includes("cli-activate"),
+    (p) =>
+      !p.supportedMethods.includes("cli-activate") &&
+      p.id !== "openai-compatible",
   );
+
+  // Keys for the openai-compatible provider, split per preset id (null = Custom).
+  const openaiCompatibleKeys = allKeys.filter(
+    (k) => k.providerId === "openai-compatible",
+  );
+  const showOpenAICompatibleSection = hideProviderId !== "openai-compatible";
 
   return (
     <div className="flex flex-col gap-5 w-full">
@@ -854,6 +1015,34 @@ export function ProviderCardGrid({
           />
         ))}
       </div>
+      {showOpenAICompatibleSection && (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-baseline justify-between">
+            <p className="text-xs font-medium text-muted-foreground">
+              OpenAI-compatible servers
+            </p>
+            <p className="text-xs text-muted-foreground/70">
+              Add as many of each as you like
+            </p>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {OPENAI_COMPATIBLE_PRESETS.map((preset) => (
+              <OpenAICompatiblePresetCard
+                key={preset.id}
+                preset={preset}
+                keys={openaiCompatibleKeys.filter(
+                  (k) => k.presetId === preset.id,
+                )}
+              />
+            ))}
+            <OpenAICompatiblePresetCard
+              key="custom"
+              preset={null}
+              keys={openaiCompatibleKeys.filter((k) => !k.presetId)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
