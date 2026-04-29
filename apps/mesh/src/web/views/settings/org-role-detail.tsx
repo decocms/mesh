@@ -621,15 +621,10 @@ function ConnectionModelsSection({
           alt={connection.providerId}
           className="w-4 h-4 rounded-sm dark:bg-white dark:rounded-sm dark:p-px"
         />
-        <div className="flex flex-col">
-          <h4 className="text-sm font-medium text-muted-foreground/75">
-            {PROVIDER_DISPLAY_NAMES[connection.providerId] ??
-              connection.providerId}
-          </h4>
-          <span className="text-xs text-muted-foreground/50">
-            {connection.label}
-          </span>
-        </div>
+        <h4 className="text-sm font-medium">
+          {PROVIDER_DISPLAY_NAMES[connection.providerId] ??
+            connection.providerId}
+        </h4>
       </div>
       <div className="flex flex-col gap-2">
         {groups.map((group) => (
