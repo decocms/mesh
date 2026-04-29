@@ -24,7 +24,7 @@ export const OPENAI_COMPATIBLE_PRESETS: OpenAICompatiblePreset[] = [
     id: "litellm",
     name: "LiteLLM",
     description: "Connect a LiteLLM proxy as an OpenAI-compatible endpoint",
-    logo: "https://avatars.githubusercontent.com/u/121462774?s=200&v=4",
+    logo: "https://raw.githubusercontent.com/BerriAI/litellm/main/docs/my-website/img/logo.svg",
     baseUrlPlaceholder: "http://localhost:4000",
     apiKeyRecommended: true,
     helpText:
@@ -54,7 +54,7 @@ export const OPENAI_COMPATIBLE_PRESETS: OpenAICompatiblePreset[] = [
     id: "vllm",
     name: "vLLM",
     description: "High-throughput inference server with OpenAI-compatible API",
-    logo: "https://avatars.githubusercontent.com/u/136984999?s=200&v=4",
+    logo: "https://raw.githubusercontent.com/vllm-project/vllm/main/docs/source/assets/logos/vllm-logo-only-light.png",
     baseUrlPlaceholder: "http://localhost:8000",
     apiKeyRecommended: false,
   },
