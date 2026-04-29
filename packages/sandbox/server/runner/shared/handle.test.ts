@@ -87,4 +87,16 @@ describe("computeHandle", () => {
     const expectedHash = hashSandboxId(ID, 5);
     expect(handle.endsWith(`-${expectedHash}`)).toBe(true);
   });
+
+  it("honors a custom hashLen (used by runners exposing handles publicly)", () => {
+    const handle = computeHandle(ID, "deco/mellow-flint", { hashLen: 16 });
+    expect(handle).toMatch(/^mellow-flint-[0-9a-f]{16}$/);
+    expect(handle.endsWith(`-${hashSandboxId(ID, 16)}`)).toBe(true);
+  });
+
+  it("returns a bare hash of the requested length when branch is empty", () => {
+    const handle = computeHandle(ID, null, { hashLen: 16 });
+    expect(handle).toMatch(/^[0-9a-f]{16}$/);
+    expect(handle).toBe(hashSandboxId(ID, 16));
+  });
 });

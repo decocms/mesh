@@ -46,7 +46,7 @@ import {
 import {
   Inflight,
   applyPreviewPattern,
-  hashSandboxId,
+  computeHandle as composeBranchHandle,
   withSandboxLock,
 } from "../shared";
 import type { RunnerStateStore, RunnerStateStoreOps } from "../state-store";
@@ -121,7 +121,15 @@ const RESERVED_ENV_KEYS = new Set([
 // abandoned sandboxes roll off at T+15m via the operator.
 const DEFAULT_IDLE_TTL_MS = 15 * 60 * 1000;
 
-/** Handle prefix + 16-hex hash = 24 chars, well under K8s's 63-char label cap. */
+/**
+ * Handle shape: `studio-sb-<slug>-<hash16>` when a branch is supplied,
+ * `studio-sb-<hash16>` otherwise. With prefix(10) + slug(≤24) + 1 + hash(16)
+ * = 51 chars max — under K8s's 63-char DNS label cap with margin for
+ * suffixed env names. The 16-char hash (~64 bits) is preserved over the
+ * shared default of 5 because the handle is the *only* authorization on
+ * the public preview URL (Vercel-style "URL is the secret"); 20-bit hashes
+ * are brute-forceable at a busy gateway in minutes.
+ */
 export const HANDLE_PREFIX = "studio-sb-";
 const HANDLE_HASH_LEN = 16;
 
@@ -344,7 +352,10 @@ export class AgentSandboxRunner implements SandboxRunner {
   // ---- SandboxRunner surface ------------------------------------------------
 
   async ensure(id: SandboxId, opts: EnsureOptions = {}): Promise<Sandbox> {
-    const handle = this.computeHandle(id);
+    // Branch is the slug source; absent when caller didn't pass `repo`
+    // (tool-only sandboxes, smoke tests). The shared computeHandle falls
+    // back to a bare hash in that case, preserving stable identity.
+    const handle = this.computeHandle(id, opts.repo?.branch ?? null);
     return this.inflight.run(handle, () =>
       withSandboxLock(this.stateStore, id, RUNNER_KIND, (ops) =>
         this.ensureLocked(id, handle, opts, ops),
@@ -1208,8 +1219,8 @@ export class AgentSandboxRunner implements SandboxRunner {
 
   // ---- Identity + preview URL ----------------------------------------------
 
-  private computeHandle(id: SandboxId): string {
-    return `${HANDLE_PREFIX}${hashSandboxId(id, HANDLE_HASH_LEN)}`;
+  private computeHandle(id: SandboxId, branch: string | null): string {
+    return `${HANDLE_PREFIX}${composeBranchHandle(id, branch, { hashLen: HANDLE_HASH_LEN })}`;
   }
 
   // Local mode: route preview traffic through the daemon port-forward, not
