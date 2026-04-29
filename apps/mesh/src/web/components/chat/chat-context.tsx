@@ -1302,61 +1302,6 @@ export function ActiveTaskProvider({
 }
 
 // ============================================================================
-// IdleChatStreamProvider — ChatStream for routes without an active task
-// ============================================================================
-
-/**
- * Provides a minimal `ChatStreamCtx` for routes that don't have an active
- * task — currently just the org home page at `/$org/`. `sendMessage`
- * delegates to `createTaskWithMessage` (from the surrounding TaskProvider),
- * which creates a new thread, queues the message via `pendingMessage`, and
- * navigates to it; the message auto-sends when the new task mounts its
- * own ActiveTaskProvider.
- *
- * All other ChatStream values are inert placeholders since there is no
- * chat to read messages from or stream into. The AI SDK helpers are
- * no-ops typed via `as` because they're never invoked on the home page —
- * only `Chat.Input` reads sendMessage / isStreaming, and it has nothing
- * to stop or update.
- */
-export function IdleChatStreamProvider({ children }: PropsWithChildren) {
-  const { createTaskWithMessage } = useChatTask();
-
-  const sendMessage = async (
-    params: SendMessageParams | Metadata["tiptapDoc"],
-  ): Promise<void> => {
-    const message: SendMessageParams =
-      params && typeof params === "object" && "type" in params
-        ? { tiptapDoc: params as Metadata["tiptapDoc"] }
-        : (params as SendMessageParams);
-    createTaskWithMessage({ message });
-  };
-
-  const value: ChatStreamContextValue = {
-    messages: [],
-    status: "ready",
-    sendMessage,
-    stop: () => {},
-    setMessages: (() => {}) as ChatStreamContextValue["setMessages"],
-    addToolOutput: (() => {}) as ChatStreamContextValue["addToolOutput"],
-    addToolApprovalResponse:
-      (() => {}) as ChatStreamContextValue["addToolApprovalResponse"],
-    error: null,
-    clearError: () => {},
-    finishReason: null,
-    clearFinishReason: () => {},
-    isStreaming: false,
-    isChatEmpty: true,
-    isWaitingForApprovals: false,
-    isRunInProgress: false,
-  };
-
-  return (
-    <ChatStreamCtx.Provider value={value}>{children}</ChatStreamCtx.Provider>
-  );
-}
-
-// ============================================================================
 // Hooks
 // ============================================================================
 
