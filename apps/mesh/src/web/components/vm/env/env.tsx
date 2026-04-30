@@ -180,25 +180,19 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const vmEvents = useVmEvents();
   useVmChunkHandler(handleChunk);
 
-  // Cross-component inflight signal — the layout/preview may have fired
-  // VM_START for this (vmcp, branch); our local `useMutation` instances only
-  // see self-initiated mutations, so without this the tab falls through to
-  // the idle/runtime-picker UI and flickers to the terminal once vmMap
-  // catches up.
   const vmStartPending = useIsVmStartPending(
     inset?.entity?.id,
     currentBranch ?? undefined,
   );
-
-  // Final status = user-initiated override, else derived from (vmData, SSE,
-  // inflight VM_START).
   const derivedStatus: ViewStatus = vmEvents.suspended
     ? "suspended"
-    : vmData
-      ? "running"
-      : vmStartPending
-        ? "creating"
-        : "idle";
+    : vmEvents.notFound
+      ? "creating"
+      : vmData
+        ? "running"
+        : vmStartPending
+          ? "creating"
+          : "idle";
   const status: ViewStatus = override ?? derivedStatus;
 
   // Clear the override when the derived state catches up.
@@ -491,10 +485,13 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   }
 
   if (status === "creating") {
+    const label = vmEvents.notFound
+      ? "Sandbox was stopped, we're restarting it…"
+      : statusLabel;
     return (
       <div className="flex flex-col items-center justify-center w-full h-full gap-4">
         <Loading01 size={24} className="animate-spin text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">{statusLabel}</p>
+        <p className="text-sm text-muted-foreground">{label}</p>
         <LiveTimer since={startedAtRef.current} />
       </div>
     );

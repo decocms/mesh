@@ -51,39 +51,23 @@ const branchStatus = new BranchStatusMonitor(config, broadcaster);
 
 let discoveredScripts: string[] | null = null;
 
-// Build the ordered candidate-port list each tick:
-//   1. Ports any descendant of a daemon-managed dev process is listening on
-//      (Vite v7 / Next / Astro / etc. mostly ignore PORT=$DEV_PORT, so this
-//      is the source of truth.)
-//   2. config.devPort — the env-hint fallback. Honored by frameworks that
-//      respect PORT, and used by the e2e tests where there's no managed
-//      dev process and the upstream is started externally.
 const excludeFromDiscovery = new Set<number>([config.proxyPort]);
-const getCandidatePorts = (): number[] => {
-  const ordered: number[] = [];
-  const seen = new Set<number>();
-  const push = (p: number) => {
-    if (!seen.has(p)) {
-      seen.add(p);
-      ordered.push(p);
-    }
-  };
+const getDiscoveredPorts = (): number[] => {
   const rootPids = processManager.allPids();
-  if (rootPids.length > 0) {
-    for (const port of discoverDescendantListeningPorts({
-      rootPids,
-      excludePorts: excludeFromDiscovery,
-    })) {
-      push(port);
-    }
-  }
-  push(config.devPort);
-  return ordered;
+  if (rootPids.length === 0) return [];
+  return discoverDescendantListeningPorts({
+    rootPids,
+    excludePorts: excludeFromDiscovery,
+  });
 };
 
 const lastStatus = startUpstreamProbe({
   upstreamHost: "localhost",
-  getCandidatePorts,
+  getDiscoveredPorts,
+  // Untrusted: only used until /proc shows a listener. Honored by frameworks
+  // that respect PORT, and used in e2e tests where there's no managed dev
+  // process and the upstream is started externally.
+  getFallbackPort: () => config.devPort,
   onChange: (s) =>
     broadcaster.broadcastEvent("status", { type: "status", ...s }),
 });

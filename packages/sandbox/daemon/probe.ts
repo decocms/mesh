@@ -10,11 +10,22 @@ export interface ProbeState {
 export interface ProbeDeps {
   upstreamHost: string;
   /**
-   * Candidate ports to score each tick. All are probed in parallel; the
-   * one with the highest "looks like the dev preview" score wins. Empty
-   * array → state stays { ready:false, port:null }.
+   * Ports owned by descendants of the daemon's managed dev process, per
+   * /proc inspection. The discovery list picks the candidate port (so the
+   * preview reverse-proxy lands on the right socket), but `ready` is still
+   * gated on at least one HEAD response — a process that's bound the port
+   * but isn't accepting yet (early bind during framework bootstrap, lazy
+   * compile that times out the HEAD) shouldn't read as ready.
    */
-  getCandidatePorts: () => number[];
+  getDiscoveredPorts: () => number[];
+  /**
+   * Env-hint fallback (DEV_PORT). Used only when no descendant ports
+   * have been discovered yet — typically the brief window between
+   * daemon boot and the dev process binding, or in tests where there's
+   * no managed dev process at all. Treated as untrusted: gated on a
+   * successful HEAD probe.
+   */
+  getFallbackPort: () => number;
   onChange: (state: ProbeState) => void;
 }
 
@@ -55,11 +66,17 @@ export function startUpstreamProbe(deps: ProbeDeps): ProbeState {
   const state: ProbeState = { ready: false, htmlSupport: false, port: null };
   let count = 0;
 
+  // First-request compile in Next/Vite/etc. can run 8–20s on big apps; the
+  // probe blocks on it because HEAD `/` triggers the same lazy-compile path
+  // as GET. A short timeout here false-negatives the htmlSupport check for
+  // the entire compile window. 30s comfortably absorbs typical first-compiles
+  // without reacting to dead-server ECONNREFUSED any slower (that fails fast).
+  const HEAD_TIMEOUT_MS = 30_000;
   const head = async (url: string): Promise<HeadResult | null> => {
     try {
       const res = await fetch(url, {
         method: "HEAD",
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(HEAD_TIMEOUT_MS),
       });
       const ct = (res.headers.get("content-type") ?? "").toLowerCase();
       return {
@@ -72,7 +89,7 @@ export function startUpstreamProbe(deps: ProbeDeps): ProbeState {
     }
   };
 
-  const tryOne = async (port: number): Promise<ProbeResult> => {
+  const probeOne = async (port: number): Promise<ProbeResult> => {
     const base = `http://${deps.upstreamHost}:${port}`;
     // Probe `/` first; only ask `/@vite/client` if root looks like a real
     // HTML responder. Avoids hammering ports that don't speak HTTP.
@@ -94,22 +111,30 @@ export function startUpstreamProbe(deps: ProbeDeps): ProbeState {
     const prevReady = state.ready;
     const prevPort = state.port;
     const prevHtml = state.htmlSupport;
-    const candidates = deps.getCandidatePorts();
-    const results = await Promise.all(candidates.map(tryOne));
-    // Highest score wins; on tie, the candidate-list order (already
-    // discovered-first) breaks it — `Array.sort` is stable in modern JS.
-    const best = results
-      .filter((r) => r.responded)
-      .sort((a, b) => b.score - a.score)[0];
-    if (best) {
+
+    const discovered = deps.getDiscoveredPorts();
+
+    if (discovered.length > 0) {
+      const results = await Promise.all(discovered.map(probeOne));
+      const responded = results.filter((r) => r.responded);
+      const best = responded.sort((a, b) => b.score - a.score)[0] ?? results[0];
       state.port = best.port;
-      state.ready = best.ready;
+      state.ready = responded.length > 0;
       state.htmlSupport = best.htmlSupport;
     } else {
-      state.port = null;
-      state.ready = false;
-      state.htmlSupport = false;
+      // Untrusted fallback: env-hint port only, gated on a successful HEAD.
+      const result = await probeOne(deps.getFallbackPort());
+      if (result.responded) {
+        state.port = result.port;
+        state.ready = result.ready;
+        state.htmlSupport = result.htmlSupport;
+      } else {
+        state.port = null;
+        state.ready = false;
+        state.htmlSupport = false;
+      }
     }
+
     if (
       prevReady !== state.ready ||
       prevPort !== state.port ||

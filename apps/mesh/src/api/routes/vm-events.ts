@@ -51,7 +51,10 @@ import {
   getUserId,
   requireAuth,
   requireOrganization,
+  type MeshContext,
 } from "../../core/mesh-context";
+import { KyselySandboxRunnerStateStore } from "../../storage/sandbox-runner-state";
+import { readVmMap, resolveVm } from "../../tools/vm/vm-map";
 import type { Env } from "../hono-env";
 
 /**
@@ -110,6 +113,22 @@ app.get("/", async (c) => {
   });
   const claimName = composeClaimName({ userId, projectRef }, branch);
 
+  // Snapshot vmMap from the same metadata read used for the org-ownership
+  // check. Used below to gate the stale-handle probe: we only treat a
+  // missing claim as "evicted" when this user already had a vmMap entry
+  // pointing at this exact claim under the agent-sandbox runner. Without
+  // this gate, an SSE that opens during VM_START's claim-creation window
+  // (~250ms–1.2s before `createSandboxClaim` lands) would observe
+  // alive=false and emit a spurious `gone`.
+  const existingVmEntry = resolveVm(
+    readVmMap(virtualMcp.metadata as Record<string, unknown> | null),
+    userId,
+    branch,
+  );
+  const expectingClaim =
+    existingVmEntry?.runnerKind === "agent-sandbox" &&
+    existingVmEntry.vmId === claimName;
+
   const runnerKind = tryResolveRunnerKindFromEnv();
   const runner = await getOrInitSharedRunner();
 
@@ -141,6 +160,15 @@ app.get("/", async (c) => {
     });
 
     try {
+      if (runnerKind === "agent-sandbox" && expectingClaim) {
+        const stale = await isStaleHandle(runner, claimName);
+        if (stale) {
+          await cleanupStaleEntry({ ctx, userId, projectRef, runnerKind });
+          await stream.writeSSE({ event: "gone", data: "" }).catch(() => {});
+          return;
+        }
+      }
+
       // ---- Phase 1: lifecycle (pre-Ready) ---------------------------------
       const lifecycleOk = await emitLifecycle({
         stream,
@@ -163,6 +191,62 @@ app.get("/", async (c) => {
     }
   });
 });
+
+async function isStaleHandle(
+  runner: NonNullable<Awaited<ReturnType<typeof getOrInitSharedRunner>>>,
+  claimName: string,
+): Promise<boolean> {
+  try {
+    const exists = await runner.alive(claimName);
+    return !exists;
+  } catch (err) {
+    console.warn(
+      `[vm-events] alive probe failed for ${claimName}; assuming alive: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    return false;
+  }
+}
+
+/**
+ * Best-effort: drop the stale runner-state row so the next VM_START's
+ * `runner.ensure` skips the rehydrate path (which would chase a dead
+ * port-forward and timeout) and falls through to cluster-adopt or fresh
+ * provision instead.
+ *
+ * We deliberately do NOT touch the vmMap entry. Two reasons:
+ *   1. `runner.ensure` resumes from the state-store, not vmMap — vmMap is
+ *      informational metadata read by tools/UI, never the source of truth
+ *      for provisioning.
+ *   2. Removing it here would race with a concurrent VM_START's
+ *      `setVmMapEntry` on the same metadata JSON column (read-modify-write
+ *      is not atomic; see vm-map.ts). The next VM_START overwrites the
+ *      entry with a fresh one anyway — the `vmId` is deterministic
+ *      (composeClaimName), so the entry's identity is stable across
+ *      reprovisions.
+ *
+ * Failures are logged, not thrown — the user-visible flow (emit `gone` →
+ * browser self-heal) is what matters; this is a fast-path optimisation.
+ */
+async function cleanupStaleEntry(args: {
+  ctx: MeshContext;
+  userId: string;
+  projectRef: string;
+  runnerKind: "docker" | "freestyle" | "agent-sandbox";
+}): Promise<void> {
+  const { ctx, userId, projectRef, runnerKind } = args;
+  try {
+    const stateStore = new KyselySandboxRunnerStateStore(ctx.db);
+    await stateStore.delete({ userId, projectRef }, runnerKind);
+  } catch (err) {
+    console.warn(
+      `[vm-events] sandbox_runner_state delete failed for ${userId}/${projectRef}/${runnerKind}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+}
 
 /**
  * Drives the lifecycle phase stream (or its no-op equivalent for
