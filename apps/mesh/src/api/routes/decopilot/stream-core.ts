@@ -685,7 +685,7 @@ async function streamCoreInner(
           const mcpUrl = `${getInternalUrl()}/mcp/virtual-mcp/${input.agent.id}`;
 
           let claudeCodeCwd: string | undefined;
-          if (vmContext) {
+          if (vmContext && vmMetadata.githubRepo) {
             const runner = await getSharedRunner(ctx);
             if (runner.kind === "host") {
               const { computeHandle, composeSandboxRef } = await import(

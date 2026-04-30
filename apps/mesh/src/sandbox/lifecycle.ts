@@ -10,7 +10,6 @@ import type { MeshContext } from "@/core/mesh-context";
 import {
   DockerSandboxRunner,
   resolveRunnerKindFromEnv,
-  tryResolveRunnerKindFromEnv,
   type RunnerKind,
   type SandboxRunner,
 } from "@decocms/sandbox/runner";
@@ -174,8 +173,16 @@ export function getRunnerByKind(
  * when no runner kind is configured.
  */
 export async function getOrInitSharedRunner(): Promise<SandboxRunner | null> {
-  const kind = tryResolveRunnerKindFromEnv();
-  if (!kind) return null;
+  let kind: RunnerKind;
+  try {
+    kind = resolveRunnerKindFromEnv();
+  } catch (err) {
+    console.warn(
+      "[lifecycle] cannot resolve sandbox runner:",
+      err instanceof Error ? err.message : String(err),
+    );
+    return null;
+  }
   return resolveOnce(kind, () => instantiate(kind, getDb().db));
 }
 
@@ -185,8 +192,12 @@ export async function getOrInitSharedRunner(): Promise<SandboxRunner | null> {
  * Returns null if env is unresolved.
  */
 export function getSharedRunnerIfInit(): SandboxRunner | null {
-  const kind = tryResolveRunnerKindFromEnv();
-  if (!kind) return null;
+  let kind: RunnerKind;
+  try {
+    kind = resolveRunnerKindFromEnv();
+  } catch {
+    return null;
+  }
   return runners[kind] ?? null;
 }
 

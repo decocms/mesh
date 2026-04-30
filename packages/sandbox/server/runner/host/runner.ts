@@ -13,7 +13,8 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { mkdir, rm } from "node:fs/promises";
 import { createServer } from "node:net";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   probeDaemonHealth,
   proxyDaemonRequest,
@@ -34,6 +35,12 @@ import type {
 
 const RUNNER_KIND = "host" as const;
 const HEALTH_PROBE_TIMEOUT_MS = 30_000;
+// Resolve daemon entry path relative to this file so it works regardless of
+// the process cwd (e.g. when mesh is started from apps/mesh/ via
+// `bun run --cwd=apps/mesh dev:server`).
+const DAEMON_ENTRY = resolve(
+  fileURLToPath(new URL("../../../daemon/entry.ts", import.meta.url)),
+);
 const HEALTH_PROBE_INTERVAL_MS = 250;
 const STOP_GRACE_MS = 2_000;
 const DEFAULT_DEV_PORT = 3000;
@@ -190,7 +197,7 @@ export class HostSandboxRunner implements SandboxRunner {
     const deadline = Date.now() + HEALTH_PROBE_TIMEOUT_MS;
     while (Date.now() < deadline) {
       const health = await this.probeFn(daemonUrl);
-      if (health) return;
+      if (health?.ready) return;
       await new Promise((r) => setTimeout(r, HEALTH_PROBE_INTERVAL_MS));
     }
     throw new Error(`daemon at ${daemonUrl} never reported healthy`);
@@ -442,8 +449,9 @@ export async function defaultSpawn(args: {
   daemonPort: number;
 }): Promise<DaemonProcess> {
   const proc = Bun.spawn({
-    cmd: ["bun", "run", "packages/sandbox/daemon/entry.ts"],
-    cwd: process.cwd(),
+    cmd: ["bun", "run", DAEMON_ENTRY],
+    // cwd is intentionally inherited from the parent — daemon resolves
+    // its own paths relative to the entry file.
     env: { ...process.env, ...args.env },
     stdout: "inherit",
     stderr: "inherit",
