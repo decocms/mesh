@@ -73,7 +73,7 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
   if (cloneDepthRaw !== "shallow" && cloneDepthRaw !== "full") {
     throw new Error(`CLONE_DEPTH invalid: ${cloneDepthRaw}`);
   }
-  const cloneDepth = cloneDepthRaw as "shallow" | "full";
+  const cloneDepth = cloneDepthRaw as CloneDepth;
 
   return Object.freeze({
     daemonToken,
