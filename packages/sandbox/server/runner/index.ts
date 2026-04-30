@@ -23,6 +23,11 @@ export type {
 export { sandboxIdKey } from "./types";
 export { DockerSandboxRunner } from "./docker";
 export type { DockerExec, DockerRunnerOptions, ExecResult } from "./docker";
+export { HostSandboxRunner } from "./host";
+export type { HostRunnerOptions } from "./host";
+// Needed by mesh callers (decopilot stream-core) that compute handles
+// directly. Re-exported here so consumers don't dig into shared/.
+export { computeHandle } from "./shared";
 export { ensureSandboxImage } from "../image-build";
 export type { EnsureImageOptions } from "../image-build";
 export { startLocalSandboxIngress } from "./docker";
