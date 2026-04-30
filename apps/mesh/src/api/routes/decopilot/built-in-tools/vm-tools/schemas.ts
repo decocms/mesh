@@ -112,7 +112,16 @@ export const GLOB_DESCRIPTION =
 
 export const BASH_DESCRIPTION =
   "Execute a shell command in the VM's project directory. " +
-  "Working directory is the project root. Timeout default 30s, max 2min.";
+  "Working directory is the project root. Timeout default 30s, max 2min.\n\n" +
+  "Pre-installed skills live at `/mnt/skills/public/<name>/SKILL.md`. " +
+  "Run `ls /mnt/skills/public/` for the index and " +
+  "`cat /mnt/skills/public/<name>/SKILL.md` before using one. " +
+  "Skills cover common file operations: pptx (PowerPoint), docx (Word), " +
+  "xlsx (Excel), pdf, file-reading (router), and user-data " +
+  "(org-scoped storage). " +
+  "For `mesh-storage://` URIs from chat, use `user-data-download` first " +
+  "to pull the file onto the sandbox FS, then chain into the right " +
+  "format-specific skill.";
 
 // read/grep/glob are non-mutating; write/edit/bash mutate.
 export const TOOL_APPROVAL = {
