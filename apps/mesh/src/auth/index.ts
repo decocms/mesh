@@ -135,7 +135,7 @@ if (
 
     sendInvitationEmail = async (data) => {
       const inviterName = data.inviter.user?.name || data.inviter.user?.email;
-      const acceptUrl = `${getBaseUrl()}/auth/accept-invitation?invitationId=${data.invitation.id}&redirectTo=/`;
+      const acceptUrl = `${getBaseUrl()}/auth/accept-invitation?invitationId=${data.invitation.id}&redirectTo=/${data.organization.slug}`;
 
       await sendEmail({
         to: data.email,
