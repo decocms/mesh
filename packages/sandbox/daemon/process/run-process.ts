@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { Broadcaster } from "../events/broadcast";
 import { DECO_UID, DECO_GID } from "../constants";
+import { scriptArgs } from "./script-args";
 
 export interface ProcessManagerDeps {
   broadcaster: Broadcaster;
@@ -52,7 +53,7 @@ export class ProcessManager {
       (opts as { uid: number; gid: number }).uid = DECO_UID;
       (opts as { uid: number; gid: number }).gid = DECO_GID;
     }
-    const child = spawn("script", ["-q", "-c", cmd, "/dev/null"], opts);
+    const child = spawn("script", scriptArgs(cmd), opts);
     this.children.set(source, child);
     this.deps.broadcaster.broadcastEvent("processes", {
       type: "processes",
