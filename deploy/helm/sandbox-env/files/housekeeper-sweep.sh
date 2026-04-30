@@ -229,7 +229,11 @@ if [ "$selector_mismatch" -eq 0 ]; then
     [ -z "$ROUTE_NAME" ] && continue
     [ -z "$ROUTE_HANDLE" ] && continue
     # Live-claim membership test against col 1 of CLAIMS_FILE.
-    if awk -F'|' -v h="$ROUTE_HANDLE" '$1==h { exit 0 } END { exit 1 }' \
+    # `exit` from a main-block jumps to END, whose own `exit` overrides the
+    # status — so `{ exit 0 } END { exit 1 }` always returns 1 and every
+    # route gets nuked. Track via a flag and let END be authoritative.
+    if awk -F'|' -v h="$ROUTE_HANDLE" \
+         '$1==h { found=1; exit } END { exit !found }' \
          "$CLAIMS_FILE"; then
       continue
     fi
