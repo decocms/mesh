@@ -4,15 +4,16 @@ import {
   getBootstrapHash,
   getPhase,
   setBootstrapHash,
-  setConfig,
+  setLastError,
   setPhase,
+  setTenantConfig,
 } from "./state";
 import {
   hashPayload,
   writeBootstrap,
   type BootstrapPayload,
 } from "./persistence";
-import { configFromBootstrap } from "./bootstrap-config";
+import { tenantConfigFromBootstrap } from "./bootstrap-config";
 
 const VALID_RUNTIMES = new Set(["node", "bun", "deno"]);
 const VALID_PMS = new Set(["npm", "pnpm", "yarn", "bun", "deno"]);
@@ -23,9 +24,11 @@ export interface BootstrapHandlerDeps {
   onAccepted?: (payload: BootstrapPayload) => void;
 }
 
-// Unauthenticated. NetworkPolicy is the trust boundary — only mesh pods can
-// reach :9000, so first valid POST wins. Don't add auth here without also
-// thinking through how mesh delivers a pre-bootstrap secret.
+// Bootstrap delivers the *preview-orchestration* payload (clone, install,
+// dev-server). Token enforcement on mutating routes uses DAEMON_TOKEN from
+// env, which is independent of this route. NetworkPolicy is the trust
+// boundary on `:9000` — only mesh pods can reach it. Don't add bearer auth
+// here without thinking through how mesh delivers a pre-bootstrap secret.
 export function makeBootstrapHandler(deps: BootstrapHandlerDeps) {
   return async (req: Request): Promise<Response> => {
     let raw: unknown;
@@ -45,13 +48,6 @@ export function makeBootstrapHandler(deps: BootstrapHandlerDeps) {
         { error: `unknown schemaVersion: ${String(payload.schemaVersion)}` },
         400,
       );
-    }
-
-    if (
-      typeof payload.daemonToken !== "string" ||
-      payload.daemonToken.length < 32
-    ) {
-      return jsonResponse({ error: "daemonToken must be ≥ 32 chars" }, 400);
     }
 
     if (!VALID_RUNTIMES.has(payload.runtime as string)) {
@@ -78,13 +74,6 @@ export function makeBootstrapHandler(deps: BootstrapHandlerDeps) {
       const phase = getPhase();
       const persistedHash = getBootstrapHash();
       const incomingHash = hashPayload(fullPayload);
-
-      if (phase === "failed") {
-        return jsonResponse(
-          { phase, bootId: deps.daemonBootId, hash: incomingHash },
-          409,
-        );
-      }
 
       if (persistedHash !== null) {
         if (incomingHash !== persistedHash) {
@@ -122,7 +111,8 @@ export function makeBootstrapHandler(deps: BootstrapHandlerDeps) {
       }
 
       setBootstrapHash(hash);
-      setConfig(configFromBootstrap(fullPayload, deps.daemonBootId));
+      setTenantConfig(tenantConfigFromBootstrap(fullPayload));
+      setLastError(null);
       setPhase("bootstrapping");
       deps.onAccepted?.(fullPayload);
 

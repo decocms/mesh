@@ -1,9 +1,15 @@
 export type PackageManager = "npm" | "pnpm" | "yarn" | "bun" | "deno";
 export type Runtime = "node" | "bun" | "deno";
 
-export interface Config {
+export interface BootConfig {
   readonly daemonToken: string;
   readonly daemonBootId: string;
+  readonly appRoot: string;
+  readonly proxyPort: number;
+  readonly dropPrivileges: boolean;
+}
+
+export interface TenantConfig {
   readonly cloneUrl: string | null;
   readonly repoName: string | null;
   readonly branch: string | null;
@@ -12,11 +18,11 @@ export interface Config {
   readonly packageManager: PackageManager | null;
   readonly devPort: number;
   readonly runtime: Runtime;
-  readonly appRoot: string;
-  readonly proxyPort: number;
-  /** Derived from `runtime`; e.g. "export PATH=/opt/bun/bin:$PATH && " when bun. */
   readonly pathPrefix: string;
+  readonly env: Readonly<Record<string, string>>;
 }
+
+export type Config = BootConfig & TenantConfig;
 
 export interface BroadcastSource {
   /** "setup" | "daemon" | script name */
