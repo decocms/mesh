@@ -170,10 +170,16 @@ export const SHARE_WITH_USER_DESCRIPTION =
   "automatically when the turn finishes.";
 
 // read/grep/glob are non-mutating; write/edit/bash mutate.
-// copy_to_sandbox writes to sandbox FS → mutates; share_with_user uploads
-// to S3 from a read of the sandbox FS → not a sandbox mutation per se,
-// but treat as approval-worthy because it's an external side effect (the
-// artifact appears for the user).
+//
+// copy_to_sandbox + share_with_user are intentionally NOT approval-gated.
+// Both write side effects technically mutate state — copy_to_sandbox
+// drops bytes on the sandbox FS (already gated by `safePath`, no escape
+// outside `/app`), and share_with_user uploads to a thread-scoped S3
+// prefix the user already owns. Gating either would surface an approval
+// prompt on the most natural path the model takes for chat artifacts
+// (download → process → share), which is high-friction for a flow the
+// user just initiated by attaching a file. Reserve approvals for shell
+// + project-FS mutation where the blast radius is broader.
 export const TOOL_APPROVAL = {
   read: false,
   write: true,

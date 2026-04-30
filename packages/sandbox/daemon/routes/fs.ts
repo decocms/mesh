@@ -52,7 +52,13 @@ function isPrivateIp(ip: string): boolean {
   if (family === 6) {
     const lower = ip.toLowerCase();
     if (lower === "::1" || lower === "::") return true;
-    if (lower.startsWith("fe80:") || lower.startsWith("febf:")) return true;
+    // fe80::/10 — link-local. The first 10 bits are 1111111010, so the
+    // first u16 ranges 0xfe80 to 0xfebf. A naive
+    // `startsWith("fe80:") || startsWith("febf:")` only catches the
+    // boundaries and lets fe90::1, fea0::1, etc. through.
+    const firstHextet = Number.parseInt(lower.split(":")[0] ?? "0", 16);
+    if (firstHextet >= 0xfe80 && firstHextet <= 0xfebf) return true;
+    // fc00::/7 unique-local + ff00::/8 multicast.
     if (
       lower.startsWith("fc") ||
       lower.startsWith("fd") ||
