@@ -148,3 +148,122 @@ describe("HostSandboxRunner.ensure provisioning", () => {
     expect(fakeSpawn).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("HostSandboxRunner.ensure rehydration", () => {
+  let homeDir: string;
+  beforeEach(async () => {
+    homeDir = await mkdtemp(join(tmpdir(), "host-runner-rehydrate-"));
+  });
+  afterEach(async () => {
+    await rm(homeDir, { recursive: true, force: true });
+  });
+
+  it("returns the previously-provisioned record when /health still answers", async () => {
+    const store = makeStore();
+    const id = { userId: "u1", projectRef: "vmcp:1:branch:main" };
+
+    const handle = "deadbe-abcde";
+    await store.put(id, "host", {
+      handle,
+      state: {
+        pid: process.pid,
+        daemonPort: 12345,
+        daemonUrl: "http://127.0.0.1:12345",
+        workdir: join(homeDir, "sandboxes", handle),
+        token: "t".repeat(48),
+        bootId: "old-boot",
+      },
+    });
+
+    const fakeProbe = mock(async () => ({
+      ready: true,
+      bootId: "old-boot",
+      setup: { running: false, done: true },
+    }));
+    const fakeSpawn = mock(async () => {
+      throw new Error("should not be called on rehydrate");
+    });
+
+    const runner = new HostSandboxRunner({
+      homeDir,
+      stateStore: store,
+      _spawn: fakeSpawn,
+      _probe: fakeProbe,
+      _isAlive: (pid) => pid === process.pid,
+    });
+
+    const port = await runner.resolveDaemonPort(handle);
+    expect(port).toBe(12345);
+    expect(fakeProbe).toHaveBeenCalled();
+    expect(fakeSpawn).not.toHaveBeenCalled();
+  });
+
+  it("returns null and purges state when the persisted PID is dead", async () => {
+    const store = makeStore();
+    const id = { userId: "u1", projectRef: "vmcp:1:branch:dead" };
+    const handle = "deadpid-abcde";
+
+    await store.put(id, "host", {
+      handle,
+      state: {
+        pid: 999_999_999, // unlikely-alive
+        daemonPort: 12345,
+        daemonUrl: "http://127.0.0.1:12345",
+        workdir: join(homeDir, "sandboxes", handle),
+        token: "t".repeat(48),
+        bootId: "old-boot",
+      },
+    });
+
+    const fakeProbe = mock(async () => ({
+      ready: true,
+      bootId: "x",
+      setup: { running: false, done: true },
+    }));
+
+    const runner = new HostSandboxRunner({
+      homeDir,
+      stateStore: store,
+      _spawn: mock(async () => ({ pid: 1234, kill: () => true })),
+      _probe: fakeProbe,
+      _isAlive: () => false, // pretend nothing is alive
+    });
+
+    const port = await runner.resolveDaemonPort(handle);
+    expect(port).toBeNull();
+    // probe should NOT be called when the pid liveness check fails first.
+    expect(fakeProbe).not.toHaveBeenCalled();
+  });
+
+  it("returns null when /health does not respond", async () => {
+    const store = makeStore();
+    const id = { userId: "u1", projectRef: "vmcp:1:branch:nohealth" };
+    const handle = "noheal-abcde";
+
+    await store.put(id, "host", {
+      handle,
+      state: {
+        pid: process.pid,
+        daemonPort: 12345,
+        daemonUrl: "http://127.0.0.1:12345",
+        workdir: join(homeDir, "sandboxes", handle),
+        token: "t".repeat(48),
+        bootId: "old-boot",
+      },
+    });
+
+    const fakeProbe = mock(async () => null);
+
+    const runner = new HostSandboxRunner({
+      homeDir,
+      stateStore: store,
+      _spawn: mock(async () => ({ pid: 1234, kill: () => true })),
+      _probe: fakeProbe,
+      _isAlive: (pid) => pid === process.pid,
+    });
+
+    const port = await runner.resolveDaemonPort(handle);
+    expect(port).toBeNull();
+    expect(fakeProbe).toHaveBeenCalled();
+  });
+});

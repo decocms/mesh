@@ -292,14 +292,34 @@ export class HostSandboxRunner implements SandboxRunner {
     return rec;
   }
 
-  /** Filled in by Task 8. */
   private async rehydrate(
-    _id: SandboxId,
-    _persisted: { handle: string; state: Record<string, unknown> },
+    id: SandboxId,
+    persisted: { handle: string; state: Record<string, unknown> },
   ): Promise<HostRecord | null> {
-    // PersistedHostState used here in Task 8 for state casting.
-    void ({} as PersistedHostState);
-    return null;
+    const state = persisted.state as Partial<PersistedHostState>;
+    if (
+      typeof state.pid !== "number" ||
+      typeof state.daemonPort !== "number" ||
+      typeof state.daemonUrl !== "string" ||
+      typeof state.workdir !== "string" ||
+      typeof state.token !== "string" ||
+      typeof state.bootId !== "string"
+    ) {
+      return null;
+    }
+    if (!this.isAliveFn(state.pid)) return null;
+    const health = await this.probeFn(state.daemonUrl);
+    if (!health) return null;
+    return {
+      id,
+      handle: persisted.handle,
+      pid: state.pid,
+      daemonPort: state.daemonPort,
+      daemonUrl: state.daemonUrl,
+      workdir: state.workdir,
+      token: state.token,
+      bootId: health.bootId,
+    };
   }
 }
 
