@@ -51,12 +51,26 @@ interface SandboxUserDataDeps {
 
 const MAX_KEYS_CAP = 200;
 const MAX_SHARE_BYTES = 100 * 1024 * 1024;
-const THREAD_REF_PREFIX = "thread:";
 
+/**
+ * Extract the thread id from a `sandbox_runner_state.project_ref`.
+ *
+ * Two shapes per `composeSandboxRef`:
+ *   - `thread:<id>` — direct thread sandboxes (currently unused by the
+ *     chat flow but supported by the runner API).
+ *   - `agent:<orgId>:<virtualMcpId>:<branch>` — what chat actually
+ *     produces. When the user hasn't picked a branch, `stream-core.ts`
+ *     synthesises `branch = thread:<taskId>` (see ~L492 there), so the
+ *     full ref is `agent:<orgId>:<virtualMcpId>:thread:<id>`. Real git
+ *     branches won't carry the `thread:` prefix and yield null here,
+ *     which is correct — sharing only makes sense in chat threads.
+ */
 function parseThreadId(projectRef: string): string | null {
-  return projectRef.startsWith(THREAD_REF_PREFIX)
-    ? projectRef.slice(THREAD_REF_PREFIX.length)
-    : null;
+  const direct = /^thread:(.+)$/.exec(projectRef);
+  if (direct) return direct[1] ?? null;
+  const agent = /^agent:[^:]+:[^:]+:thread:(.+)$/.exec(projectRef);
+  if (agent) return agent[1] ?? null;
+  return null;
 }
 
 /** Reject path-traversal, leading slash, and slashes in the filename itself. */
