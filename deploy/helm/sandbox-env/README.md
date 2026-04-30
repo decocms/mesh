@@ -65,7 +65,7 @@ Published as an OCI artifact at
 ```bash
 helm install sandbox-env-staging \
   oci://ghcr.io/decocms/studio/charts/sandbox-env \
-  --version 0.1.0 \
+  --version 0.5.0 \
   --namespace agent-sandbox-system \
   --set envName=staging \
   --set mesh.namespace=deco-studio-staging \
@@ -108,7 +108,7 @@ spec:
   source:
     repoURL: ghcr.io/decocms/studio/charts
     chart: sandbox-env
-    targetRevision: 0.1.0
+    targetRevision: 0.5.0
     helm:
       values: |
         envName: staging
@@ -139,7 +139,7 @@ values file:
 ```bash
 helm upgrade sandbox-env-staging \
   oci://ghcr.io/decocms/studio/charts/sandbox-env \
-  --version 0.2.0 \
+  --version 0.5.0 \
   --namespace agent-sandbox-system \
   --reset-then-reuse-values \
   --set housekeeper.enabled=true

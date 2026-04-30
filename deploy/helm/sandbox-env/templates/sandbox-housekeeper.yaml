@@ -40,9 +40,12 @@ rules:
     resources: ["pods"]
     verbs: ["list"]
   # Reap events outlive the claim object — used for post-mortem.
-  - apiGroups: [""]
+  # events.k8s.io/v1 is the current API; legacy `[""] events` is deprecated.
+  # `kubectl get events` aggregates from both, so consumers are unaffected.
+  - apiGroups: ["events.k8s.io"]
     resources: ["events"]
     verbs: ["create"]
+  # list = orphan HTTPRoute GC pass + per-claim reap deletes.
   - apiGroups: ["gateway.networking.k8s.io"]
     resources: ["httproutes"]
     verbs: ["list", "delete"]
