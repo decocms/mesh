@@ -43,7 +43,6 @@ const DAEMON_ENTRY = resolve(
 );
 const HEALTH_PROBE_INTERVAL_MS = 250;
 const STOP_GRACE_MS = 2_000;
-const DEFAULT_DEV_PORT = 3000;
 
 type DaemonProcess = {
   pid: number;
@@ -151,13 +150,14 @@ export class HostSandboxRunner implements SandboxRunner {
     const bootId = randomUUID();
     const daemonPort = await preallocatePort();
     const daemonUrl = `http://127.0.0.1:${daemonPort}`;
+    const devPort = await preallocatePort();
 
     const env = buildDaemonEnv({
       token,
       bootId,
       workdir,
       daemonPort,
-      devPort: opts.workload?.devPort ?? DEFAULT_DEV_PORT,
+      devPort,
       runtime: opts.workload?.runtime ?? "node",
       packageManager: opts.workload?.packageManager ?? null,
       repo: opts.repo ?? null,

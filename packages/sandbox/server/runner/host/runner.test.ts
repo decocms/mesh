@@ -111,6 +111,11 @@ describe("HostSandboxRunner.ensure provisioning", () => {
     expect(spawnArgs.env.CLONE_URL).toBe("https://example.com/x.git");
     expect(spawnArgs.env.BRANCH).toBe("main");
     expect(spawnArgs.env.PROXY_PORT).toBe(String(spawnArgs.daemonPort));
+    expect(spawnArgs.env.DEV_PORT).toMatch(/^\d+$/);
+    expect(Number(spawnArgs.env.DEV_PORT)).toBeGreaterThan(0);
+    expect(Number(spawnArgs.env.DEV_PORT)).not.toBe(
+      Number(spawnArgs.daemonPort),
+    );
   });
 
   it("returns the cached sandbox on a second ensure() call", async () => {
