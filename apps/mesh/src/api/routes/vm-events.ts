@@ -38,6 +38,7 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import {
   composeSandboxRef,
+  computeHandle,
   tryResolveRunnerKindFromEnv,
 } from "@decocms/sandbox/runner";
 import { composeClaimName } from "@decocms/sandbox/runner/agent-sandbox";
@@ -111,7 +112,16 @@ app.get("/", async (c) => {
     virtualMcpId,
     branch,
   });
-  const claimName = composeClaimName({ userId, projectRef }, branch);
+  const runnerKind = tryResolveRunnerKindFromEnv();
+  // Each runner produces handles with its own shape: agent-sandbox prefixes
+  // with `studio-sb-` and uses a 16-char hash (k8s claim-name conventions);
+  // docker/host/freestyle use the plain `<slug>-<hash5>` from computeHandle.
+  // The handle here is the same value the runner stored in its state-store
+  // when VM_START provisioned the sandbox, so the daemon-proxy lookup hits.
+  const claimName =
+    runnerKind === "agent-sandbox"
+      ? composeClaimName({ userId, projectRef }, branch)
+      : computeHandle({ userId, projectRef }, branch);
 
   // Snapshot vmMap from the same metadata read used for the org-ownership
   // check. Used below to gate the stale-handle probe: we only treat a
@@ -129,7 +139,6 @@ app.get("/", async (c) => {
     existingVmEntry?.runnerKind === "agent-sandbox" &&
     existingVmEntry.vmId === claimName;
 
-  const runnerKind = tryResolveRunnerKindFromEnv();
   const runner = await getOrInitSharedRunner();
 
   // No runner configured at all → can't proxy daemon SSE. Surface a failed
