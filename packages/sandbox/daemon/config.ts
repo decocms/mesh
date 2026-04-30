@@ -1,4 +1,4 @@
-import type { Config, PackageManager, Runtime } from "./types";
+import type { CloneDepth, Config, PackageManager, Runtime } from "./types";
 
 const BRANCH_RE = /^[A-Za-z0-9._/-]+$/;
 const PACKAGE_MANAGERS: readonly PackageManager[] = [
@@ -69,6 +69,12 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
         ? "export PATH=/opt/deno/bin:$PATH && "
         : "";
 
+  const cloneDepthRaw = env.CLONE_DEPTH ?? "shallow";
+  if (cloneDepthRaw !== "shallow" && cloneDepthRaw !== "full") {
+    throw new Error(`CLONE_DEPTH invalid: ${cloneDepthRaw}`);
+  }
+  const cloneDepth = cloneDepthRaw as "shallow" | "full";
+
   return Object.freeze({
     daemonToken,
     daemonBootId,
@@ -83,5 +89,6 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     appRoot,
     proxyPort,
     pathPrefix,
+    cloneDepth,
   });
 }

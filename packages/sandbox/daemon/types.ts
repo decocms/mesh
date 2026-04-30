@@ -1,5 +1,6 @@
 export type PackageManager = "npm" | "pnpm" | "yarn" | "bun" | "deno";
 export type Runtime = "node" | "bun" | "deno";
+export type CloneDepth = "shallow" | "full";
 
 export interface Config {
   readonly daemonToken: string;
@@ -16,6 +17,8 @@ export interface Config {
   readonly proxyPort: number;
   /** Derived from `runtime`; e.g. "export PATH=/opt/bun/bin:$PATH && " when bun. */
   readonly pathPrefix: string;
+  /** "shallow" → `git clone --depth 1`; "full" → drop the flag. Default "shallow". */
+  readonly cloneDepth: CloneDepth;
 }
 
 export interface BroadcastSource {
