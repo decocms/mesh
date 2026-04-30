@@ -61,41 +61,35 @@ describe("parsePreviewBaseDomain", () => {
 describe("extractHandleFromHost", () => {
   const base = "preview.decocms.com";
 
-  it("extracts studio-sb- handles from the matching subdomain", () => {
-    expect(
-      extractHandleFromHost("studio-sb-abc123.preview.decocms.com", base),
-    ).toBe("studio-sb-abc123");
+  it("extracts bare handles from the matching subdomain", () => {
+    expect(extractHandleFromHost("abc123.preview.decocms.com", base)).toBe(
+      "abc123",
+    );
   });
 
   it("ignores port suffix in Host header", () => {
     expect(
-      extractHandleFromHost("studio-sb-abc.preview.decocms.com:8080", base),
-    ).toBe("studio-sb-abc");
+      extractHandleFromHost("myproj-a1b2c.preview.decocms.com:8080", base),
+    ).toBe("myproj-a1b2c");
   });
 
   it("is case-insensitive on host + base", () => {
-    expect(
-      extractHandleFromHost("Studio-Sb-ABC.Preview.DecocMs.com", base),
-    ).toBe("studio-sb-abc");
-  });
-
-  it("returns null when the handle prefix is missing", () => {
-    expect(
-      extractHandleFromHost("randomthing.preview.decocms.com", base),
-    ).toBeNull();
+    expect(extractHandleFromHost("MyProj-ABC.Preview.DecocMs.com", base)).toBe(
+      "myproj-abc",
+    );
   });
 
   it("returns null when the base domain doesn't match", () => {
     expect(
-      extractHandleFromHost("studio-sb-abc.preview.example.org", base),
+      extractHandleFromHost("myproj-a1b2c.preview.example.org", base),
     ).toBeNull();
   });
 
   it("rejects nested subdomains", () => {
-    // foo.studio-sb-abc.preview.decocms.com → strip suffix yields
-    // "foo.studio-sb-abc" which has a dot → null.
+    // foo.myproj-a1b2c.preview.decocms.com → strip suffix yields
+    // "foo.myproj-a1b2c" which has a dot → null.
     expect(
-      extractHandleFromHost("foo.studio-sb-abc.preview.decocms.com", base),
+      extractHandleFromHost("foo.myproj-a1b2c.preview.decocms.com", base),
     ).toBeNull();
   });
 
@@ -103,7 +97,7 @@ describe("extractHandleFromHost", () => {
     expect(extractHandleFromHost(null, base)).toBeNull();
     expect(extractHandleFromHost(undefined, base)).toBeNull();
     expect(
-      extractHandleFromHost("studio-sb-abc.preview.decocms.com", ""),
+      extractHandleFromHost("myproj-a1b2c.preview.decocms.com", ""),
     ).toBeNull();
   });
 });
@@ -114,7 +108,7 @@ describe("applyPreviewPattern <-> parse/extract round-trip", () => {
   // inverses. If either side ever supports a pattern shape the other doesn't
   // recognize, this test catches the mismatch before it silently misroutes
   // production traffic.
-  const handle = "studio-sb-abc123";
+  const handle = "abc123";
 
   const patterns = [
     "https://{handle}.preview.decocms.com",
@@ -150,8 +144,8 @@ describe("tryHandlePreviewHttp", () => {
   });
 
   it("returns 503 when the runner isn't configured for K8s", async () => {
-    const req = new Request("https://studio-sb-abc.preview.example.com/", {
-      headers: { host: "studio-sb-abc.preview.example.com" },
+    const req = new Request("https://myproj-a1b2c.preview.example.com/", {
+      headers: { host: "myproj-a1b2c.preview.example.com" },
     });
     const res = await tryHandlePreviewHttp(req, {
       baseDomain,
@@ -169,12 +163,9 @@ describe("tryHandlePreviewHttp", () => {
         return new Response("ok", { status: 200 });
       },
     };
-    const req = new Request(
-      "https://studio-sb-deadbeef.preview.example.com/foo",
-      {
-        headers: { host: "studio-sb-deadbeef.preview.example.com" },
-      },
-    );
+    const req = new Request("https://myproj-deadbeef.preview.example.com/foo", {
+      headers: { host: "myproj-deadbeef.preview.example.com" },
+    });
     const res = await tryHandlePreviewHttp(req, {
       baseDomain,
       // biome-ignore lint/suspicious/noExplicitAny: structural duck-type
@@ -183,13 +174,13 @@ describe("tryHandlePreviewHttp", () => {
     expect(res).not.toBeNull();
     expect(res!.status).toBe(200);
     expect(received).not.toBeNull();
-    expect(received!.handle).toBe("studio-sb-deadbeef");
+    expect(received!.handle).toBe("myproj-deadbeef");
   });
 });
 
 describe("tryUpgradePreviewWs", () => {
   const baseDomain = "preview.example.com";
-  const previewHost = "studio-sb-abc123.preview.example.com";
+  const previewHost = "myproj-a1b2c.preview.example.com";
 
   function wsRequest(path: string, host: string = previewHost): Request {
     return new Request(`https://${host}${path}`, {

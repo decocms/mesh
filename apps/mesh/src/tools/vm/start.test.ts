@@ -10,8 +10,10 @@ import type {
 import { composeSandboxRef } from "@decocms/sandbox/runner";
 
 // Pin runner kind — the dev env flips STUDIO_SANDBOX_RUNNER and VM_START
-// reads it at handler time.
+// reads it at handler time. Freestyle resolution also requires
+// FREESTYLE_API_KEY; stub it so resolution doesn't throw under the test runner.
 process.env.STUDIO_SANDBOX_RUNNER = "freestyle";
+process.env.FREESTYLE_API_KEY ??= "test-stub-key";
 
 // Mock runner BEFORE importing VM_START — handler is runner-agnostic
 // and we don't want to pull the real freestyle SDK.

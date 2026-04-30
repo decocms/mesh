@@ -15,11 +15,19 @@ export async function kickoffSandboxImageBuild(opts: {
   if (process.env.NODE_ENV === "production") return;
   if (process.env.STUDIO_SANDBOX_IMAGE) return;
 
-  const { tryResolveRunnerKindFromEnv, ensureSandboxImage } = await import(
+  const { resolveRunnerKindFromEnv, ensureSandboxImage } = await import(
     "@decocms/sandbox/runner"
   );
 
-  if (tryResolveRunnerKindFromEnv() !== "docker") return;
+  let kind: string;
+  try {
+    kind = resolveRunnerKindFromEnv();
+  } catch {
+    // Best-effort kickoff: misconfigured env is surfaced by the actual
+    // VM_START path; here we just skip the prebuild.
+    return;
+  }
+  if (kind !== "docker") return;
 
   const log = opts.noTui
     ? (line: string) => console.log(`[sandbox-image] ${line}`)

@@ -125,27 +125,12 @@ const RESERVED_ENV_KEYS = new Set([
 const DEFAULT_IDLE_TTL_MS = 15 * 60 * 1000;
 
 /**
- * Handle shape: `studio-sb-<slug>-<hash16>` when a branch is supplied,
- * `studio-sb-<hash16>` otherwise. With prefix(10) + slug(≤24) + 1 + hash(16)
- * = 51 chars max — under K8s's 63-char DNS label cap with margin for
- * suffixed env names. The 16-char hash (~64 bits) is preserved over the
- * shared default of 5 because the handle is the *only* authorization on
- * the public preview URL (Vercel-style "URL is the secret"); 20-bit hashes
- * are brute-forceable at a busy gateway in minutes.
+ * Handle shape: `<slug>-<hash5>` when a branch is supplied, `<hash5>`
+ * otherwise — identical to the docker/host runners' default from
+ * `composeBranchHandle` (re-exported as `computeHandle`). With
+ * slug(≤24) + 1 + hash(5) = 30 chars max — well under K8s's 63-char DNS
+ * label cap.
  */
-export const HANDLE_PREFIX = "studio-sb-";
-const HANDLE_HASH_LEN = 16;
-
-/**
- * Server-side helper for callers (mesh routes, lifecycle SSE) that need to
- * compute a claim name without instantiating an `AgentSandboxRunner`.
- * Always produces the exact same string the runner would for the same
- * `(SandboxId, branch)` pair — the lifecycle SSE depends on this so it can
- * subscribe to the claim a racing `VM_START` is about to create.
- */
-export function composeClaimName(id: SandboxId, branch: string | null): string {
-  return `${HANDLE_PREFIX}${composeBranchHandle(id, branch, { hashLen: HANDLE_HASH_LEN })}`;
-}
 
 /**
  * Headers stripped before re-issuing the preview proxy fetch. Hop-by-hop per
@@ -1314,7 +1299,7 @@ export class AgentSandboxRunner implements SandboxRunner {
   // ---- Identity + preview URL ----------------------------------------------
 
   private computeHandle(id: SandboxId, branch: string | null): string {
-    return composeClaimName(id, branch);
+    return composeBranchHandle(id, branch);
   }
 
   // Local mode: route preview traffic through the daemon port-forward, not

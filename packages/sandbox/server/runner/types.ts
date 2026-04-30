@@ -86,7 +86,7 @@ export interface ProxyRequestInit {
  * Persisted on `vmMap` and `sandbox_runner_state.runner_kind`. When widening,
  * keep `VmMapEntry.runnerKind` in sync.
  */
-export type RunnerKind = "docker" | "freestyle" | "agent-sandbox";
+export type RunnerKind = "host" | "docker" | "freestyle" | "agent-sandbox";
 
 export interface SandboxRunner {
   readonly kind: RunnerKind;

@@ -38,9 +38,9 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import {
   composeSandboxRef,
-  tryResolveRunnerKindFromEnv,
+  computeHandle,
+  resolveRunnerKindFromEnv,
 } from "@decocms/sandbox/runner";
-import { composeClaimName } from "@decocms/sandbox/runner/agent-sandbox";
 import type { ClaimPhase } from "@decocms/sandbox/runner/agent-sandbox";
 import {
   asLifecycleWatchable,
@@ -111,7 +111,10 @@ app.get("/", async (c) => {
     virtualMcpId,
     branch,
   });
-  const claimName = composeClaimName({ userId, projectRef }, branch);
+  const runnerKind = resolveRunnerKindFromEnv();
+  // The handle is the same value the runner stored in its state-store when
+  // VM_START provisioned the sandbox, so the daemon-proxy lookup hits.
+  const claimName = computeHandle({ userId, projectRef }, branch);
 
   // Snapshot vmMap from the same metadata read used for the org-ownership
   // check. Used below to gate the stale-handle probe: we only treat a
@@ -129,7 +132,6 @@ app.get("/", async (c) => {
     existingVmEntry?.runnerKind === "agent-sandbox" &&
     existingVmEntry.vmId === claimName;
 
-  const runnerKind = tryResolveRunnerKindFromEnv();
   const runner = await getOrInitSharedRunner();
 
   // No runner configured at all → can't proxy daemon SSE. Surface a failed
@@ -226,7 +228,7 @@ async function isStaleHandle(
  *      `setVmMapEntry` on the same metadata JSON column (read-modify-write
  *      is not atomic; see vm-map.ts). The next VM_START overwrites the
  *      entry with a fresh one anyway — the `vmId` is deterministic
- *      (composeClaimName), so the entry's identity is stable across
+ *      (computeHandle), so the entry's identity is stable across
  *      reprovisions.
  *
  * Failures are logged, not thrown — the user-visible flow (emit `gone` →
@@ -262,7 +264,7 @@ async function cleanupStaleEntry(args: {
  */
 async function emitLifecycle(args: {
   stream: import("hono/streaming").SSEStreamingApi;
-  runnerKind: ReturnType<typeof tryResolveRunnerKindFromEnv>;
+  runnerKind: ReturnType<typeof resolveRunnerKindFromEnv>;
   claimName: string;
   runner: NonNullable<Awaited<ReturnType<typeof getOrInitSharedRunner>>>;
   signal: AbortSignal;

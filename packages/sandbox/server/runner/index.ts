@@ -5,7 +5,6 @@
  * every deploy needs them.
  */
 
-import { spawnSync } from "node:child_process";
 import { DockerSandboxRunner, type DockerRunnerOptions } from "./docker";
 import type { RunnerStateStore } from "./state-store";
 import type { RunnerKind, SandboxRunner } from "./types";
@@ -24,6 +23,11 @@ export type {
 export { sandboxIdKey } from "./types";
 export { DockerSandboxRunner } from "./docker";
 export type { DockerExec, DockerRunnerOptions, ExecResult } from "./docker";
+export { HostSandboxRunner } from "./host";
+export type { HostRunnerOptions } from "./host";
+// Needed by mesh callers (decopilot stream-core) that compute handles
+// directly. Re-exported here so consumers don't dig into shared/.
+export { computeHandle } from "./shared";
 export { ensureSandboxImage } from "../image-build";
 export type { EnsureImageOptions } from "../image-build";
 export { startLocalSandboxIngress } from "./docker";
@@ -61,52 +65,35 @@ export function createDockerRunner(
   });
 }
 
-let cachedDockerInstalled: boolean | null = null;
-
-/** Probes only the CLI presence (not daemon reachability). Cached. */
-function isDockerInstalled(): boolean {
-  if (cachedDockerInstalled !== null) return cachedDockerInstalled;
-  try {
-    const result = spawnSync("docker", ["--version"], {
-      stdio: "ignore",
-      timeout: 2000,
-    });
-    cachedDockerInstalled = result.status === 0;
-  } catch {
-    cachedDockerInstalled = false;
-  }
-  return cachedDockerInstalled;
-}
+const RUNNER_KINDS: ReadonlySet<RunnerKind> = new Set([
+  "host",
+  "docker",
+  "freestyle",
+  "agent-sandbox",
+]);
 
 /**
- * Rules:
- *   1. `STUDIO_SANDBOX_RUNNER=docker|freestyle|agent-sandbox` — honored.
- *   2. No explicit value, `FREESTYLE_API_KEY` set — pick freestyle.
- *   3. Otherwise — docker if CLI present, else null.
+ * Single resolution rule:
+ *   - explicit STUDIO_SANDBOX_RUNNER wins (validated against the kind set);
+ *   - otherwise default to "host";
+ *   - "freestyle" additionally requires FREESTYLE_API_KEY (precondition, not auto-trigger).
  *
- * agent-sandbox is explicit-only: never auto-selected — callers must opt in
- * with `STUDIO_SANDBOX_RUNNER=agent-sandbox` so docker-only dev stays the default.
+ * Exits the legacy auto-detection chain: setting FREESTYLE_API_KEY no longer
+ * implicitly switches the runner, and Docker CLI presence is no longer probed.
+ * Any non-host runner must be opted into explicitly.
  */
-export function tryResolveRunnerKindFromEnv(): RunnerKind | null {
+export function resolveRunnerKindFromEnv(): RunnerKind {
   const raw = process.env.STUDIO_SANDBOX_RUNNER;
-  if (raw === "docker" || raw === "freestyle" || raw === "agent-sandbox") {
-    return raw;
-  }
-  if (raw && raw.length > 0) {
+  const kind = (raw && raw.length > 0 ? raw : "host") as RunnerKind;
+  if (!RUNNER_KINDS.has(kind)) {
     throw new Error(
-      `Unknown STUDIO_SANDBOX_RUNNER="${raw}" — expected "docker", "freestyle", or "agent-sandbox".`,
+      `Unknown STUDIO_SANDBOX_RUNNER="${raw}" — expected "host", "docker", "freestyle", or "agent-sandbox".`,
     );
   }
-  if (process.env.FREESTYLE_API_KEY) return "freestyle";
-  return isDockerInstalled() ? "docker" : null;
-}
-
-/** Strict variant: throws with remediation hints when no runner is resolvable. */
-export function resolveRunnerKindFromEnv(): RunnerKind {
-  const kind = tryResolveRunnerKindFromEnv();
-  if (kind) return kind;
-  throw new Error(
-    `No sandbox runner available: Docker CLI not found on PATH. ` +
-      `Install Docker, set FREESTYLE_API_KEY, or set STUDIO_SANDBOX_RUNNER explicitly.`,
-  );
+  if (kind === "freestyle" && !process.env.FREESTYLE_API_KEY) {
+    throw new Error(
+      `STUDIO_SANDBOX_RUNNER="freestyle" requires FREESTYLE_API_KEY to be set.`,
+    );
+  }
+  return kind;
 }

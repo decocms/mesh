@@ -174,7 +174,7 @@ export function makeWriteHandler(deps: FsDeps) {
     if (typeof body.content !== "string")
       return jsonResponse({ error: "content is required" }, 400);
     const filePath = safePath(deps.appRoot, body.path ?? "");
-    if (!filePath) return jsonResponse({ error: "Path escapes /app" }, 400);
+    if (!filePath) return jsonResponse({ error: "Path escapes app root" }, 400);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFileSync(filePath, body.content, "utf-8");
     return jsonResponse({
@@ -198,7 +198,7 @@ export function makeEditHandler(deps: FsDeps) {
       return jsonResponse({ error: (e as Error).message }, 400);
     }
     const filePath = safePath(deps.appRoot, body.path ?? "");
-    if (!filePath) return jsonResponse({ error: "Path escapes /app" }, 400);
+    if (!filePath) return jsonResponse({ error: "Path escapes app root" }, 400);
     if (!body.old_string || typeof body.old_string !== "string")
       return jsonResponse({ error: "old_string is required" }, 400);
     if (typeof body.new_string !== "string")
@@ -255,7 +255,8 @@ export function makeGrepHandler(deps: FsDeps) {
     const searchPath = body.path
       ? safePath(deps.appRoot, body.path)
       : deps.appRoot;
-    if (!searchPath) return jsonResponse({ error: "Path escapes /app" }, 400);
+    if (!searchPath)
+      return jsonResponse({ error: "Path escapes app root" }, 400);
     const args: string[] = [];
     const mode = body.output_mode ?? "files";
     if (mode === "files") args.push("--files-with-matches");
@@ -332,7 +333,7 @@ export function makeWriteFromUrlHandler(deps: FsDeps) {
       return jsonResponse({ error: "url is required" }, 400);
     }
     const filePath = safePath(deps.appRoot, body.path ?? "");
-    if (!filePath) return jsonResponse({ error: "Path escapes /app" }, 400);
+    if (!filePath) return jsonResponse({ error: "Path escapes app root" }, 400);
 
     // The URL here is mesh-minted (presigned GET to S3/R2) — the model
     // can't supply arbitrary URLs through copy_to_sandbox, so SSRF +
@@ -520,7 +521,8 @@ export function makeGlobHandler(deps: FsDeps) {
     const searchPath = body.path
       ? safePath(deps.appRoot, body.path)
       : deps.appRoot;
-    if (!searchPath) return jsonResponse({ error: "Path escapes /app" }, 400);
+    if (!searchPath)
+      return jsonResponse({ error: "Path escapes app root" }, 400);
     const child = spawn(
       "rg",
       ["--files", "--glob", body.pattern, searchPath],
