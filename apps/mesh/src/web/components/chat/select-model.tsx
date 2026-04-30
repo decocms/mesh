@@ -975,6 +975,8 @@ const IMAGE_MIME_TYPES = [
  */
 const SKILL_HANDLED_MIME_TYPES = [
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ] as const;
 
 export function modelSupportsFiles(
@@ -1047,7 +1049,7 @@ export function getSupportedFileTypesLabel(
   if (caps.includes("file")) parts.push("PDFs");
   if (caps.includes("audio")) parts.push("audio");
   if (caps.includes("video")) parts.push("video");
-  if (modelSupportsFiles(selectedModel)) parts.push("PowerPoint");
+  if (modelSupportsFiles(selectedModel)) parts.push("Office files");
 
   if (parts.length === 0) return "text only";
   if (parts.length === 1) return parts[0]!;
