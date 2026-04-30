@@ -4,7 +4,6 @@ import {
   DECO_GID,
   PACKAGE_MANAGER_DAEMON_CONFIG,
 } from "../constants";
-import { scriptArgs } from "../process/script-args";
 import type { Config } from "../types";
 
 export interface InstallDeps {
@@ -30,7 +29,7 @@ export function spawnInstall(deps: InstallDeps): Promise<number> | null {
       (opts as { uid: number; gid: number }).uid = DECO_UID;
       (opts as { uid: number; gid: number }).gid = DECO_GID;
     }
-    const child = spawn("script", scriptArgs(cmd), opts);
+    const child = spawn("sh", ["-c", cmd], opts);
     child.stdout?.on("data", (c: Buffer) =>
       deps.onChunk("setup", c.toString("utf-8")),
     );

@@ -1,7 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { Broadcaster } from "../events/broadcast";
 import { DECO_UID, DECO_GID } from "../constants";
-import { scriptArgs } from "./script-args";
 
 export interface ProcessManagerDeps {
   broadcaster: Broadcaster;
@@ -43,8 +42,7 @@ export class ProcessManager {
     // closes. Vite's CLI shortcuts call setRawMode then watch stdin for EOF;
     // with stdin closed at spawn the child sees EOF immediately and exits
     // right after announcing it's ready. Keeping the pipe open without ever
-    // writing to it is the cheapest way to keep long-running dev servers
-    // alive under the `script` PTY wrapper.
+    // writing to it is the cheapest way to keep long-running dev servers alive.
     const opts: Parameters<typeof spawn>[2] = {
       stdio: ["pipe", "pipe", "pipe"],
       env: this.deps.env,
@@ -53,7 +51,7 @@ export class ProcessManager {
       (opts as { uid: number; gid: number }).uid = DECO_UID;
       (opts as { uid: number; gid: number }).gid = DECO_GID;
     }
-    const child = spawn("script", scriptArgs(cmd), opts);
+    const child = spawn("sh", ["-c", cmd], opts);
     this.children.set(source, child);
     this.deps.broadcaster.broadcastEvent("processes", {
       type: "processes",

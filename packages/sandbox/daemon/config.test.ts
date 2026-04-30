@@ -91,4 +91,3 @@ describe("loadConfig", () => {
     expect(cfg.pathPrefix).toBe("export PATH=/opt/bun/bin:$PATH && ");
   });
 });
-

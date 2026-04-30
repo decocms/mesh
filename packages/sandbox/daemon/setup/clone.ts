@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
 import { DECO_UID, DECO_GID } from "../constants";
-import { scriptArgs } from "../process/script-args";
 import type { Config } from "../types";
 
 export interface CloneDeps {
@@ -24,7 +23,7 @@ export function spawnClone(deps: CloneDeps): Promise<number> {
       (opts as { uid: number; gid: number }).uid = DECO_UID;
       (opts as { uid: number; gid: number }).gid = DECO_GID;
     }
-    const child = spawn("script", scriptArgs(cmd), opts);
+    const child = spawn("sh", ["-c", cmd], opts);
     child.stdout?.on("data", (c: Buffer) =>
       deps.onChunk("setup", c.toString("utf-8")),
     );
