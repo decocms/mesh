@@ -20,8 +20,15 @@
         "src/api/routes/dev-only.ts"
       ],
       "ignore": ["src/api/index.ts"],
-      // Resolved at bundle-time by scripts/bundle-server-script.ts ALWAYS_INCLUDE
-      "ignoreDependencies": ["@jitl/quickjs-wasmfile-release-sync"]
+      "ignoreDependencies": [
+        // Resolved at bundle-time by scripts/bundle-server-script.ts ALWAYS_INCLUDE
+        "@jitl/quickjs-wasmfile-release-sync",
+        // Imported only by the sandbox daemon, which is text-imported into
+        // server.js and spawned as a separate `bun run` process. Declared as
+        // a direct dep so `bunx decocms@latest` installs it; the host runner
+        // points the daemon at it via NODE_PATH at spawn time.
+        "node-pty"
+      ]
     },
     "packages/mesh-sdk": {
       "ignoreDependencies": ["sonner"]
