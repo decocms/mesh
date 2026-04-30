@@ -58,22 +58,15 @@ function rolePermits(
   capability: PermissionCapability,
 ): boolean {
   if (!permission) return false;
-  // Org-wide wildcards: { "*": ["*"] } or self: ["*"] grant every capability.
-  if (permission["*"]?.includes("*")) return true;
+  // Capability tools are static org-level permissions, so they always live
+  // under the `self` bucket. Per-connection grants (under connection IDs)
+  // can include "*" actions from the auto-grant helper — those mean
+  // "all tools on this connection", NOT "wildcard every capability", so we
+  // must not aggregate them here or every member with any connection grant
+  // would see every UI affordance.
   const selfTools = permission.self ?? [];
   if (selfTools.includes("*")) return true;
-  // Aggregate every action the role grants at the org level. Capability tools
-  // are resource-less synthetic flags (or static org-tool names), so any
-  // resource bucket that lists them counts. Per-connection bindings live
-  // under connection IDs and aren't relevant for capability gating, but
-  // including them is harmless because capability tool names don't collide
-  // with connection-tool names.
-  const grantedActions = new Set<string>();
-  for (const actions of Object.values(permission)) {
-    for (const action of actions) grantedActions.add(action);
-  }
-  if (grantedActions.has("*")) return true;
-  return capability.tools.every((tool) => grantedActions.has(tool));
+  return capability.tools.every((tool) => selfTools.includes(tool));
 }
 
 export interface CapabilityResult {
