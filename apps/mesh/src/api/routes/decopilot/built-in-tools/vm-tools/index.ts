@@ -35,22 +35,33 @@ import type { VmToolsParams } from "./types";
 const MESH_STORAGE_SCHEME = "mesh-storage://";
 
 /**
- * Resolve any of three input shapes to a fetchable URL the daemon can GET:
- *   - https:// or http:// → returned as-is
- *   - mesh-storage://KEY  → minted presigned GET via ctx.objectStorage
- *   - bare KEY            → same as mesh-storage://KEY
+ * Resolve a `copy_to_sandbox` input to a fetchable URL the daemon can GET.
+ * Accepts only org-scoped storage references — `mesh-storage://KEY` (the
+ * shape that lands in chat annotations) or a bare KEY. Both are minted
+ * to a presigned GET via `ctx.objectStorage`, so the daemon only ever
+ * fetches from S3/R2 endpoints mesh controls.
+ *
+ * Arbitrary `http(s)://` URLs are intentionally rejected: for public
+ * URLs the model can use `bash` + `curl` (which is approval-gated, like
+ * any shell command), and excluding them keeps the daemon's fetch path
+ * free of SSRF concerns.
  *
  * The tool-arg interceptor (`resolveArgsStorageRefs` in file-materializer)
  * substitutes mesh-storage:// → presigned-URL before this handler runs in
  * the happy path. This function is the safety net when interception didn't
- * happen and as the path for bare keys (which the interceptor doesn't
- * touch since they have no scheme).
+ * happen, plus the path for bare keys.
  */
 async function resolveSourceUrl(
   raw: string,
   ctx: VmToolsParams["ctx"],
 ): Promise<string> {
-  if (raw.startsWith("https://") || raw.startsWith("http://")) return raw;
+  if (raw.startsWith("https://") || raw.startsWith("http://")) {
+    throw new Error(
+      "copy_to_sandbox does not accept arbitrary URLs — pass a " +
+        "mesh-storage:// URI or a bare org storage key. For public URLs, " +
+        "use the bash tool (curl).",
+    );
+  }
   const key = raw.startsWith(MESH_STORAGE_SCHEME)
     ? raw.slice(MESH_STORAGE_SCHEME.length)
     : raw;

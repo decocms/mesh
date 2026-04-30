@@ -83,9 +83,10 @@ export const CopyToSandboxInputSchema = z.object({
   url: z
     .string()
     .describe(
-      "Source URL. Accepts mesh-storage:// URIs from chat (e.g. " +
-        "mesh-storage://chat-uploads/abc.pdf), https:// URLs (e.g. presigned " +
-        "S3 URLs), or bare org-storage keys (e.g. chat-uploads/abc.pdf).",
+      "Org-scoped storage reference. Accepts a mesh-storage:// URI from " +
+        "chat (e.g. mesh-storage://chat-uploads/abc.pdf) or a bare key " +
+        "(e.g. chat-uploads/abc.pdf). Arbitrary http(s):// URLs are NOT " +
+        "accepted — for public URLs use the bash tool with curl.",
     ),
   target: z
     .string()
@@ -157,10 +158,12 @@ export const BASH_DESCRIPTION =
   "back to the user as a download chip, use `share_with_user`.";
 
 export const COPY_TO_SANDBOX_DESCRIPTION =
-  "Copy a file from chat / org storage / a presigned URL into the sandbox " +
-  "filesystem at `target`. Use this BEFORE running format-specific skills " +
-  "(pptx-extract, pdf, docx, ...) on user-uploaded files. Bytes are streamed " +
-  "directly from the source — they do not pass through the model.";
+  "Copy a chat-attached or org-storage file into the sandbox filesystem " +
+  "at `target`. Use this BEFORE running format-specific skills " +
+  "(pptx-extract, pdf, docx, ...) on user-uploaded files. Accepts " +
+  "mesh-storage:// URIs and bare org-storage keys only — for arbitrary " +
+  "public URLs use bash + curl. Bytes stream directly from S3 to the " +
+  "sandbox; they do not pass through the model.";
 
 export const SHARE_WITH_USER_DESCRIPTION =
   "Upload a file from the sandbox FS back to the user's chat as a download " +

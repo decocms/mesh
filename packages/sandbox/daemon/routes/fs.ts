@@ -1,206 +1,19 @@
 import fs from "node:fs";
 import path from "node:path";
-import net from "node:net";
-import http from "node:http";
-import https from "node:https";
-import { Transform, type Readable } from "node:stream";
+import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { promises as dnsPromises } from "node:dns";
 import { spawn } from "node:child_process";
 import { DECO_UID, DECO_GID } from "../constants";
 import { safePath } from "../paths";
 import { parseBase64JsonBody, jsonResponse } from "./body-parser";
 
 /**
- * SSRF guard for `write_from_url`. The model can supply arbitrary
- * https URLs to `copy_to_sandbox`, which the daemon then GETs from
- * inside the sandbox container. Without this check the model could
- * make the daemon fetch cloud-metadata services
- * (`http://169.254.169.254/...`), localhost, or RFC1918 endpoints —
- * exfiltrating credentials or pivoting into the cluster network.
- *
- * Policy:
- *   - http/https only (no file://, gopher://, etc.)
- *   - Hostname must resolve to a public unicast address
- *   - Reject loopback, link-local, RFC1918 / unique-local, IPv4-mapped
- *     IPv6 forms of any of the above
- *
- * DNS rebinding TOCTOU defense: we resolve once and pin the connection
- * to the validated IP via `https.request`'s `lookup` option. Without
- * this, a low-TTL attacker-controlled hostname returning a public IP
- * for the validation lookup and a private IP for the `fetch()` socket
- * connect would bypass the guard entirely.
- *
- * Redirects are revalidated on every hop in `safeFetch` (each hop is
- * a fresh DNS resolve + pin, capped at MAX_REDIRECT_HOPS).
+ * Wall-clock cap for fetches in write_from_url / upload_to_url.
+ * Both endpoints only ever talk to mesh-minted presigned S3/R2 URLs,
+ * so the model has no path to influence the destination — the cap is
+ * just defense against a hung S3 endpoint tying up a request slot.
  */
-function isPrivateIp(ip: string): boolean {
-  const family = net.isIP(ip);
-  if (family === 4) {
-    const parts = ip.split(".").map(Number);
-    const [a, b] = parts;
-    if (a === undefined || b === undefined) return true;
-    if (a === 10) return true;
-    if (a === 127) return true;
-    if (a === 0) return true;
-    if (a === 169 && b === 254) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
-    if (a >= 224) return true; // multicast / reserved
-    return false;
-  }
-  if (family === 6) {
-    const lower = ip.toLowerCase();
-    if (lower === "::1" || lower === "::") return true;
-    // fe80::/10 — link-local. The first 10 bits are 1111111010, so the
-    // first u16 ranges 0xfe80 to 0xfebf. A naive
-    // `startsWith("fe80:") || startsWith("febf:")` only catches the
-    // boundaries and lets fe90::1, fea0::1, etc. through.
-    const firstHextet = Number.parseInt(lower.split(":")[0] ?? "0", 16);
-    if (firstHextet >= 0xfe80 && firstHextet <= 0xfebf) return true;
-    // fc00::/7 unique-local + ff00::/8 multicast.
-    if (
-      lower.startsWith("fc") ||
-      lower.startsWith("fd") ||
-      lower.startsWith("ff")
-    ) {
-      return true;
-    }
-    if (lower.startsWith("::ffff:")) {
-      return isPrivateIp(lower.slice("::ffff:".length));
-    }
-    return false;
-  }
-  return true; // unknown family — fail closed
-}
-
-const MAX_REDIRECT_HOPS = 5;
-/**
- * Socket-idle timeout for write_from_url. `req.setTimeout` fires both
- * pre-response (slow-loris: server SYN-ACKs but never sends headers)
- * and during streaming (server sends headers but trickles 1 byte/min).
- * 60s is generous for a CDN miss yet kills any cheap per-turn DoS.
- */
-const REQUEST_IDLE_TIMEOUT_MS = 60_000;
-/**
- * Wall-clock cap for upload_to_url. Defends against an S3 endpoint that
- * accepts the connection but never finalizes the multi-part write —
- * worst-case the daemon ties up a request slot for the cap then aborts.
- */
-const UPLOAD_DEADLINE_MS = 5 * 60_000;
-
-interface SafeFetchResult {
-  status: number;
-  headers: Record<string, string>;
-  body: Readable;
-}
-
-/**
- * GET a URL with SSRF protection: resolve hostname once, validate the
- * IP, then issue the request via `node:https`/`node:http` with a
- * `lookup` that pins the socket to the validated IP. Hostname stays
- * the URL hostname for SNI / TLS cert verification / Host header.
- *
- * Redirects are revalidated end-to-end (each hop re-resolves + re-pins).
- */
-async function safeFetch(rawUrl: string, hops = 0): Promise<SafeFetchResult> {
-  if (hops > MAX_REDIRECT_HOPS) {
-    throw new Error(`Too many redirects (>${MAX_REDIRECT_HOPS})`);
-  }
-  let url: URL;
-  try {
-    url = new URL(rawUrl);
-  } catch {
-    throw new Error("Invalid URL");
-  }
-  if (url.protocol !== "https:" && url.protocol !== "http:") {
-    throw new Error(`Disallowed URL scheme: ${url.protocol}`);
-  }
-
-  let pinnedIp: string;
-  let pinnedFamily: 4 | 6;
-  if (net.isIP(url.hostname)) {
-    if (isPrivateIp(url.hostname)) {
-      throw new Error(
-        `URL points to a private/loopback address: ${url.hostname}`,
-      );
-    }
-    pinnedIp = url.hostname;
-    pinnedFamily = net.isIP(url.hostname) as 4 | 6;
-  } else {
-    let addrs: { address: string; family: number }[];
-    try {
-      addrs = await dnsPromises.lookup(url.hostname, { all: true });
-    } catch {
-      throw new Error(`Could not resolve host: ${url.hostname}`);
-    }
-    if (addrs.length === 0) {
-      throw new Error(`No addresses for host: ${url.hostname}`);
-    }
-    for (const addr of addrs) {
-      if (isPrivateIp(addr.address)) {
-        throw new Error(
-          `URL host resolves to a private/loopback address: ${url.hostname} → ${addr.address}`,
-        );
-      }
-    }
-    const first = addrs[0]!;
-    pinnedIp = first.address;
-    pinnedFamily = first.family as 4 | 6;
-  }
-
-  const lib = url.protocol === "https:" ? https : http;
-  const port = url.port
-    ? Number.parseInt(url.port, 10)
-    : url.protocol === "https:"
-      ? 443
-      : 80;
-
-  return new Promise<SafeFetchResult>((resolve, reject) => {
-    const req = lib.request({
-      method: "GET",
-      protocol: url.protocol,
-      hostname: url.hostname,
-      port,
-      path: `${url.pathname}${url.search}`,
-      lookup: ((
-        _h: string,
-        _opts: unknown,
-        cb: (err: Error | null, addr: string, fam: number) => void,
-      ) => {
-        cb(null, pinnedIp, pinnedFamily);
-      }) as never,
-    });
-    req.setTimeout(REQUEST_IDLE_TIMEOUT_MS);
-    req.on("timeout", () => {
-      req.destroy(
-        new Error(
-          `Request idle timeout (${REQUEST_IDLE_TIMEOUT_MS}ms) for ${url.hostname}`,
-        ),
-      );
-    });
-    req.on("response", (res) => {
-      const status = res.statusCode ?? 0;
-      if (status >= 300 && status < 400) {
-        const loc = res.headers.location;
-        if (typeof loc === "string" && loc.length > 0) {
-          const next = new URL(loc, url).toString();
-          res.resume(); // drain so the socket can close cleanly
-          safeFetch(next, hops + 1).then(resolve, reject);
-          return;
-        }
-      }
-      const headers: Record<string, string> = {};
-      for (const [k, v] of Object.entries(res.headers)) {
-        if (typeof v === "string") headers[k] = v;
-        else if (Array.isArray(v)) headers[k] = v.join(",");
-      }
-      resolve({ status, headers, body: res });
-    });
-    req.on("error", reject);
-    req.end();
-  });
-}
+const TRANSFER_DEADLINE_MS = 5 * 60_000;
 
 export interface FsDeps {
   appRoot: string;
@@ -521,28 +334,42 @@ export function makeWriteFromUrlHandler(deps: FsDeps) {
     const filePath = safePath(deps.appRoot, body.path ?? "");
     if (!filePath) return jsonResponse({ error: "Path escapes /app" }, 400);
 
-    let resp: SafeFetchResult;
+    // The URL here is mesh-minted (presigned GET to S3/R2) — the model
+    // can't supply arbitrary URLs through copy_to_sandbox, so SSRF +
+    // DNS-rebinding defenses aren't needed. Plain fetch with a wall-
+    // clock deadline is enough.
+    const abortController = new AbortController();
+    const deadlineTimer = setTimeout(
+      () => abortController.abort(),
+      TRANSFER_DEADLINE_MS,
+    );
+    let resp: Response;
     try {
-      resp = await safeFetch(body.url);
+      resp = await fetch(body.url, { signal: abortController.signal });
     } catch (err) {
+      clearTimeout(deadlineTimer);
       return jsonResponse(
-        { error: `fetch failed: ${(err as Error).message}` },
-        400,
+        {
+          error: abortController.signal.aborted
+            ? `fetch deadline exceeded (${TRANSFER_DEADLINE_MS}ms)`
+            : `fetch failed: ${(err as Error).message}`,
+        },
+        502,
       );
     }
-    if (resp.status < 200 || resp.status >= 300) {
-      resp.body.resume(); // drain
+    if (!resp.ok || !resp.body) {
+      clearTimeout(deadlineTimer);
       return jsonResponse(
         { error: `upstream returned HTTP ${resp.status}` },
         502,
       );
     }
-    const contentLengthHeader = resp.headers["content-length"];
+    const contentLengthHeader = resp.headers.get("content-length");
     const declaredSize = contentLengthHeader
       ? Number.parseInt(contentLengthHeader, 10)
       : null;
     if (declaredSize !== null && declaredSize > MAX_TRANSFER_BYTES) {
-      resp.body.resume();
+      clearTimeout(deadlineTimer);
       return jsonResponse(
         {
           error: `Payload too large (${declaredSize} > ${MAX_TRANSFER_BYTES})`,
@@ -570,16 +397,22 @@ export function makeWriteFromUrlHandler(deps: FsDeps) {
     });
     const out = fs.createWriteStream(filePath);
     try {
-      await pipeline(resp.body, cap, out);
+      await pipeline(Readable.fromWeb(resp.body as never), cap, out);
     } catch (err) {
       // Any failure (network RST, TLS error, size cap, write fault)
       // leaves a partial file. Remove it so a later skill step can't
       // read a half-baked artifact.
       fs.rmSync(filePath, { force: true });
       return jsonResponse(
-        { error: `stream failed: ${(err as Error).message}` },
+        {
+          error: abortController.signal.aborted
+            ? `fetch deadline exceeded (${TRANSFER_DEADLINE_MS}ms)`
+            : `stream failed: ${(err as Error).message}`,
+        },
         502,
       );
+    } finally {
+      clearTimeout(deadlineTimer);
     }
     return jsonResponse({ ok: true, path: body.path, size: written });
   };
@@ -636,7 +469,7 @@ export function makeUploadToUrlHandler(deps: FsDeps) {
     const abortController = new AbortController();
     const deadlineTimer = setTimeout(
       () => abortController.abort(),
-      UPLOAD_DEADLINE_MS,
+      TRANSFER_DEADLINE_MS,
     );
     let resp: Response;
     try {
@@ -653,7 +486,7 @@ export function makeUploadToUrlHandler(deps: FsDeps) {
       return jsonResponse(
         {
           error: abortController.signal.aborted
-            ? `upload deadline exceeded (${UPLOAD_DEADLINE_MS}ms)`
+            ? `upload deadline exceeded (${TRANSFER_DEADLINE_MS}ms)`
             : `upload failed: ${(err as Error).message}`,
         },
         502,
