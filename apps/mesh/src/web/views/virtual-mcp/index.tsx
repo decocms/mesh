@@ -7,6 +7,10 @@ import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
+import {
+  NO_PERMISSION_TOOLTIP,
+  useCapability,
+} from "@/web/hooks/use-capability";
 
 import {
   authenticateMcp,
@@ -47,6 +51,7 @@ import { Textarea } from "@deco/ui/components/textarea.tsx";
 import {
   Tooltip,
   TooltipContent,
+  TooltipProvider,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
@@ -1078,6 +1083,8 @@ function VirtualMcpDetailViewWithData({
     defaultValues: virtualMcp,
   });
 
+  const { granted: canManageAgents } = useCapability("agents:manage");
+
   // Watch connections for reactive UI
   const connections = form.watch("connections");
 
@@ -1167,6 +1174,17 @@ function VirtualMcpDetailViewWithData({
       saveTimerRef.current = null;
     }
 
+    // Auto-save is gated by agents:manage. Reset the form so the change
+    // doesn't sit dirty and fire again on every keystroke, and warn once.
+    if (!canManageAgents) {
+      toast.error(
+        "You don't have permission to edit this agent. Changes won't be saved.",
+        { id: "agent-no-permission" },
+      );
+      form.reset(form.getValues(), { keepDirty: false });
+      return;
+    }
+
     const dirtyKeys = Object.keys(form.formState.dirtyFields);
     if (dirtyKeys.length === 0) return;
     const instructionsDirty = dirtyKeys.includes("metadata");
@@ -1214,6 +1232,7 @@ function VirtualMcpDetailViewWithData({
   }
 
   const handleOpenAddDialog = () => {
+    if (!canManageAgents) return;
     track("connections_dialog_opened", {
       source: "agent_settings",
       mode: "add",
@@ -1222,6 +1241,7 @@ function VirtualMcpDetailViewWithData({
   };
 
   const handleAddConnection = async (connectionId: string) => {
+    if (!canManageAgents) return;
     const current = form.getValues("connections");
     // Don't add duplicates
     if (current.some((c) => c.connection_id === connectionId)) return;
@@ -1605,31 +1625,62 @@ Define step-by-step how the agent should handle requests.
                 <h2 className="text-sm font-medium text-foreground">
                   Connections
                 </h2>
-                {connections.length > 0 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleOpenAddDialog}
-                  >
-                    <Plus size={14} />
-                    Add connection
-                  </Button>
-                )}
+                {connections.length > 0 &&
+                  (canManageAgents ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleOpenAddDialog}
+                    >
+                      <Plus size={14} />
+                      Add connection
+                    </Button>
+                  ) : (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled
+                              aria-disabled
+                            >
+                              <Plus size={14} />
+                              Add connection
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>{NO_PERMISSION_TOOLTIP}</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ))}
               </div>
               <div className="flex flex-col gap-2">
                 {connections.length === 0 ? (
-                  <button
-                    type="button"
-                    onClick={handleOpenAddDialog}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-dashed border-border hover:bg-accent/50 transition-colors w-full text-left cursor-pointer"
-                  >
-                    <div className="flex items-center justify-center size-8 rounded-md text-muted-foreground/75 border border-dashed border-border shrink-0">
-                      <Plus size={16} />
+                  canManageAgents ? (
+                    <button
+                      type="button"
+                      onClick={handleOpenAddDialog}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-dashed border-border hover:bg-accent/50 transition-colors w-full text-left cursor-pointer"
+                    >
+                      <div className="flex items-center justify-center size-8 rounded-md text-muted-foreground/75 border border-dashed border-border shrink-0">
+                        <Plus size={16} />
+                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        No connections yet. Add one to get started.
+                      </span>
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-dashed border-border w-full text-left">
+                      <div className="flex items-center justify-center size-8 rounded-md text-muted-foreground/75 border border-dashed border-border shrink-0">
+                        <Plus size={16} />
+                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        No connections yet. Ask an admin to add one.
+                      </span>
                     </div>
-                    <span className="text-sm text-muted-foreground">
-                      No connections yet. Add one to get started.
-                    </span>
-                  </button>
+                  )
                 ) : (
                   connections.map((conn) => (
                     <ErrorBoundary

@@ -291,6 +291,7 @@ function BulkActionBar({
   onToggleStatus,
   onCancel,
   canManage = true,
+  canManageAgents = true,
 }: {
   count: number;
   total: number;
@@ -301,6 +302,7 @@ function BulkActionBar({
   onToggleStatus: (status: "active" | "inactive") => void;
   onCancel: () => void;
   canManage?: boolean;
+  canManageAgents?: boolean;
 }) {
   if (count === 0) return null;
 
@@ -329,15 +331,17 @@ function BulkActionBar({
             Clear selection
           </Button>
         )}
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 text-xs px-2"
-          onClick={onAddToAgent}
-        >
-          <Plus size={13} />
-          Add to Agent
-        </Button>
+        {canManageAgents && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs px-2"
+            onClick={onAddToAgent}
+          >
+            <Plus size={13} />
+            Add to Agent
+          </Button>
+        )}
         {canManage && (
           <>
             <Button
@@ -540,6 +544,7 @@ function CatalogItemCard({
   connectingItemId,
   onNavigateConnected,
   onConnect,
+  canManage = true,
 }: {
   item: RegistryItem;
   allConnections: ConnectionEntity[];
@@ -547,6 +552,7 @@ function CatalogItemCard({
   connectingItemId: string | null;
   onNavigateConnected: (conn: ConnectionEntity) => void;
   onConnect: (item: RegistryItem) => void;
+  canManage?: boolean;
 }) {
   const [communityWarningOpen, setCommunityWarningOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<"connect" | null>(null);
@@ -584,6 +590,7 @@ function CatalogItemCard({
       }
       return;
     }
+    if (!canManage) return;
     handleConnect();
   };
 
@@ -627,7 +634,7 @@ function CatalogItemCard({
               <span className="text-xs text-muted-foreground font-normal">
                 Connected
               </span>
-            ) : (
+            ) : canManage ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -644,6 +651,26 @@ function CatalogItemCard({
                   "Connect"
                 )}
               </Button>
+            ) : (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-3 rounded-lg text-sm font-medium"
+                        disabled
+                        aria-disabled
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Connect
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{NO_PERMISSION_TOOLTIP}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
         }
@@ -691,6 +718,7 @@ function ConnectionResults({
   const navigate = useNavigate();
   const { data: session } = authClient.useSession();
   const { granted: canManageConnections } = useCapability("connections:manage");
+  const { granted: canManageAgents } = useCapability("agents:manage");
 
   const actions = useConnectionActions();
   const connections = useConnections(listState);
@@ -1204,6 +1232,7 @@ function ConnectionResults({
                   allConnections={connections}
                   connectedAppNames={connectedAppNames}
                   connectingItemId={connectingItemId}
+                  canManage={canManageConnections}
                   onNavigateConnected={(conn) =>
                     navigate({
                       to: "/$org/settings/connections/$appSlug",
@@ -1248,6 +1277,7 @@ function ConnectionResults({
           onToggleStatus={handleBulkToggleStatus}
           onCancel={exitSelectionMode}
           canManage={canManageConnections}
+          canManageAgents={canManageAgents}
         />
       )}
     </>

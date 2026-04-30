@@ -72,10 +72,7 @@ import {
 } from "@/web/hooks/use-organization-settings";
 import { SimpleModeConfigSchema } from "@/tools/organization/schema";
 import { ModelSelector } from "@/web/components/chat/select-model";
-import {
-  NO_PERMISSION_TOOLTIP,
-  useCapability,
-} from "@/web/hooks/use-capability";
+import { useCapability } from "@/web/hooks/use-capability";
 import {
   Tooltip,
   TooltipContent,
@@ -768,10 +765,13 @@ function ProviderCard({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="text-xs text-muted-foreground">
-                      No access
+                      Not configured
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent>{NO_PERMISSION_TOOLTIP}</TooltipContent>
+                  <TooltipContent>
+                    Ask an organization admin to add an API key for this
+                    provider.
+                  </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}

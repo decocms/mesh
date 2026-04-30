@@ -157,47 +157,64 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
         offset: needsBindingFilter ? undefined : offset,
       });
 
-    // Only fetch tools from MCP servers when we need them for binding filtering.
-    // This avoids expensive live listTools() calls on every page load.
-    if (bindingChecker) {
-      const cache = getMcpListCache();
-      const selfId = WellKnownOrgMCPId.SELF(organization.id);
-      await Promise.all(
-        connections.map(async (connection) => {
-          if (connection.tools !== null) return;
-          // The self MCP requires session auth, so an HTTP round-trip would
-          // fail without forwarding cookies. Use in-process transport instead.
-          const fetchLive =
-            connection.id === selfId
-              ? async () => {
-                  const { listManagementTools } = await import("../../tools");
-                  return listManagementTools(ctx) as Promise<unknown[]>;
-                }
-              : async () => {
-                  const client = await clientFromConnection(
-                    connection,
-                    ctx,
-                    true,
-                  );
-                  try {
-                    const result = await client.listTools();
-                    return result.tools;
-                  } finally {
-                    await client.close().catch(() => {});
-                  }
-                };
-          const tools = await fetchWithCache(
-            "tools",
-            connection.id,
-            fetchLive,
-            cache,
-          );
-          if (tools !== null) {
-            connection.tools = tools as Tool[];
+    // Populate tools on each connection.
+    //   - Binding-filtered queries need tools to evaluate the binding,
+    //     so we may have to do a live listTools() on cache miss.
+    //   - Non-filtered queries (e.g. the role editor's tool selector)
+    //     just want the tool catalog if it exists in cache. Skipping the
+    //     live fallback keeps the page-load cheap while still showing
+    //     freshly-imported MCPs as soon as their tools are cached.
+    const cache = getMcpListCache();
+    const selfId = WellKnownOrgMCPId.SELF(organization.id);
+    await Promise.all(
+      connections.map(async (connection) => {
+        if (connection.tools !== null) return;
+
+        if (cache && !bindingChecker) {
+          // Read-only path: cache hit only, no live fallback.
+          const cached = (await cache.get("tools", connection.id)) as
+            | Tool[]
+            | null;
+          if (cached) {
+            connection.tools = cached;
           }
-        }),
-      );
-    }
+          return;
+        }
+
+        if (!bindingChecker) return;
+
+        // The self MCP requires session auth, so an HTTP round-trip would
+        // fail without forwarding cookies. Use in-process transport instead.
+        const fetchLive =
+          connection.id === selfId
+            ? async () => {
+                const { listManagementTools } = await import("../../tools");
+                return listManagementTools(ctx) as Promise<unknown[]>;
+              }
+            : async () => {
+                const client = await clientFromConnection(
+                  connection,
+                  ctx,
+                  true,
+                );
+                try {
+                  const result = await client.listTools();
+                  return result.tools;
+                } finally {
+                  await client.close().catch(() => {});
+                }
+              };
+        const tools = await fetchWithCache(
+          "tools",
+          connection.id,
+          fetchLive,
+          cache,
+        );
+        if (tools !== null) {
+          connection.tools = tools as Tool[];
+        }
+      }),
+    );
 
     // In dev mode, inject the dev-assets connection for local file storage
     // This provides object storage functionality without requiring an external S3 bucket

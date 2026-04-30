@@ -5,6 +5,9 @@
  * their organization role. Drives proactive UX gating (hide/disable) so users
  * don't see actions that will fail at the API.
  *
+ * Calls a custom server endpoint (/api/auth/custom/my-permissions) so members
+ * can read their OWN role/permission without needing the admin-only listRoles.
+ *
  * Resolution rules (mirror AccessControl on the server):
  *  - owner / admin built-in roles bypass all checks
  *  - basic-usage capability is granted to every authenticated member
@@ -15,9 +18,7 @@ import {
   PERMISSION_CAPABILITIES,
   type PermissionCapability,
 } from "@/tools/registry-metadata";
-import { useOrganizationRoles } from "@/web/hooks/use-organization-roles";
 import { authClient } from "@/web/lib/auth-client";
-import { KEYS } from "@/web/lib/query-keys";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import { useQuery } from "@tanstack/react-query";
 
@@ -29,6 +30,9 @@ export type CapabilityId =
   | "agents:manage"
   | "automations:manage"
   | "monitoring:view"
+  | "threads:view-all"
+  | "chat:image-generation"
+  | "chat:web-search"
   | "ai-providers:manage"
   | "registry:manage"
   | "registry:monitor"
@@ -39,12 +43,17 @@ export type CapabilityId =
 
 const BUILTIN_BYPASS_ROLES = new Set(["owner", "admin"]);
 
+interface MyPermissionsResponse {
+  role: string | null;
+  permission: Record<string, string[]> | null;
+}
+
 function findCapability(id: CapabilityId): PermissionCapability | undefined {
   return PERMISSION_CAPABILITIES.find((c) => c.id === id);
 }
 
 function rolePermits(
-  permission: Record<string, string[]> | undefined,
+  permission: Record<string, string[]> | null | undefined,
   capability: PermissionCapability,
 ): boolean {
   if (!permission) return false;
@@ -60,62 +69,53 @@ export interface CapabilityResult {
 }
 
 /**
- * Non-suspense member fetch. Tolerant of forbidden responses so it can be used
- * on pages where the current user might lack ORGANIZATION_MEMBER_LIST permission.
+ * Fetch the current user's role and permission via the custom endpoint.
+ * This works for any authenticated org member, not just admins.
  */
-function useCurrentMemberRole(): {
-  roleSlug: string | undefined;
+function useMyPermissions(): {
+  data: MyPermissionsResponse | undefined;
   loading: boolean;
 } {
   const { locator } = useProjectContext();
-  const { data: session } = authClient.useSession();
-  const userId = session?.user?.id;
 
   const { data, isLoading } = useQuery({
-    queryKey: KEYS.members(locator),
-    queryFn: async () => {
-      try {
-        return await authClient.organization.listMembers();
-      } catch {
-        return null;
+    queryKey: ["my-permissions", locator] as const,
+    queryFn: async (): Promise<MyPermissionsResponse> => {
+      const res = await fetch("/api/auth/custom/my-permissions", {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        return { role: null, permission: null };
       }
+      return (await res.json()) as MyPermissionsResponse;
     },
     staleTime: 30_000,
     retry: false,
   });
 
-  if (!userId) {
-    return { roleSlug: undefined, loading: isLoading };
-  }
-  const members = (data?.data?.members ?? []) as Array<{
-    role: string;
-    user?: { id?: string };
-  }>;
-  const member = members.find((m) => m.user?.id === userId);
-  return { roleSlug: member?.role, loading: isLoading };
+  return { data, loading: isLoading };
 }
 
 /**
  * Returns whether the current user has the given capability in the active org.
  */
 export function useCapability(id: CapabilityId): CapabilityResult {
-  const { roleSlug, loading: roleLoading } = useCurrentMemberRole();
-  const { roles, isLoading: rolesLoading } = useOrganizationRoles();
+  const { data: session } = authClient.useSession();
+  const { data, loading } = useMyPermissions();
 
-  const loading = roleLoading || rolesLoading;
-
-  if (loading) {
+  if (loading || !session?.user) {
     return { granted: false, loading: true, reason: "loading" };
   }
 
-  if (!roleSlug) {
+  const role = data?.role;
+  if (!role) {
     return { granted: false, loading: false, reason: "denied" };
   }
 
-  if (roleSlug === "owner") {
+  if (role === "owner") {
     return { granted: true, loading: false, reason: "owner" };
   }
-  if (roleSlug === "admin") {
+  if (role === "admin") {
     return { granted: true, loading: false, reason: "admin" };
   }
 
@@ -124,8 +124,7 @@ export function useCapability(id: CapabilityId): CapabilityResult {
     return { granted: false, loading: false, reason: "denied" };
   }
 
-  const role = roles.find((r) => r.role === roleSlug);
-  const granted = rolePermits(role?.permission, capability);
+  const granted = rolePermits(data?.permission, capability);
 
   return {
     granted,
@@ -144,18 +143,17 @@ export function useCapabilities(): {
   isPrivileged: boolean;
   roleSlug: string | undefined;
 } {
-  const { roleSlug, loading: roleLoading } = useCurrentMemberRole();
-  const { roles, isLoading: rolesLoading } = useOrganizationRoles();
+  const { data: session } = authClient.useSession();
+  const { data, loading } = useMyPermissions();
 
-  const loading = roleLoading || rolesLoading;
-  const isPrivileged = roleSlug ? BUILTIN_BYPASS_ROLES.has(roleSlug) : false;
-  const role = roleSlug ? roles.find((r) => r.role === roleSlug) : undefined;
+  const role = session?.user ? (data?.role ?? undefined) : undefined;
+  const isPrivileged = role ? BUILTIN_BYPASS_ROLES.has(role) : false;
 
   const capabilities = {} as Record<CapabilityId, boolean>;
   for (const cap of PERMISSION_CAPABILITIES) {
     if (cap.id === "basic-usage") continue;
     const id = cap.id as CapabilityId;
-    if (loading || !roleSlug) {
+    if (loading || !role) {
       capabilities[id] = false;
       continue;
     }
@@ -163,10 +161,15 @@ export function useCapabilities(): {
       capabilities[id] = true;
       continue;
     }
-    capabilities[id] = rolePermits(role?.permission, cap);
+    capabilities[id] = rolePermits(data?.permission, cap);
   }
 
-  return { capabilities, loading, isPrivileged, roleSlug };
+  return {
+    capabilities,
+    loading,
+    isPrivileged,
+    roleSlug: role,
+  };
 }
 
 export const NO_PERMISSION_TOOLTIP =

@@ -18,6 +18,7 @@ import { EnvTab } from "./env-tab";
 import { AutomationTab } from "./automation-tab";
 import { AutomationsListTab } from "./automations-list-tab";
 import { isLegacySettingsTab, parsePinnedViewTabId } from "./tab-id";
+import { ErrorBoundary } from "@/web/components/error-boundary";
 
 const AppViewContent = lazy(() =>
   import("@/web/routes/project-app-view").then((m) => ({
@@ -65,46 +66,50 @@ export function MainPanelContent({
         t.toolName === pinnedView.toolName,
     );
     return (
-      <Suspense
-        fallback={
-          <div className="h-full w-full flex items-center justify-center">
-            <Loading01
-              size={20}
-              className="animate-spin text-muted-foreground"
-            />
-          </div>
-        }
-      >
-        <AppViewContent
-          key={activeTab}
-          connectionId={pinnedView.connectionId}
-          toolName={pinnedView.toolName}
-          args={expandedTool?.args}
-        />
-      </Suspense>
+      <ErrorBoundary key={`error-${activeTab}`}>
+        <Suspense
+          fallback={
+            <div className="h-full w-full flex items-center justify-center">
+              <Loading01
+                size={20}
+                className="animate-spin text-muted-foreground"
+              />
+            </div>
+          }
+        >
+          <AppViewContent
+            key={activeTab}
+            connectionId={pinnedView.connectionId}
+            toolName={pinnedView.toolName}
+            args={expandedTool?.args}
+          />
+        </Suspense>
+      </ErrorBoundary>
     );
   }
 
   const agentTab = layoutTabs.find((t) => t.id === activeTab);
   if (agentTab) {
     return (
-      <Suspense
-        fallback={
-          <div className="h-full w-full flex items-center justify-center">
-            <Loading01
-              size={20}
-              className="animate-spin text-muted-foreground"
-            />
-          </div>
-        }
-      >
-        <AppViewContent
-          key={activeTab}
-          connectionId={agentTab.view.appId}
-          toolName={agentTab.id}
-          args={agentTab.view.args}
-        />
-      </Suspense>
+      <ErrorBoundary key={`error-${activeTab}`}>
+        <Suspense
+          fallback={
+            <div className="h-full w-full flex items-center justify-center">
+              <Loading01
+                size={20}
+                className="animate-spin text-muted-foreground"
+              />
+            </div>
+          }
+        >
+          <AppViewContent
+            key={activeTab}
+            connectionId={agentTab.view.appId}
+            toolName={agentTab.id}
+            args={agentTab.view.args}
+          />
+        </Suspense>
+      </ErrorBoundary>
     );
   }
 

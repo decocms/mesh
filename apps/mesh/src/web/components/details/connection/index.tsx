@@ -573,7 +573,11 @@ function ConnectionInspectorViewWithConnection({
               <div className="flex flex-col gap-5">
                 <ConnectionInstancesPanel
                   instances={siblings}
-                  onConfigure={(inst) => setConfigureInstance(inst)}
+                  onConfigure={
+                    canManageConnections
+                      ? (inst) => setConfigureInstance(inst)
+                      : undefined
+                  }
                   onAuthenticate={(inst) => handleAuthenticateForId(inst.id)}
                   onDelete={
                     canManageConnections

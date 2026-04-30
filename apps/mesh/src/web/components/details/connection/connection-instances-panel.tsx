@@ -8,7 +8,7 @@ import { Suspense } from "react";
 
 interface ConnectionInstancesPanelProps {
   instances: ConnectionEntity[];
-  onConfigure: (instance: ConnectionEntity) => void;
+  onConfigure?: (instance: ConnectionEntity) => void;
   onAuthenticate: (instance: ConnectionEntity) => void;
   onDelete?: (instance: ConnectionEntity) => void;
   onAdd: () => void;
@@ -24,7 +24,7 @@ function InstanceItem({
   onDelete,
 }: {
   instance: ConnectionEntity;
-  onConfigure: (instance: ConnectionEntity) => void;
+  onConfigure?: (instance: ConnectionEntity) => void;
   onAuthenticate: (instance: ConnectionEntity) => void;
   onDelete?: (instance: ConnectionEntity) => void;
 }) {
@@ -67,15 +67,17 @@ function InstanceItem({
             Authorize
           </Button>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7"
-          onClick={() => onConfigure(instance)}
-          title="Configure"
-        >
-          <Settings02 size={13} />
-        </Button>
+        {onConfigure && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => onConfigure(instance)}
+            title="Configure"
+          >
+            <Settings02 size={13} />
+          </Button>
+        )}
         {onDelete && (
           <Button
             variant="ghost"
@@ -97,7 +99,7 @@ function InstanceItemFallback({
   onConfigure,
 }: {
   instance: ConnectionEntity;
-  onConfigure: (instance: ConnectionEntity) => void;
+  onConfigure?: (instance: ConnectionEntity) => void;
 }) {
   return (
     <div className="flex items-center gap-3 rounded-lg border border-transparent px-4 py-2.5 transition-colors">
@@ -111,15 +113,17 @@ function InstanceItemFallback({
         <p className="text-sm font-medium truncate">{instance.title}</p>
       </div>
       <div className="flex items-center gap-1 shrink-0">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7"
-          onClick={() => onConfigure(instance)}
-          title="Configure"
-        >
-          <Settings02 size={13} />
-        </Button>
+        {onConfigure && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => onConfigure(instance)}
+            title="Configure"
+          >
+            <Settings02 size={13} />
+          </Button>
+        )}
       </div>
     </div>
   );

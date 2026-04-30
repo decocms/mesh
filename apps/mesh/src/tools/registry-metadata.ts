@@ -104,6 +104,18 @@ const ALL_TOOL_NAMES = [
   "COLLECTION_THREADS_UPDATE",
   "COLLECTION_THREADS_DELETE",
   "COLLECTION_THREAD_MESSAGES_LIST",
+  // Synthetic permission flag — there's no THREADS_VIEW_ALL_MEMBERS
+  // tool; the name is used as a permission resource so the capability
+  // toggle in the role editor stores `self: ["THREADS_VIEW_ALL_MEMBERS"]`,
+  // which COLLECTION_THREADS_LIST checks via ctx.access.has() to decide
+  // whether to show all members' threads or only the caller's.
+  "THREADS_VIEW_ALL_MEMBERS",
+  // Synthetic permission flags for chat composer features (image
+  // generation and web search). Gating happens in the chat tools
+  // popover — the underlying model usage is independently controlled
+  // via the role's Models tab.
+  "CHAT_IMAGE_GENERATION",
+  "CHAT_WEB_SEARCH",
   // Tag tools
   "TAGS_LIST",
   "TAGS_CREATE",
@@ -1021,6 +1033,9 @@ const TOOL_LABELS: Record<ToolName, string> = {
   VM_START: "Start VM preview",
   VM_DELETE: "Delete VM preview",
   GITHUB_LIST_USER_ORGS: "List GitHub user orgs",
+  THREADS_VIEW_ALL_MEMBERS: "View other members' threads",
+  CHAT_IMAGE_GENERATION: "Generate images from chat",
+  CHAT_WEB_SEARCH: "Use web search from chat",
 };
 
 // ============================================================================
@@ -1061,10 +1076,13 @@ export const PERMISSION_CAPABILITIES: PermissionCapability[] = [
       // View automations
       "AUTOMATION_GET",
       "AUTOMATION_LIST",
-      // View AI providers
+      // View AI providers (read-only — every member needs to know which
+      // providers are configured so chat / agents can use them)
       "AI_PROVIDERS_LIST",
       "AI_PROVIDERS_LIST_MODELS",
       "AI_PROVIDERS_ACTIVE",
+      "AI_PROVIDER_KEY_LIST",
+      "AI_PROVIDER_CREDITS",
       // Object storage access
       "LIST_OBJECTS",
       "GET_OBJECT_METADATA",
@@ -1073,6 +1091,26 @@ export const PERMISSION_CAPABILITIES: PermissionCapability[] = [
       // VM previews
       "VM_START",
       "VM_DELETE",
+      // Browse the registry / store (read-only — needed to populate the
+      // connections list and the home/discovery views for any member)
+      "COLLECTION_REGISTRY_APP_LIST",
+      "COLLECTION_REGISTRY_APP_GET",
+      "COLLECTION_REGISTRY_APP_VERSIONS",
+      "COLLECTION_REGISTRY_APP_FILTERS",
+      "REGISTRY_ITEM_LIST",
+      "REGISTRY_ITEM_SEARCH",
+      "REGISTRY_ITEM_GET",
+      "REGISTRY_ITEM_VERSIONS",
+      "REGISTRY_ITEM_FILTERS",
+      "REGISTRY_DISCOVER_TOOLS",
+      // Chat threads — every member needs CRUD on their own threads to use
+      // the product. Per-thread access is scoped at the handler level.
+      "COLLECTION_THREADS_CREATE",
+      "COLLECTION_THREADS_LIST",
+      "COLLECTION_THREADS_GET",
+      "COLLECTION_THREADS_UPDATE",
+      "COLLECTION_THREADS_DELETE",
+      "COLLECTION_THREAD_MESSAGES_LIST",
     ],
   },
   // Organization
@@ -1166,21 +1204,45 @@ export const PERMISSION_CAPABILITIES: PermissionCapability[] = [
     section: "Monitoring",
     tools: ["MONITORING_LOG_GET", "MONITORING_LOGS_LIST", "MONITORING_STATS"],
   },
+  {
+    id: "threads:view-all",
+    label: "View other members' threads",
+    description:
+      "See threads and automation tasks created by other members. Without this, members can only see their own.",
+    section: "Monitoring",
+    tools: ["THREADS_VIEW_ALL_MEMBERS"],
+  },
+  // Chat features
+  {
+    id: "chat:image-generation",
+    label: "Generate images",
+    description:
+      "Use the Create image action in the chat composer. The underlying model still has to be allowed via the Models tab.",
+    section: "Chat features",
+    tools: ["CHAT_IMAGE_GENERATION"],
+  },
+  {
+    id: "chat:web-search",
+    label: "Use web search",
+    description:
+      "Use the Web search action in the chat composer. The underlying search model still has to be allowed via the Models tab.",
+    section: "Chat features",
+    tools: ["CHAT_WEB_SEARCH"],
+  },
   // AI Providers
   {
     id: "ai-providers:manage",
     label: "Manage AI providers",
-    description: "Add or remove API keys and provision provider credentials",
+    description:
+      "Add or remove API keys and provision provider credentials. Read-only access (which providers are configured, credits) is available to all members.",
     section: "AI Providers",
     tools: [
       "AI_PROVIDER_KEY_CREATE",
-      "AI_PROVIDER_KEY_LIST",
       "AI_PROVIDER_KEY_DELETE",
       "AI_PROVIDER_OAUTH_URL",
       "AI_PROVIDER_OAUTH_EXCHANGE",
       "AI_PROVIDER_PROVISION_KEY",
       "AI_PROVIDER_TOPUP_URL",
-      "AI_PROVIDER_CREDITS",
       "AI_PROVIDER_CLI_ACTIVATE",
     ],
   },
@@ -1202,19 +1264,10 @@ export const PERMISSION_CAPABILITIES: PermissionCapability[] = [
   {
     id: "registry:manage",
     label: "Manage registry",
-    description: "Browse, publish, and manage items in the registry",
+    description:
+      "Publish and manage items in the registry. Read-only browsing is available to all members.",
     section: "Store & Registry",
     tools: [
-      "COLLECTION_REGISTRY_APP_LIST",
-      "COLLECTION_REGISTRY_APP_GET",
-      "COLLECTION_REGISTRY_APP_VERSIONS",
-      "COLLECTION_REGISTRY_APP_FILTERS",
-      "REGISTRY_ITEM_LIST",
-      "REGISTRY_ITEM_SEARCH",
-      "REGISTRY_ITEM_GET",
-      "REGISTRY_ITEM_VERSIONS",
-      "REGISTRY_ITEM_FILTERS",
-      "REGISTRY_DISCOVER_TOOLS",
       "REGISTRY_ITEM_CREATE",
       "REGISTRY_ITEM_BULK_CREATE",
       "REGISTRY_ITEM_UPDATE",

@@ -1279,7 +1279,7 @@ function RoleDetailPageInner({
 
   const [activeTab, setActiveTab] = useState<
     "mcp" | "org" | "models" | "members"
-  >(isBuiltin ? "org" : "mcp");
+  >("org");
 
   const form = useForm<RoleFormData>({
     resolver: zodResolver(roleFormSchema),
@@ -1429,10 +1429,10 @@ function RoleDetailPageInner({
         : "";
 
   const tabs = [
+    { id: "org" as const, label: "Organization Permissions" },
     ...(!isOwnerBuiltin
       ? [{ id: "mcp" as const, label: "MCP Permissions" }]
       : []),
-    { id: "org" as const, label: "Organization Permissions" },
     { id: "models" as const, label: "Models" },
     { id: "members" as const, label: "Members" },
   ];

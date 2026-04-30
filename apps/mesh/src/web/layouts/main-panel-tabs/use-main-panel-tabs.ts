@@ -34,6 +34,7 @@ import {
   type AutomationTabParsed,
 } from "./tab-id";
 import { resolveTabIcon, type TabIcon, type TabKind } from "./resolve-tab-icon";
+import { useCapability } from "@/web/hooks/use-capability";
 
 export type AgentTabDef = {
   id: string;
@@ -131,6 +132,8 @@ export function useMainPanelTabs(ctx: {
   const expandedTools: ThreadExpandedTool[] = metadata?.expanded_tools ?? [];
   const hasActiveGithubRepo = !!(entity && getActiveGithubRepo(entity));
   const connections = useConnections({ includeVirtual: true });
+  const { granted: canManageAgents } = useCapability("agents:manage");
+  const { granted: canManageAutomations } = useCapability("automations:manage");
 
   const { activeTab, mainOpen } = resolveActiveTabAndOpen({
     mainParam: search.main,
@@ -154,8 +157,15 @@ export function useMainPanelTabs(ctx: {
     systemTabs.push({ id: "env", title: "Terminal" });
     systemTabs.push({ id: "git", title: currentBranch ?? "git" });
   }
-  systemTabs.push({ id: "settings", title: "Settings" });
-  systemTabs.push({ id: "automations", title: "Automations" });
+  // Settings tab is hidden when the user can't manage agents — there's
+  // nothing they could change inside it.
+  if (canManageAgents) {
+    systemTabs.push({ id: "settings", title: "Settings" });
+  }
+  // Automations tab requires automations:manage to do anything useful.
+  if (canManageAutomations) {
+    systemTabs.push({ id: "automations", title: "Automations" });
+  }
 
   // Merge pinned views + per-task expanded tools into a single list keyed
   // by the pinned-view tab id. Pinned views win on dedupe so the

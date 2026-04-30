@@ -97,6 +97,7 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
           label: "AI Providers",
           icon: <CpuChip01 size={14} />,
           to: "/$org/settings/ai-providers",
+          requires: "ai-providers:manage",
         },
       ],
     },
@@ -120,6 +121,7 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
           label: "Automations",
           icon: <Zap size={14} />,
           to: "/$org/settings/automations",
+          requires: "automations:manage",
         },
         {
           key: "store",
