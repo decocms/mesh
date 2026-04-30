@@ -491,6 +491,10 @@ async function streamCoreInner(
                 ? "ephemeral"
                 : (input.branch ?? `thread:${mem.thread.id}`),
               userId: input.userId,
+              // Used by share_with_user to scope artifacts under
+              // model-outputs/<threadId>/. Cannot be derived from the
+              // sandbox row since one ephemeral sandbox serves many threads.
+              threadId: mem.thread.id,
             }
           : null;
 

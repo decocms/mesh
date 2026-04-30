@@ -21,13 +21,14 @@ import {
   UserAskPart,
 } from "./parts/tool-call-part/index.ts";
 import { SmartAutoScroll } from "./smart-auto-scroll.tsx";
+import { ThreadOutputs } from "./thread-outputs.tsx";
 import {
   type DataParts,
   type RenderItem,
   useFilterParts,
 } from "./use-filter-parts.ts";
 import { addUsage, emptyUsageStats } from "@decocms/mesh-sdk";
-import { useOptionalChatStream } from "../context.tsx";
+import { useOptionalChatStream, useOptionalChatTask } from "../context.tsx";
 import { LiveTimer } from "../../live-timer.tsx";
 import { GridLoader } from "../../grid-loader.tsx";
 import { formatDuration } from "../../../lib/format-time.ts";
@@ -549,6 +550,7 @@ export function MessageAssistant({
   isLast = false,
 }: MessageAssistantProps) {
   const { isRunInProgress = false } = useOptionalChatStream() ?? {};
+  const taskId = useOptionalChatTask()?.taskId ?? null;
   const isStreaming = status === "streaming";
   const isSubmitted = status === "submitted";
   const isLoading = isStreaming || isSubmitted;
@@ -652,6 +654,9 @@ export function MessageAssistant({
           })}
           {isLast && isLoading && startedAt !== null && (
             <GeneratingFooter startedAt={startedAt} />
+          )}
+          {isLast && !isLoading && taskId && (
+            <ThreadOutputs threadId={taskId} />
           )}
         </div>
       ) : isLoading ? (

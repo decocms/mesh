@@ -57,6 +57,13 @@ export type VmContext = {
   virtualMcpId: string;
   branch: string;
   userId: string;
+  /**
+   * Current chat thread id. Used by `share_with_user` to scope artifacts
+   * under `model-outputs/<threadId>/`. Required because one ephemeral
+   * sandbox serves multiple threads of the same (user, agent), so the
+   * thread isn't deducible from the sandbox identity alone.
+   */
+  threadId: string;
 };
 
 export interface BuiltinToolParams {
@@ -170,6 +177,8 @@ async function buildAllTools(
         toolOutputMap,
         needsApproval: vmNeedsApproval,
         pendingImages,
+        ctx,
+        threadId: vmContext.threadId,
       }),
     );
   }

@@ -50,6 +50,7 @@ import { createKVRoutes } from "./routes/kv";
 import { createTriggerCallbackRoutes } from "./routes/trigger-callback";
 import publicConfigRoutes from "./routes/public-config";
 import filesRoutes from "./routes/files";
+import threadOutputsRoutes from "./routes/thread-outputs";
 import selfRoutes from "./routes/self";
 import { shouldSkipMeshContext, SYSTEM_PATHS } from "./utils/paths";
 import {
@@ -1363,6 +1364,9 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // Stable file redirect endpoint (resolves mesh-storage: URIs to presigned URLs)
   app.route("/api", filesRoutes);
+
+  // Thread outputs (model-shared files surfaced as download chips in the chat)
+  app.route("/api", threadOutputsRoutes);
 
   // OpenAI-compatible LLM API routes
   app.route("/api", openaiCompatRoutes);

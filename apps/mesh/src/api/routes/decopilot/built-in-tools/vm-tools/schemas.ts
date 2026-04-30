@@ -79,12 +79,46 @@ export const BashInputSchema = z.object({
     .describe("Timeout in milliseconds (default 30000, max 120000)"),
 });
 
+export const CopyToSandboxInputSchema = z.object({
+  url: z
+    .string()
+    .describe(
+      "Source URL. Accepts mesh-storage:// URIs from chat (e.g. " +
+        "mesh-storage://chat-uploads/abc.pdf), https:// URLs (e.g. presigned " +
+        "S3 URLs), or bare org-storage keys (e.g. chat-uploads/abc.pdf).",
+    ),
+  target: z
+    .string()
+    .describe(
+      "Destination path on the sandbox FS (relative to project root). " +
+        "Parent directories are created as needed.",
+    ),
+});
+
+export const ShareWithUserInputSchema = z.object({
+  source: z
+    .string()
+    .describe(
+      "Path to a file on the sandbox FS to share back to the user. " +
+        "Must be a single file (not a directory).",
+    ),
+  name: z
+    .string()
+    .optional()
+    .describe(
+      "Filename to surface in the chat UI (default: basename of source). " +
+        "Cannot contain slashes.",
+    ),
+});
+
 export type ReadInput = z.infer<typeof ReadInputSchema>;
 export type WriteInput = z.infer<typeof WriteInputSchema>;
 export type EditInput = z.infer<typeof EditInputSchema>;
 export type GrepInput = z.infer<typeof GrepInputSchema>;
 export type GlobInput = z.infer<typeof GlobInputSchema>;
 export type BashInput = z.infer<typeof BashInputSchema>;
+export type CopyToSandboxInput = z.infer<typeof CopyToSandboxInputSchema>;
+export type ShareWithUserInput = z.infer<typeof ShareWithUserInputSchema>;
 
 export const READ_DESCRIPTION =
   "Read a file. For text files, returns content with line numbers (use offset " +
@@ -112,9 +146,34 @@ export const GLOB_DESCRIPTION =
 
 export const BASH_DESCRIPTION =
   "Execute a shell command in the VM's project directory. " +
-  "Working directory is the project root. Timeout default 30s, max 2min.";
+  "Working directory is the project root. Timeout default 30s, max 2min.\n\n" +
+  "Pre-installed skills live at `/mnt/skills/public/<name>/SKILL.md`. " +
+  "Run `ls /mnt/skills/public/` for the index and " +
+  "`cat /mnt/skills/public/<name>/SKILL.md` before using one. " +
+  "Skills cover common file operations: pptx (PowerPoint), docx (Word), " +
+  "xlsx (Excel), pdf, file-reading (router).\n\n" +
+  "To bring chat attachments / presigned URLs into the sandbox FS use " +
+  "`copy_to_sandbox` (NOT bash + curl). To deliver a file you produced " +
+  "back to the user as a download chip, use `share_with_user`.";
+
+export const COPY_TO_SANDBOX_DESCRIPTION =
+  "Copy a file from chat / org storage / a presigned URL into the sandbox " +
+  "filesystem at `target`. Use this BEFORE running format-specific skills " +
+  "(pptx-extract, pdf, docx, ...) on user-uploaded files. Bytes are streamed " +
+  "directly from the source — they do not pass through the model.";
+
+export const SHARE_WITH_USER_DESCRIPTION =
+  "Upload a file from the sandbox FS back to the user's chat as a download " +
+  "chip on this turn. Use this for artifacts the user should be able to " +
+  "save (CSV reports, generated decks, zipped builds, etc). The file " +
+  "lands under the current thread's outputs prefix; the UI surfaces it " +
+  "automatically when the turn finishes.";
 
 // read/grep/glob are non-mutating; write/edit/bash mutate.
+// copy_to_sandbox writes to sandbox FS → mutates; share_with_user uploads
+// to S3 from a read of the sandbox FS → not a sandbox mutation per se,
+// but treat as approval-worthy because it's an external side effect (the
+// artifact appears for the user).
 export const TOOL_APPROVAL = {
   read: false,
   write: true,
@@ -122,4 +181,6 @@ export const TOOL_APPROVAL = {
   grep: false,
   glob: false,
   bash: true,
+  copy_to_sandbox: false,
+  share_with_user: false,
 } as const;

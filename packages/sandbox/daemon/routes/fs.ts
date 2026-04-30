@@ -24,6 +24,11 @@ function spawnOpts(
  * vision input ceiling and keeps tool result payloads bounded. */
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
+/** Cap on bytes for write_from_url / upload_to_url. Matches the share
+ * pipeline's expected file sizes (CSVs, decks, zips). Files past this
+ * are out of scope for the chat artifact flow. */
+const MAX_TRANSFER_BYTES = 500 * 1024 * 1024;
+
 /** Magic-byte sniffer for the image types Claude vision accepts.
  * Returns null for everything else; we don't try to be clever about
  * arbitrary binary formats. */
@@ -295,6 +300,158 @@ export function makeGrepHandler(deps: FsDeps) {
         500,
       );
     return jsonResponse({ results: stdout, matchCount: lineCount });
+  };
+}
+
+/**
+ * GET a remote URL (typically a presigned S3 URL) and stream the bytes to
+ * a path on the sandbox FS. Mesh mints the URL and asks the daemon to
+ * fetch it directly so bytes never round-trip through mesh.
+ *
+ * Body: { path: string; url: string }
+ */
+export function makeWriteFromUrlHandler(deps: FsDeps) {
+  return async (req: Request): Promise<Response> => {
+    let body: { path?: string; url?: string };
+    try {
+      body = (await parseBase64JsonBody(req)) as typeof body;
+    } catch (e) {
+      return jsonResponse({ error: (e as Error).message }, 400);
+    }
+    if (typeof body.url !== "string" || !body.url) {
+      return jsonResponse({ error: "url is required" }, 400);
+    }
+    const filePath = safePath(deps.appRoot, body.path ?? "");
+    if (!filePath) return jsonResponse({ error: "Path escapes /app" }, 400);
+
+    let resp: Response;
+    try {
+      resp = await fetch(body.url);
+    } catch (err) {
+      return jsonResponse(
+        { error: `fetch failed: ${(err as Error).message}` },
+        502,
+      );
+    }
+    if (!resp.ok || !resp.body) {
+      return jsonResponse(
+        { error: `upstream returned HTTP ${resp.status}` },
+        502,
+      );
+    }
+    const contentLengthHeader = resp.headers.get("content-length");
+    const declaredSize = contentLengthHeader
+      ? Number.parseInt(contentLengthHeader, 10)
+      : null;
+    if (declaredSize !== null && declaredSize > MAX_TRANSFER_BYTES) {
+      return jsonResponse(
+        {
+          error: `Payload too large (${declaredSize} > ${MAX_TRANSFER_BYTES})`,
+        },
+        413,
+      );
+    }
+
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    const out = fs.createWriteStream(filePath);
+    let written = 0;
+    const reader = resp.body.getReader();
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        written += value.byteLength;
+        if (written > MAX_TRANSFER_BYTES) {
+          out.destroy();
+          fs.rmSync(filePath, { force: true });
+          return jsonResponse(
+            { error: `Stream exceeded ${MAX_TRANSFER_BYTES} bytes` },
+            413,
+          );
+        }
+        if (!out.write(value)) {
+          await new Promise<void>((resolve) => out.once("drain", resolve));
+        }
+      }
+    } finally {
+      out.end();
+      await new Promise<void>((resolve, reject) => {
+        out.on("close", resolve);
+        out.on("error", reject);
+      }).catch(() => {});
+    }
+    return jsonResponse({ ok: true, path: body.path, size: written });
+  };
+}
+
+/**
+ * Read a file from the sandbox FS and PUT it to a remote URL (typically
+ * a presigned S3 URL). Mesh mints the URL and asks the daemon to upload
+ * directly so bytes never round-trip through mesh.
+ *
+ * Body: { path: string; url: string; contentType?: string }
+ */
+export function makeUploadToUrlHandler(deps: FsDeps) {
+  return async (req: Request): Promise<Response> => {
+    let body: { path?: string; url?: string; contentType?: string };
+    try {
+      body = (await parseBase64JsonBody(req)) as typeof body;
+    } catch (e) {
+      return jsonResponse({ error: (e as Error).message }, 400);
+    }
+    if (typeof body.url !== "string" || !body.url) {
+      return jsonResponse({ error: "url is required" }, 400);
+    }
+    const filePath = resolveReadPath(deps.appRoot, body.path ?? "");
+    if (!filePath) {
+      return jsonResponse({ error: "Path escapes project root" }, 400);
+    }
+
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(filePath);
+    } catch {
+      return jsonResponse({ error: `File not found: ${body.path}` }, 400);
+    }
+    if (stat.isDirectory()) {
+      return jsonResponse({ error: "Path is a directory" }, 400);
+    }
+    if (stat.size > MAX_TRANSFER_BYTES) {
+      return jsonResponse(
+        { error: `File too large (${stat.size} > ${MAX_TRANSFER_BYTES})` },
+        413,
+      );
+    }
+
+    const bytes = fs.readFileSync(filePath);
+    const headers: Record<string, string> = {
+      "Content-Length": String(stat.size),
+    };
+    if (body.contentType) headers["Content-Type"] = body.contentType;
+
+    let resp: Response;
+    try {
+      resp = await fetch(body.url, {
+        method: "PUT",
+        body: bytes,
+        headers,
+      });
+    } catch (err) {
+      return jsonResponse(
+        { error: `upload failed: ${(err as Error).message}` },
+        502,
+      );
+    }
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      return jsonResponse(
+        {
+          error: `upstream returned HTTP ${resp.status}: ${errText.slice(0, 500)}`,
+        },
+        502,
+      );
+    }
+    return jsonResponse({ ok: true, size: stat.size });
   };
 }
 
