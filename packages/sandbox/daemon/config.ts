@@ -75,6 +75,12 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
   }
   const cloneDepth = cloneDepthRaw as CloneDepth;
 
+  const useCorepackRaw = env.USE_COREPACK ?? "true";
+  if (useCorepackRaw !== "true" && useCorepackRaw !== "false") {
+    throw new Error(`USE_COREPACK invalid: ${useCorepackRaw}`);
+  }
+  const useCorepack = useCorepackRaw === "true";
+
   return Object.freeze({
     daemonToken,
     daemonBootId,
@@ -90,5 +96,6 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     proxyPort,
     pathPrefix,
     cloneDepth,
+    useCorepack,
   });
 }

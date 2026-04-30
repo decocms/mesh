@@ -111,6 +111,7 @@ describe("HostSandboxRunner.ensure provisioning", () => {
     expect(spawnArgs.env.CLONE_URL).toBe("https://example.com/x.git");
     expect(spawnArgs.env.BRANCH).toBe("main");
     expect(spawnArgs.env.CLONE_DEPTH).toBe("full");
+    expect(spawnArgs.env.USE_COREPACK).toBe("false");
     expect(spawnArgs.env.PROXY_PORT).toBe(String(spawnArgs.daemonPort));
   });
 

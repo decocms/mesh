@@ -419,6 +419,7 @@ function buildDaemonEnv(args: {
     DEV_PORT: String(args.devPort),
     RUNTIME: args.runtime,
     CLONE_DEPTH: "full",
+    USE_COREPACK: "false",
     ...(args.repo
       ? {
           CLONE_URL: args.repo.cloneUrl,
