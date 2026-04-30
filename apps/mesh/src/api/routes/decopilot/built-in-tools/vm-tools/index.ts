@@ -89,8 +89,14 @@ async function daemonRequest(
 }
 
 export function createVmTools(params: VmToolsParams) {
-  const { runner, ensureHandle, toolOutputMap, needsApproval, pendingImages } =
-    params;
+  const {
+    runner,
+    ensureHandle,
+    toolOutputMap,
+    needsApproval,
+    pendingImages,
+    threadId,
+  } = params;
   const approvalFor = (mutating: boolean) => (mutating ? needsApproval : false);
   const call = async (path: string, input: Record<string, unknown>) => {
     const handle = await ensureHandle();
@@ -170,7 +176,16 @@ export function createVmTools(params: VmToolsParams) {
     description: BASH_DESCRIPTION,
     inputSchema: zodSchema(BashInputSchema),
     execute: async (input) => {
-      const result = await call("/_decopilot_vm/bash", input);
+      // Inject THREAD_ID for skills like user-data-share. Thread ids are
+      // alphanumeric/dashes/underscores (nanoid- or uuid-shaped), so they
+      // need no shell quoting; reject anything that would break the
+      // prefix injection rather than build a half-correct quoter.
+      const safeThreadId =
+        threadId && /^[a-zA-Z0-9_-]+$/.test(threadId) ? threadId : null;
+      const command = safeThreadId
+        ? `export THREAD_ID=${safeThreadId}; ${input.command}`
+        : input.command;
+      const result = await call("/_decopilot_vm/bash", { ...input, command });
       return maybeTruncate(result, toolOutputMap);
     },
   });

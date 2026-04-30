@@ -16,4 +16,12 @@ export interface VmToolsParams {
    * queue is flushed by `prepareStep` in stream-core.ts.
    */
   readonly pendingImages: PendingImage[];
+  /**
+   * Current chat thread id. When set, prepended as `THREAD_ID=...` to
+   * every `bash` invocation so skills running inside the sandbox
+   * (notably `user-data-share`) can attribute artifacts to the active
+   * turn — sandboxes are per-(user, agent), not per-thread, so the
+   * thread isn't deducible from the sandbox identity alone.
+   */
+  readonly threadId?: string | null;
 }
