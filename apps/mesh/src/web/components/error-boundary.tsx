@@ -1,15 +1,17 @@
-import { Component, type ErrorInfo, type ReactNode } from "react";
+import { Component, useState, type ErrorInfo, type ReactNode } from "react";
 import { Button } from "@deco/ui/components/button.tsx";
-import { AlertTriangle, RefreshCw01 } from "@untitledui/icons";
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  MessageCircle01,
+  RefreshCw01,
+} from "@untitledui/icons";
 import { captureException } from "@/web/lib/posthog-client";
 
+const SUPPORT_EMAIL = "contact@decocms.com";
 const CHUNK_RELOAD_KEY = "__mesh_chunk_reload_ts";
 
-/**
- * Detects errors caused by stale dynamic imports after a deployment.
- * When the app deploys new code, Vite's hashed asset filenames change.
- * Users with the old HTML cached will try to fetch chunks that no longer exist.
- */
 function isChunkLoadError(error: Error | null): boolean {
   if (!error) return false;
   const msg = error.message || "";
@@ -17,23 +19,141 @@ function isChunkLoadError(error: Error | null): boolean {
     msg.includes("Failed to fetch dynamically imported module") ||
     msg.includes("Importing a module script failed") ||
     msg.includes("error loading dynamically imported module") ||
-    // Chrome network errors during import
     (msg.includes("Failed to fetch") && error.name === "TypeError")
   );
 }
 
-/**
- * Props for the fallback render function
- */
+function getReadableError(error: Error | null): string {
+  if (!error) return "An unexpected error occurred.";
+  const msg = error.message;
+  if (!msg) return "An unexpected error occurred.";
+
+  // Short, human-looking messages: use as-is
+  if (msg.length <= 120 && !msg.trimStart().startsWith("{")) {
+    return msg;
+  }
+
+  // Try extracting a readable field from a JSON payload
+  try {
+    const parsed = JSON.parse(msg);
+    const candidate = parsed?.message ?? parsed?.error ?? parsed?.detail;
+    if (
+      typeof candidate === "string" &&
+      candidate.length <= 200 &&
+      !candidate.trimStart().startsWith("{")
+    ) {
+      return candidate;
+    }
+  } catch {
+    // not JSON — fall through
+  }
+
+  // Common patterns
+  if (
+    msg.includes("Failed to fetch") ||
+    msg.includes("NetworkError") ||
+    msg.includes("net::ERR")
+  ) {
+    return "Could not reach the server. Check your connection and try again.";
+  }
+  if (msg.includes("401") || msg.includes("Unauthorized")) {
+    return "Your session may have expired. Try refreshing the page.";
+  }
+  if (msg.includes("403") || msg.includes("Forbidden")) {
+    return "You don't have permission to perform this action.";
+  }
+  if (msg.includes("404") || msg.includes("Not Found")) {
+    return "The requested resource was not found.";
+  }
+  if (msg.includes("500") || msg.includes("Internal server error")) {
+    return "The server encountered an error. Please try again in a moment.";
+  }
+
+  return "An unexpected error occurred. If this keeps happening, please contact support.";
+}
+
+function buildSupportMailto(error: Error | null): string {
+  const subject = encodeURIComponent("Error report — MCP Mesh");
+  const body = encodeURIComponent(
+    [
+      "Hi, I ran into an error in MCP Mesh and could use some help.",
+      "",
+      `Page: ${typeof window !== "undefined" ? window.location.href : "unknown"}`,
+      `Error: ${error?.message ?? "Unknown"}`,
+    ].join("\n"),
+  );
+  return `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
+}
+
 export interface ErrorFallbackProps {
   error: Error | null;
   resetError: () => void;
 }
 
-/**
- * Fallback can be either a static ReactNode or a render function
- */
 type FallbackType = ReactNode | ((props: ErrorFallbackProps) => ReactNode);
+
+interface ErrorDisplayProps {
+  error: Error | null;
+  onReset: () => void;
+  fullPage?: boolean;
+}
+
+function ErrorDisplay({ error, onReset, fullPage }: ErrorDisplayProps) {
+  const [showDetails, setShowDetails] = useState(false);
+  const readableMessage = getReadableError(error);
+  const rawMessage = error?.message ?? "";
+  const hasDetails = rawMessage.length > 0 && rawMessage !== readableMessage;
+
+  return (
+    <div
+      className={`flex flex-col items-center justify-center p-6 text-center gap-4 ${
+        fullPage ? "min-h-dvh" : "flex-1 h-full"
+      }`}
+    >
+      <div className="bg-destructive/10 p-3 rounded-full">
+        <AlertTriangle className="h-6 w-6 text-destructive" />
+      </div>
+
+      <div className="space-y-2 max-w-sm">
+        <h3 className="text-lg font-semibold">Something went wrong</h3>
+        <p className="text-sm text-muted-foreground">{readableMessage}</p>
+      </div>
+
+      <div className="flex gap-2 flex-wrap justify-center">
+        <Button variant="outline" onClick={onReset}>
+          Try again
+        </Button>
+        <Button variant="ghost" asChild>
+          <a href={buildSupportMailto(error)}>
+            <MessageCircle01 className="h-4 w-4 mr-2" />
+            Contact support
+          </a>
+        </Button>
+      </div>
+
+      {hasDetails && (
+        <div className="w-full max-w-sm text-left">
+          <button
+            className="text-xs text-muted-foreground/60 flex items-center gap-1 mx-auto hover:text-muted-foreground transition-colors"
+            onClick={() => setShowDetails((v) => !v)}
+          >
+            {showDetails ? (
+              <ChevronUp className="h-3 w-3" />
+            ) : (
+              <ChevronDown className="h-3 w-3" />
+            )}
+            {showDetails ? "Hide" : "Show"} technical details
+          </button>
+          {showDetails && (
+            <pre className="mt-2 text-xs bg-muted rounded-md p-3 overflow-auto max-h-40 text-muted-foreground whitespace-pre-wrap break-all">
+              {rawMessage}
+            </pre>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface Props {
   children: ReactNode;
@@ -74,7 +194,6 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       const { fallback } = this.props;
 
-      // If fallback is a function, call it with error props
       if (typeof fallback === "function") {
         return fallback({
           error: this.state.error,
@@ -82,27 +201,12 @@ export class ErrorBoundary extends Component<Props, State> {
         });
       }
 
-      // If fallback is provided as a static node, use it
       if (fallback !== undefined) {
         return fallback;
       }
 
-      // Default fallback UI
       return (
-        <div className="flex-1 flex flex-col items-center justify-center h-full p-6 text-center space-y-4">
-          <div className="bg-destructive/10 p-3 rounded-full">
-            <AlertTriangle className="h-6 w-6 text-destructive" />
-          </div>
-          <div className="space-y-2">
-            <h3 className="text-lg font-medium">Something went wrong</h3>
-            <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-              {this.state.error?.message || "An unexpected error occurred"}
-            </p>
-          </div>
-          <Button variant="outline" onClick={this.resetError}>
-            Try again
-          </Button>
-        </div>
+        <ErrorDisplay error={this.state.error} onReset={this.resetError} />
       );
     }
 
@@ -110,11 +214,6 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 }
 
-/**
- * Root-level error boundary that handles stale chunk errors after deployments.
- * Automatically reloads the page once; if the reload already happened recently,
- * shows a manual "Refresh" button instead (to prevent infinite reload loops).
- */
 export class ChunkErrorBoundary extends Component<
   { children: ReactNode },
   State
@@ -139,7 +238,6 @@ export class ChunkErrorBoundary extends Component<
 
     if (!isChunk) return;
 
-    // Auto-reload once. Guard against infinite loops with a timestamp check.
     const lastReload = sessionStorage.getItem(CHUNK_RELOAD_KEY);
     const now = Date.now();
     if (!lastReload || now - Number(lastReload) > 10_000) {
@@ -151,12 +249,12 @@ export class ChunkErrorBoundary extends Component<
   override render() {
     if (this.state.hasError && isChunkLoadError(this.state.error)) {
       return (
-        <div className="flex min-h-dvh flex-col items-center justify-center p-6 text-center space-y-4">
+        <div className="flex min-h-dvh flex-col items-center justify-center p-6 text-center gap-4">
           <div className="bg-primary/10 p-3 rounded-full">
             <RefreshCw01 className="h-6 w-6 text-primary" />
           </div>
           <div className="space-y-2">
-            <h3 className="text-lg font-medium">New version available</h3>
+            <h3 className="text-lg font-semibold">New version available</h3>
             <p className="text-sm text-muted-foreground max-w-xs mx-auto">
               A new version has been deployed. Refresh to continue.
             </p>
@@ -168,23 +266,11 @@ export class ChunkErrorBoundary extends Component<
 
     if (this.state.hasError) {
       return (
-        <div className="flex min-h-dvh flex-col items-center justify-center p-6 text-center space-y-4">
-          <div className="bg-destructive/10 p-3 rounded-full">
-            <AlertTriangle className="h-6 w-6 text-destructive" />
-          </div>
-          <div className="space-y-2">
-            <h3 className="text-lg font-medium">Something went wrong</h3>
-            <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-              {this.state.error?.message || "An unexpected error occurred"}
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            onClick={() => this.setState({ hasError: false, error: null })}
-          >
-            Try again
-          </Button>
-        </div>
+        <ErrorDisplay
+          error={this.state.error}
+          onReset={() => this.setState({ hasError: false, error: null })}
+          fullPage
+        />
       );
     }
 
