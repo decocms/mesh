@@ -12,7 +12,7 @@ import {
   useInvitationActions,
 } from "@/web/hooks/use-invitations";
 import { useOrganizationRoles } from "@/web/hooks/use-organization-roles";
-import { authClient } from "@/web/lib/auth-client";
+import { useOrgAuthClient } from "@/web/hooks/use-org-auth-client";
 import { KEYS } from "@/web/lib/query-keys";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import {
@@ -429,6 +429,7 @@ function OrgMembersContent() {
   const invitationActions = useInvitationActions();
   const queryClient = useQueryClient();
   const { locator } = useProjectContext();
+  const orgAuth = useOrgAuthClient();
   const [memberToRemove, setMemberToRemove] = useState<string | null>(null);
   const [invitationToCancel, setInvitationToCancel] = useState<string | null>(
     null,
@@ -513,7 +514,7 @@ function OrgMembersContent() {
 
   const removeMemberMutation = useMutation({
     mutationFn: async (memberId: string) => {
-      const result = await authClient.organization.removeMember({
+      const result = await orgAuth.organization.removeMember({
         memberIdOrEmail: memberId,
       });
       if (result?.error) {
@@ -544,7 +545,7 @@ function OrgMembersContent() {
       memberId: string;
       role: string;
     }) => {
-      const result = await authClient.organization.updateMemberRole({
+      const result = await orgAuth.organization.updateMemberRole({
         memberId,
         role: [role],
       });
@@ -579,7 +580,7 @@ function OrgMembersContent() {
       email: string;
     }) => {
       // Cancel the old invitation
-      const cancelResult = await authClient.organization.cancelInvitation({
+      const cancelResult = await orgAuth.organization.cancelInvitation({
         invitationId,
       });
       if (cancelResult?.error) {
@@ -587,7 +588,7 @@ function OrgMembersContent() {
       }
 
       // Create new invitation with updated role
-      const inviteResult = await authClient.organization.inviteMember({
+      const inviteResult = await orgAuth.organization.inviteMember({
         email,
         role: role as "admin" | "owner",
       });

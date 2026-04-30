@@ -3,7 +3,7 @@ import {
   type OrganizationRole,
   useOrganizationRoles,
 } from "@/web/hooks/use-organization-roles";
-import { authClient } from "@/web/lib/auth-client";
+import { useOrgAuthClient } from "@/web/hooks/use-org-auth-client";
 import { KEYS } from "@/web/lib/query-keys";
 import { track } from "@/web/lib/posthog-client";
 import { Badge } from "@deco/ui/components/badge.tsx";
@@ -125,6 +125,7 @@ function RolesPageContent() {
   };
 
   const { locator } = useProjectContext();
+  const orgAuth = useOrgAuthClient();
   const queryClient = useQueryClient();
   const { customRoles, refetch: refetchRoles } = useOrganizationRoles();
 
@@ -146,7 +147,7 @@ function RolesPageContent() {
   })();
   const { data: membersData } = useQuery({
     queryKey: KEYS.members(locator),
-    queryFn: () => authClient.organization.listMembers(),
+    queryFn: () => orgAuth.organization.listMembers(),
   });
 
   const members = membersData?.data?.members ?? [];
@@ -174,7 +175,7 @@ function RolesPageContent() {
 
   const deleteRoleMutation = useMutation({
     mutationFn: async (roleId: string) => {
-      const result = await authClient.organization.deleteRole({ roleId });
+      const result = await orgAuth.organization.deleteRole({ roleId });
       if (result?.error) throw new Error(result.error.message);
       return result?.data;
     },
