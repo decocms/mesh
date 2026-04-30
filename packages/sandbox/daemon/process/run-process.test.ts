@@ -1,11 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { spawnSync } from "node:child_process";
 import { Broadcaster } from "../events/broadcast";
 import { ProcessManager } from "./run-process";
 
-const hasScript = spawnSync("which", ["script"]).status === 0;
-
-(hasScript ? describe : describe.skip)("ProcessManager", () => {
+describe("ProcessManager", () => {
   it("spawns a command, records it, and emits processes event on close", async () => {
     const b = new Broadcaster(100);
     const pm = new ProcessManager({ broadcaster: b, dropPrivileges: false });
@@ -23,5 +20,18 @@ const hasScript = spawnSync("which", ["script"]).status === 0;
     const b = new Broadcaster(100);
     const pm = new ProcessManager({ broadcaster: b, dropPrivileges: false });
     expect(pm.kill("nothing")).toBe(false);
+  });
+
+  it("kill() terminates a tracked child", async () => {
+    const b = new Broadcaster(100);
+    const pm = new ProcessManager({ broadcaster: b, dropPrivileges: false });
+    pm.run("sleep-test", "sleep 30", "$ sleep 30");
+    expect(pm.activeNames()).toContain("sleep-test");
+    expect(pm.kill("sleep-test")).toBe(true);
+    // Wait for the child's exit handler to fire.
+    for (let i = 0; i < 30 && pm.activeNames().length > 0; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    expect(pm.activeNames()).not.toContain("sleep-test");
   });
 });
