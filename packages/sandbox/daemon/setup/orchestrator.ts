@@ -19,12 +19,6 @@ export interface SetupOrchestratorDeps {
   broadcaster: Broadcaster;
   processManager: ProcessManager;
   dropPrivileges?: boolean;
-  /**
-   * Called inside the orchestrator on terminal outcomes so callers can
-   * flip Phase under bootstrapMutex. Phase 1 wires "ready" on success and
-   * "failed" on any non-zero clone/install or thrown error. Optional for
-   * back-compat: legacy entry path doesn't need phase transitions.
-   */
   onTerminal?: (outcome: "ready" | "failed", reason?: string) => void;
 }
 

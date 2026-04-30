@@ -52,11 +52,6 @@ export function hashPayload(payload: BootstrapPayload): string {
   return createHash("sha256").update(canonicalize(payload)).digest("hex");
 }
 
-/**
- * Atomic write: tmp → fsync(file) → rename → fsync(parent dir). Rename is
- * atomic on POSIX so a crash leaves either old contents or new contents,
- * never partial. Mode 0600 + chown 1000:1000 when running as root.
- */
 export function writeBootstrap(
   payload: BootstrapPayload,
   dir: string = DEFAULT_BOOTSTRAP_DIR,
@@ -77,9 +72,6 @@ export function writeBootstrap(
   }
   renameSync(tmp, final);
 
-  // fsync the parent directory so the rename is durable across power loss.
-  // Some platforms (notably non-Linux) reject O_DIRECTORY/fsync on a dir;
-  // best-effort.
   try {
     const dirFd = openSync(dirname(final), "r");
     try {
@@ -87,9 +79,7 @@ export function writeBootstrap(
     } finally {
       closeSync(dirFd);
     }
-  } catch {
-    /* best-effort */
-  }
+  } catch {}
 
   return { hash };
 }
@@ -99,20 +89,12 @@ export type ReadOutcome =
   | { kind: "valid"; file: BootstrapFile }
   | { kind: "invalid"; reason: string };
 
-/**
- * On boot: delete leftover .tmp, then attempt to read bootstrap.json. Returns
- * a tagged outcome — caller decides phase based on it. Validates schemaVersion
- * is known and recomputes the hash to detect tampering or partial writes.
- */
 export function readBootstrap(
   dir: string = DEFAULT_BOOTSTRAP_DIR,
 ): ReadOutcome {
-  // Best-effort cleanup of an interrupted prior write.
   try {
     unlinkSync(bootstrapTmpPath(dir));
-  } catch {
-    /* not present */
-  }
+  } catch {}
 
   let raw: string;
   try {

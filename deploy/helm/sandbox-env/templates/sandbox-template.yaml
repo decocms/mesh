@@ -84,21 +84,10 @@ spec:
             - name: WORKDIR
               value: "/app"
             # DAEMON_TOKEN is injected per-claim via SandboxClaim.spec.env.
-            # Per-claim nonce: mesh stamps decocms.io/claim-nonce on each
-            # SandboxClaim; the operator preserves the annotation onto the
-            # pod (verified against agent-sandbox v0.4.2). Downward API
-            # exposes it as CLAIM_NONCE so the daemon can reject bootstrap
-            # payloads with a mismatched nonce. If absent at pod-create
-            # time the env resolves to "" — which still mismatches any
-            # non-empty payload.claimNonce, so this is fail-safe.
             - name: CLAIM_NONCE
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.annotations['decocms.io/claim-nonce']
-            # Belt-and-suspenders: with STRICT_NONCE=true a chart that
-            # somehow loses the downward-API ref above turns "missing
-            # CLAIM_NONCE" into a hard 403 instead of silently accepting
-            # anything. Production should always strict-check.
             - name: STRICT_NONCE
               value: "true"
             {{- if .Values.readOnlyRootFilesystem }}
@@ -134,11 +123,6 @@ spec:
             - name: tmp
               mountPath: /tmp
             {{- end }}
-            # /home/sandbox holds the daemon's bootstrap.json — needed on
-            # both rootfs modes so persistence is deterministic. With RO
-            # rootfs it's a dedicated emptyDir; on a writable rootfs the
-            # mount still resolves (unconditional emptyDir below) and the
-            # daemon writes there instead of relying on the writable layer.
             - name: home
               mountPath: /home/sandbox
       volumes:

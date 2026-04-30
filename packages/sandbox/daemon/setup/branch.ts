@@ -9,7 +9,6 @@ export interface ResolveBranchDeps {
 
 export function resolveBranch(deps: ResolveBranchDeps): void {
   const rawSync = deps.gitSync ?? defaultGitSync;
-  // Per-invocation safe.directory=* — option (c) from SPEC-daemon-bootstrap.md.
   const gitSync = (args: string[], opts: GitSyncOpts) =>
     rawSync(["-c", "safe.directory=*", ...args], opts);
   const { appRoot, branch } = deps.config;

@@ -51,12 +51,19 @@ const DAEMON_BOOT_ID = process.env.DAEMON_BOOT_ID;
 const dropPrivileges = process.env.DAEMON_DROP_PRIVILEGES === "1";
 const PROXY_PORT = parseInt(process.env.PROXY_PORT ?? "9000", 10);
 
+const EXPECTED_CLAIM_NONCE = process.env.CLAIM_NONCE ?? null;
+const STRICT_NONCE = process.env.STRICT_NONCE === "true";
+if (EXPECTED_CLAIM_NONCE === null && !STRICT_NONCE) {
+  console.warn(
+    "[daemon] CLAIM_NONCE env not set — bootstrap route accepts any nonce (dev mode). Set STRICT_NONCE=true to reject.",
+  );
+}
+
 const BOOTSTRAP_TIMEOUT_MS = parseInt(
   process.env.BOOTSTRAP_TIMEOUT_MS ?? `${5 * 60 * 1000}`,
   10,
 );
 
-// Storage substrate for bootstrap.json. Override via env for tests.
 const BOOTSTRAP_DIR =
   process.env.DAEMON_BOOTSTRAP_DIR ?? "/home/sandbox/.daemon";
 
@@ -67,8 +74,6 @@ const processManager = new ProcessManager({
   env: process.env,
 });
 
-// Lazily-bound state — created when Config arrives (env-driven path or
-// post-bootstrap). Until then, mutating routes 503.
 let orchestrator: SetupOrchestrator | null = null;
 let branchStatus: BranchStatusMonitor | null = null;
 let mutatingHandlers: ReturnType<typeof buildMutatingHandlers> | null = null;
@@ -117,17 +122,13 @@ function buildMutatingHandlers(config: Config) {
     processManager,
     dropPrivileges,
     onTerminal: (outcome) => {
-      // Phase transition under bootstrapMutex. Don't await — the orchestrator
-      // is already outside the mutex and we don't want to block its caller.
       void bootstrapMutex.run(() => {
         const cur = getPhase();
-        if (cur === "failed") return; // terminal
+        if (cur === "failed") return;
         if (outcome === "ready" && cur === "bootstrapping") {
           setPhase("ready");
           clearBootstrapTimeout();
         } else if (outcome === "failed") {
-          // Failure flips both bootstrapping → failed and (env-driven)
-          // ready → failed, per spec "Wiring `failed`".
           setPhase("failed");
           clearBootstrapTimeout();
         }
@@ -188,7 +189,6 @@ const idleH = makeIdleHandler();
 const proxyH = makeProxyHandler({ broadcaster, getDevPort });
 const wsProxy = makeWsUpgrader(getDevPort, { onClientMessage: bumpActivity });
 
-// ---- Bootstrap timeout ----------------------------------------------------
 let bootstrapTimeout: ReturnType<typeof setTimeout> | null = null;
 function armBootstrapTimeout() {
   if (bootstrapTimeout) clearTimeout(bootstrapTimeout);
@@ -204,7 +204,6 @@ function armBootstrapTimeout() {
       }
     });
   }, BOOTSTRAP_TIMEOUT_MS);
-  // Don't keep the event loop alive solely on this timer.
   bootstrapTimeout.unref?.();
 }
 function clearBootstrapTimeout() {
@@ -218,11 +217,8 @@ const bootstrapH = makeBootstrapHandler({
   daemonBootId: DAEMON_BOOT_ID,
   storageDir: BOOTSTRAP_DIR,
   onAccepted: () => {
-    // setConfig already happened inside the mutex; activate handlers
-    // synchronously (cheap) and kick off orchestrator on the next tick so
-    // long-running I/O doesn't hold the mutex.
     const cfg = peekConfig();
-    if (!cfg) return; // shouldn't happen — setConfig was just called
+    if (!cfg) return;
     activateConfig(cfg);
     clearBootstrapTimeout();
     if (process.env.DAEMON_NO_AUTOSTART !== "1") {
@@ -233,10 +229,7 @@ const bootstrapH = makeBootstrapHandler({
   },
 });
 
-// ---- Pre-bind hydration ---------------------------------------------------
 function hydrate(): void {
-  // Three outcomes drive the initial phase.
-  // 1) Env-driven path: DAEMON_TOKEN is set in env (back-compat).
   if (process.env.DAEMON_TOKEN) {
     let cfg: Config;
     try {
@@ -252,7 +245,6 @@ function hydrate(): void {
     return;
   }
 
-  // 2) bootstrap.json present.
   const outcome = readBootstrap(BOOTSTRAP_DIR);
   if (outcome.kind === "valid") {
     const payload = outcome.file.payload as BootstrapPayload;
@@ -268,14 +260,12 @@ function hydrate(): void {
     setPhase("failed");
     return;
   }
-  // 3) Absent — pending-bootstrap.
   setPhase("pending-bootstrap");
   armBootstrapTimeout();
 }
 
 hydrate();
 
-// ---- HTTP server ----------------------------------------------------------
 Bun.serve<WsProxyData, never>({
   port: PROXY_PORT,
   hostname: "0.0.0.0",
@@ -308,17 +298,10 @@ Bun.serve<WsProxyData, never>({
       return scriptsHandler();
 
     if (req.method === "POST" && p === "/_decopilot_vm/bootstrap") {
-      // Re-arm the bootstrap timeout if a fresh re-bootstrap arrives in
-      // pending-bootstrap (spec: "Timer resets if a re-bootstrap arrives").
       if (getPhase() === "pending-bootstrap") armBootstrapTimeout();
       return bootstrapH(req);
     }
 
-    // Mutating /_decopilot_vm/* routes require Authorization: Bearer
-    // <DAEMON_TOKEN>. The unauth'd GETs above (idle/events/scripts) and
-    // /health intentionally skip this — mesh attaches the bearer to every
-    // request, including unauth'd paths, and those handlers must tolerate
-    // it silently.
     if (req.method === "POST" && p.startsWith("/_decopilot_vm/")) {
       const handlers = mutatingHandlers;
       if (!handlers || getPhase() !== "ready") {
@@ -380,9 +363,6 @@ async function runBootSetup() {
 
 // Kick boot setup unless opted out (used only by tests).
 if (process.env.DAEMON_NO_AUTOSTART !== "1") {
-  // Env-driven path: phase already "ready"; orchestrator.run() still
-  // performs setup synchronously (clone/install). For bootstrap-driven
-  // path, runBootSetup is invoked from the bootstrap handler's onAccepted.
   if (getPhase() === "ready" || getPhase() === "bootstrapping") {
     void runBootSetup();
   }
