@@ -1154,6 +1154,21 @@ const PERMISSION_CAPABILITIES: PermissionCapability[] = [
   },
 ];
 
+/**
+ * Tools every authenticated org member can use by default.
+ *
+ * The role editor (`org-role-detail.tsx`) bakes these into every custom
+ * role's saved `permission.self` array at submit time, so AccessControl
+ * sees them as a normal Better Auth permission — no runtime bypass.
+ *
+ * ⚠️  Adding or removing a tool from the basic-usage capability above?
+ *     You MUST also write a Kysely migration that backfills the change
+ *     into existing custom roles in the `organizationRole` table.
+ *     See `apps/mesh/migrations/072-backfill-basic-usage-roles.ts` for
+ *     the pattern. Snapshot the tools you're adding inside the migration
+ *     — do not import this constant from a migration (migrations are
+ *     immutable history).
+ */
 export const BASIC_USAGE_TOOLS: ReadonlySet<string> = new Set(
   PERMISSION_CAPABILITIES.find((c) => c.id === BASIC_USAGE_CAPABILITY_ID)
     ?.tools ?? [],
