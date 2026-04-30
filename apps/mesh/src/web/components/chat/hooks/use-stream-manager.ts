@@ -52,6 +52,13 @@ export function useStreamManager(
     });
   };
 
+  const invalidateThreadOutputs = () => {
+    if (!threadId) return;
+    queryClient.invalidateQueries({
+      queryKey: KEYS.threadOutputs(threadId),
+    });
+  };
+
   const isChatActive = () =>
     chat.status === "submitted" || chat.status === "streaming";
 
@@ -114,6 +121,10 @@ export function useStreamManager(
     taskId: threadId,
     onStep: () => tryResumeStream("sse-step"),
     onFinish: () => {
+      // Always invalidate thread-outputs — chips refresh on every turn
+      // finish regardless of whether resume was active. Cheap (one
+      // request, small response).
+      invalidateThreadOutputs();
       if (!isChatActive()) {
         resumeInFlightRef.current = false;
         resumeFailCountRef.current = 0;

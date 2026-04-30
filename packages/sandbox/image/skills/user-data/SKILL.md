@@ -16,6 +16,9 @@ skills (pptx, docx, pdf, ...) can act on them.
 | Download by bare key                  | `user-data-download chat-uploads/x.pdf`              |
 | Download from a presigned URL         | `user-data-download "https://..."`                   |
 | Override save path                    | `user-data-download <input> --out /tmp/x.pdf`        |
+| Share a file back to the user         | `user-data-share /home/sandbox/report.csv`           |
+| Share a directory (gzip-tarred)       | `user-data-share /home/sandbox/build/`               |
+| Override uploaded filename            | `user-data-share <path> --name custom.zip`           |
 
 ## File layout
 
@@ -57,7 +60,23 @@ path on stdout — pipe straight into another skill:
 pptx-extract "$(user-data-download mesh-storage://chat-uploads/deck.pptx)"
 ```
 
+## Sharing back to the user
+
+`user-data-share <path> [--name NAME]`
+
+Uploads a file (or directory, gzip-tarred) to org storage under a
+thread-scoped prefix; the chat UI renders a download chip on the
+assistant turn so the user can grab it. 100 MB cap.
+
+- File path → uploaded as-is, key = `model-outputs/<thread_id>/<basename>`.
+- Directory path → tarred to `<dirname>.tar.gz` first.
+- `--name` overrides the uploaded filename.
+
+Prints the resulting download URL on stdout — include it in the reply
+so the user knows what was produced. Only works in chat-thread
+sandboxes (not standalone agent sandboxes).
+
 ## Environment
 
-Both commands read `MESH_URL` and `DAEMON_TOKEN` from env. These are
+All commands read `MESH_URL` and `DAEMON_TOKEN` from env. These are
 injected at sandbox provision time — you don't need to set them.
