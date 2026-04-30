@@ -668,29 +668,6 @@ export async function ensureServicePort(
   }
 }
 
-interface SandboxClaimList {
-  items: SandboxResource[];
-}
-
-export async function listSandboxClaims(
-  kc: KubeConfig,
-  namespace: string,
-  labelSelector?: string,
-): Promise<SandboxResource[]> {
-  const search = labelSelector
-    ? `?labelSelector=${encodeURIComponent(labelSelector)}`
-    : "";
-  const path = `${CLAIM_PATH_PREFIX}/${encodeURIComponent(namespace)}/${K8S_CONSTANTS.CLAIM_PLURAL}${search}`;
-  const found = await callSwallowing404<SandboxClaimList>(
-    kc,
-    { method: "GET", path },
-    "listSandboxClaims",
-    `Failed to list SandboxClaims in namespace ${namespace}`,
-    "json",
-  );
-  return found?.items ?? [];
-}
-
 export interface WaitForSandboxReadyResult {
   sandboxName: string;
   podName: string;

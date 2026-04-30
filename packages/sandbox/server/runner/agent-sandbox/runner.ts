@@ -40,7 +40,6 @@ import type {
 import {
   daemonBash,
   probeDaemonHealth,
-  probeDaemonIdle,
   proxyDaemonRequest,
   waitForDaemonReady,
 } from "../../daemon-client";
@@ -69,7 +68,6 @@ import {
   ensureServicePort,
   getSandboxClaim,
   HTTPROUTE_CONSTANTS,
-  listSandboxClaims,
   patchSandboxClaimShutdown,
   waitForSandboxClaimGone,
   waitForSandboxReady,
@@ -125,10 +123,6 @@ const RESERVED_ENV_KEYS = new Set([
 ]);
 
 const DEFAULT_IDLE_TTL_MS = 15 * 60 * 1000;
-const IDLE_SWEEP_DIVISOR = 5;
-const IDLE_SWEEP_MIN_INTERVAL_MS = 30_000;
-const STUDIO_CLAIM_LABEL_SELECTOR =
-  "app.kubernetes.io/managed-by=studio,app.kubernetes.io/name=studio-sandbox";
 
 /**
  * Handle shape: `studio-sb-<slug>-<hash16>` when a branch is supplied,
@@ -318,9 +312,6 @@ export interface AgentSandboxRunnerOptions {
     name: string;
     namespace: string;
   };
-  idleSweepEnabled?: boolean;
-  idleSweepIntervalMs?: number;
-  inClusterDaemonAccess?: boolean;
 }
 
 export class AgentSandboxRunner implements SandboxRunner {
@@ -349,10 +340,6 @@ export class AgentSandboxRunner implements SandboxRunner {
    * adopt, and delete.
    */
   private readonly previewGateway: { name: string; namespace: string } | null;
-  private readonly idleSweepIntervalMs: number;
-  private readonly inClusterDaemonAccess: boolean;
-  private idleSweepTimer: ReturnType<typeof setInterval> | null = null;
-  private idleSweepRunning = false;
   private closed = false;
 
   constructor(opts: AgentSandboxRunnerOptions = {}) {
@@ -375,18 +362,6 @@ export class AgentSandboxRunner implements SandboxRunner {
       opts.previewGateway && opts.previewUrlPattern
         ? { ...opts.previewGateway }
         : null;
-    this.idleSweepIntervalMs =
-      opts.idleSweepIntervalMs ??
-      Math.max(
-        IDLE_SWEEP_MIN_INTERVAL_MS,
-        Math.floor(this.idleTtlMs / IDLE_SWEEP_DIVISOR),
-      );
-    this.inClusterDaemonAccess =
-      opts.inClusterDaemonAccess ??
-      Boolean(process.env.KUBERNETES_SERVICE_HOST);
-    if (opts.idleSweepEnabled !== false) {
-      this.startIdleSweep();
-    }
   }
 
   // ---- SandboxRunner surface ------------------------------------------------
@@ -1512,101 +1487,9 @@ export class AgentSandboxRunner implements SandboxRunner {
     });
   }
 
-  private startIdleSweep(): void {
-    if (this.idleSweepTimer || this.closed) return;
-    const timer = setInterval(() => {
-      void this.runIdleSweepOnce();
-    }, this.idleSweepIntervalMs);
-    if (typeof timer.unref === "function") timer.unref();
-    this.idleSweepTimer = timer;
-  }
-
-  async runIdleSweepOnce(): Promise<void> {
-    if (this.idleSweepRunning || this.closed) {
-      this.metrics?.sweepTick.add(1, { outcome: "skipped" });
-      return;
-    }
-    this.idleSweepRunning = true;
-    let listFailed = false;
-    try {
-      const claims = await listSandboxClaims(
-        this.kubeConfig,
-        this.namespace,
-        STUDIO_CLAIM_LABEL_SELECTOR,
-      ).catch((err) => {
-        listFailed = true;
-        console.warn(
-          `[${LOG_LABEL}] idle-sweep list failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
-        return [] as SandboxResource[];
-      });
-      for (const claim of claims) {
-        if (this.closed) break;
-        await this.refreshClaimIfActive(claim);
-      }
-      this.metrics?.sweepTick.add(1, {
-        outcome: listFailed ? "list_failed" : "ok",
-      });
-    } finally {
-      this.idleSweepRunning = false;
-    }
-  }
-
-  private async refreshClaimIfActive(claim: SandboxResource): Promise<void> {
-    const handle = claim.metadata?.name;
-    if (!handle) return;
-    if (!isSandboxReady(claim)) {
-      this.metrics?.sweepOutcome.add(1, { outcome: "unready" });
-      return;
-    }
-    const daemonUrl = this.resolveSweepDaemonUrl(claim);
-    if (!daemonUrl) {
-      this.metrics?.sweepOutcome.add(1, { outcome: "unreachable" });
-      return;
-    }
-    const idle = await probeDaemonIdle(daemonUrl);
-    if (!idle) {
-      this.metrics?.sweepOutcome.add(1, { outcome: "probe_failed" });
-      return;
-    }
-    if (idle.idleMs >= this.idleTtlMs) {
-      this.metrics?.sweepOutcome.add(1, { outcome: "idle" });
-      return;
-    }
-    let patchFailed = false;
-    await patchSandboxClaimShutdown(
-      this.kubeConfig,
-      this.namespace,
-      handle,
-      this.computeShutdownTime(),
-    ).catch((err) => {
-      patchFailed = true;
-      console.warn(
-        `[${LOG_LABEL}] idle-sweep TTL refresh failed for ${handle}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    });
-    this.metrics?.sweepOutcome.add(1, {
-      outcome: patchFailed ? "patch_failed" : "refreshed",
-    });
-  }
-
-  private resolveSweepDaemonUrl(claim: SandboxResource): string | null {
-    const handle = claim.metadata?.name;
-    if (!handle) return null;
-    if (this.inClusterDaemonAccess) {
-      return `http://${handle}.${this.namespace}.svc.cluster.local:${DAEMON_CONTAINER_PORT}`;
-    }
-    const cached = this.records.get(handle);
-    return cached?.daemonUrl ?? null;
-  }
-
   close(): void {
     if (this.closed) return;
     this.closed = true;
-    if (this.idleSweepTimer) {
-      clearInterval(this.idleSweepTimer);
-      this.idleSweepTimer = null;
-    }
     for (const rec of this.records.values()) {
       this.closeForwarder(rec.daemonForward);
     }
@@ -1620,8 +1503,6 @@ interface RunnerMetrics {
   active: UpDownCounter;
   ensureOutcome: Counter;
   proxyDurationMs: Histogram;
-  sweepOutcome: Counter;
-  sweepTick: Counter;
 }
 
 function buildRunnerMetrics(meter: Meter): RunnerMetrics {
@@ -1640,16 +1521,6 @@ function buildRunnerMetrics(meter: Meter): RunnerMetrics {
       description:
         "Wall-clock latency of mesh-mediated requests to the sandbox daemon: tool exec proxies (source=daemon) and preview iframe traffic (source=preview).",
       unit: "ms",
-    }),
-    sweepOutcome: meter.createCounter("studio.sandbox.sweep.outcome", {
-      description:
-        "Per-claim outcome of the agent-sandbox idle sweep. Use to spot probe/patch failures (which silently let claims reap).",
-      unit: "{claim}",
-    }),
-    sweepTick: meter.createCounter("studio.sandbox.sweep.tick", {
-      description:
-        "Per-tick outcome of the agent-sandbox idle sweep. `list_failed` going non-zero means the sweep is effectively off.",
-      unit: "{tick}",
     }),
   };
 }

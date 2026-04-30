@@ -9,7 +9,6 @@ import type { ExecInput, ExecOutput } from "./runner/types";
 
 const DEFAULT_EXEC_TIMEOUT_MS = 60_000;
 const HEALTH_PROBE_TIMEOUT_MS = 500;
-const IDLE_PROBE_TIMEOUT_MS = 1_500;
 const READY_ATTEMPTS = 25;
 const READY_INTERVAL_MS = 200;
 const READY_JITTER_MS = 50; // ±50ms around READY_INTERVAL_MS
@@ -45,35 +44,6 @@ export async function probeDaemonHealth(
       typeof body.setup.done === "boolean"
     ) {
       return body as DaemonHealth;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-export interface DaemonIdleStatus {
-  lastActivityAt: string;
-  idleMs: number;
-}
-
-export async function probeDaemonIdle(
-  daemonUrl: string,
-): Promise<DaemonIdleStatus | null> {
-  try {
-    const res = await fetch(`${daemonUrl}/_decopilot_vm/idle`, {
-      signal: AbortSignal.timeout(IDLE_PROBE_TIMEOUT_MS),
-    });
-    if (!res.ok) return null;
-    const body = (await res.json()) as Partial<DaemonIdleStatus>;
-    if (
-      typeof body === "object" &&
-      body !== null &&
-      typeof body.lastActivityAt === "string" &&
-      typeof body.idleMs === "number" &&
-      Number.isFinite(body.idleMs)
-    ) {
-      return body as DaemonIdleStatus;
     }
     return null;
   } catch {

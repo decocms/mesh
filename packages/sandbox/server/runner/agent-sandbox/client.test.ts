@@ -9,7 +9,6 @@ import {
   deleteSandboxClaim,
   ensureServicePort,
   getSandboxClaim,
-  listSandboxClaims,
   patchSandboxClaimShutdown,
   type SandboxClaim,
   type SandboxResource,
@@ -320,44 +319,6 @@ describe("getSandboxClaim", () => {
     fetchImpl = async () => jsonResponse(404, null);
     await getSandboxClaim(makeKc(), NS, "weird/name");
     expect(fetchCalls[0]!.url).toContain("/weird%2Fname");
-  });
-});
-
-describe("listSandboxClaims", () => {
-  it("GETs the plural endpoint and returns items[]", async () => {
-    const items: SandboxResource[] = [
-      { metadata: { name: "studio-sb-a" } },
-      { metadata: { name: "studio-sb-b" } },
-    ];
-    fetchImpl = async () => jsonResponse(200, { items });
-    const result = await listSandboxClaims(makeKc(), NS);
-    expect(result).toEqual(items);
-    expect(fetchCalls[0]!.init.method).toBe("GET");
-    expect(fetchCalls[0]!.url).toBe(
-      `${STUB_SERVER}/apis/${K8S_CONSTANTS.CLAIM_API_GROUP}/${K8S_CONSTANTS.CLAIM_API_VERSION}/namespaces/${NS}/${K8S_CONSTANTS.CLAIM_PLURAL}`,
-    );
-  });
-
-  it("appends URL-encoded labelSelector when provided", async () => {
-    fetchImpl = async () => jsonResponse(200, { items: [] });
-    await listSandboxClaims(
-      makeKc(),
-      NS,
-      "app.kubernetes.io/managed-by=studio",
-    );
-    expect(fetchCalls[0]!.url).toContain(
-      "?labelSelector=app.kubernetes.io%2Fmanaged-by%3Dstudio",
-    );
-  });
-
-  it("returns [] on 404 (namespace missing)", async () => {
-    fetchImpl = async () =>
-      jsonResponse(404, {
-        kind: "Status",
-        reason: "NotFound",
-        message: 'namespaces "x" not found',
-      });
-    await expect(listSandboxClaims(makeKc(), "x")).resolves.toEqual([]);
   });
 });
 

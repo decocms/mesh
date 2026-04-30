@@ -97,13 +97,6 @@ function readPreviewGateway(): { name: string; namespace: string } | undefined {
   return { name, namespace };
 }
 
-function readSandboxIdleTtlMs(): number | undefined {
-  const raw = process.env.STUDIO_SANDBOX_IDLE_TTL_MS;
-  if (!raw || raw.trim() === "") return undefined;
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? n : undefined;
-}
-
 async function instantiate(
   kind: RunnerKind,
   db: Kysely<DatabaseSchema>,
@@ -136,7 +129,6 @@ async function instantiate(
         previewUrlPattern,
         sandboxTemplateName: readSandboxTemplateName(),
         previewGateway: readPreviewGateway(),
-        idleTtlMs: readSandboxIdleTtlMs(),
         meter,
       });
     }
