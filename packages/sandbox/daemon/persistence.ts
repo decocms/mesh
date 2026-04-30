@@ -14,7 +14,6 @@ import { canonicalize } from "./canonicalize";
 
 export interface BootstrapPayload {
   schemaVersion: 1;
-  claimNonce: string;
   daemonToken: string;
   runtime: "node" | "bun" | "deno";
   cloneUrl?: string;

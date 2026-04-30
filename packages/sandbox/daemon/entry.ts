@@ -51,14 +51,6 @@ const DAEMON_BOOT_ID = process.env.DAEMON_BOOT_ID;
 const dropPrivileges = process.env.DAEMON_DROP_PRIVILEGES === "1";
 const PROXY_PORT = parseInt(process.env.PROXY_PORT ?? "9000", 10);
 
-const EXPECTED_CLAIM_NONCE = process.env.CLAIM_NONCE ?? null;
-const STRICT_NONCE = process.env.STRICT_NONCE === "true";
-if (EXPECTED_CLAIM_NONCE === null && !STRICT_NONCE) {
-  console.warn(
-    "[daemon] CLAIM_NONCE env not set — bootstrap route accepts any nonce (dev mode). Set STRICT_NONCE=true to reject.",
-  );
-}
-
 const BOOTSTRAP_TIMEOUT_MS = parseInt(
   process.env.BOOTSTRAP_TIMEOUT_MS ?? `${5 * 60 * 1000}`,
   10,
