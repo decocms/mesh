@@ -1,6 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import net from "node:net";
+import http from "node:http";
+import https from "node:https";
+import { Transform, type Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { promises as dnsPromises } from "node:dns";
 import { spawn } from "node:child_process";
 import { DECO_UID, DECO_GID } from "../constants";
@@ -21,7 +25,14 @@ import { parseBase64JsonBody, jsonResponse } from "./body-parser";
  *   - Reject loopback, link-local, RFC1918 / unique-local, IPv4-mapped
  *     IPv6 forms of any of the above
  *
- * Redirects are revalidated on every hop in `fetchWithSsrfGuard`.
+ * DNS rebinding TOCTOU defense: we resolve once and pin the connection
+ * to the validated IP via `https.request`'s `lookup` option. Without
+ * this, a low-TTL attacker-controlled hostname returning a public IP
+ * for the validation lookup and a private IP for the `fetch()` socket
+ * connect would bypass the guard entirely.
+ *
+ * Redirects are revalidated on every hop in `safeFetch` (each hop is
+ * a fresh DNS resolve + pin, capped at MAX_REDIRECT_HOPS).
  */
 function isPrivateIp(ip: string): boolean {
   const family = net.isIP(ip);
@@ -54,65 +65,114 @@ function isPrivateIp(ip: string): boolean {
     }
     return false;
   }
-  return true; // not an IP — caller resolves hostnames
-}
-
-async function assertSafeFetchUrl(rawUrl: string): Promise<void> {
-  let parsed: URL;
-  try {
-    parsed = new URL(rawUrl);
-  } catch {
-    throw new Error("Invalid URL");
-  }
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-    throw new Error(`Disallowed URL scheme: ${parsed.protocol}`);
-  }
-  const host = parsed.hostname;
-  if (net.isIP(host)) {
-    if (isPrivateIp(host)) {
-      throw new Error(`URL points to a private/loopback address: ${host}`);
-    }
-    return;
-  }
-  let addrs: { address: string; family: number }[];
-  try {
-    addrs = await dnsPromises.lookup(host, { all: true });
-  } catch {
-    throw new Error(`Could not resolve host: ${host}`);
-  }
-  for (const addr of addrs) {
-    if (isPrivateIp(addr.address)) {
-      throw new Error(
-        `URL host resolves to a private/loopback address: ${host} → ${addr.address}`,
-      );
-    }
-  }
+  return true; // unknown family — fail closed
 }
 
 const MAX_REDIRECT_HOPS = 5;
 
+interface SafeFetchResult {
+  status: number;
+  headers: Record<string, string>;
+  body: Readable;
+}
+
 /**
- * Wrap fetch with the SSRF guard, revalidating each redirect. Returns
- * the final 2xx/4xx/5xx response; throws on disallowed targets, too
- * many hops, or DNS failures.
+ * GET a URL with SSRF protection: resolve hostname once, validate the
+ * IP, then issue the request via `node:https`/`node:http` with a
+ * `lookup` that pins the socket to the validated IP. Hostname stays
+ * the URL hostname for SNI / TLS cert verification / Host header.
+ *
+ * Redirects are revalidated end-to-end (each hop re-resolves + re-pins).
  */
-async function fetchWithSsrfGuard(
-  url: string,
-  init?: RequestInit,
-): Promise<Response> {
-  let current = url;
-  for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
-    await assertSafeFetchUrl(current);
-    const resp = await fetch(current, { ...init, redirect: "manual" });
-    if (resp.status >= 300 && resp.status < 400) {
-      const location = resp.headers.get("Location");
-      if (!location) return resp;
-      current = new URL(location, current).toString();
-      continue;
-    }
-    return resp;
+async function safeFetch(rawUrl: string, hops = 0): Promise<SafeFetchResult> {
+  if (hops > MAX_REDIRECT_HOPS) {
+    throw new Error(`Too many redirects (>${MAX_REDIRECT_HOPS})`);
   }
-  throw new Error(`Too many redirects (>${MAX_REDIRECT_HOPS})`);
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    throw new Error("Invalid URL");
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error(`Disallowed URL scheme: ${url.protocol}`);
+  }
+
+  let pinnedIp: string;
+  let pinnedFamily: 4 | 6;
+  if (net.isIP(url.hostname)) {
+    if (isPrivateIp(url.hostname)) {
+      throw new Error(
+        `URL points to a private/loopback address: ${url.hostname}`,
+      );
+    }
+    pinnedIp = url.hostname;
+    pinnedFamily = net.isIP(url.hostname) as 4 | 6;
+  } else {
+    let addrs: { address: string; family: number }[];
+    try {
+      addrs = await dnsPromises.lookup(url.hostname, { all: true });
+    } catch {
+      throw new Error(`Could not resolve host: ${url.hostname}`);
+    }
+    if (addrs.length === 0) {
+      throw new Error(`No addresses for host: ${url.hostname}`);
+    }
+    for (const addr of addrs) {
+      if (isPrivateIp(addr.address)) {
+        throw new Error(
+          `URL host resolves to a private/loopback address: ${url.hostname} → ${addr.address}`,
+        );
+      }
+    }
+    const first = addrs[0]!;
+    pinnedIp = first.address;
+    pinnedFamily = first.family as 4 | 6;
+  }
+
+  const lib = url.protocol === "https:" ? https : http;
+  const port = url.port
+    ? Number.parseInt(url.port, 10)
+    : url.protocol === "https:"
+      ? 443
+      : 80;
+
+  return new Promise<SafeFetchResult>((resolve, reject) => {
+    const req = lib.request({
+      method: "GET",
+      protocol: url.protocol,
+      hostname: url.hostname,
+      port,
+      path: `${url.pathname}${url.search}`,
+      lookup: ((
+        _h: string,
+        _opts: unknown,
+        cb: (err: Error | null, addr: string, fam: number) => void,
+      ) => {
+        cb(null, pinnedIp, pinnedFamily);
+      }) as never,
+    });
+    req.on("response", (res) => {
+      const status = res.statusCode ?? 0;
+      if (status >= 300 && status < 400) {
+        const loc = res.headers.location;
+        if (typeof loc === "string" && loc.length > 0) {
+          const next = new URL(loc, url).toString();
+          res.resume(); // drain so the socket can close cleanly
+          safeFetch(next, hops + 1).then(resolve, reject);
+          return;
+        }
+      }
+      const headers: Record<string, string> = {};
+      for (const [k, v] of Object.entries(res.headers)) {
+        if (typeof v === "string") headers[k] = v;
+        else if (Array.isArray(v)) headers[k] = v.join(",");
+      }
+      resolve({ status, headers, body: res });
+    });
+    req.on("error", reject);
+    req.end();
+  });
 }
 
 export interface FsDeps {
@@ -434,26 +494,28 @@ export function makeWriteFromUrlHandler(deps: FsDeps) {
     const filePath = safePath(deps.appRoot, body.path ?? "");
     if (!filePath) return jsonResponse({ error: "Path escapes /app" }, 400);
 
-    let resp: Response;
+    let resp: SafeFetchResult;
     try {
-      resp = await fetchWithSsrfGuard(body.url);
+      resp = await safeFetch(body.url);
     } catch (err) {
       return jsonResponse(
         { error: `fetch failed: ${(err as Error).message}` },
         400,
       );
     }
-    if (!resp.ok || !resp.body) {
+    if (resp.status < 200 || resp.status >= 300) {
+      resp.body.resume(); // drain
       return jsonResponse(
         { error: `upstream returned HTTP ${resp.status}` },
         502,
       );
     }
-    const contentLengthHeader = resp.headers.get("content-length");
+    const contentLengthHeader = resp.headers["content-length"];
     const declaredSize = contentLengthHeader
       ? Number.parseInt(contentLengthHeader, 10)
       : null;
     if (declaredSize !== null && declaredSize > MAX_TRANSFER_BYTES) {
+      resp.body.resume();
       return jsonResponse(
         {
           error: `Payload too large (${declaredSize} > ${MAX_TRANSFER_BYTES})`,
@@ -463,32 +525,34 @@ export function makeWriteFromUrlHandler(deps: FsDeps) {
     }
 
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    const out = fs.createWriteStream(filePath);
+
+    // pipeline() guarantees: backpressure honored, errors propagate
+    // through the chain, all streams destroyed on failure. The Transform
+    // tracks running byte count so we fail fast when a server lies in
+    // (or omits) Content-Length.
     let written = 0;
-    const reader = resp.body.getReader();
-    try {
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        written += value.byteLength;
+    const cap = new Transform({
+      transform(chunk: Buffer, _enc, cb) {
+        written += chunk.byteLength;
         if (written > MAX_TRANSFER_BYTES) {
-          out.destroy();
-          fs.rmSync(filePath, { force: true });
-          return jsonResponse(
-            { error: `Stream exceeded ${MAX_TRANSFER_BYTES} bytes` },
-            413,
-          );
+          cb(new Error(`Stream exceeded ${MAX_TRANSFER_BYTES} bytes`));
+          return;
         }
-        if (!out.write(value)) {
-          await new Promise<void>((resolve) => out.once("drain", resolve));
-        }
-      }
-    } finally {
-      out.end();
-      await new Promise<void>((resolve, reject) => {
-        out.on("close", resolve);
-        out.on("error", reject);
-      }).catch(() => {});
+        cb(null, chunk);
+      },
+    });
+    const out = fs.createWriteStream(filePath);
+    try {
+      await pipeline(resp.body, cap, out);
+    } catch (err) {
+      // Any failure (network RST, TLS error, size cap, write fault)
+      // leaves a partial file. Remove it so a later skill step can't
+      // read a half-baked artifact.
+      fs.rmSync(filePath, { force: true });
+      return jsonResponse(
+        { error: `stream failed: ${(err as Error).message}` },
+        502,
+      );
     }
     return jsonResponse({ ok: true, path: body.path, size: written });
   };
