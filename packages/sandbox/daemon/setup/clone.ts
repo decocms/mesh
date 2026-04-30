@@ -11,8 +11,9 @@ export interface CloneDeps {
 /** Resolves to exit code (0 on success). Emits chunks via `onChunk`. */
 export function spawnClone(deps: CloneDeps): Promise<number> {
   const { config } = deps;
-  const cmd = `git clone --depth 1 ${config.cloneUrl} ${config.appRoot}`;
-  const label = `$ git clone --depth 1 ${config.repoName} ${config.appRoot}`;
+  const depthArg = config.cloneDepth === "full" ? "" : " --depth 1";
+  const cmd = `git clone${depthArg} ${config.cloneUrl} ${config.appRoot}`;
+  const label = `$ git clone${depthArg} ${config.repoName} ${config.appRoot}`;
   deps.onChunk("setup", `${label}\r\n`);
 
   return new Promise((resolve) => {
