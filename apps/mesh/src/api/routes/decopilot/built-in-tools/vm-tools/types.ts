@@ -1,4 +1,5 @@
 import type { SandboxRunner } from "@decocms/sandbox/runner";
+import type { MeshContext } from "@/core/mesh-context";
 import type { PendingImage } from "../take-screenshot";
 
 export interface VmToolsParams {
@@ -16,4 +17,15 @@ export interface VmToolsParams {
    * queue is flushed by `prepareStep` in stream-core.ts.
    */
   readonly pendingImages: PendingImage[];
+  /**
+   * Mesh context for tools that need to mint presigned URLs against the
+   * org's object storage (`copy_to_sandbox`, `share_with_user`) or
+   * resolve the org id for stable file URLs.
+   */
+  readonly ctx: MeshContext;
+  /**
+   * Current chat thread id. `share_with_user` writes artifacts under
+   * `model-outputs/<threadId>/<filename>` so the chat UI can list them.
+   */
+  readonly threadId: string;
 }

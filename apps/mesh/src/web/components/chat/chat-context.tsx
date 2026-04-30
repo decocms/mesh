@@ -23,6 +23,7 @@ import {
   type PropsWithChildren,
 } from "react";
 import { useSearch } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useChat as useAIChat, type UseChatHelpers } from "@ai-sdk/react";
 import {
   AUTOSEND_QUERY_VALUE,
@@ -82,6 +83,7 @@ import type {
 import { useLocalStorage } from "../../hooks/use-local-storage";
 import { chatModeForTransportRef } from "../../lib/chat-mode-sync";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
+import { KEYS } from "../../lib/query-keys";
 import { useSimpleMode } from "../../hooks/use-organization-settings";
 
 // ============================================================================
@@ -986,6 +988,7 @@ export function ActiveTaskProvider({
   const [chatError, setChatError] = useState<Error | null>(null);
 
   const onToolCall = useInvalidateCollectionsOnToolCall();
+  const queryClient = useQueryClient();
 
   // AI SDK — useChat with taskId as id (multiplexed)
   const chat = useAIChat<ChatMessage>({
@@ -997,6 +1000,13 @@ export function ActiveTaskProvider({
       lastAssistantMessageIsCompleteWithApprovalResponses({ messages }),
     onFinish: (payload: FinishPayload) => {
       setFinishReason(payload.finishReason ?? null);
+
+      // Refresh download chips for files share_with_user produced this turn.
+      if (taskId) {
+        queryClient.invalidateQueries({
+          queryKey: KEYS.threadOutputs(taskId),
+        });
+      }
 
       const serverThreadId = (payload.message.metadata as Metadata | undefined)
         ?.thread_id;

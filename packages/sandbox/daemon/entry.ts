@@ -10,6 +10,8 @@ import {
   makeEditHandler,
   makeGrepHandler,
   makeGlobHandler,
+  makeWriteFromUrlHandler,
+  makeUploadToUrlHandler,
 } from "./routes/fs";
 import { makeBashHandler } from "./routes/bash";
 import { makeExecHandler } from "./routes/exec";
@@ -91,6 +93,14 @@ const writeH = makeWriteHandler({ appRoot: config.appRoot, dropPrivileges });
 const editH = makeEditHandler({ appRoot: config.appRoot, dropPrivileges });
 const grepH = makeGrepHandler({ appRoot: config.appRoot, dropPrivileges });
 const globH = makeGlobHandler({ appRoot: config.appRoot, dropPrivileges });
+const writeFromUrlH = makeWriteFromUrlHandler({
+  appRoot: config.appRoot,
+  dropPrivileges,
+});
+const uploadToUrlH = makeUploadToUrlHandler({
+  appRoot: config.appRoot,
+  dropPrivileges,
+});
 const bashH = makeBashHandler({ appRoot: config.appRoot, dropPrivileges });
 const execH = makeExecHandler({
   config,
@@ -152,6 +162,8 @@ Bun.serve<WsProxyData, never>({
       if (p === "/_decopilot_vm/edit") return editH(req);
       if (p === "/_decopilot_vm/grep") return grepH(req);
       if (p === "/_decopilot_vm/glob") return globH(req);
+      if (p === "/_decopilot_vm/write_from_url") return writeFromUrlH(req);
+      if (p === "/_decopilot_vm/upload_to_url") return uploadToUrlH(req);
       if (p === "/_decopilot_vm/bash") return bashH(req);
       if (p.startsWith("/_decopilot_vm/exec/")) return execH(req);
       if (p.startsWith("/_decopilot_vm/kill/")) return killH(req);

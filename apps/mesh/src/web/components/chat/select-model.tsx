@@ -965,6 +965,20 @@ const IMAGE_MIME_TYPES = [
   "image/webp",
 ] as const;
 
+/**
+ * MIME types that no model handles natively but are usable end-to-end
+ * via sandbox skills: the model invokes `copy_to_sandbox` to bring the
+ * file in, then runs the matching skill (e.g. pptx-extract) to get
+ * text/images it can reason over. Allowed whenever the model has any
+ * file-bearing capability — text output is universal and thumbnail
+ * images need vision, both already covered by the existing checks.
+ */
+const SKILL_HANDLED_MIME_TYPES = [
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+] as const;
+
 export function modelSupportsFiles(
   selectedModel: AiProviderModel | null | undefined,
 ): boolean {
@@ -990,6 +1004,12 @@ export function isFileTypeSupportedByModel(
   if (hasFile && mimeType === "application/pdf") return true;
   if (hasAudio && mimeType.startsWith("audio/")) return true;
   if (hasVideo && mimeType.startsWith("video/")) return true;
+  if (
+    modelSupportsFiles(selectedModel) &&
+    SKILL_HANDLED_MIME_TYPES.includes(mimeType as never)
+  ) {
+    return true;
+  }
 
   return false;
 }
@@ -1012,6 +1032,9 @@ export function getAcceptedMimeTypesForModel(
   if (caps.includes("video")) {
     accepted.push("video/*");
   }
+  if (modelSupportsFiles(selectedModel)) {
+    accepted.push(...SKILL_HANDLED_MIME_TYPES);
+  }
 
   return accepted.join(",");
 }
@@ -1026,6 +1049,7 @@ export function getSupportedFileTypesLabel(
   if (caps.includes("file")) parts.push("PDFs");
   if (caps.includes("audio")) parts.push("audio");
   if (caps.includes("video")) parts.push("video");
+  if (modelSupportsFiles(selectedModel)) parts.push("Office files");
 
   if (parts.length === 0) return "text only";
   if (parts.length === 1) return parts[0]!;
