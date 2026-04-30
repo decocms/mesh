@@ -92,6 +92,12 @@ interface DockerRecord {
    * container restarts.
    */
   daemonBootId: string;
+  /**
+   * Tenant identity (orgId/userId) — persisted so sandbox-user-data routes
+   * can resolve a DAEMON_TOKEN bearer back to its owning org for
+   * BoundObjectStorage scoping. K8s runner persists the same field.
+   */
+  tenant?: { orgId: string; userId: string };
 }
 
 interface PersistedDockerState {
@@ -104,6 +110,7 @@ interface PersistedDockerState {
   workload?: Workload | null;
   /** Per-boot UUID from the daemon's /health; round-tripped through state. */
   daemonBootId?: string;
+  tenant?: { orgId: string; userId: string };
   [k: string]: unknown;
 }
 
@@ -305,6 +312,13 @@ export class DockerSandboxRunner implements SandboxRunner {
       PROXY_PORT: String(DAEMON_PORT),
       DEV_PORT: String(devContainerPort),
       RUNTIME: runtime,
+      // Mesh URL the in-sandbox user-data skill calls back into. Bridge
+      // network containers can't reach `localhost` on the host directly;
+      // `host.docker.internal` resolves to the host-gateway address added
+      // via --add-host below.
+      ...(process.env.STUDIO_MESH_URL
+        ? { MESH_URL: process.env.STUDIO_MESH_URL }
+        : { MESH_URL: "http://host.docker.internal:3000" }),
       ...(repo
         ? {
             CLONE_URL: repo.cloneUrl,
@@ -361,6 +375,10 @@ export class DockerSandboxRunner implements SandboxRunner {
           `127.0.0.1:0:${DAEMON_PORT}`,
           "-p",
           `127.0.0.1:0:${devContainerPort}`,
+          // Linux: `host.docker.internal` doesn't auto-resolve to the host;
+          // host-gateway makes it work uniformly across Mac/Win/Linux so the
+          // user-data skill can reach mesh.
+          "--add-host=host.docker.internal:host-gateway",
           ...Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
         ],
       });
@@ -415,6 +433,7 @@ export class DockerSandboxRunner implements SandboxRunner {
       devContainerPort,
       workload: opts.workload ?? null,
       daemonBootId,
+      ...(opts.tenant ? { tenant: opts.tenant } : {}),
     };
   }
 
@@ -466,6 +485,7 @@ export class DockerSandboxRunner implements SandboxRunner {
       devContainerPort,
       daemonBootId: health.bootId,
       workload: state.workload ?? null,
+      ...(state.tenant ? { tenant: state.tenant } : {}),
     };
   }
 
@@ -596,6 +616,7 @@ export class DockerSandboxRunner implements SandboxRunner {
       devContainerPort: rec.devContainerPort,
       workload: rec.workload,
       daemonBootId: rec.daemonBootId,
+      ...(rec.tenant ? { tenant: rec.tenant } : {}),
     };
     await ops.put(rec.id, RUNNER_KIND, { handle: rec.handle, state });
   }

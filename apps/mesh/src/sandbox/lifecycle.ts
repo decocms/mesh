@@ -136,6 +136,7 @@ async function instantiate(
         envName: readEnvName(),
         previewGateway: readPreviewGateway(),
         meter,
+        meshUrl: process.env.STUDIO_MESH_URL,
       });
     }
     default: {

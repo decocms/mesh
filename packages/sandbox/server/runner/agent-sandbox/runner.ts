@@ -120,6 +120,7 @@ const RESERVED_ENV_KEYS = new Set([
   "GIT_USER_NAME",
   "GIT_USER_EMAIL",
   "PACKAGE_MANAGER",
+  "MESH_URL",
 ]);
 
 const DEFAULT_IDLE_TTL_MS = 15 * 60 * 1000;
@@ -319,6 +320,12 @@ export interface AgentSandboxRunnerOptions {
     name: string;
     namespace: string;
   };
+  /**
+   * Cluster-internal URL the in-sandbox user-data skill calls back to mesh
+   * via. Surfaced to the container as `MESH_URL`. When unset, the env var
+   * is omitted and the skill scripts fail clearly with "MESH_URL not set".
+   */
+  meshUrl?: string;
 }
 
 export class AgentSandboxRunner implements SandboxRunner {
@@ -348,6 +355,7 @@ export class AgentSandboxRunner implements SandboxRunner {
    * adopt, and delete.
    */
   private readonly previewGateway: { name: string; namespace: string } | null;
+  private readonly meshUrl: string | null;
   private closed = false;
 
   constructor(opts: AgentSandboxRunnerOptions = {}) {
@@ -364,6 +372,7 @@ export class AgentSandboxRunner implements SandboxRunner {
       (() => randomBytes(DAEMON_TOKEN_BYTES).toString("hex"));
     this.idleTtlMs = opts.idleTtlMs ?? DEFAULT_IDLE_TTL_MS;
     this.metrics = opts.meter ? buildRunnerMetrics(opts.meter) : null;
+    this.meshUrl = opts.meshUrl ?? null;
     // HTTPRoute routing requires both pieces — the hostname template (so we
     // know what host to attach) and the gateway parent (so we know where).
     // Either alone is meaningless, so refuse to half-enable.
@@ -862,6 +871,7 @@ export class AgentSandboxRunner implements SandboxRunner {
       ...(opts.workload?.packageManager
         ? { PACKAGE_MANAGER: opts.workload.packageManager }
         : {}),
+      ...(this.meshUrl ? { MESH_URL: this.meshUrl } : {}),
     };
   }
 

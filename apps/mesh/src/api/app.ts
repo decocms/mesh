@@ -47,6 +47,7 @@ import oauthProxyRoutes, {
 import openaiCompatRoutes from "./routes/openai-compat";
 import proxyRoutes from "./routes/proxy";
 import { createKVRoutes } from "./routes/kv";
+import { createSandboxUserDataRoutes } from "./routes/sandbox-user-data";
 import { createTriggerCallbackRoutes } from "./routes/trigger-callback";
 import publicConfigRoutes from "./routes/public-config";
 import filesRoutes from "./routes/files";
@@ -1379,6 +1380,12 @@ export async function createApp(options: CreateAppOptions = {}) {
   // KV store (org-scoped, for external MCPs to persist state)
   const kvStorage = new KyselyKVStorage(database.db);
   app.route("/api", createKVRoutes({ kvStorage }));
+
+  // Sandbox user-data routes (DAEMON_TOKEN-authed, no user session)
+  app.route(
+    "/api/sandbox/user-data",
+    createSandboxUserDataRoutes({ db: database.db }),
+  );
 
   // Public Events endpoint
   app.post("/org/:organizationId/events/:type", async (c) => {

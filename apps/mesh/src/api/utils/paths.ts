@@ -86,6 +86,9 @@ export function shouldSkipMeshContext(path: string): boolean {
     path === "/" ||
     path.startsWith(PATH_PREFIXES.API_AUTH) ||
     path === "/api/trigger-callback" ||
+    // Sandbox-user-data routes auth via DAEMON_TOKEN bearer; they have no
+    // user session and resolve org from the sandbox row themselves.
+    path.startsWith("/api/sandbox/user-data/") ||
     isSystemPath(path) ||
     // Static file extension check only applies to non-API paths (e.g. Vite assets).
     // API paths like /api/:org/files/image.jpeg still need MeshContext for auth.
