@@ -22,6 +22,12 @@ export function makeProxyHandler({ broadcaster, getDevPort }: ProxyDeps) {
     outHeaders.delete("host");
     outHeaders.delete("transfer-encoding");
     outHeaders.delete("content-length");
+    // Defensive: never forward the daemon bearer to the user dev server.
+    // Today this is moot — mesh's proxyDaemonRequest is only called for
+    // /_decopilot_vm/* paths, and proxyPreviewRequest doesn't go through
+    // here. Strip anyway so a future caller wiring proxyDaemonRequest to
+    // wildcard paths can't leak the bearer to user code.
+    outHeaders.delete("authorization");
 
     let upstream: Response;
     try {

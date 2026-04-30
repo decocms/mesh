@@ -19,6 +19,13 @@ export interface SetupOrchestratorDeps {
   broadcaster: Broadcaster;
   processManager: ProcessManager;
   dropPrivileges?: boolean;
+  /**
+   * Called inside the orchestrator on terminal outcomes so callers can
+   * flip Phase under bootstrapMutex. Phase 1 wires "ready" on success and
+   * "failed" on any non-zero clone/install or thrown error. Optional for
+   * back-compat: legacy entry path doesn't need phase transitions.
+   */
+  onTerminal?: (outcome: "ready" | "failed", reason?: string) => void;
 }
 
 export class SetupOrchestrator {
@@ -35,10 +42,18 @@ export class SetupOrchestrator {
     // synchronously and reset running=false before a second HTTP request's
     // handler even checks — making the 409 re-entry guard invisible.
     await Promise.resolve();
-    const { config, broadcaster, processManager, dropPrivileges } = this.deps;
+    const { config, broadcaster, processManager, dropPrivileges, onTerminal } =
+      this.deps;
 
     const onChunk = (_src: "setup", data: string) =>
       broadcaster.broadcastChunk("setup", data);
+
+    const finishFailed = (reason: string) => {
+      this.state.running = false;
+      this.state.done = true;
+      onTerminal?.("failed", reason);
+      return true;
+    };
 
     try {
       if (!isResume(config.appRoot) && config.cloneUrl) {
@@ -48,9 +63,7 @@ export class SetupOrchestrator {
             "setup",
             `\r\nClone failed with exit code ${code}\r\n`,
           );
-          this.state.running = false;
-          this.state.done = true;
-          return true;
+          return finishFailed(`clone exit ${code}`);
         }
       } else if (isResume(config.appRoot)) {
         broadcaster.broadcastChunk(
@@ -90,9 +103,7 @@ export class SetupOrchestrator {
             "setup",
             `\r\nInstall failed with exit code ${code}\r\n`,
           );
-          this.state.running = false;
-          this.state.done = true;
-          return true;
+          return finishFailed(`install exit ${code}`);
         }
       }
 
@@ -102,15 +113,14 @@ export class SetupOrchestrator {
 
       this.state.running = false;
       this.state.done = true;
+      onTerminal?.("ready");
       return true;
     } catch (e) {
       broadcaster.broadcastChunk(
         "setup",
         `\r\nSetup error: ${(e as Error).message}\r\n`,
       );
-      this.state.running = false;
-      this.state.done = true;
-      return true;
+      return finishFailed((e as Error).message);
     }
   }
 }
