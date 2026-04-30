@@ -33,7 +33,12 @@ app.get("/threads/:threadId/outputs", async (c) => {
   }
 
   const threadId = c.req.param("threadId");
-  if (!threadId || /[.*>\s]/.test(threadId)) {
+  // Allow-list — every thread-id format the codebase produces (nanoid
+  // / UUID) fits these chars. Stricter than the legacy deny-list in
+  // validateThreadAccess (which only blocks `.*> \s`) and clearer
+  // about intent. Downstream usage is parameterised SQL + S3 prefix
+  // listing so this is hygiene, not a security boundary.
+  if (!threadId || !/^[A-Za-z0-9_-]+$/.test(threadId)) {
     throw new HTTPException(400, { message: "Invalid thread ID" });
   }
 
@@ -51,7 +56,12 @@ app.get("/threads/:threadId/outputs", async (c) => {
     maxKeys: 200,
   });
 
-  const origin = new URL(c.req.url).origin;
+  // Use ctx.baseUrl (canonical, set during context creation from
+  // forwarded-host headers / env) rather than `new URL(c.req.url).origin`
+  // — behind a TLS-terminating proxy the latter resolves to the
+  // internal listen address, causing a freshly-shared file's
+  // share_with_user URL (which already uses ctx.baseUrl) to disagree
+  // with subsequent listings.
   return c.json({
     objects: result.objects.map((o) => {
       const filename = o.key.split("/").pop() ?? o.key;
@@ -64,7 +74,7 @@ app.get("/threads/:threadId/outputs", async (c) => {
         filename,
         size: o.size,
         uploadedAt: o.lastModified?.toISOString(),
-        downloadUrl: `${origin}/api/${encodeURIComponent(orgId)}/files/${encodedKey}`,
+        downloadUrl: `${ctx.baseUrl}/api/${encodeURIComponent(orgId)}/files/${encodedKey}`,
       };
     }),
   });

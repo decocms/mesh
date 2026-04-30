@@ -69,6 +69,19 @@ function isPrivateIp(ip: string): boolean {
 }
 
 const MAX_REDIRECT_HOPS = 5;
+/**
+ * Socket-idle timeout for write_from_url. `req.setTimeout` fires both
+ * pre-response (slow-loris: server SYN-ACKs but never sends headers)
+ * and during streaming (server sends headers but trickles 1 byte/min).
+ * 60s is generous for a CDN miss yet kills any cheap per-turn DoS.
+ */
+const REQUEST_IDLE_TIMEOUT_MS = 60_000;
+/**
+ * Wall-clock cap for upload_to_url. Defends against an S3 endpoint that
+ * accepts the connection but never finalizes the multi-part write —
+ * worst-case the daemon ties up a request slot for the cap then aborts.
+ */
+const UPLOAD_DEADLINE_MS = 5 * 60_000;
 
 interface SafeFetchResult {
   status: number;
@@ -151,6 +164,14 @@ async function safeFetch(rawUrl: string, hops = 0): Promise<SafeFetchResult> {
       ) => {
         cb(null, pinnedIp, pinnedFamily);
       }) as never,
+    });
+    req.setTimeout(REQUEST_IDLE_TIMEOUT_MS);
+    req.on("timeout", () => {
+      req.destroy(
+        new Error(
+          `Request idle timeout (${REQUEST_IDLE_TIMEOUT_MS}ms) for ${url.hostname}`,
+        ),
+      );
     });
     req.on("response", (res) => {
       const status = res.statusCode ?? 0;
@@ -606,21 +627,33 @@ export function makeUploadToUrlHandler(deps: FsDeps) {
     // ~25% of the daemon's memory cap on a single concurrent upload.
     // Bun.file().stream() returns a ReadableStream<Uint8Array> that fetch
     // accepts directly; backpressure stays on the network socket.
+    const abortController = new AbortController();
+    const deadlineTimer = setTimeout(
+      () => abortController.abort(),
+      UPLOAD_DEADLINE_MS,
+    );
     let resp: Response;
     try {
       resp = await fetch(body.url, {
         method: "PUT",
         body: Bun.file(filePath).stream(),
         headers,
+        signal: abortController.signal,
         // No SSRF revalidation here — the URL is mesh-minted (presigned
         // PUT to S3/R2), so the model can't influence where bytes go.
         // upload PUTs don't redirect under S3/R2 semantics anyway.
       });
     } catch (err) {
       return jsonResponse(
-        { error: `upload failed: ${(err as Error).message}` },
+        {
+          error: abortController.signal.aborted
+            ? `upload deadline exceeded (${UPLOAD_DEADLINE_MS}ms)`
+            : `upload failed: ${(err as Error).message}`,
+        },
         502,
       );
+    } finally {
+      clearTimeout(deadlineTimer);
     }
     if (!resp.ok) {
       const errText = await resp.text().catch(() => "");
