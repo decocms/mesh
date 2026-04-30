@@ -1347,7 +1347,7 @@ function RoleDetailPageInner({
         await syncMembers(formData.role.slug!);
         return formData;
       } else if (isEditableBuiltinFirstSave) {
-        const r = await authClient.organization.createRole({
+        const r = await orgAuth.organization.createRole({
           role: formData.role.slug!,
           permission,
         });
