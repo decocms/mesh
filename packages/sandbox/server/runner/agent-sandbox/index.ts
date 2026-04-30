@@ -22,7 +22,6 @@ export type {
 } from "./client";
 export {
   AgentSandboxRunner,
-  HANDLE_PREFIX,
   composeClaimName,
 } from "./runner";
 export type { AgentSandboxRunnerOptions } from "./runner";

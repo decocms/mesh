@@ -17,10 +17,7 @@
  * the admin surface stays uncallable from preview hosts.
  */
 
-import {
-  HANDLE_PREFIX,
-  type AgentSandboxRunner,
-} from "@decocms/sandbox/runner/agent-sandbox";
+import type { AgentSandboxRunner } from "@decocms/sandbox/runner/agent-sandbox";
 
 /**
  * Cap on frames buffered between client upgrade and upstream WS open. Vite
@@ -70,8 +67,7 @@ export function parsePreviewBaseDomain(
 
 /**
  * Pulls the sandbox handle out of a request Host header. Returns null when
- * the host doesn't match `<handle>.<baseDomain>` or the handle doesn't carry
- * the K8s runner's `studio-sb-` prefix (anything else means the request isn't
+ * the host doesn't match `<handle>.<baseDomain>` (meaning the request isn't
  * for a mesh sandbox preview and should fall through to the rest of the
  * mesh API).
  */
@@ -89,7 +85,6 @@ export function extractHandleFromHost(
   // Reject empty / nested subdomains: `foo.bar.preview.example.com` would be
   // `foo.bar`, which is not a valid handle.
   if (!handle || handle.includes(".")) return null;
-  if (!handle.startsWith(HANDLE_PREFIX)) return null;
   return handle;
 }
 

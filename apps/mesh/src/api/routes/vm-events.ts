@@ -41,7 +41,6 @@ import {
   computeHandle,
   tryResolveRunnerKindFromEnv,
 } from "@decocms/sandbox/runner";
-import { composeClaimName } from "@decocms/sandbox/runner/agent-sandbox";
 import type { ClaimPhase } from "@decocms/sandbox/runner/agent-sandbox";
 import {
   asLifecycleWatchable,
@@ -113,15 +112,9 @@ app.get("/", async (c) => {
     branch,
   });
   const runnerKind = tryResolveRunnerKindFromEnv();
-  // Each runner produces handles with its own shape: agent-sandbox prefixes
-  // with `studio-sb-` and uses a 16-char hash (k8s claim-name conventions);
-  // docker/host/freestyle use the plain `<slug>-<hash5>` from computeHandle.
-  // The handle here is the same value the runner stored in its state-store
-  // when VM_START provisioned the sandbox, so the daemon-proxy lookup hits.
-  const claimName =
-    runnerKind === "agent-sandbox"
-      ? composeClaimName({ userId, projectRef }, branch)
-      : computeHandle({ userId, projectRef }, branch);
+  // The handle is the same value the runner stored in its state-store when
+  // VM_START provisioned the sandbox, so the daemon-proxy lookup hits.
+  const claimName = computeHandle({ userId, projectRef }, branch);
 
   // Snapshot vmMap from the same metadata read used for the org-ownership
   // check. Used below to gate the stale-handle probe: we only treat a
@@ -235,7 +228,7 @@ async function isStaleHandle(
  *      `setVmMapEntry` on the same metadata JSON column (read-modify-write
  *      is not atomic; see vm-map.ts). The next VM_START overwrites the
  *      entry with a fresh one anyway — the `vmId` is deterministic
- *      (composeClaimName), so the entry's identity is stable across
+ *      (computeHandle), so the entry's identity is stable across
  *      reprovisions.
  *
  * Failures are logged, not thrown — the user-visible flow (emit `gone` →
