@@ -4,22 +4,26 @@ Idle-reap housekeeper for studio sandbox claims.
 
 What it does:
 - Probes each Ready sandbox's daemon at /_decopilot_vm/idle every
-  `housekeeper.schedule` minutes, deletes claims idle ≥ idleTtlSeconds.
-- Clears claims stuck in ReconcilerError (operator gave up).
-- Escalates "Ready but unreachable" claims to a StuckReady reap once they
-  exceed stuckReadyTtlSeconds (catches wedged daemons that present TCP
-  but don't respond meaningfully).
-- Re-probes immediately before delete to narrow the activity-during-reap
-  race window.
+  `housekeeper.schedule` minutes. When idle ≥ idleTtlSeconds, patches
+  spec.lifecycle.shutdownTime so the agent-sandbox operator drains the
+  pod gracefully (SIGTERM → terminationGracePeriodSeconds → delete).
+- Direct-deletes claims stuck in ReconcilerError — the operator has
+  already given up, so a shutdownTime patch would never be honored.
+- Escalates "Ready but unreachable" claims to a StuckReady shutdown once
+  they exceed stuckReadyTtlSeconds (catches wedged daemons that present
+  TCP but don't respond meaningfully).
+- Re-probes immediately before requesting shutdown to narrow the
+  activity-during-reap race window.
 - Emits a Kubernetes Event per reap so post-mortem via `kubectl get events`
   works after the claim is gone.
 
-Multi-housekeeper warning:
-SandboxClaims carry no env label today, so every enabled housekeeper in
-agent-sandbox-system sweeps the *same* set of claims. Enable in exactly
-ONE env release per cluster. Per-env scoping requires a follow-up to
-runner.ts (stamp studio.decocms.com/env on the claim) plus this chart's
-selector picking that label up.
+Per-env scoping:
+Mesh stamps studio.decocms.com/env=<envName> on every SandboxClaim,
+claimed Pod, and per-claim HTTPRoute when STUDIO_ENV is set in the studio
+chart's configMap. The default selectors here pick that label up so each
+env release sweeps only its own claims. See values.yaml for the override
+to use during a phased rollout (before mesh has been upgraded with
+STUDIO_ENV propagation).
 
 Layout:
 - ConfigMap holds the sweep script (files/housekeeper-sweep.sh) — keeps
@@ -56,7 +60,9 @@ metadata:
     {{- include "sandbox-env.labels" . | nindent 4 }}
 rules:
   # Reap target: list to discover, get to read probe-fail annotations,
-  # patch to stamp annotations, delete to actually reap.
+  # patch to stamp annotations + spec.lifecycle.shutdownTime (the graceful
+  # path for Idle / StuckReady), delete for ReconcilerError fall-through
+  # where the operator can't honor a shutdownTime patch.
   - apiGroups: ["extensions.agents.x-k8s.io"]
     resources: ["sandboxclaims"]
     verbs: ["get", "list", "patch", "delete"]

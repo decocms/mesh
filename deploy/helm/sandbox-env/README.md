@@ -127,6 +127,27 @@ spec:
 
 Repeat the `Application` per env, varying `metadata.name` and `envName`.
 
+### Upgrading an existing release to enable the housekeeper
+
+`helm upgrade --reuse-values` does NOT pull in defaults for newly-added
+values keys, so an upgrade that flips `housekeeper.enabled=true` on a
+release installed before the housekeeper landed will fail with
+`nil pointer evaluating interface {}.repository`. Use
+`--reset-then-reuse-values` (Helm 3.14+) instead, or re-pass the full
+values file:
+
+```bash
+helm upgrade sandbox-env-staging \
+  oci://ghcr.io/decocms/studio/charts/sandbox-env \
+  --version 0.2.0 \
+  --namespace agent-sandbox-system \
+  --reset-then-reuse-values \
+  --set housekeeper.enabled=true
+```
+
+ArgoCD users are unaffected — `Application.spec.source.helm.values` is a
+re-render from scratch, not a merge.
+
 ## Layout
 
 ```

@@ -14,9 +14,19 @@
 #   RUN_ID                 cronjob pod name (downward API).
 #
 # Output: structured stdout (one event per line, key=value).
-# Side effects: kubectl annotate / delete on claims and httproutes; create on
-# Events. Probe failures escalate to reap only after STUCK_TTL_MS; transient
-# failures skip the claim, leaving idle accounting untouched.
+# Side effects:
+#   - Idle / StuckReady reaps patch spec.lifecycle.shutdownTime so the
+#     agent-sandbox operator drains the pod gracefully (SIGTERM →
+#     terminationGracePeriodSeconds → delete). Same contract mesh uses
+#     for per-ensure() refresh in client.ts:patchSandboxClaimShutdown.
+#   - ReconcilerError reaps fall through to a direct kubectl delete because
+#     the operator has already given up; patching shutdownTime would never
+#     be honored.
+#   - Both paths annotate the claim, emit a Kubernetes Event for
+#     post-mortem, and delete the per-claim HTTPRoute first so traffic
+#     stops resolving to the pod before SIGTERM lands.
+# Probe failures escalate to a StuckReady reap only after STUCK_TTL_MS;
+# transient failures skip the claim, leaving idle accounting untouched.
 
 set -eu
 
@@ -40,11 +50,17 @@ log() {
   printf '[%s] [housekeeper] run=%s %s\n' "$(now_iso)" "$RUN_ID" "$*"
 }
 
-# GNU date `-d` parses ISO 8601 timestamps. bitnami/kubectl ships GNU
-# coreutils so this works; if a future image swaps to busybox date the
-# fallback returns now() and the StuckReady age starts fresh.
+# Normalize ISO 8601 ("2026-04-30T00:44:41Z") into the
+# "YYYY-MM-DD HH:MM:SS" form that both busybox `date` (alpine) and GNU
+# `date` (Debian) accept — busybox rejects the `T` separator and trailing
+# `Z`. Fractional seconds (operator-emitted timestamps may carry them) are
+# stripped too. Falls back to now() if `date -d` still rejects, which keeps
+# the script working under future image swaps but resets the StuckReady
+# age clock for that sweep — log lines will show age_ms ≈ 0 if you hit
+# this fallback.
 iso_to_secs() {
-  date -u -d "$1" +%s 2>/dev/null || now_secs
+  norm=$(printf '%s' "$1" | tr 'T' ' ' | sed 's/\.[0-9]*Z$//; s/Z$//')
+  date -u -d "$norm" +%s 2>/dev/null || now_secs
 }
 
 # JSONPath escapes dots in label/annotation keys with a backslash. Escape
@@ -143,24 +159,51 @@ clear_probe_failure() {
     "${PROBE_FAIL_DETAIL_ANNOT}-" >/dev/null 2>&1 || true
 }
 
-reap_claim() {
-  claim="$1"; reason="$2"; detail="$3"
-  log "reap claim=$claim reason=$reason detail=\"$detail\""
-  # Annotate first so kube-audit retains *why* this claim disappeared.
-  # Best-effort breadcrumbs — survives only as long as the claim object,
-  # which is why we also emit a Kubernetes Event below.
+# Stamp annotation breadcrumbs + Kubernetes Event + delete the per-claim
+# HTTPRoute. Shared prelude for both reap paths; the caller decides whether
+# to follow up with a shutdown patch (graceful) or a direct delete (force).
+mark_for_reap() {
+  claim="$1"; reason="$2"; detail="$3"; action="$4"
+  # Annotate so kube-audit retains *why* this claim was reaped. Best-effort
+  # breadcrumbs — survive only as long as the claim object, which is why we
+  # also emit a Kubernetes Event.
   kubectl annotate sandboxclaim "$claim" -n "$NS" --overwrite \
     "studio.decocms.com/reap-reason=${reason}" \
     "studio.decocms.com/reap-detail=${detail}" \
     "studio.decocms.com/reap-at=$(now_iso)" \
     "studio.decocms.com/reap-run=${RUN_ID}" >/dev/null 2>&1 || true
-  emit_event "$claim" "SandboxReaped" "Reap" "housekeeper: $reason ($detail)"
-  # Route deletion first so traffic stops resolving to the pod before it
-  # enters termination (avoids 502s during the SIGTERM drain window).
-  # Selector matches LABEL_KEYS.sandboxHandle in mesh runner.ts:1570.
+  emit_event "$claim" "SandboxReaped" "$action" "housekeeper: $reason ($detail)"
+  # HTTPRoute deletion first so traffic stops resolving to the pod before
+  # it enters termination — avoids 502s during the SIGTERM drain window.
+  # Selector matches LABEL_KEYS.sandboxHandle in mesh runner.ts.
   kubectl delete httproute -n "$NS" \
     -l "studio.decocms.com/sandbox-handle=${claim}" \
     --ignore-not-found >/dev/null 2>&1 || true
+}
+
+# Healthy-claim reap: patch spec.lifecycle.shutdownTime to "now" so the
+# operator handles the actual drain (SIGTERM → terminationGracePeriodSeconds
+# → delete pod → delete claim). Used for Idle and StuckReady — both cases
+# where the operator is functional and a graceful drain is preferable to
+# a direct delete. Mirrors the contract used by mesh's per-ensure() refresh
+# in `patchSandboxClaimShutdown` (packages/sandbox/.../client.ts).
+request_shutdown() {
+  claim="$1"; reason="$2"; detail="$3"
+  log "shutdown claim=$claim reason=$reason detail=\"$detail\""
+  mark_for_reap "$claim" "$reason" "$detail" "Shutdown"
+  ts=$(now_iso)
+  kubectl patch sandboxclaim "$claim" -n "$NS" --type=merge \
+    -p "{\"spec\":{\"lifecycle\":{\"shutdownPolicy\":\"Delete\",\"shutdownTime\":\"${ts}\"}}}" \
+    >/dev/null 2>&1 || true
+}
+
+# Forceful reap: direct kubectl delete, no graceful drain. Used only for
+# ReconcilerError — the operator has already given up on the claim, so
+# patching shutdownTime would never be honored.
+force_delete_claim() {
+  claim="$1"; reason="$2"; detail="$3"
+  log "delete claim=$claim reason=$reason detail=\"$detail\""
+  mark_for_reap "$claim" "$reason" "$detail" "Delete"
   kubectl delete sandboxclaim "$claim" -n "$NS" \
     --ignore-not-found >/dev/null 2>&1 || true
 }
@@ -173,8 +216,8 @@ PODS_FILE=$(mktemp)
 trap 'rm -f "$CLAIMS_FILE" "$PODS_FILE"' EXIT
 
 # Single API call returns name + Ready + reason for every studio claim.
-# Pipe-delimited so `read` can split without jq (which isn't guaranteed in
-# the bitnami/kubectl image).
+# Pipe-delimited so `read` can split without jq — keeps the script
+# portable across kubectl images that don't ship jq.
 kubectl get sandboxclaims -n "$NS" -l "$CLAIM_SELECTOR" \
   -o jsonpath='{range .items[*]}{.metadata.name}|{.status.conditions[?(@.type=="Ready")].status}|{.status.conditions[?(@.type=="Ready")].reason}{"\n"}{end}' \
   > "$CLAIMS_FILE" 2>/dev/null || true
@@ -202,9 +245,10 @@ while IFS='|' read -r CLAIM READY REASON; do
   [ -z "$CLAIM" ] && continue
   total=$((total + 1))
 
-  # Operator-side liveness: claim is broken, no point probing.
+  # Operator-side liveness: claim is broken, no point probing or asking
+  # the operator to drain it. Direct delete.
   if [ "$READY" = "False" ] && [ "$REASON" = "ReconcilerError" ]; then
-    reap_claim "$CLAIM" "ReconcilerError" "operator failed to reconcile"
+    force_delete_claim "$CLAIM" "ReconcilerError" "operator failed to reconcile"
     reaped=$((reaped + 1))
     continue
   fi
@@ -230,7 +274,7 @@ while IFS='|' read -r CLAIM READY REASON; do
       since_s=$(iso_to_secs "$since")
       age_ms=$(( ($(now_secs) - since_s) * 1000 ))
       if [ "$age_ms" -ge "$STUCK_TTL_MS" ]; then
-        reap_claim "$CLAIM" "StuckReady" "probe failing for ${age_ms}ms (last detail: $detail)"
+        request_shutdown "$CLAIM" "StuckReady" "probe failing for ${age_ms}ms (last detail: $detail)"
         reaped=$((reaped + 1))
       else
         log "skip claim=$CLAIM reason=probe-failed detail=$detail age_ms=$age_ms"
@@ -264,7 +308,7 @@ while IFS='|' read -r CLAIM READY REASON; do
             log "abort-reap claim=$CLAIM reason=activity-during-decide first_idle_ms=$IDLE_MS reprobe_idle_ms=$RESULT2"
             skipped=$((skipped + 1))
           else
-            reap_claim "$CLAIM" "Idle" "idle_ms=$IDLE_MS reprobe_idle_ms=$RESULT2 ttl_ms=$TTL_MS"
+            request_shutdown "$CLAIM" "Idle" "idle_ms=$IDLE_MS reprobe_idle_ms=$RESULT2 ttl_ms=$TTL_MS"
             reaped=$((reaped + 1))
           fi
           ;;

@@ -861,7 +861,7 @@ export class AgentSandboxRunner implements SandboxRunner {
         labels: {
           "app.kubernetes.io/name": "studio-sandbox",
           "app.kubernetes.io/managed-by": "studio",
-          ...(this.envName ? { [ENV_LABEL_KEY]: this.envName } : {}),
+          ...(this.envName ? { [LABEL_KEYS.env]: this.envName } : {}),
           ...buildTenantLabels(opts.tenant),
         },
       },
@@ -876,7 +876,7 @@ export class AgentSandboxRunner implements SandboxRunner {
           labels: buildTenantLabels(opts.tenant, {
             [LABEL_KEYS.role]: "claimed",
             [LABEL_KEYS.sandboxHandle]: handle,
-            ...(this.envName ? { [ENV_LABEL_KEY]: this.envName } : {}),
+            ...(this.envName ? { [LABEL_KEYS.env]: this.envName } : {}),
           }),
         },
         // `valueFrom.secretKeyRef` isn't supported on SandboxClaim env; RBAC
@@ -1030,7 +1030,7 @@ export class AgentSandboxRunner implements SandboxRunner {
           [LABEL_KEYS.sandboxHandle]: handle,
           "app.kubernetes.io/name": "studio-sandbox",
           "app.kubernetes.io/managed-by": "studio",
-          ...(this.envName ? { [ENV_LABEL_KEY]: this.envName } : {}),
+          ...(this.envName ? { [LABEL_KEYS.env]: this.envName } : {}),
         }),
       },
       spec: {
@@ -1558,6 +1558,10 @@ const LABEL_KEYS = {
   sandboxHandle: "studio.decocms.com/sandbox-handle",
   orgId: "studio.decocms.com/org-id",
   userId: "studio.decocms.com/user-id",
+  // Stamped on claims, claimed pods, and per-claim HTTPRoutes when the
+  // runner is constructed with envName, so the sandbox-env Helm chart's
+  // housekeeper can scope its sweep to a single environment.
+  env: "studio.decocms.com/env",
 } as const;
 
 // K8s label values: ≤63 chars, must match `(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?`.
@@ -1571,12 +1575,6 @@ function sanitizeLabelValue(value: string): string {
   const truncated = value.slice(0, MAX_LABEL_VALUE_LEN);
   return LABEL_VALUE_RE.test(truncated) ? truncated : "";
 }
-
-// Studio environment label key. Stamped on claims, claimed pods, and
-// per-claim HTTPRoutes when a runner is constructed with envName, so the
-// sandbox-env Helm chart's housekeeper can scope its sweep to a single
-// environment. Same key shape as the chart's studio.decocms.com/env.
-const ENV_LABEL_KEY = "studio.decocms.com/env";
 
 // Same DNS-label rules the sandbox-env chart enforces on envName: lowercase
 // alphanumeric or '-', start with a letter, end alphanumeric, ≤32 chars.

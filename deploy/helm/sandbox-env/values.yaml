@@ -237,20 +237,19 @@ mesh:
 
 # ── idle-reap housekeeper ──────────────────────────────────────────────
 # CronJob that sweeps studio sandboxes:
-#   1. Reaps claims stuck in ReconcilerError (operator-side broken).
+#   1. Direct-deletes claims stuck in ReconcilerError — the operator has
+#      already given up, so asking it to drain wouldn't work.
 #   2. Probes /_decopilot_vm/idle on each Ready claim's daemon. Idle ≥
-#      idleTtlSeconds → re-probe → delete (the re-probe narrows the
-#      activity-during-reap race).
+#      idleTtlSeconds → re-probe → patch spec.lifecycle.shutdownTime so
+#      the operator drains the pod gracefully. Same contract mesh uses
+#      for per-ensure() refresh, so the in-process and out-of-process
+#      paths interoperate cleanly.
 #   3. Tracks consecutive probe failures via annotation. Failures older
-#      than stuckReadyTtlSeconds escalate to a StuckReady reap (catches
-#      wedged daemons that present TCP but don't respond meaningfully).
+#      than stuckReadyTtlSeconds escalate to a StuckReady shutdown
+#      (catches wedged daemons that present TCP but don't respond
+#      meaningfully).
 # A Kubernetes Event is emitted on every reap so post-mortem via
 # `kubectl get events` works after the claim object is gone.
-#
-# Multi-housekeeper warning: SandboxClaims today carry no env label, so
-# every enabled housekeeper sweeps the SAME set of claims. Enable in
-# exactly ONE env release per cluster. See README for the per-env scoping
-# follow-up.
 housekeeper:
   enabled: false
 
@@ -302,9 +301,15 @@ housekeeper:
 
   # Pinned for reproducibility — `latest` would silently change behavior
   # at the next scheduled run. Bump deliberately.
+  #
+  # alpine/k8s bundles kubectl + curl + jq + yq + helm in one image; the
+  # script needs both kubectl (list/patch/delete claims) and curl (probe
+  # the daemon's /idle endpoint), so a single-tool image like
+  # bitnami/kubectl doesn't work. Tag matches a recent kubectl minor close
+  # to the cluster's API version — kubectl skew of ±1 minor is supported.
   image:
-    repository: bitnami/kubectl
-    tag: "1.32"
+    repository: alpine/k8s
+    tag: "1.32.0"
     pullPolicy: IfNotPresent
 
   # Tight by design: the script does N kubectl calls + N curls and exits.
