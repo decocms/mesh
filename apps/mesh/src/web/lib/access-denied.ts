@@ -7,14 +7,13 @@
  * onError handlers to format toasts.
  */
 
+// Narrow to phrases produced by the server's AccessControl + Better Auth
+// permission denials. Broad matches like "forbidden" or "403" overlap with
+// unrelated upstream MCP / OAuth errors and would mislabel them.
 const ACCESS_DENIED_PATTERNS = [
-  /access denied to:?\s*([\w-]+)/i,
-  /you[' ]?re not allowed/i,
-  /you are not allowed/i,
-  /forbidden/i,
-  /permission denied/i,
-  /not authorized/i,
-  /\b403\b/,
+  /^access denied to:/i,
+  /the current user does not have permission to use this tool/i,
+  /you (?:are|'re) not allowed to perform this action/i,
 ];
 
 const TOOL_NAME_PATTERN = /access denied to:?\s*([\w-]+)/i;

@@ -173,6 +173,17 @@ export function useOrganizationRoles() {
     staleTime: 30000, // Cache for 30 seconds
   });
 
+  // Built-in roles can be customized — admin and user are editable, and the
+  // edits are persisted as `organizationRole` rows that share the slug.
+  // We keep the row out of the "Custom roles" list (it still renders as the
+  // built-in entry in the table) but expose its id+permission via
+  // `builtinOverrides` so the role editor can update instead of trying to
+  // create a duplicate.
+  const builtinOverrides: Record<
+    string,
+    { id: string; permission: Record<string, string[]> }
+  > = {};
+
   // Combine built-in roles with custom roles
   const allRoles: OrganizationRole[] = BUILTIN_ROLES.map((r) => ({
     role: r.value,
@@ -186,8 +197,17 @@ export function useOrganizationRoles() {
       const roleName = customRole.role;
       if (!roleName) continue;
 
-      // Skip if it's a built-in role name (owner, admin, user)
+      // A row with a built-in slug means the built-in role's permissions
+      // have been customized. Track the override and skip — the table still
+      // shows the slug as the built-in entry.
       if (BUILTIN_ROLES.some((b) => b.value === roleName)) {
+        if (customRole.id) {
+          builtinOverrides[roleName] = {
+            id: customRole.id,
+            permission:
+              (customRole.permission as Record<string, string[]>) ?? {},
+          };
+        }
         continue;
       }
 
@@ -232,6 +252,8 @@ export function useOrganizationRoles() {
     roles: allRoles,
     customRoles,
     builtinRoles: allRoles.filter((r) => r.isBuiltin),
+    /** Persisted permission overrides keyed by built-in slug (admin/user). */
+    builtinOverrides,
     isLoading,
     error,
     refetch,

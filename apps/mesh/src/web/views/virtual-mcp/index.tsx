@@ -1174,14 +1174,15 @@ function VirtualMcpDetailViewWithData({
       saveTimerRef.current = null;
     }
 
-    // Auto-save is gated by agents:manage. Reset the form so the change
-    // doesn't sit dirty and fire again on every keystroke, and warn once.
+    // Auto-save is gated by agents:manage. Roll the form back to the
+    // persisted agent so the user's edits don't masquerade as saved values
+    // (and so the next keystroke doesn't keep firing this branch).
     if (!canManageAgents) {
       toast.error(
         "You don't have permission to edit this agent. Changes won't be saved.",
         { id: "agent-no-permission" },
       );
-      form.reset(form.getValues(), { keepDirty: false });
+      form.reset(virtualMcp);
       return;
     }
 

@@ -127,7 +127,11 @@ function RolesPageContent() {
 
   const { locator } = useProjectContext();
   const queryClient = useQueryClient();
-  const { customRoles, refetch: refetchRoles } = useOrganizationRoles();
+  const {
+    customRoles,
+    builtinOverrides,
+    refetch: refetchRoles,
+  } = useOrganizationRoles();
 
   const setActiveRole = (value: string | undefined) =>
     navigate({
@@ -140,7 +144,13 @@ function RolesPageContent() {
     if (roleParam === "new") return { kind: "new" };
     if (roleParam.startsWith("builtin-")) {
       const slug = roleParam.slice(8) as "owner" | "admin" | "user";
-      return { kind: "builtin", role: slug };
+      const override = builtinOverrides[slug];
+      return {
+        kind: "builtin",
+        role: slug,
+        storedId: override?.id,
+        storedPermission: override?.permission,
+      };
     }
     const custom = customRoles.find((r) => r.id === roleParam);
     return custom ? { kind: "custom", role: custom } : null;

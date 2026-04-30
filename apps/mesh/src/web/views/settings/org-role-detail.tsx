@@ -1273,7 +1273,6 @@ function RoleDetailPageInner({
   const { locator } = useProjectContext();
   const queryClient = useQueryClient();
 
-  const isBuiltin = target.kind === "builtin";
   const isOwnerBuiltin = target.kind === "builtin" && target.role === "owner";
   const isNew = target.kind === "new";
 
@@ -1342,16 +1341,44 @@ function RoleDetailPageInner({
         await syncMembers(formData.role.slug!);
         return formData;
       } else if (isEditableBuiltinFirstSave) {
-        const r = await authClient.organization.createRole({
+        // First save of an editable built-in (admin/user) creates an
+        // organizationRole row that shadows the slug. If a row already
+        // exists (e.g. saved earlier in another tab, or list cache was
+        // stale), Better Auth returns "role name already exists". Recover
+        // by fetching the canonical list and updating the row in place so
+        // the editor never gets stuck on a duplicate-name error.
+        const create = await authClient.organization.createRole({
           role: formData.role.slug!,
           permission,
         });
-        if (r?.error)
-          throw new Error(r.error.message ?? "Something went wrong");
+        let savedId = create?.data?.roleData?.id as string | undefined;
+        if (create?.error) {
+          const message = create.error.message ?? "";
+          const isDuplicate = /already exists/i.test(message);
+          if (!isDuplicate) {
+            throw new Error(message || "Something went wrong");
+          }
+          const list = await authClient.organization.listRoles();
+          if (list?.error) throw new Error(list.error.message ?? message);
+          const existing = (list?.data ?? []).find(
+            (row: { role?: string; id?: string }) =>
+              row.role === formData.role.slug,
+          );
+          if (!existing?.id) {
+            throw new Error(message);
+          }
+          const upd = await authClient.organization.updateRole({
+            roleId: existing.id,
+            data: { permission },
+          });
+          if (upd?.error)
+            throw new Error(upd.error.message ?? "Something went wrong");
+          savedId = existing.id;
+        }
         await syncMembers(formData.role.slug!);
         return {
           ...formData,
-          role: { ...formData.role, id: r.data?.roleData?.id },
+          role: { ...formData.role, id: savedId },
         };
       } else {
         const r = await authClient.organization.createRole({

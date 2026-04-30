@@ -19,6 +19,7 @@ import {
   type PermissionCapability,
 } from "@/tools/registry-metadata";
 import { authClient } from "@/web/lib/auth-client";
+import { KEYS } from "@/web/lib/query-keys";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import { useQuery } from "@tanstack/react-query";
 
@@ -57,9 +58,22 @@ function rolePermits(
   capability: PermissionCapability,
 ): boolean {
   if (!permission) return false;
-  const granted = permission.self ?? [];
-  if (granted.includes("*")) return true;
-  return capability.tools.every((tool) => granted.includes(tool));
+  // Org-wide wildcards: { "*": ["*"] } or self: ["*"] grant every capability.
+  if (permission["*"]?.includes("*")) return true;
+  const selfTools = permission.self ?? [];
+  if (selfTools.includes("*")) return true;
+  // Aggregate every action the role grants at the org level. Capability tools
+  // are resource-less synthetic flags (or static org-tool names), so any
+  // resource bucket that lists them counts. Per-connection bindings live
+  // under connection IDs and aren't relevant for capability gating, but
+  // including them is harmless because capability tool names don't collide
+  // with connection-tool names.
+  const grantedActions = new Set<string>();
+  for (const actions of Object.values(permission)) {
+    for (const action of actions) grantedActions.add(action);
+  }
+  if (grantedActions.has("*")) return true;
+  return capability.tools.every((tool) => grantedActions.has(tool));
 }
 
 export interface CapabilityResult {
@@ -79,7 +93,7 @@ function useMyPermissions(): {
   const { locator } = useProjectContext();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["my-permissions", locator] as const,
+    queryKey: KEYS.myPermissions(locator),
     queryFn: async (): Promise<MyPermissionsResponse> => {
       const res = await fetch("/api/auth/custom/my-permissions", {
         credentials: "include",

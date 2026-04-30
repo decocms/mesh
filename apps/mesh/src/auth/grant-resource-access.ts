@@ -57,9 +57,12 @@ export async function grantResourceAccessToAllCustomRoles(
     roles.map(async (row) => {
       const permission = parsePermission(row.permission);
 
-      // Already has "all connections" wildcard — nothing to do.
-      const wildcardTools = permission["*"];
-      if (wildcardTools && wildcardTools.includes("*")) return;
+      // Already has full access via any of the wildcard shapes Better Auth
+      // accepts — { "*": ["*"] } (all-resources wildcard) or
+      // { "self": ["*"] } (full org-tool access). Skip to avoid appending
+      // redundant per-resource entries that would never be consulted.
+      if (permission["*"]?.includes("*")) return;
+      if (permission.self?.includes("*")) return;
 
       // Already has an explicit grant on this resource — preserve it.
       if (permission[resourceId]) return;
