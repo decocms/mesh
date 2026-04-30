@@ -10,15 +10,17 @@
  * absent — the daemon runs in the user's trust boundary.
  */
 
-import { join } from "node:path";
+import { randomBytes, randomUUID } from "node:crypto";
+import { mkdir } from "node:fs/promises";
 import { createServer } from "node:net";
+import { dirname, join } from "node:path";
 import {
   probeDaemonHealth,
   proxyDaemonRequest,
   daemonBash,
 } from "../../daemon-client";
 import type { DaemonHealth } from "../../daemon-client";
-import { applyPreviewPattern } from "../shared";
+import { applyPreviewPattern, computeHandle } from "../shared";
 import type { RunnerStateStore } from "../state-store";
 import type {
   EnsureOptions,
@@ -34,6 +36,7 @@ const RUNNER_KIND = "host" as const;
 const HEALTH_PROBE_TIMEOUT_MS = 30_000;
 const HEALTH_PROBE_INTERVAL_MS = 250;
 const STOP_GRACE_MS = 2_000;
+const DEFAULT_DEV_PORT = 3000;
 
 type DaemonProcess = {
   pid: number;
@@ -111,14 +114,86 @@ export class HostSandboxRunner implements SandboxRunner {
 
   // ---- SandboxRunner surface ------------------------------------------------
 
-  async ensure(_id: SandboxId, _opts: EnsureOptions = {}): Promise<Sandbox> {
-    // spawnFn, probeFn, workdirFor, toSandbox, killFn used in Task 7.
-    void (this.spawnFn,
-    this.probeFn,
-    this.killFn,
-    this.workdirFor,
-    this.toSandbox);
-    throw new Error("not implemented (Task 7)");
+  async ensure(id: SandboxId, opts: EnsureOptions = {}): Promise<Sandbox> {
+    const handle = computeHandle(id, opts.repo?.branch);
+
+    // 1. In-memory cache hit?
+    const cached = this.records.get(handle);
+    if (cached && this.isAliveFn(cached.pid)) return this.toSandbox(cached);
+
+    // 2. State-store resume.
+    if (this.stateStore) {
+      const persisted = await this.stateStore.getByHandle(RUNNER_KIND, handle);
+      if (persisted) {
+        const rec = await this.rehydrate(persisted.id, persisted);
+        if (rec) {
+          this.records.set(handle, rec);
+          return this.toSandbox(rec);
+        }
+        await this.stateStore
+          .deleteByHandle(RUNNER_KIND, handle)
+          .catch(() => undefined);
+      }
+    }
+
+    // 3. Fresh provision.
+    const workdir = this.workdirFor(handle);
+    await mkdir(dirname(workdir), { recursive: true });
+
+    const token = randomBytes(24).toString("hex");
+    const bootId = randomUUID();
+    const daemonPort = await preallocatePort();
+    const daemonUrl = `http://127.0.0.1:${daemonPort}`;
+
+    const env = buildDaemonEnv({
+      token,
+      bootId,
+      workdir,
+      daemonPort,
+      devPort: opts.workload?.devPort ?? DEFAULT_DEV_PORT,
+      runtime: opts.workload?.runtime ?? "node",
+      packageManager: opts.workload?.packageManager ?? null,
+      repo: opts.repo ?? null,
+      extraEnv: opts.env,
+    });
+
+    const proc = await this.spawnFn({ workdir, env, daemonPort });
+    await this.waitForHealthy(daemonUrl);
+
+    const rec: HostRecord = {
+      id,
+      handle,
+      pid: proc.pid,
+      daemonPort,
+      daemonUrl,
+      workdir,
+      token,
+      bootId,
+    };
+    this.records.set(handle, rec);
+
+    if (this.stateStore) {
+      const state = {
+        pid: rec.pid,
+        daemonPort: rec.daemonPort,
+        daemonUrl: rec.daemonUrl,
+        workdir: rec.workdir,
+        token: rec.token,
+        bootId: rec.bootId,
+      } as PersistedHostState as unknown as Record<string, unknown>;
+      await this.stateStore.put(id, RUNNER_KIND, { handle, state });
+    }
+    return this.toSandbox(rec);
+  }
+
+  private async waitForHealthy(daemonUrl: string): Promise<void> {
+    const deadline = Date.now() + HEALTH_PROBE_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      const health = await this.probeFn(daemonUrl);
+      if (health) return;
+      await new Promise((r) => setTimeout(r, HEALTH_PROBE_INTERVAL_MS));
+    }
+    throw new Error(`daemon at ${daemonUrl} never reported healthy`);
   }
 
   async exec(handle: string, input: ExecInput): Promise<ExecOutput> {
@@ -127,6 +202,8 @@ export class HostSandboxRunner implements SandboxRunner {
   }
 
   async delete(_handle: string): Promise<void> {
+    // killFn used in Task 9.
+    void this.killFn;
     throw new Error("not implemented (Task 9)");
   }
 
@@ -259,6 +336,52 @@ export function preallocatePort(): Promise<number> {
       }
     });
   });
+}
+
+function buildDaemonEnv(args: {
+  token: string;
+  bootId: string;
+  workdir: string;
+  daemonPort: number;
+  devPort: number;
+  runtime: string;
+  packageManager: string | null;
+  repo: NonNullable<EnsureOptions["repo"]> | null;
+  extraEnv: Record<string, string> | undefined;
+}): Record<string, string> {
+  const repoLabel = args.repo
+    ? (args.repo.displayName ?? deriveRepoLabel(args.repo.cloneUrl))
+    : null;
+  return {
+    DAEMON_TOKEN: args.token,
+    DAEMON_BOOT_ID: args.bootId,
+    APP_ROOT: args.workdir,
+    PROXY_PORT: String(args.daemonPort),
+    DEV_PORT: String(args.devPort),
+    RUNTIME: args.runtime,
+    CLONE_DEPTH: "full",
+    ...(args.repo
+      ? {
+          CLONE_URL: args.repo.cloneUrl,
+          REPO_NAME: repoLabel ?? "",
+          BRANCH: args.repo.branch ?? "",
+          GIT_USER_NAME: args.repo.userName,
+          GIT_USER_EMAIL: args.repo.userEmail,
+        }
+      : {}),
+    ...(args.packageManager ? { PACKAGE_MANAGER: args.packageManager } : {}),
+    ...(args.extraEnv ?? {}),
+  };
+}
+
+function deriveRepoLabel(cloneUrl: string): string {
+  try {
+    const u = new URL(cloneUrl);
+    const trimmed = u.pathname.replace(/^\/+/, "").replace(/\.git$/, "");
+    return trimmed || u.hostname;
+  } catch {
+    return cloneUrl;
+  }
 }
 
 export async function defaultSpawn(args: {
