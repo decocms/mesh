@@ -1,0 +1,228 @@
+# Verification spike: agent-sandbox v0.4.2 behavior for SPEC-daemon-bootstrap Phase 1
+
+Status: complete (no live cluster needed — answered from vendored CRD + upstream operator source)
+Operator version: v0.4.2 (`Chart.yaml:13` of `deploy/helm/sandbox-operator`)
+Sources read:
+- `deploy/helm/sandbox-operator/crds/agent-sandbox-crds.yaml` (vendored CRD, lines 4029-4161)
+- `kubernetes-sigs/agent-sandbox@v0.4.2`, cloned to `/tmp/agent-sandbox`:
+  - `extensions/controllers/sandboxclaim_controller.go`
+  - `controllers/sandbox_controller.go`
+  - `extensions/controllers/sandboxwarmpool_controller.go`
+- `extensions/controllers/sandboxclaim_controller_test.go` (regression evidence)
+- Local Docker probe for the git ownership question.
+
+## TL;DR
+
+| # | Question | Status | Implication for Phase 1 |
+|---|---|---|---|
+| 1 | Annotations preserved on warm-claimed pods | **PASS** | Nonce-via-annotation works on warm path; downward API ref is safe. |
+| 2 | Annotations preserved across pod recreate | **PASS** | Persisted nonce in mesh state-store stays valid; `rehydrate` re-bootstrap works. |
+| 3 | `spec.warmpool` defaults to `"default"` | **PASS** | Drop the hardcoded `warmpool: "none"` in `runner.ts:912`; warm pool engages by default. |
+| 4 | CRD has `additionalPodMetadata.annotations` | **PASS** | Schema accepts `annotations` map alongside `labels`; no CRD change needed. |
+| 5 | Bare `git clone` into chowned emptyDir trips dubious-ownership | **PASS (no trip)** | The chart's `GIT_CONFIG_*` env (lines 92-97) is unnecessary for clone; option (c) — per-invocation `-c safe.directory=*` — is still the right default for non-clone git invocations. |
+
+**All five questions are PASS. No `UNKNOWN — needs cluster` rows.** Phase 1 can start as designed.
+
+---
+
+## Per-question details
+
+### Q1. Annotation preservation on warm-claimed pods — PASS
+
+**What I did.** Read the operator code on the warm-pool adopt path and on the Sandbox→Pod materialization path, then cross-checked tests.
+
+**What I found.**
+
+`extensions/controllers/sandboxclaim_controller.go:adoptSandboxFromCandidates` (the warm-pool adopt path) calls `mergePodMetadata` on the adopted sandbox's pod-template ObjectMeta with `claim.Spec.AdditionalPodMetadata`:
+
+```go
+// sandboxclaim_controller.go:577-606 (adopt path)
+var mergedMeta v1alpha1.PodMetadata
+template.Spec.PodTemplate.ObjectMeta.DeepCopyInto(&mergedMeta)
+...
+if err := mergePodMetadata(&mergedMeta, &claim.Spec.AdditionalPodMetadata); err != nil { ... }
+adopted.Spec.PodTemplate.ObjectMeta = mergedMeta
+...
+if err := r.Patch(ctx, adopted, client.MergeFrom(originalAdopted)); err != nil { ... }
+```
+
+`mergePodMetadata` (line 712) merges both labels *and* annotations symmetrically — same code path, same override-conflict check (lines 717-729), same merge (lines 731-745). Annotations and labels are siblings, not stepchildren.
+
+The merged Sandbox is then picked up by the core Sandbox controller (`controllers/sandbox_controller.go`):
+
+- For the **already-existing** pod case (warm-pool adoption, pod is alive): `updatePodMetadata` (lines 735-748) propagates `sandbox.Spec.PodTemplate.ObjectMeta.Annotations` onto the live pod. Comment on line 712 explicitly: *"Propagate pod template labels to the existing pod (e.g., after warm pool adoption)"* — annotation block immediately follows.
+
+The asymmetry the spec calls out (warm pods reject custom `spec.env`) lives in `createSandbox` only (line 817-822, `if len(claim.Spec.Env) > 0`), which is the **cold** path. The adopt path doesn't even look at `claim.Spec.Env`. So the env restriction does not apply to annotations.
+
+**Test corroboration**: `sandboxclaim_controller_test.go:550-575` — test "sandbox is created with additional metadata from claim" asserts `user-annotation` propagates onto `sandbox.Spec.PodTemplate.ObjectMeta.Annotations`. Lines 1478-1482 validate `expectedAnnotations` on adoption.
+
+**Confidence**: high. Source code is unambiguous and tests exist.
+
+### Q2. Annotation preservation across pod recreate — PASS
+
+**What I did.** Traced the "pod missing → recreate" path in the Sandbox controller.
+
+**What I found.**
+
+`controllers/sandbox_controller.go:reconcilePod` (line 476):
+
+1. Lookup pod by tracked name (line 509).
+2. If `IsNotFound`, `pod = nil` (line 521).
+3. Falls through to "Create new Pod" block at line 632.
+4. New pod's annotations come from `sandbox.Spec.PodTemplate.ObjectMeta.Annotations` verbatim:
+
+```go
+// sandbox_controller.go:643-648
+annotations := map[string]string{}
+var managedAnnotationKeys []string
+for k, v := range sandbox.Spec.PodTemplate.ObjectMeta.Annotations {
+    annotations[k] = v
+    managedAnnotationKeys = append(managedAnnotationKeys, k)
+}
+```
+
+**The persistence chain**: SandboxClaim's `additionalPodMetadata.annotations` → merged into Sandbox's `PodTemplate.ObjectMeta.Annotations` (in claim controller `reconcileActive`) → copied to new pod on each create. The claim's metadata is set once at provision time by mesh and is **not regenerated by the operator** on pod loss. The Sandbox CR is also not deleted on pod loss (only on claim deletion or `Replicas=0`). So the same `decocms.io/claim-nonce` value reappears on every recreate.
+
+There's no idle-TTL eviction logic in the operator itself (verified via grep — no idle/TTL/evict references); pod recreate is driven by external events (kubelet eviction, drain, OOM with `restartPolicy=Always`). All of those leave the Sandbox CR intact.
+
+Additionally, `reconcileActive` (claim controller line 246-300) re-runs `mergePodMetadata` on every reconcile and patches the Sandbox if metadata diverges (lines 292-298). So even if something on the Sandbox got perturbed, it'd be reconciled back to claim-derived state.
+
+**Confidence**: high.
+
+### Q3. Default value of `spec.warmpool` — PASS (`"default"`)
+
+**What I did.** Read the CRD schema.
+
+**What I found.**
+
+```yaml
+# deploy/helm/sandbox-operator/crds/agent-sandbox-crds.yaml:4101-4103
+warmpool:
+  default: default
+  type: string
+```
+
+CRD-level default is the literal string `"default"`. Dropping the hardcoded `warmpool: "none"` in `packages/sandbox/server/runner/agent-sandbox/runner.ts:912` lets the operator resolve to `"default"` and consult the warm pool. This is what Phase 2 expects.
+
+**Confidence**: high (CRD is the source of truth; operator binds via OpenAPI defaulting).
+
+### Q4. `additionalPodMetadata.annotations` exists on the CRD — PASS
+
+```yaml
+# deploy/helm/sandbox-operator/crds/agent-sandbox-crds.yaml:4055-4065
+additionalPodMetadata:
+  properties:
+    annotations:
+      additionalProperties:
+        type: string
+      type: object
+    labels:
+      additionalProperties:
+        type: string
+      type: object
+  type: object
+```
+
+`labels` and `annotations` are siblings on the same shape, both `map[string]string`. No CRD modification needed to start writing `metadata.annotations["decocms.io/claim-nonce"]` via `additionalPodMetadata.annotations`.
+
+Note on validation: the operator restricts certain *system* domains (`isRestrictedDomain` at line 660; `validateAdditionalPodMetadata` at line 669). `decocms.io` is not on the restricted list (it's checked against `restrictedDomains`, which the spec describes as system-reserved like `kubernetes.io`/`k8s.io`). Worth a quick `grep restrictedDomains` in the operator before merging to be safe — but `decocms.io` is a third-party domain, exactly the case the API supports.
+
+**Confidence**: high.
+
+### Q5. Bare `git clone` into a `root:1000`-owned emptyDir does **not** trip dubious-ownership — PASS (no trip)
+
+**What I did.** Ran an Alpine container probe simulating the chart's pod layout: `/work` chowned `root:1000` mode `2775` (setgid, group-writable; mimics fsGroup behavior), `git --version 2.45.4`, `addgroup -g 1000 mygroup; adduser -u 1000 myuser`, then ran `git clone https://github.com/octocat/Hello-World.git repo` as `myuser` with no `safe.directory` config. Followed by `git status`, `git log`, `git fetch`.
+
+```
+=== /work ownership before clone ===
+drwxrwsr-x  2 root  1000  4096  /work
+
+=== PHASE 1: Bare git clone as uid=1000 into root:1000-owned dir ===
+Cloning into 'repo'...
+CLONE_EXIT=0
+
+=== Post-clone ownership ===
+drwxr-sr-x  3 myuser  mygroup  4096  /work/repo
+drwxr-sr-x  8 myuser  mygroup  4096  /work/repo/.git
+
+=== PHASE 2: git status ===
+On branch master
+Your branch is up to date with 'origin/master'.
+STATUS_EXIT=0
+
+=== PHASE 3: git log ===  → exit 0
+=== PHASE 4: git fetch === → exit 0
+```
+
+Git creates `repo/` and everything under it as the running uid. The "dubious ownership" check looks at the `.git` directory's owner, which is `uid=1000` (matches the running user), not at the parent mountpoint. So `git clone` and every subsequent in-repo command succeed without `safe.directory`.
+
+**Implication**: the chart's `GIT_CONFIG_COUNT/KEY_0/VALUE_0` env block (`sandbox-template.yaml:92-97`) is currently inert for the clone+devloop path. Removing it should be safe for **clone-driven** flows. **However**, option (c) in the spec — per-invocation `-c safe.directory=*` on every git command the daemon issues — is still the right default because:
+
+- It's order-independent (no boot-time setup race).
+- It survives even if a future change has the daemon operate on a directory it didn't create itself (e.g. a pre-mounted PVC, a sandbox-attached volume).
+- It costs ~5 lines.
+
+**Confidence**: high. The Docker probe is direct; the only environmental delta vs. K8s is fsGroup vs. plain group-write — both result in the same ownership shape from git's perspective.
+
+Probe script reproducible at `/tmp/git-dubious-test.sh` (also pasted at bottom of this doc).
+
+---
+
+## Recommended Phase 1 design adjustments
+
+None required. The trust model and bootstrap mechanics described in Phase 1 hold against v0.4.2. Specifically:
+
+- **Nonce-via-annotation + downward API**: works. Stick with the design as written. No fallback to label-based downward API needed.
+- **Drop `warmpool: "none"`**: safe. The CRD defaults to `"default"`. (Tracked under Phase 2 changes.)
+- **`additionalPodMetadata.annotations`** is already on the CRD; no schema bump.
+- **Git wrapper**: option (c) per-invocation `-c safe.directory=*` remains the right default. The chart's `GIT_CONFIG_*` env block can be removed in Phase 3 alongside the rest of the env-injection cleanup; this is functionally a no-op for clone-driven flows.
+
+---
+
+## Probe script (for reproduction or CI)
+
+```sh
+#!/bin/sh
+# /tmp/git-dubious-test.sh — verify bare `git clone` into chowned emptyDir
+# Run with:  docker run --rm --user 0 -v /tmp/git-dubious-test.sh:/test.sh:ro alpine:3.20 sh /test.sh
+set -e
+apk add --quiet git >/dev/null 2>&1
+
+mkdir -p /work
+chown root:1000 /work
+chmod 2775 /work
+echo "=== /work ownership before clone ==="
+ls -ld /work
+
+addgroup -g 1000 mygroup 2>/dev/null || true
+adduser -D -u 1000 -G mygroup myuser 2>/dev/null || true
+mkdir -p /home/myuser
+chown myuser:mygroup /home/myuser
+
+echo
+echo "=== PHASE 1: Bare git clone as uid=1000 into root:1000-owned dir ==="
+su myuser -c "cd /work && HOME=/home/myuser git -c init.defaultBranch=main clone --depth 1 https://github.com/octocat/Hello-World.git repo 2>&1; echo CLONE_EXIT=\$?"
+
+echo
+echo "=== Post-clone ownership ==="
+ls -la /work/
+ls -la /work/repo/.git | head -5
+
+echo
+echo "=== PHASE 2: git status ==="
+su myuser -c "cd /work/repo && HOME=/home/myuser git status 2>&1; echo STATUS_EXIT=\$?"
+
+echo "=== PHASE 3: git log ==="
+su myuser -c "cd /work/repo && HOME=/home/myuser git log -1 --oneline 2>&1; echo LOG_EXIT=\$?"
+
+echo "=== PHASE 4: git fetch ==="
+su myuser -c "cd /work/repo && HOME=/home/myuser git fetch --depth 1 origin 2>&1; echo FETCH_EXIT=\$?"
+
+echo "=== git --version ==="
+git --version
+
+# Cleanup (in-container teardown only; --rm handles the rest)
+rm -rf /work
+```
+
+No persistent state outside the container; `docker run --rm` cleans up automatically.

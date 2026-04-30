@@ -1,22 +1,20 @@
-import { gitSync } from "../git/git-sync";
 import type { Config } from "../types";
+import { git } from "./git";
 
-/** Sets system-level `safe.directory` (as root) + user.name/user.email (as deco). */
+/**
+ * Sets per-tenant `user.name`/`user.email` once the repo is on disk.
+ *
+ * Phase 1 dropped the `git config --system --add safe.directory` call: it
+ * wrote to `/etc/gitconfig` which fails silently on read-only rootfs, and
+ * the per-invocation `-c safe.directory=*` (see setup/git.ts) covers the
+ * dubious-ownership case order-independently.
+ */
 export function configureGitIdentity(config: Config): void {
-  try {
-    gitSync(["config", "--system", "--add", "safe.directory", config.appRoot], {
-      cwd: config.appRoot,
-      asUser: false,
-    });
-  } catch {
-    // Best-effort: CI container may not allow system config edits; git still
-    // works via /etc/gitconfig entries inherited from the image.
-  }
   if (!config.gitUserName || !config.gitUserEmail) return;
-  gitSync(["config", "user.name", config.gitUserName], {
+  git(["config", "user.name", config.gitUserName], {
     cwd: config.appRoot,
   });
-  gitSync(["config", "user.email", config.gitUserEmail], {
+  git(["config", "user.email", config.gitUserEmail], {
     cwd: config.appRoot,
   });
 }

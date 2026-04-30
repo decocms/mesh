@@ -27,17 +27,19 @@ describe("resolveBranch", () => {
       expect.anything(),
     );
     expect(gitSync).toHaveBeenCalledWith(
-      ["checkout", "main"],
+      expect.arrayContaining(["checkout", "main"]),
       expect.anything(),
     );
   });
 
   it("creates local branch when fetch fails and local doesn't exist", () => {
     const gitSync = mock((args: string[]) => {
-      if (args[0] === "fetch") {
+      // The wrapper prepends ["-c", "safe.directory=*"] — strip that.
+      const a = args[0] === "-c" ? args.slice(2) : args;
+      if (a[0] === "fetch") {
         throw Object.assign(new Error("no branch"), { stderr: "" });
       }
-      if (args[0] === "checkout" && args[1] !== "-b") {
+      if (a[0] === "checkout" && a[1] !== "-b") {
         throw new Error("no local");
       }
       return "";
@@ -47,7 +49,7 @@ describe("resolveBranch", () => {
       gitSync,
     });
     expect(gitSync).toHaveBeenCalledWith(
-      ["checkout", "-b", "feature/x"],
+      expect.arrayContaining(["checkout", "-b", "feature/x"]),
       expect.anything(),
     );
   });

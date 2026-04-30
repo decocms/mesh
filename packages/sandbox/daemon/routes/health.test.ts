@@ -21,7 +21,8 @@ describe("makeHealthHandler", () => {
       ready: false,
       bootId: "boot-xyz",
       setup: { running: false, done: false },
-    });
+      phase: "ready",
+    } as never);
   });
 
   it("flips ready:true once probe succeeds", async () => {
