@@ -19,10 +19,6 @@ export interface Config {
   readonly pathPrefix: string;
   /** "shallow" → `git clone --depth 1`; "full" → drop the flag. Default "shallow". */
   readonly cloneDepth: CloneDepth;
-  /** When true, prepend `corepack enable` to the install command. Containers
-   * ship with corepack; native host environments often don't, so the host
-   * runner sets this false. */
-  readonly useCorepack: boolean;
 }
 
 export interface BroadcastSource {

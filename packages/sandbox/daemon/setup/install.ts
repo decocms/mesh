@@ -18,9 +18,8 @@ export function spawnInstall(deps: InstallDeps): Promise<number> | null {
   if (!config.packageManager) return null;
   const pmConfig = PACKAGE_MANAGER_DAEMON_CONFIG[config.packageManager];
   if (!pmConfig) return null;
-  const corepack = config.useCorepack
-    ? "export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 && corepack enable && "
-    : "";
+  const corepack =
+    "export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 && (corepack enable 2>/dev/null || true) && ";
   const cmd = `${config.pathPrefix}cd ${config.appRoot} && ${corepack}${pmConfig.install}`;
   deps.onChunk("setup", `\r\n$ ${pmConfig.install}\r\n`);
   return new Promise((resolve) => {

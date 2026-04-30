@@ -121,31 +121,3 @@ describe("loadConfig cloneDepth", () => {
   });
 });
 
-describe("loadConfig useCorepack", () => {
-  const baseEnv = {
-    DAEMON_TOKEN: "x".repeat(48),
-    DAEMON_BOOT_ID: "boot",
-  };
-
-  it("defaults to true when USE_COREPACK is unset", () => {
-    expect(loadConfig({ ...baseEnv }).useCorepack).toBe(true);
-  });
-
-  it("returns false when USE_COREPACK=false", () => {
-    expect(loadConfig({ ...baseEnv, USE_COREPACK: "false" }).useCorepack).toBe(
-      false,
-    );
-  });
-
-  it("returns true when USE_COREPACK=true", () => {
-    expect(loadConfig({ ...baseEnv, USE_COREPACK: "true" }).useCorepack).toBe(
-      true,
-    );
-  });
-
-  it("throws on invalid USE_COREPACK", () => {
-    expect(() => loadConfig({ ...baseEnv, USE_COREPACK: "yes" })).toThrow(
-      /USE_COREPACK invalid/,
-    );
-  });
-});
