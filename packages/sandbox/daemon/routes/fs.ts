@@ -1,9 +1,119 @@
 import fs from "node:fs";
 import path from "node:path";
+import net from "node:net";
+import { promises as dnsPromises } from "node:dns";
 import { spawn } from "node:child_process";
 import { DECO_UID, DECO_GID } from "../constants";
 import { safePath } from "../paths";
 import { parseBase64JsonBody, jsonResponse } from "./body-parser";
+
+/**
+ * SSRF guard for `write_from_url`. The model can supply arbitrary
+ * https URLs to `copy_to_sandbox`, which the daemon then GETs from
+ * inside the sandbox container. Without this check the model could
+ * make the daemon fetch cloud-metadata services
+ * (`http://169.254.169.254/...`), localhost, or RFC1918 endpoints —
+ * exfiltrating credentials or pivoting into the cluster network.
+ *
+ * Policy:
+ *   - http/https only (no file://, gopher://, etc.)
+ *   - Hostname must resolve to a public unicast address
+ *   - Reject loopback, link-local, RFC1918 / unique-local, IPv4-mapped
+ *     IPv6 forms of any of the above
+ *
+ * Redirects are revalidated on every hop in `fetchWithSsrfGuard`.
+ */
+function isPrivateIp(ip: string): boolean {
+  const family = net.isIP(ip);
+  if (family === 4) {
+    const parts = ip.split(".").map(Number);
+    const [a, b] = parts;
+    if (a === undefined || b === undefined) return true;
+    if (a === 10) return true;
+    if (a === 127) return true;
+    if (a === 0) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a >= 224) return true; // multicast / reserved
+    return false;
+  }
+  if (family === 6) {
+    const lower = ip.toLowerCase();
+    if (lower === "::1" || lower === "::") return true;
+    if (lower.startsWith("fe80:") || lower.startsWith("febf:")) return true;
+    if (
+      lower.startsWith("fc") ||
+      lower.startsWith("fd") ||
+      lower.startsWith("ff")
+    ) {
+      return true;
+    }
+    if (lower.startsWith("::ffff:")) {
+      return isPrivateIp(lower.slice("::ffff:".length));
+    }
+    return false;
+  }
+  return true; // not an IP — caller resolves hostnames
+}
+
+async function assertSafeFetchUrl(rawUrl: string): Promise<void> {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error("Invalid URL");
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error(`Disallowed URL scheme: ${parsed.protocol}`);
+  }
+  const host = parsed.hostname;
+  if (net.isIP(host)) {
+    if (isPrivateIp(host)) {
+      throw new Error(`URL points to a private/loopback address: ${host}`);
+    }
+    return;
+  }
+  let addrs: { address: string; family: number }[];
+  try {
+    addrs = await dnsPromises.lookup(host, { all: true });
+  } catch {
+    throw new Error(`Could not resolve host: ${host}`);
+  }
+  for (const addr of addrs) {
+    if (isPrivateIp(addr.address)) {
+      throw new Error(
+        `URL host resolves to a private/loopback address: ${host} → ${addr.address}`,
+      );
+    }
+  }
+}
+
+const MAX_REDIRECT_HOPS = 5;
+
+/**
+ * Wrap fetch with the SSRF guard, revalidating each redirect. Returns
+ * the final 2xx/4xx/5xx response; throws on disallowed targets, too
+ * many hops, or DNS failures.
+ */
+async function fetchWithSsrfGuard(
+  url: string,
+  init?: RequestInit,
+): Promise<Response> {
+  let current = url;
+  for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
+    await assertSafeFetchUrl(current);
+    const resp = await fetch(current, { ...init, redirect: "manual" });
+    if (resp.status >= 300 && resp.status < 400) {
+      const location = resp.headers.get("Location");
+      if (!location) return resp;
+      current = new URL(location, current).toString();
+      continue;
+    }
+    return resp;
+  }
+  throw new Error(`Too many redirects (>${MAX_REDIRECT_HOPS})`);
+}
 
 export interface FsDeps {
   appRoot: string;
@@ -326,11 +436,11 @@ export function makeWriteFromUrlHandler(deps: FsDeps) {
 
     let resp: Response;
     try {
-      resp = await fetch(body.url);
+      resp = await fetchWithSsrfGuard(body.url);
     } catch (err) {
       return jsonResponse(
         { error: `fetch failed: ${(err as Error).message}` },
-        502,
+        400,
       );
     }
     if (!resp.ok || !resp.body) {
@@ -423,18 +533,24 @@ export function makeUploadToUrlHandler(deps: FsDeps) {
       );
     }
 
-    const bytes = fs.readFileSync(filePath);
     const headers: Record<string, string> = {
       "Content-Length": String(stat.size),
     };
     if (body.contentType) headers["Content-Type"] = body.contentType;
 
+    // Stream the file body — readFileSync at MAX_TRANSFER_BYTES would peg
+    // ~25% of the daemon's memory cap on a single concurrent upload.
+    // Bun.file().stream() returns a ReadableStream<Uint8Array> that fetch
+    // accepts directly; backpressure stays on the network socket.
     let resp: Response;
     try {
       resp = await fetch(body.url, {
         method: "PUT",
-        body: bytes,
+        body: Bun.file(filePath).stream(),
         headers,
+        // No SSRF revalidation here — the URL is mesh-minted (presigned
+        // PUT to S3/R2), so the model can't influence where bytes go.
+        // upload PUTs don't redirect under S3/R2 semantics anyway.
       });
     } catch (err) {
       return jsonResponse(

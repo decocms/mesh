@@ -75,6 +75,21 @@ function sanitizeFilename(name: string): string | null {
   return trimmed;
 }
 
+/**
+ * Build a stable file-redirect URL. Must encode each path segment so
+ * keys carrying URL-special chars (`?`, `#`, `&`, space, ...) survive
+ * round-trip — the `/api/:org/files/*` route reads `c.req.path` which
+ * truncates at the first unescaped `?`.
+ */
+function toFileDownloadUrl(
+  baseUrl: string,
+  orgId: string,
+  key: string,
+): string {
+  const encodedKey = key.split("/").map(encodeURIComponent).join("/");
+  return `${baseUrl}/api/${encodeURIComponent(orgId)}/files/${encodedKey}`;
+}
+
 export type { VmToolsParams } from "./types";
 
 async function daemonRequest(
@@ -269,7 +284,7 @@ export function createVmTools(params: VmToolsParams) {
       return {
         key,
         filename,
-        downloadUrl: `${ctx.baseUrl}/api/${orgId}/files/${key}`,
+        downloadUrl: toFileDownloadUrl(ctx.baseUrl, orgId, key),
       };
     },
   });

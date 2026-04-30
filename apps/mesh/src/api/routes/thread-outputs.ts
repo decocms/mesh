@@ -55,12 +55,16 @@ app.get("/threads/:threadId/outputs", async (c) => {
   return c.json({
     objects: result.objects.map((o) => {
       const filename = o.key.split("/").pop() ?? o.key;
+      // Encode each path segment — keys may carry URL-special chars
+      // (?, #, &, space) and `c.req.path` in the files route truncates
+      // at the first unescaped `?`.
+      const encodedKey = o.key.split("/").map(encodeURIComponent).join("/");
       return {
         key: o.key,
         filename,
         size: o.size,
         uploadedAt: o.lastModified?.toISOString(),
-        downloadUrl: `${origin}/api/${orgId}/files/${o.key}`,
+        downloadUrl: `${origin}/api/${encodeURIComponent(orgId)}/files/${encodedKey}`,
       };
     }),
   });
