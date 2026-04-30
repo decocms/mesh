@@ -31,7 +31,7 @@ export function makeExecHandler(deps: ExecDeps) {
     const pmConfig = PACKAGE_MANAGER_DAEMON_CONFIG[deps.config.packageManager];
     if (!pmConfig)
       return jsonResponse({ error: "unknown package manager" }, 400);
-    const cmd = `${deps.config.pathPrefix}cd /app && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=${deps.config.devPort} ${pmConfig.runPrefix} ${name}`;
+    const cmd = `${deps.config.pathPrefix}cd ${deps.config.appRoot} && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=${deps.config.devPort} ${pmConfig.runPrefix} ${name}`;
     deps.processManager.run(name, cmd, `$ ${pmConfig.runPrefix} ${name}`);
     return jsonResponse({ ok: true });
   };
