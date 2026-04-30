@@ -12,12 +12,23 @@ import {
 } from "@/web/hooks/use-automations";
 import { AutomationListRow } from "./automation-list-row";
 import { track } from "@/web/lib/posthog-client";
+import {
+  NO_PERMISSION_TOOLTIP,
+  useCapability,
+} from "@/web/hooks/use-capability";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 
 export function AutomationsList({ virtualMcpId }: { virtualMcpId: string }) {
   const navigate = useNavigate();
   const { data: automations = [] } = useAutomations(virtualMcpId);
   const { create } = useAutomationActions();
   const [search, setSearch] = useState("");
+  const { granted: canManageAutomations } = useCapability("automations:manage");
 
   const lowerSearch = search.toLowerCase();
   const filtered = automations.filter((a) =>
@@ -61,10 +72,30 @@ export function AutomationsList({ virtualMcpId }: { virtualMcpId: string }) {
                   className="w-full md:w-[375px]"
                 />
               )}
-              <Button size="sm" onClick={handleNew} disabled={create.isPending}>
-                <Plus size={14} />
-                New automation
-              </Button>
+              {canManageAutomations ? (
+                <Button
+                  size="sm"
+                  onClick={handleNew}
+                  disabled={create.isPending}
+                >
+                  <Plus size={14} />
+                  New automation
+                </Button>
+              ) : (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex">
+                        <Button size="sm" disabled aria-disabled>
+                          <Plus size={14} />
+                          New automation
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>{NO_PERMISSION_TOOLTIP}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </div>
           </div>
 
@@ -75,14 +106,16 @@ export function AutomationsList({ virtualMcpId }: { virtualMcpId: string }) {
                 title="No automations yet"
                 description="Create your first automation to run this agent on a schedule or in response to events."
                 actions={
-                  <Button
-                    size="sm"
-                    onClick={handleNew}
-                    disabled={create.isPending}
-                  >
-                    <Plus size={14} />
-                    New automation
-                  </Button>
+                  canManageAutomations && (
+                    <Button
+                      size="sm"
+                      onClick={handleNew}
+                      disabled={create.isPending}
+                    >
+                      <Plus size={14} />
+                      New automation
+                    </Button>
+                  )
                 }
               />
             </div>

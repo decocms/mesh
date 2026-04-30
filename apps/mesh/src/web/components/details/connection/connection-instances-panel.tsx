@@ -10,9 +10,11 @@ interface ConnectionInstancesPanelProps {
   instances: ConnectionEntity[];
   onConfigure: (instance: ConnectionEntity) => void;
   onAuthenticate: (instance: ConnectionEntity) => void;
-  onDelete: (instance: ConnectionEntity) => void;
+  onDelete?: (instance: ConnectionEntity) => void;
   onAdd: () => void;
   isAdding?: boolean;
+  /** When false the Add/Delete buttons are hidden. Defaults to true. */
+  canManage?: boolean;
 }
 
 function InstanceItem({
@@ -24,7 +26,7 @@ function InstanceItem({
   instance: ConnectionEntity;
   onConfigure: (instance: ConnectionEntity) => void;
   onAuthenticate: (instance: ConnectionEntity) => void;
-  onDelete: (instance: ConnectionEntity) => void;
+  onDelete?: (instance: ConnectionEntity) => void;
 }) {
   const authStatus = useMCPAuthStatus({ connectionId: instance.id });
   const isVirtual = instance.connection_type === "VIRTUAL";
@@ -74,15 +76,17 @@ function InstanceItem({
         >
           <Settings02 size={13} />
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 text-muted-foreground hover:text-destructive"
-          onClick={() => onDelete(instance)}
-          title="Delete"
-        >
-          <Trash01 size={13} />
-        </Button>
+        {onDelete && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+            onClick={() => onDelete(instance)}
+            title="Delete"
+          >
+            <Trash01 size={13} />
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -128,6 +132,7 @@ export function ConnectionInstancesPanel({
   onDelete,
   onAdd,
   isAdding,
+  canManage = true,
 }: ConnectionInstancesPanelProps) {
   if (instances.length === 0) return null;
   return (
@@ -136,20 +141,22 @@ export function ConnectionInstancesPanel({
         <h3 className="text-sm font-semibold text-foreground">
           {instances.length === 1 ? "Instance" : "Instances"}
         </h3>
-        <Button
-          variant="default"
-          size="sm"
-          className="h-7 gap-1.5 text-xs"
-          onClick={onAdd}
-          disabled={isAdding}
-        >
-          {isAdding ? (
-            <Loading01 size={13} className="animate-spin" />
-          ) : (
-            <Plus size={13} />
-          )}
-          Add instance
-        </Button>
+        {canManage && (
+          <Button
+            variant="default"
+            size="sm"
+            className="h-7 gap-1.5 text-xs"
+            onClick={onAdd}
+            disabled={isAdding}
+          >
+            {isAdding ? (
+              <Loading01 size={13} className="animate-spin" />
+            ) : (
+              <Plus size={13} />
+            )}
+            Add instance
+          </Button>
+        )}
       </div>
       <div className="p-2 flex flex-col gap-1">
         {instances.map((instance) => (

@@ -10,6 +10,16 @@ import { Page } from "@/web/components/page";
 import type { RegistryItem } from "@/web/components/store/types";
 import { DeleteConnectionDialogs } from "@/web/components/delete-connection-dialogs";
 import { useDeleteConnection } from "@/web/hooks/use-delete-connection";
+import {
+  NO_PERMISSION_TOOLTIP,
+  useCapability,
+} from "@/web/hooks/use-capability";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
@@ -280,6 +290,7 @@ function BulkActionBar({
   onAddToAgent,
   onToggleStatus,
   onCancel,
+  canManage = true,
 }: {
   count: number;
   total: number;
@@ -289,6 +300,7 @@ function BulkActionBar({
   onAddToAgent: () => void;
   onToggleStatus: (status: "active" | "inactive") => void;
   onCancel: () => void;
+  canManage?: boolean;
 }) {
   if (count === 0) return null;
 
@@ -326,31 +338,35 @@ function BulkActionBar({
           <Plus size={13} />
           Add to Agent
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 text-xs px-2"
-          onClick={() => onToggleStatus("active")}
-        >
-          Enable
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 text-xs px-2"
-          onClick={() => onToggleStatus("inactive")}
-        >
-          Disable
-        </Button>
-        <Button
-          variant="destructive"
-          size="sm"
-          className="h-7 text-xs px-2"
-          onClick={onDelete}
-        >
-          <Trash01 size={13} />
-          Delete
-        </Button>
+        {canManage && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs px-2"
+              onClick={() => onToggleStatus("active")}
+            >
+              Enable
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs px-2"
+              onClick={() => onToggleStatus("inactive")}
+            >
+              Disable
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-7 text-xs px-2"
+              onClick={onDelete}
+            >
+              <Trash01 size={13} />
+              Delete
+            </Button>
+          </>
+        )}
         <Button
           variant="ghost"
           size="sm"
@@ -674,6 +690,7 @@ function ConnectionResults({
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { data: session } = authClient.useSession();
+  const { granted: canManageConnections } = useCapability("connections:manage");
 
   const actions = useConnectionActions();
   const connections = useConnections(listState);
@@ -1159,16 +1176,18 @@ function ConnectionResults({
                                 <CheckSquare size={16} />
                                 Select
                               </DropdownMenuItem>
-                              <DropdownMenuItem
-                                variant="destructive"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  deleteConnection.requestDelete(connection);
-                                }}
-                              >
-                                <Trash01 size={16} />
-                                Delete
-                              </DropdownMenuItem>
+                              {canManageConnections && (
+                                <DropdownMenuItem
+                                  variant="destructive"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteConnection.requestDelete(connection);
+                                  }}
+                                >
+                                  <Trash01 size={16} />
+                                  Delete
+                                </DropdownMenuItem>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
@@ -1228,6 +1247,7 @@ function ConnectionResults({
           onAddToAgent={() => setAddToAgentOpen(true)}
           onToggleStatus={handleBulkToggleStatus}
           onCancel={exitSelectionMode}
+          canManage={canManageConnections}
         />
       )}
     </>
@@ -1244,6 +1264,7 @@ function OrgMcpsContent() {
   const { data: session } = authClient.useSession();
   const { stdioEnabled } = useAuthConfig();
   const isMobile = useIsMobile();
+  const { granted: canManageConnections } = useCapability("connections:manage");
 
   // Consolidated list UI state (search, filters, sorting, view mode)
   const listState = useListState<ConnectionEntity>({
@@ -1513,10 +1534,26 @@ function OrgMcpsContent() {
 
   const ctaButton = (
     <div className="flex items-center gap-2">
-      <Button variant="outline" onClick={openCreateDialog}>
-        <Plus size={14} className="sm:hidden" />
-        <span className="hidden sm:inline">Custom Connection</span>
-      </Button>
+      {canManageConnections ? (
+        <Button variant="outline" onClick={openCreateDialog}>
+          <Plus size={14} className="sm:hidden" />
+          <span className="hidden sm:inline">Custom Connection</span>
+        </Button>
+      ) : (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <Button variant="outline" disabled aria-disabled>
+                  <Plus size={14} className="sm:hidden" />
+                  <span className="hidden sm:inline">Custom Connection</span>
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{NO_PERMISSION_TOOLTIP}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
     </div>
   );
 

@@ -41,6 +41,7 @@ import type { TableColumn } from "@/web/components/collections/collection-table.
 import { Page } from "@/web/components/page";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { EmptyState } from "@/web/components/empty-state.tsx";
+import { RequireCapability } from "@/web/components/require-capability";
 import { SearchInput } from "@deco/ui/components/search-input.tsx";
 import {
   RoleDetailPage,
@@ -427,31 +428,33 @@ function RolesPageContent() {
 
 export default function RolesPage() {
   return (
-    <ErrorBoundary
-      fallback={
-        <Page>
-          <div className="flex items-center justify-center h-full">
-            <div className="text-sm text-muted-foreground">
-              Failed to load roles
-            </div>
-          </div>
-        </Page>
-      }
-    >
-      <Suspense
+    <RequireCapability capability="members:manage" area="roles">
+      <ErrorBoundary
         fallback={
           <Page>
             <div className="flex items-center justify-center h-full">
-              <Loading01
-                size={32}
-                className="animate-spin text-muted-foreground"
-              />
+              <div className="text-sm text-muted-foreground">
+                Failed to load roles
+              </div>
             </div>
           </Page>
         }
       >
-        <RolesPageContent />
-      </Suspense>
-    </ErrorBoundary>
+        <Suspense
+          fallback={
+            <Page>
+              <div className="flex items-center justify-center h-full">
+                <Loading01
+                  size={32}
+                  className="animate-spin text-muted-foreground"
+                />
+              </div>
+            </Page>
+          }
+        >
+          <RolesPageContent />
+        </Suspense>
+      </ErrorBoundary>
+    </RequireCapability>
   );
 }

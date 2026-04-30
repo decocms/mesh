@@ -58,6 +58,16 @@ import { toast } from "sonner";
 
 import { DeleteConnectionDialogs } from "@/web/components/delete-connection-dialogs";
 import { useDeleteConnection } from "@/web/hooks/use-delete-connection";
+import {
+  NO_PERMISSION_TOOLTIP,
+  useCapability,
+} from "@/web/hooks/use-capability";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 import { ViewLayout } from "../layout";
 import { ConnectionActivity } from "./connection-activity.tsx";
 import { ConnectionAgentsPanel } from "./connection-agents-panel.tsx";
@@ -241,6 +251,7 @@ function ConnectionInspectorViewWithConnection({
   const navigate = useNavigate({ from: "/$org/settings/connections/$appSlug" });
   const queryClient = useQueryClient();
   const connectionActions = useConnectionActions();
+  const { granted: canManageConnections } = useCapability("connections:manage");
   const deleteConnection = useDeleteConnection({
     onSuccess: () => {
       if (siblings.length <= 1) {
@@ -496,30 +507,47 @@ function ConnectionInspectorViewWithConnection({
               />
             </div>
             <div className="px-6 py-4 border-t border-border flex gap-2 shrink-0">
-              <Button
-                onClick={handleSave}
-                disabled={!hasAnyChanges || isUpdating}
-                className="flex-1"
-              >
-                {isUpdating ? "Saving…" : "Save changes"}
-              </Button>
+              {canManageConnections ? (
+                <Button
+                  onClick={handleSave}
+                  disabled={!hasAnyChanges || isUpdating}
+                  className="flex-1"
+                >
+                  {isUpdating ? "Saving…" : "Save changes"}
+                </Button>
+              ) : (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="flex-1 inline-flex">
+                        <Button disabled aria-disabled className="flex-1">
+                          Save changes
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>{NO_PERMISSION_TOOLTIP}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               {hasAnyChanges && (
                 <Button variant="outline" onClick={handleUndo}>
                   Undo
                 </Button>
               )}
-              <Button
-                variant="outline"
-                className="gap-2 text-muted-foreground hover:text-destructive hover:border-destructive"
-                onClick={() => {
-                  const inst = configureInstance ?? connection;
-                  setConfigureInstance(null);
-                  deleteConnection.requestDelete(inst);
-                }}
-              >
-                <Trash01 size={15} />
-                Delete
-              </Button>
+              {canManageConnections && (
+                <Button
+                  variant="outline"
+                  className="gap-2 text-muted-foreground hover:text-destructive hover:border-destructive"
+                  onClick={() => {
+                    const inst = configureInstance ?? connection;
+                    setConfigureInstance(null);
+                    deleteConnection.requestDelete(inst);
+                  }}
+                >
+                  <Trash01 size={15} />
+                  Delete
+                </Button>
+              )}
             </div>
           </Form>
         </SheetContent>
@@ -547,7 +575,12 @@ function ConnectionInspectorViewWithConnection({
                   instances={siblings}
                   onConfigure={(inst) => setConfigureInstance(inst)}
                   onAuthenticate={(inst) => handleAuthenticateForId(inst.id)}
-                  onDelete={(inst) => deleteConnection.requestDelete(inst)}
+                  onDelete={
+                    canManageConnections
+                      ? (inst) => deleteConnection.requestDelete(inst)
+                      : undefined
+                  }
+                  canManage={canManageConnections}
                   isAdding={isAddingInstance}
                   onAdd={async () => {
                     setIsAddingInstance(true);

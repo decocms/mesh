@@ -1042,7 +1042,7 @@ export interface PermissionCapability {
  */
 const BASIC_USAGE_CAPABILITY_ID = "basic-usage";
 
-const PERMISSION_CAPABILITIES: PermissionCapability[] = [
+export const PERMISSION_CAPABILITIES: PermissionCapability[] = [
   // Basic usage — granted to all org members, hidden from UI
   {
     id: BASIC_USAGE_CAPABILITY_ID,
