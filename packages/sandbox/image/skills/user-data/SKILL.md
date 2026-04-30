@@ -12,7 +12,7 @@ skills (pptx, docx, pdf, ...) can act on them.
 | List a prefix                         | `user-data-list chat-uploads/`                       |
 | Page through results                  | `user-data-list --page-token <token>`                |
 | JSON output (for piping to `jq`)      | `user-data-list --json`                              |
-| Download by stable URI                | `user-data-download mesh-storage:chat-uploads/x.pdf` |
+| Download by stable URI                | `user-data-download mesh-storage://chat-uploads/x.pdf` |
 | Download by bare key                  | `user-data-download chat-uploads/x.pdf`              |
 | Download from a presigned URL         | `user-data-download "https://..."`                   |
 | Override save path                    | `user-data-download <input> --out /tmp/x.pdf`        |
@@ -46,15 +46,15 @@ Accepts three input shapes:
 
 1. `https://…` / `http://…` — fetched directly (e.g. a presigned URL the
    model already has).
-2. `mesh-storage:KEY` — the stable URI shape you'll see in chat
-   annotations like `[Uploaded files] - foo.pdf: mesh-storage:chat-uploads/abc.pdf`.
+2. `mesh-storage://KEY` — the stable URI shape you'll see in chat
+   annotations like `[Uploaded files] - foo.pdf: mesh-storage://chat-uploads/abc.pdf`.
 3. A bare `KEY` like `chat-uploads/abc.pdf`.
 
 Defaults the save path to `/home/sandbox/<basename>`. Prints the final
 path on stdout — pipe straight into another skill:
 
 ```sh
-pptx-extract "$(user-data-download mesh-storage:chat-uploads/deck.pptx)"
+pptx-extract "$(user-data-download mesh-storage://chat-uploads/deck.pptx)"
 ```
 
 ## Environment
