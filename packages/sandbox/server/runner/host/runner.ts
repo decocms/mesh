@@ -11,7 +11,7 @@
  */
 
 import { randomBytes, randomUUID } from "node:crypto";
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { createServer } from "node:net";
 import { dirname, join } from "node:path";
 import {
@@ -201,10 +201,42 @@ export class HostSandboxRunner implements SandboxRunner {
     return daemonBash(rec.daemonUrl, rec.token, input);
   }
 
-  async delete(_handle: string): Promise<void> {
-    // killFn used in Task 9.
-    void this.killFn;
-    throw new Error("not implemented (Task 9)");
+  async delete(handle: string): Promise<void> {
+    const rec = await this.getRecord(handle);
+    this.records.delete(handle);
+
+    if (rec) {
+      if (this.isAliveFn(rec.pid)) {
+        try {
+          this.killFn(rec.pid, "SIGTERM");
+        } catch {
+          /* already gone */
+        }
+        const deadline = Date.now() + STOP_GRACE_MS;
+        while (Date.now() < deadline) {
+          if (!this.isAliveFn(rec.pid)) break;
+          await new Promise((r) => setTimeout(r, 50));
+        }
+        if (this.isAliveFn(rec.pid)) {
+          try {
+            this.killFn(rec.pid, "SIGKILL");
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+      await rm(rec.workdir, { recursive: true, force: true }).catch((err) =>
+        console.warn(
+          `[HostSandboxRunner] rm workdir(${handle}) failed:`,
+          err instanceof Error ? err.message : String(err),
+        ),
+      );
+    }
+
+    if (this.stateStore) {
+      if (rec) await this.stateStore.delete(rec.id, RUNNER_KIND);
+      else await this.stateStore.deleteByHandle(RUNNER_KIND, handle);
+    }
   }
 
   async alive(handle: string): Promise<boolean> {

@@ -267,3 +267,116 @@ describe("HostSandboxRunner.ensure rehydration", () => {
     expect(fakeProbe).toHaveBeenCalled();
   });
 });
+
+describe("HostSandboxRunner.delete", () => {
+  let homeDir: string;
+  beforeEach(async () => {
+    homeDir = await mkdtemp(join(tmpdir(), "host-runner-delete-"));
+  });
+  afterEach(async () => {
+    await rm(homeDir, { recursive: true, force: true });
+  });
+
+  it("kills the daemon, removes the workdir, and clears state-store entry", async () => {
+    const store = makeStore();
+    const id = { userId: "u1", projectRef: "vmcp:1:branch:main" };
+
+    const killed: { signal: NodeJS.Signals }[] = [];
+    let aliveCount = 0;
+    const fakeSpawn = mock(async () => ({ pid: 99999, kill: () => true }));
+    const fakeProbe = mock(async () => ({
+      ready: true,
+      bootId: "boot",
+      setup: { running: false, done: true },
+    }));
+
+    const runner = new HostSandboxRunner({
+      homeDir,
+      stateStore: store,
+      _spawn: fakeSpawn,
+      _probe: fakeProbe,
+      _kill: (_pid, signal) => killed.push({ signal }),
+      // Alive on the first check (entering grace loop), then dead. This
+      // ensures the grace loop loops at least once and exits cleanly.
+      _isAlive: () => {
+        aliveCount++;
+        return aliveCount === 1;
+      },
+    });
+
+    const sandbox = await runner.ensure(id, {
+      repo: {
+        cloneUrl: "https://example.com/x.git",
+        userName: "u",
+        userEmail: "u@x",
+        branch: "main",
+      },
+    });
+
+    // Workdir parent should exist after ensure (mkdir of dirname).
+    const { existsSync } = await import("node:fs");
+    expect(existsSync(join(homeDir, "sandboxes"))).toBe(true);
+
+    await runner.delete(sandbox.handle);
+
+    expect(killed.length).toBeGreaterThanOrEqual(1);
+    expect(killed[0].signal).toBe("SIGTERM");
+    // Workdir for this sandbox is gone.
+    expect(existsSync(sandbox.workdir)).toBe(false);
+    // State store cleared.
+    expect(await store.getByHandle("host", sandbox.handle)).toBeNull();
+  });
+
+  it("escalates to SIGKILL when the daemon ignores SIGTERM", async () => {
+    const store = makeStore();
+    const id = { userId: "u1", projectRef: "vmcp:1:branch:zombie" };
+
+    const killed: NodeJS.Signals[] = [];
+    const fakeSpawn = mock(async () => ({ pid: 88888, kill: () => true }));
+    const fakeProbe = mock(async () => ({
+      ready: true,
+      bootId: "b",
+      setup: { running: false, done: true },
+    }));
+
+    const runner = new HostSandboxRunner({
+      homeDir,
+      stateStore: store,
+      _spawn: fakeSpawn,
+      _probe: fakeProbe,
+      _kill: (_pid, signal) => killed.push(signal),
+      // Always alive — daemon never dies after SIGTERM.
+      _isAlive: () => true,
+    });
+
+    const sandbox = await runner.ensure(id, {
+      repo: {
+        cloneUrl: "https://example.com/y.git",
+        userName: "u",
+        userEmail: "u@x",
+        branch: "zombie",
+      },
+    });
+
+    await runner.delete(sandbox.handle);
+
+    expect(killed).toContain("SIGTERM");
+    expect(killed).toContain("SIGKILL");
+  });
+
+  it("is a no-op for an unknown handle (no throw, no work)", async () => {
+    const runner = new HostSandboxRunner({
+      homeDir,
+      stateStore: makeStore(),
+      _spawn: mock(async () => ({ pid: 0, kill: () => true })),
+      _probe: mock(async () => null),
+      _kill: () => {
+        throw new Error("should not be called");
+      },
+      _isAlive: () => false,
+    });
+
+    await runner.delete("does-not-exist");
+    // No assertions needed — passing without throwing is the contract.
+  });
+});
