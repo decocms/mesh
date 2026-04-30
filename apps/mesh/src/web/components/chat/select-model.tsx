@@ -60,6 +60,7 @@ import { getProviderLogo } from "@/web/utils/ai-providers-logos";
 import { useNavigate } from "@tanstack/react-router";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import { NoAiProviderEmptyState } from "./no-ai-provider-empty-state";
+import { useCapability } from "@/web/hooks/use-capability";
 
 function parseModelTitle(model: { title: string; modelId: string }): {
   provider: string;
@@ -1113,6 +1114,7 @@ function ModelSelectorInner({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const aiProviders = useAiProviders();
   const keys = useAiProviderKeys();
+  const { granted: canManageProviders } = useCapability("ai-providers:manage");
 
   const providerMap = Object.fromEntries(
     (aiProviders?.providers ?? []).map((p) => [p.id, p]),
@@ -1250,7 +1252,7 @@ function ModelSelectorInner({
             />
           </Suspense>
         </ErrorBoundary>
-        {!managing && (
+        {!managing && canManageProviders && (
           <div className="border-t border-border flex">
             <button
               type="button"

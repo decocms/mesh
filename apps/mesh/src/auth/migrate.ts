@@ -35,10 +35,14 @@ export async function migrateBetterAuth(databaseUrl?: string): Promise<string> {
 
   // Minimal options — only needs plugins to discover which tables to create.
   // Does not need auth config, rate limiting, hooks, etc.
+  // dynamicAccessControl must be enabled here so Better Auth creates the
+  // organizationRole table that backs custom roles & per-role permissions.
   const options = {
     database: freshDatabase,
     plugins: [
-      organization(),
+      organization({
+        dynamicAccessControl: { enabled: true, enableCustomResources: true },
+      }),
       adminPlugin(),
       apiKey(),
       jwt(),

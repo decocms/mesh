@@ -8,6 +8,7 @@ import { SearchInput } from "@deco/ui/components/search-input.tsx";
 import { Page } from "@/web/components/page";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
+import { RequireCapability } from "@/web/components/require-capability";
 import { MONITORING_CONFIG } from "@/web/components/monitoring/config.ts";
 import type { DateRange } from "@/web/components/monitoring/monitoring-stats-row.tsx";
 import {
@@ -816,7 +817,15 @@ function MonitoringDashboardContent({
 // Route Entry Point
 // ============================================================================
 
-export default function MonitoringDashboard() {
+export default function MonitoringDashboardRoute() {
+  return (
+    <RequireCapability capability="monitoring:view" area="monitoring">
+      <MonitoringDashboard />
+    </RequireCapability>
+  );
+}
+
+function MonitoringDashboard() {
   const { org } = useProjectContext();
   const navigate = useNavigate();
   const search = useSearch({

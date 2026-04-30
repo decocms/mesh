@@ -9,6 +9,7 @@ import {
   CollectionListInputSchema,
   createCollectionListOutputSchema,
 } from "@decocms/bindings/collections";
+import { ForbiddenError } from "../../core/access-control";
 import { defineTool } from "../../core/define-tool";
 import { requireOrganization } from "../../core/mesh-context";
 import { normalizeThreadForResponse } from "./helpers";
@@ -48,7 +49,9 @@ const ThreadListInputSchema = CollectionListInputSchema.extend({
   userId: z
     .string()
     .optional()
-    .describe("Filter by the user who created the thread"),
+    .describe(
+      "Filter by the user who created the thread. Members without the `THREADS_VIEW_ALL_MEMBERS` capability can only filter by their own user id; passing a different id will raise a permission error.",
+    ),
   agentId: z
     .string()
     .optional()
@@ -87,9 +90,26 @@ export const COLLECTION_THREADS_LIST = defineTool({
     const triggerIds = input.where?.trigger_ids;
     const virtualMcpId = input.where?.virtual_mcp_id;
     // "me" is a reserved value meaning "filter by the authenticated user"
-    const createdBy =
+    const requestedCreatedBy =
       input.userId ??
       (input.where?.created_by === "me" ? userId : input.where?.created_by);
+
+    // Members without `threads:view-all` may only filter by their own user
+    // id (or omit the filter, which we then default to "self"). Asking for
+    // someone else's threads is a permission error rather than a silent
+    // override — silent overrides made it look like the API was returning
+    // empty results when the caller mistyped a userId.
+    const canViewAll = await ctx.access.has("THREADS_VIEW_ALL_MEMBERS");
+    if (
+      !canViewAll &&
+      requestedCreatedBy !== undefined &&
+      requestedCreatedBy !== userId
+    ) {
+      throw new ForbiddenError(
+        "You don't have permission to list other members' threads. Ask an organization admin to grant the 'View other members' threads' capability if you need it.",
+      );
+    }
+    const createdBy = canViewAll ? requestedCreatedBy : userId;
 
     const { threads, total } = triggerIds?.length
       ? await ctx.storage.threads.listByTriggerIds(triggerIds, {

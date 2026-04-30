@@ -38,6 +38,16 @@ import { FolderClosed, Plus } from "@untitledui/icons";
 import { toast } from "sonner";
 import { GitHubRepoPicker } from "@/web/components/github-repo-picker.tsx";
 import { track } from "@/web/lib/posthog-client";
+import {
+  NO_PERMISSION_TOOLTIP,
+  useCapability,
+} from "@/web/hooks/use-capability";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 
 export default function AgentsListPage() {
   const { org } = useProjectContext();
@@ -45,6 +55,7 @@ export default function AgentsListPage() {
   const actions = useVirtualMCPActions();
   const navigateToAgent = useNavigateToAgent();
   const [search, setSearch] = useState("");
+  const { granted: canManageAgents } = useCapability("agents:manage");
   const { createVirtualMCP, isCreating } = useCreateVirtualMCP({
     navigateOnCreate: true,
   });
@@ -145,39 +156,55 @@ export default function AgentsListPage() {
                   }
                 }}
               />
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="sm">
-                    <Plus size={14} />
-                    Create Agent
-                  </Button>
-                </DropdownMenuTrigger>
-                <CreateAgentDropdownContent
-                  onCreateFromScratch={() => {
-                    track("agent_create_clicked", {
-                      source: "agents_list",
-                      method: "scratch",
-                    });
-                    createVirtualMCP();
-                  }}
-                  onImportGitHub={() => {
-                    track("agent_create_clicked", {
-                      source: "agents_list",
-                      method: "github",
-                    });
-                    setGithubPickerOpen(true);
-                  }}
-                  onImportDeco={() => {
-                    track("agent_create_clicked", {
-                      source: "agents_list",
-                      method: "deco",
-                    });
-                    setImportDecoOpen(true);
-                  }}
-                  isCreating={isCreating}
-                  align="end"
-                />
-              </DropdownMenu>
+              {canManageAgents ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm">
+                      <Plus size={14} />
+                      Create Agent
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <CreateAgentDropdownContent
+                    onCreateFromScratch={() => {
+                      track("agent_create_clicked", {
+                        source: "agents_list",
+                        method: "scratch",
+                      });
+                      createVirtualMCP();
+                    }}
+                    onImportGitHub={() => {
+                      track("agent_create_clicked", {
+                        source: "agents_list",
+                        method: "github",
+                      });
+                      setGithubPickerOpen(true);
+                    }}
+                    onImportDeco={() => {
+                      track("agent_create_clicked", {
+                        source: "agents_list",
+                        method: "deco",
+                      });
+                      setImportDecoOpen(true);
+                    }}
+                    isCreating={isCreating}
+                    align="end"
+                  />
+                </DropdownMenu>
+              ) : (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex">
+                        <Button size="sm" disabled aria-disabled>
+                          <Plus size={14} />
+                          Create Agent
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>{NO_PERMISSION_TOOLTIP}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </div>
           </div>
 
@@ -194,7 +221,8 @@ export default function AgentsListPage() {
                     : "Create an agent to get started."
                 }
                 actions={
-                  !search && (
+                  !search &&
+                  canManageAgents && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button size="sm">
@@ -245,11 +273,14 @@ export default function AgentsListPage() {
                   <ProjectCard
                     key={agent.id}
                     project={agent}
-                    onDeleteClick={() =>
-                      setDeleteTarget({
-                        id: agent.id,
-                        title: agent.title,
-                      })
+                    onDeleteClick={
+                      canManageAgents
+                        ? () =>
+                            setDeleteTarget({
+                              id: agent.id,
+                              title: agent.title,
+                            })
+                        : undefined
                     }
                   />
                 ))}

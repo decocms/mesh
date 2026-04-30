@@ -11,6 +11,7 @@ import { cn } from "@deco/ui/lib/utils.js";
 import type { Task } from "@/web/components/chat/task/types";
 import { TaskRow } from "./task-row";
 import { track } from "@/web/lib/posthog-client";
+import { useCapability } from "@/web/hooks/use-capability";
 
 type FilterOption = "all" | "manual" | "automation";
 type MemberFilter = "all" | "mine";
@@ -51,9 +52,16 @@ export function TasksSection({
 }) {
   const [filter, setFilter] = useState<FilterOption>("all");
   const [memberFilter, setMemberFilter] = useState<MemberFilter>("mine");
+  const { granted: canViewAllThreads } = useCapability("threads:view-all");
+
+  // Members without threads:view-all are pinned to "mine" — server enforces
+  // the same scope, so the All members option is redundant for them.
+  const effectiveMemberFilter: MemberFilter = canViewAllThreads
+    ? memberFilter
+    : "mine";
 
   const memberFiltered =
-    memberFilter === "mine" && currentUserId
+    effectiveMemberFilter === "mine" && currentUserId
       ? tasks.filter((t) => t.created_by === currentUserId)
       : tasks;
 
@@ -69,43 +77,45 @@ export function TasksSection({
       <div className="pl-2 pr-1.5 h-7 flex items-center justify-between text-xs font-medium text-muted-foreground mb-1">
         <span>{title}</span>
         <div className="flex items-center gap-0.5">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                aria-label="Filter by member"
-                className="flex size-8 items-center justify-center rounded-md hover:bg-muted hover:text-foreground"
-              >
-                {memberFilter === "mine" ? (
-                  <User02 size={16} />
-                ) : (
-                  <Users03 size={16} />
-                )}
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuRadioGroup
-                value={memberFilter}
-                onValueChange={(v) => {
-                  const next = v as MemberFilter;
-                  if (next !== memberFilter) {
-                    track("tasks_panel_member_filter_changed", {
-                      to_value: next,
-                    });
-                  }
-                  setMemberFilter(next);
-                }}
-              >
-                {(Object.keys(MEMBER_FILTER_LABELS) as MemberFilter[]).map(
-                  (opt) => (
-                    <DropdownMenuRadioItem key={opt} value={opt}>
-                      {MEMBER_FILTER_LABELS[opt]}
-                    </DropdownMenuRadioItem>
-                  ),
-                )}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {canViewAllThreads && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Filter by member"
+                  className="flex size-8 items-center justify-center rounded-md hover:bg-muted hover:text-foreground"
+                >
+                  {memberFilter === "mine" ? (
+                    <User02 size={16} />
+                  ) : (
+                    <Users03 size={16} />
+                  )}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuRadioGroup
+                  value={memberFilter}
+                  onValueChange={(v) => {
+                    const next = v as MemberFilter;
+                    if (next !== memberFilter) {
+                      track("tasks_panel_member_filter_changed", {
+                        to_value: next,
+                      });
+                    }
+                    setMemberFilter(next);
+                  }}
+                >
+                  {(Object.keys(MEMBER_FILTER_LABELS) as MemberFilter[]).map(
+                    (opt) => (
+                      <DropdownMenuRadioItem key={opt} value={opt}>
+                        {MEMBER_FILTER_LABELS[opt]}
+                      </DropdownMenuRadioItem>
+                    ),
+                  )}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button

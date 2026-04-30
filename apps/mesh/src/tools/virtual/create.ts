@@ -14,6 +14,8 @@ import {
   requireOrganization,
 } from "../../core/mesh-context";
 import { VirtualMCPCreateDataSchema, VirtualMCPEntitySchema } from "./schema";
+import { grantResourceAccessToAllCustomRoles } from "../../auth/grant-resource-access";
+import { getDb } from "../../database";
 /**
  * Random icon+color for new agents (server-side, no React deps).
  * Uses the same icon:// format as the client-side agent-icon module.
@@ -122,6 +124,18 @@ export const COLLECTION_VIRTUAL_MCP_CREATE = defineTool({
       userId,
       dataWithIcon,
     );
+
+    // Auto-grant the new virtual MCP to every existing custom role.
+    await grantResourceAccessToAllCustomRoles(
+      getDb().db,
+      organization.id,
+      virtualMcp.id,
+    ).catch((err) => {
+      console.error(
+        "[virtual-mcp.create] Failed to auto-grant new agent to roles",
+        err,
+      );
+    });
 
     // Return virtual MCP entity directly (already in correct format)
     return {

@@ -145,9 +145,13 @@ export class AccessControl implements Disposable {
       }
     }
 
-    // No permission found
+    // No permission found. The error message is read by both the chat
+    // model and the UI error handler — keep it explicit and directive so
+    // the AI tells the user about the permission instead of trying to
+    // install / fall back to other tools.
+    const resourcesText = resourcesToCheck.join(", ");
     throw new ForbiddenError(
-      `Access denied to: ${resourcesToCheck.join(", ")}`,
+      `Access denied to: ${resourcesText}. The current user does not have permission to use this tool. Tell the user that they need to ask an organization admin to update their role permissions to grant access. Do not attempt to install or use alternative tools — they will likely fail with the same permission error.`,
     );
   }
 
@@ -211,5 +215,21 @@ export class AccessControl implements Disposable {
    */
   granted(): boolean {
     return this._granted;
+  }
+
+  /**
+   * Soft permission check — returns true/false without throwing.
+   * Useful inside handlers that want to vary behavior based on the
+   * caller's role (e.g. show all rows vs. only the user's own).
+   */
+  async has(resource: string): Promise<boolean> {
+    if (!this.userId && !this.boundAuth) {
+      return false;
+    }
+    try {
+      return await this.checkResource(resource);
+    } catch {
+      return false;
+    }
   }
 }

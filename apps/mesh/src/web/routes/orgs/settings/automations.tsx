@@ -10,8 +10,17 @@ import { AutomationListRow } from "@/web/views/automations/automation-list-row";
 import { useVirtualMCPs, useProjectContext } from "@decocms/mesh-sdk";
 import { useNavigate } from "@tanstack/react-router";
 import { track } from "@/web/lib/posthog-client";
+import { RequireCapability } from "@/web/components/require-capability";
 
 export default function SettingsAutomationsPage() {
+  return (
+    <RequireCapability capability="automations:manage" area="automations">
+      <SettingsAutomationsPageInner />
+    </RequireCapability>
+  );
+}
+
+function SettingsAutomationsPageInner() {
   const { org } = useProjectContext();
   const { data: automations = [] } = useAutomations(undefined);
   const agents = useVirtualMCPs();

@@ -46,12 +46,18 @@ import { pluginSettingsSidebarItems } from "@/web/index";
 import { useStatusSounds } from "../hooks/use-status-sounds";
 import { authClient } from "@/web/lib/auth-client";
 import { track } from "@/web/lib/posthog-client";
+import { useCapabilities, type CapabilityId } from "@/web/hooks/use-capability";
 
 interface SettingsNavItem {
   key: string;
   label: string;
   icon: React.ReactNode;
   to: string;
+  /**
+   * If set, the item is only shown when the current user has the capability.
+   * Items with no requirement are visible to everyone.
+   */
+  requires?: CapabilityId;
 }
 
 interface SettingsNavGroup {
@@ -62,12 +68,13 @@ interface SettingsNavGroup {
 function useSettingsSidebarGroups(): SettingsNavGroup[] {
   const currentProject = useProjectContext().project;
   const enabledPlugins = currentProject.enabledPlugins ?? [];
+  const { capabilities, loading } = useCapabilities();
 
   const enabledSettingsItems = pluginSettingsSidebarItems
     .filter((item) => enabledPlugins.includes(item.pluginId))
     .map(({ key, label, icon, to }) => ({ key, label, icon, to }));
 
-  const groups: SettingsNavGroup[] = [
+  const allGroups: SettingsNavGroup[] = [
     {
       label: "Organization",
       items: [
@@ -76,18 +83,21 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
           label: "General",
           icon: <Building02 size={14} />,
           to: "/$org/settings/general",
+          requires: "org:manage",
         },
         {
           key: "brand-context",
           label: "Brand Context",
           icon: <BookOpen01 size={14} />,
           to: "/$org/settings/brand-context",
+          requires: "org:manage",
         },
         {
           key: "ai-providers",
           label: "AI Providers",
           icon: <CpuChip01 size={14} />,
           to: "/$org/settings/ai-providers",
+          requires: "ai-providers:manage",
         },
       ],
     },
@@ -111,12 +121,14 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
           label: "Automations",
           icon: <Zap size={14} />,
           to: "/$org/settings/automations",
+          requires: "automations:manage",
         },
         {
           key: "store",
           label: "Store",
           icon: <PackageCheck size={14} />,
           to: "/$org/settings/store",
+          requires: "registry:manage",
         },
       ],
     },
@@ -128,24 +140,28 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
           label: "Monitor",
           icon: <BarChart10 size={14} />,
           to: "/$org/settings/monitor",
+          requires: "monitoring:view",
         },
         {
           key: "members",
           label: "Members",
           icon: <Users03 size={14} />,
           to: "/$org/settings/members",
+          requires: "members:manage",
         },
         {
           key: "roles",
           label: "Roles",
           icon: <Shield01 size={14} />,
           to: "/$org/settings/roles",
+          requires: "members:manage",
         },
         {
           key: "sso",
           label: "Security",
           icon: <Lock01 size={14} />,
           to: "/$org/settings/sso",
+          requires: "org:manage",
         },
       ],
     },
@@ -157,6 +173,7 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
           label: "Plugins",
           icon: <Zap size={14} />,
           to: "/$org/settings/features",
+          requires: "org:manage",
         },
         ...enabledSettingsItems,
       ],
@@ -174,7 +191,18 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
     },
   ];
 
-  return groups;
+  // While capabilities are loading, show everything so we don't flash empty
+  // groups; permission checks still gate actual actions inside each page.
+  if (loading) return allGroups;
+
+  return allGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (item) => !item.requires || capabilities[item.requires],
+      ),
+    }))
+    .filter((group) => group.items.length > 0);
 }
 
 export function SettingsSidebar() {

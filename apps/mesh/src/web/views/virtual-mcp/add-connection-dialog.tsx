@@ -53,6 +53,7 @@ import {
 import { Suspense, useDeferredValue, useState } from "react";
 import { toast } from "sonner";
 import { track } from "@/web/lib/posthog-client";
+import { useCapability } from "@/web/hooks/use-capability";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -101,6 +102,7 @@ function ConnectionDialogContent({
   onCreateConnection,
   onBrowseNavigate,
   defaultTab = "connected",
+  canManageConnections,
 }: {
   mode?: ConnectionDialogMode;
   agentId?: string;
@@ -113,6 +115,7 @@ function ConnectionDialogContent({
   onCreateConnection: () => void;
   onBrowseNavigate?: (slug: string) => void;
   defaultTab?: "all" | "connected";
+  canManageConnections: boolean;
 }) {
   const { org } = useProjectContext();
   const deferredSearch = useDeferredValue(search);
@@ -235,7 +238,10 @@ function ConnectionDialogContent({
     isFetchingNextConnectionsPage,
   );
 
-  const showCatalog = activeTab === "all" || !!searchLower;
+  // Catalog items always require creating a new connection — no point in
+  // populating them for users who can't manage connections.
+  const showCatalog =
+    canManageConnections && (activeTab === "all" || !!searchLower);
 
   // Catalog items, excluding apps already shown as connected cards
   const catalogItems = showCatalog
@@ -308,6 +314,11 @@ function ConnectionDialogContent({
       );
     }
 
+    // When there is no available instance, the only way to attach is to
+    // clone — which creates a new connection. Hide the Add button when the
+    // user lacks connections:manage so they can't trigger a doomed call.
+    const showAddButton = !!availableInstance || canManageConnections;
+
     return (
       <ConnectionCard
         key={key}
@@ -321,48 +332,53 @@ function ConnectionDialogContent({
                 <Check size={11} /> Added
               </Badge>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 px-3 text-xs font-medium"
-              disabled={connectingItemId !== null}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (availableInstance) {
-                  track("connection_add_clicked", {
-                    action: "use_existing",
-                    app_name: firstInstance.app_name ?? null,
-                    connection_id: availableInstance.id,
-                  });
-                  if (agentId) {
-                    track("agent_connection_attached", {
-                      agent_id: agentId,
-                      connection_id: availableInstance.id,
+            {showAddButton && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-3 text-xs font-medium"
+                disabled={connectingItemId !== null}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (availableInstance) {
+                    track("connection_add_clicked", {
+                      action: "use_existing",
                       app_name: firstInstance.app_name ?? null,
-                      mode: "existing",
+                      connection_id: availableInstance.id,
                     });
+                    if (agentId) {
+                      track("agent_connection_attached", {
+                        agent_id: agentId,
+                        connection_id: availableInstance.id,
+                        app_name: firstInstance.app_name ?? null,
+                        mode: "existing",
+                      });
+                    }
+                    onAdd(availableInstance.id);
+                  } else {
+                    track("connection_add_clicked", {
+                      action: "clone",
+                      app_name: firstInstance.app_name ?? null,
+                      base_connection_id: firstInstance.id,
+                    });
+                    onCloneAndAdd(firstInstance);
                   }
-                  onAdd(availableInstance.id);
-                } else {
-                  track("connection_add_clicked", {
-                    action: "clone",
-                    app_name: firstInstance.app_name ?? null,
-                    base_connection_id: firstInstance.id,
-                  });
-                  onCloneAndAdd(firstInstance);
-                }
-              }}
-            >
-              Add
-            </Button>
+                }}
+              >
+                Add
+              </Button>
+            )}
           </div>
         }
       />
     );
   };
 
-  // Render a catalog item card — no instances yet
+  // Render a catalog item card — no instances yet. Catalog items always
+  // require creating a new connection, so hide them entirely when the user
+  // can't manage connections — they'd just produce 403s on click.
   const renderCatalogItem = (item: RegistryItem) => {
+    if (!canManageConnections) return null;
     const meshMeta = item._meta?.["mcp.mesh"] as
       | Record<string, string>
       | undefined;
@@ -437,18 +453,20 @@ function ConnectionDialogContent({
             activeTab={activeTab}
             onTabChange={(id) => handleTabChange(id as ConnectionTab)}
           />
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 px-2 text-sm"
-            onClick={() => {
-              track("connections_dialog_custom_clicked");
-              onCreateConnection();
-            }}
-          >
-            <Plus size={12} />
-            Custom Connection
-          </Button>
+          {canManageConnections && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-sm"
+              onClick={() => {
+                track("connections_dialog_custom_clicked");
+                onCreateConnection();
+              }}
+            >
+              <Plus size={12} />
+              Custom Connection
+            </Button>
+          )}
         </div>
       )}
 
@@ -591,6 +609,7 @@ export function AddConnectionDialog({
   const connectionActions = useConnectionActions();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { granted: canManageConnections } = useCapability("connections:manage");
 
   const handleBrowseNavigate = (slug: string) => {
     onOpenChange(false);
@@ -851,6 +870,7 @@ export function AddConnectionDialog({
             onCreateConnection={() => setCreateOpen(true)}
             onBrowseNavigate={handleBrowseNavigate}
             defaultTab={defaultTab}
+            canManageConnections={canManageConnections}
           />
         </Suspense>
       </DialogContent>

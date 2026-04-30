@@ -5,6 +5,8 @@ import { Page } from "@/web/components/page";
 import { Loading01 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { Suspense } from "react";
+import { useCapability } from "@/web/hooks/use-capability";
+import { NoPermissionState } from "@/web/components/no-permission-state";
 
 export function AutomationTab({
   tabId,
@@ -14,7 +16,13 @@ export function AutomationTab({
   virtualMcpId: string;
 }) {
   const parsed = parseAutomationTabId(tabId);
+  const { granted, loading } = useCapability("automations:manage");
+
   if (!parsed) return null;
+  if (loading) return null;
+  if (!granted) {
+    return <NoPermissionState area="automations" />;
+  }
 
   return (
     <Page>

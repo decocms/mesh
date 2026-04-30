@@ -69,6 +69,7 @@ import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { GitHubIcon } from "@/web/components/icons/github-icon";
 import { usePreferences } from "@/web/hooks/use-preferences.ts";
+import { useCapability } from "@/web/hooks/use-capability";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.tsx";
 import { GitHubRepoPicker } from "@/web/components/github-repo-picker.tsx";
@@ -366,6 +367,7 @@ function PinAgentPopoverContent({
     navigateOnCreate: true,
   });
   const [preferences] = usePreferences();
+  const { granted: canManageAgents } = useCapability("agents:manage");
 
   const navigateToNewTask = useNavigateToNewTaskWithBranchCarry(org.slug);
   const navigateToAgent = useNavigateToAgent();
@@ -496,26 +498,28 @@ function PinAgentPopoverContent({
           </span>
         </div>
         <div className="grid grid-cols-3 gap-1">
-          {/* Create new button */}
-          <button
-            type="button"
-            disabled={isCreating}
-            onClick={async () => {
-              track("agent_create_new_clicked", { source: "browse_popover" });
-              await createVirtualMCP();
-              onClose();
-            }}
-            className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <div className="w-12 h-12 rounded-xl border-2 border-dashed border-border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
-              <Plus size={16} className="text-muted-foreground" />
-            </div>
-            <span className="text-xs leading-tight text-center text-muted-foreground group-hover:text-foreground">
-              Create new
-            </span>
-          </button>
+          {/* Create new button — gated on agents:manage */}
+          {canManageAgents && (
+            <button
+              type="button"
+              disabled={isCreating}
+              onClick={async () => {
+                track("agent_create_new_clicked", { source: "browse_popover" });
+                await createVirtualMCP();
+                onClose();
+              }}
+              className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <div className="w-12 h-12 rounded-xl border-2 border-dashed border-border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+                <Plus size={16} className="text-muted-foreground" />
+              </div>
+              <span className="text-xs leading-tight text-center text-muted-foreground group-hover:text-foreground">
+                Create new
+              </span>
+            </button>
+          )}
 
-          {preferences.experimental_vibecode && (
+          {canManageAgents && preferences.experimental_vibecode && (
             <button
               type="button"
               onClick={() => {

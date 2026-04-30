@@ -16,6 +16,8 @@ import {
 } from "../../core/mesh-context";
 import { getMcpListCache } from "../../mcp-clients/mcp-list-cache";
 import { fetchToolsFromMCP } from "./fetch-tools";
+import { grantResourceAccessToAllCustomRoles } from "../../auth/grant-resource-access";
+import { getDb } from "../../database";
 import {
   buildVirtualUrl,
   ConnectionCreateDataSchema,
@@ -125,6 +127,20 @@ export const COLLECTION_CONNECTIONS_CREATE = defineTool({
         ?.set("tools", connection.id, tools as Tool[])
         .catch(() => {});
     }
+
+    // Auto-grant the new connection to every existing custom role so
+    // members aren't locked out of a freshly added MCP. Admins can still
+    // remove the grant on a per-role basis afterward.
+    await grantResourceAccessToAllCustomRoles(
+      getDb().db,
+      organization.id,
+      connection.id,
+    ).catch((err) => {
+      console.error(
+        "[connection.create] Failed to auto-grant new connection to roles",
+        err,
+      );
+    });
 
     await ctx.eventBus.publish(
       organization.id,

@@ -104,6 +104,18 @@ const ALL_TOOL_NAMES = [
   "COLLECTION_THREADS_UPDATE",
   "COLLECTION_THREADS_DELETE",
   "COLLECTION_THREAD_MESSAGES_LIST",
+  // Synthetic permission flag — there's no THREADS_VIEW_ALL_MEMBERS
+  // tool; the name is used as a permission resource so the capability
+  // toggle in the role editor stores `self: ["THREADS_VIEW_ALL_MEMBERS"]`,
+  // which COLLECTION_THREADS_LIST checks via ctx.access.has() to decide
+  // whether to show all members' threads or only the caller's.
+  "THREADS_VIEW_ALL_MEMBERS",
+  // Synthetic permission flags for chat composer features (image
+  // generation and web search). Gating happens in the chat tools
+  // popover — the underlying model usage is independently controlled
+  // via the role's Models tab.
+  "CHAT_IMAGE_GENERATION",
+  "CHAT_WEB_SEARCH",
   // Tag tools
   "TAGS_LIST",
   "TAGS_CREATE",
@@ -882,147 +894,6 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
   },
 ];
 
-/**
- * Human-readable labels for tool names
- */
-const TOOL_LABELS: Record<ToolName, string> = {
-  ORGANIZATION_CREATE: "Create organization",
-  ORGANIZATION_LIST: "List organizations",
-  ORGANIZATION_GET: "View organization details",
-  ORGANIZATION_UPDATE: "Update organization",
-  ORGANIZATION_DELETE: "Delete organization",
-  ORGANIZATION_SETTINGS_GET: "View organization settings",
-  ORGANIZATION_SETTINGS_UPDATE: "Update organization settings",
-  BRAND_CONTEXT_LIST: "List brand contexts",
-  BRAND_CONTEXT_GET: "View brand context",
-  BRAND_CONTEXT_CREATE: "Create brand context",
-  BRAND_CONTEXT_UPDATE: "Update brand context",
-  BRAND_CONTEXT_DELETE: "Delete brand context",
-  BRAND_CONTEXT_EXTRACT: "Extract brand from website",
-  BRAND_GET: "Get brand",
-  BRAND_LIST: "List brands",
-  ORGANIZATION_DOMAIN_GET: "Get domain claim",
-  ORGANIZATION_DOMAIN_SET: "Set domain claim",
-  ORGANIZATION_DOMAIN_UPDATE: "Update domain settings",
-  ORGANIZATION_DOMAIN_CLEAR: "Clear domain claim",
-  ORGANIZATION_MEMBER_LIST: "List members",
-  ORGANIZATION_MEMBER_ADD: "Add members",
-  ORGANIZATION_MEMBER_REMOVE: "Remove members",
-  ORGANIZATION_MEMBER_UPDATE_ROLE: "Update member roles",
-  COLLECTION_CONNECTIONS_LIST: "List connections",
-  COLLECTION_CONNECTIONS_GET: "View connection details",
-  COLLECTION_CONNECTIONS_CREATE: "Create connections",
-  COLLECTION_CONNECTIONS_UPDATE: "Update connections",
-  COLLECTION_CONNECTIONS_DELETE: "Delete connections",
-  CONNECTION_TEST: "Test connections",
-  DATABASES_RUN_SQL: "Run SQL queries",
-  COLLECTION_VIRTUAL_MCP_CREATE: "Create virtual MCPs",
-  COLLECTION_VIRTUAL_MCP_LIST: "List virtual MCPs",
-  COLLECTION_VIRTUAL_MCP_GET: "View virtual MCP details",
-  COLLECTION_VIRTUAL_MCP_UPDATE: "Update virtual MCPs",
-  COLLECTION_VIRTUAL_MCP_DELETE: "Delete virtual MCPs",
-  MONITORING_LOG_GET: "View monitoring log details",
-  MONITORING_LOGS_LIST: "List monitoring logs",
-  MONITORING_STATS: "View monitoring statistics",
-  API_KEY_CREATE: "Create API key",
-  API_KEY_LIST: "List API keys",
-  API_KEY_UPDATE: "Update API key",
-  API_KEY_DELETE: "Delete API key",
-  EVENT_PUBLISH: "Publish events",
-  EVENT_SUBSCRIBE: "Subscribe to events",
-  EVENT_UNSUBSCRIBE: "Unsubscribe from events",
-  EVENT_CANCEL: "Cancel recurring events",
-  EVENT_ACK: "Acknowledge event delivery",
-  EVENT_SUBSCRIPTION_LIST: "List event subscriptions",
-  EVENT_SYNC_SUBSCRIPTIONS: "Sync subscriptions to desired state",
-
-  USER_GET: "Get user by id",
-  COLLECTION_THREADS_CREATE: "Create threads",
-  COLLECTION_THREADS_LIST: "List threads",
-  COLLECTION_THREADS_GET: "View thread details",
-  COLLECTION_THREADS_UPDATE: "Update threads",
-  COLLECTION_THREADS_DELETE: "Delete threads",
-  COLLECTION_THREAD_MESSAGES_LIST: "List thread messages",
-  TAGS_LIST: "List organization tags",
-  TAGS_CREATE: "Create organization tag",
-  TAGS_DELETE: "Delete organization tag",
-  MEMBER_TAGS_GET: "Get member tags",
-  MEMBER_TAGS_SET: "Set member tags",
-  VIRTUAL_MCP_PLUGIN_CONFIG_GET: "View plugin config",
-  VIRTUAL_MCP_PLUGIN_CONFIG_UPDATE: "Update plugin config",
-  VIRTUAL_MCP_PINNED_VIEWS_UPDATE: "Update pinned views",
-  AUTOMATION_CREATE: "Create automation",
-  AUTOMATION_GET: "View automation details",
-  AUTOMATION_LIST: "List automations",
-  AUTOMATION_UPDATE: "Update automation",
-  AUTOMATION_DELETE: "Delete automation",
-  AUTOMATION_TRIGGER_ADD: "Add trigger",
-  AUTOMATION_TRIGGER_REMOVE: "Remove trigger",
-  AUTOMATION_RUN: "Run automation",
-
-  AI_PROVIDERS_LIST: "List AI providers",
-  AI_PROVIDERS_LIST_MODELS: "List AI models",
-  AI_PROVIDERS_ACTIVE: "List active providers",
-  AI_PROVIDER_KEY_CREATE: "Create provider key",
-  AI_PROVIDER_KEY_LIST: "List provider keys",
-  AI_PROVIDER_KEY_DELETE: "Delete provider key",
-  AI_PROVIDER_OAUTH_URL: "Get OAuth URL",
-  AI_PROVIDER_OAUTH_EXCHANGE: "Connect via OAuth",
-  AI_PROVIDER_PROVISION_KEY: "Auto-provision key",
-  AI_PROVIDER_TOPUP_URL: "Get top-up checkout URL",
-  AI_PROVIDER_CREDITS: "Get credit balance",
-  AI_PROVIDER_CLI_ACTIVATE: "Activate Claude Code CLI",
-
-  // Object Storage
-  LIST_OBJECTS: "List objects",
-  GET_OBJECT_METADATA: "Get object metadata",
-  GET_PRESIGNED_URL: "Generate download URL",
-  PUT_PRESIGNED_URL: "Generate upload URL",
-  DELETE_OBJECT: "Delete object",
-  DELETE_OBJECTS: "Delete multiple objects",
-
-  // Registry
-  COLLECTION_REGISTRY_APP_LIST: "List registry apps",
-  COLLECTION_REGISTRY_APP_GET: "Get registry app",
-  COLLECTION_REGISTRY_APP_VERSIONS: "List registry app versions",
-  COLLECTION_REGISTRY_APP_FILTERS: "Get registry filters",
-  REGISTRY_ITEM_LIST: "List registry items",
-  REGISTRY_ITEM_SEARCH: "Search registry",
-  REGISTRY_ITEM_GET: "Get registry item",
-  REGISTRY_ITEM_VERSIONS: "List item versions",
-  REGISTRY_ITEM_CREATE: "Create registry item",
-  REGISTRY_ITEM_BULK_CREATE: "Bulk create items",
-  REGISTRY_ITEM_UPDATE: "Update registry item",
-  REGISTRY_ITEM_DELETE: "Delete registry item",
-  REGISTRY_ITEM_FILTERS: "Get item filters",
-  REGISTRY_DISCOVER_TOOLS: "Discover tools",
-  REGISTRY_AI_GENERATE: "AI generate content",
-  REGISTRY_PUBLISH_REQUEST_LIST: "List publish requests",
-  REGISTRY_PUBLISH_REQUEST_REVIEW: "Review publish request",
-  REGISTRY_PUBLISH_REQUEST_COUNT: "Count publish requests",
-  REGISTRY_PUBLISH_REQUEST_DELETE: "Delete publish request",
-  REGISTRY_PUBLISH_API_KEY_GENERATE: "Generate API key",
-  REGISTRY_PUBLISH_API_KEY_LIST: "List API keys",
-  REGISTRY_PUBLISH_API_KEY_REVOKE: "Revoke API key",
-  REGISTRY_MONITOR_RUN_START: "Start monitor run",
-  REGISTRY_MONITOR_RUN_LIST: "List monitor runs",
-  REGISTRY_MONITOR_RUN_GET: "Get monitor run",
-  REGISTRY_MONITOR_RUN_CANCEL: "Cancel monitor run",
-  REGISTRY_MONITOR_RESULT_LIST: "List monitor results",
-  REGISTRY_MONITOR_CONNECTION_LIST: "List monitor connections",
-  REGISTRY_MONITOR_CONNECTION_SYNC: "Sync monitor connections",
-  REGISTRY_MONITOR_CONNECTION_UPDATE_AUTH: "Update connection auth",
-  REGISTRY_MONITOR_SCHEDULE_SET: "Set monitor schedule",
-  REGISTRY_MONITOR_SCHEDULE_CANCEL: "Cancel monitor schedule",
-
-  // GitHub
-
-  // VM
-  VM_START: "Start VM preview",
-  VM_DELETE: "Delete VM preview",
-  GITHUB_LIST_USER_ORGS: "List GitHub user orgs",
-};
-
 // ============================================================================
 // Permission Capabilities (high-level, user-facing permissions)
 // ============================================================================
@@ -1042,7 +913,7 @@ export interface PermissionCapability {
  */
 const BASIC_USAGE_CAPABILITY_ID = "basic-usage";
 
-const PERMISSION_CAPABILITIES: PermissionCapability[] = [
+export const PERMISSION_CAPABILITIES: PermissionCapability[] = [
   // Basic usage — granted to all org members, hidden from UI
   {
     id: BASIC_USAGE_CAPABILITY_ID,
@@ -1061,10 +932,13 @@ const PERMISSION_CAPABILITIES: PermissionCapability[] = [
       // View automations
       "AUTOMATION_GET",
       "AUTOMATION_LIST",
-      // View AI providers
+      // View AI providers (read-only — every member needs to know which
+      // providers are configured so chat / agents can use them)
       "AI_PROVIDERS_LIST",
       "AI_PROVIDERS_LIST_MODELS",
       "AI_PROVIDERS_ACTIVE",
+      "AI_PROVIDER_KEY_LIST",
+      "AI_PROVIDER_CREDITS",
       // Object storage access
       "LIST_OBJECTS",
       "GET_OBJECT_METADATA",
@@ -1073,6 +947,26 @@ const PERMISSION_CAPABILITIES: PermissionCapability[] = [
       // VM previews
       "VM_START",
       "VM_DELETE",
+      // Browse the registry / store (read-only — needed to populate the
+      // connections list and the home/discovery views for any member)
+      "COLLECTION_REGISTRY_APP_LIST",
+      "COLLECTION_REGISTRY_APP_GET",
+      "COLLECTION_REGISTRY_APP_VERSIONS",
+      "COLLECTION_REGISTRY_APP_FILTERS",
+      "REGISTRY_ITEM_LIST",
+      "REGISTRY_ITEM_SEARCH",
+      "REGISTRY_ITEM_GET",
+      "REGISTRY_ITEM_VERSIONS",
+      "REGISTRY_ITEM_FILTERS",
+      "REGISTRY_DISCOVER_TOOLS",
+      // Chat threads — every member needs CRUD on their own threads to use
+      // the product. Per-thread access is scoped at the handler level.
+      "COLLECTION_THREADS_CREATE",
+      "COLLECTION_THREADS_LIST",
+      "COLLECTION_THREADS_GET",
+      "COLLECTION_THREADS_UPDATE",
+      "COLLECTION_THREADS_DELETE",
+      "COLLECTION_THREAD_MESSAGES_LIST",
     ],
   },
   // Organization
@@ -1166,21 +1060,45 @@ const PERMISSION_CAPABILITIES: PermissionCapability[] = [
     section: "Monitoring",
     tools: ["MONITORING_LOG_GET", "MONITORING_LOGS_LIST", "MONITORING_STATS"],
   },
+  {
+    id: "threads:view-all",
+    label: "View other members' threads",
+    description:
+      "See threads and automation tasks created by other members. Without this, members can only see their own.",
+    section: "Monitoring",
+    tools: ["THREADS_VIEW_ALL_MEMBERS"],
+  },
+  // Chat features
+  {
+    id: "chat:image-generation",
+    label: "Generate images",
+    description:
+      "Use the Create image action in the chat composer. The underlying model still has to be allowed via the Models tab.",
+    section: "Chat features",
+    tools: ["CHAT_IMAGE_GENERATION"],
+  },
+  {
+    id: "chat:web-search",
+    label: "Use web search",
+    description:
+      "Use the Web search action in the chat composer. The underlying search model still has to be allowed via the Models tab.",
+    section: "Chat features",
+    tools: ["CHAT_WEB_SEARCH"],
+  },
   // AI Providers
   {
     id: "ai-providers:manage",
     label: "Manage AI providers",
-    description: "Add or remove API keys and provision provider credentials",
+    description:
+      "Add or remove API keys and provision provider credentials. Read-only access (which providers are configured, credits) is available to all members.",
     section: "AI Providers",
     tools: [
       "AI_PROVIDER_KEY_CREATE",
-      "AI_PROVIDER_KEY_LIST",
       "AI_PROVIDER_KEY_DELETE",
       "AI_PROVIDER_OAUTH_URL",
       "AI_PROVIDER_OAUTH_EXCHANGE",
       "AI_PROVIDER_PROVISION_KEY",
       "AI_PROVIDER_TOPUP_URL",
-      "AI_PROVIDER_CREDITS",
       "AI_PROVIDER_CLI_ACTIVATE",
     ],
   },
@@ -1202,19 +1120,10 @@ const PERMISSION_CAPABILITIES: PermissionCapability[] = [
   {
     id: "registry:manage",
     label: "Manage registry",
-    description: "Browse, publish, and manage items in the registry",
+    description:
+      "Publish and manage items in the registry. Read-only browsing is available to all members.",
     section: "Store & Registry",
     tools: [
-      "COLLECTION_REGISTRY_APP_LIST",
-      "COLLECTION_REGISTRY_APP_GET",
-      "COLLECTION_REGISTRY_APP_VERSIONS",
-      "COLLECTION_REGISTRY_APP_FILTERS",
-      "REGISTRY_ITEM_LIST",
-      "REGISTRY_ITEM_SEARCH",
-      "REGISTRY_ITEM_GET",
-      "REGISTRY_ITEM_VERSIONS",
-      "REGISTRY_ITEM_FILTERS",
-      "REGISTRY_DISCOVER_TOOLS",
       "REGISTRY_ITEM_CREATE",
       "REGISTRY_ITEM_BULK_CREATE",
       "REGISTRY_ITEM_UPDATE",

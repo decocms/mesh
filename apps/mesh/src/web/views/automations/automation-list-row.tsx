@@ -24,6 +24,7 @@ import {
   useAutomationActions,
   type AutomationListItem,
 } from "@/web/hooks/use-automations";
+import { useCapability } from "@/web/hooks/use-capability";
 
 export function AutomationListRow({
   automation,
@@ -36,6 +37,7 @@ export function AutomationListRow({
 }) {
   const { remove } = useAutomationActions();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const { granted: canManageAutomations } = useCapability("automations:manage");
   const agent = useVirtualMCP(
     showAgent ? (automation.agent?.id ?? undefined) : undefined,
   );
@@ -104,36 +106,38 @@ export function AutomationListRow({
           />
         </div>
 
-        <div
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-          role="presentation"
-          className="shrink-0"
-        >
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100 transition-opacity"
-              >
-                <DotsVertical size={16} />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setConfirmOpen(true);
-                }}
-              >
-                <Trash01 size={16} />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        {canManageAutomations && (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+            role="presentation"
+            className="shrink-0"
+          >
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100 transition-opacity"
+                >
+                  <DotsVertical size={16} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfirmOpen(true);
+                  }}
+                >
+                  <Trash01 size={16} />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
       </div>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>

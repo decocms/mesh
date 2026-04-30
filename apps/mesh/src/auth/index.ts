@@ -153,6 +153,18 @@ if (
   }
 }
 
+// Local-dev fallback: when no email provider is configured, print the
+// invitation accept URL to the server console so you can paste it into a
+// second browser/incognito session and finish the invite without email.
+if (!sendInvitationEmail) {
+  sendInvitationEmail = async (data) => {
+    const acceptUrl = `${getBaseUrl()}/auth/accept-invitation?invitationId=${data.invitation.id}&redirectTo=/`;
+    console.log(
+      `\n[invitation] No email provider configured. Open this URL in another browser to accept:\n  invitee: ${data.email}\n  org:     ${data.organization.name}\n  url:     ${acceptUrl}\n`,
+    );
+  };
+}
+
 // Configure password reset emails if provider is set
 let sendResetPassword:
   | NonNullable<BetterAuthOptions["emailAndPassword"]>["sendResetPassword"]

@@ -1,7 +1,8 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Button } from "@deco/ui/components/button.tsx";
-import { AlertTriangle, RefreshCw01 } from "@untitledui/icons";
+import { AlertTriangle, Lock01, RefreshCw01 } from "@untitledui/icons";
 import { captureException } from "@/web/lib/posthog-client";
+import { detectAccessDenied } from "@/web/lib/access-denied";
 
 const CHUNK_RELOAD_KEY = "__mesh_chunk_reload_ts";
 
@@ -87,6 +88,33 @@ export class ErrorBoundary extends Component<Props, State> {
         return fallback;
       }
 
+      // Friendlier fallback for access-denied errors — no scary
+      // "Something went wrong" + raw MCP -32603 message.
+      const denied = detectAccessDenied(this.state.error);
+      if (denied) {
+        return (
+          <div className="flex-1 flex flex-col items-center justify-center h-full p-6 text-center space-y-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <Lock01 size={28} />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-lg font-medium">
+                {denied.resource
+                  ? `No access to ${denied.resource}`
+                  : "No access"}
+              </h3>
+              <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                Your role doesn't include permission for this. Ask an
+                organization admin to update your role if you need it.
+              </p>
+            </div>
+            <Button variant="outline" onClick={this.resetError}>
+              Try again
+            </Button>
+          </div>
+        );
+      }
+
       // Default fallback UI
       return (
         <div className="flex-1 flex flex-col items-center justify-center h-full p-6 text-center space-y-4">
@@ -167,6 +195,34 @@ export class ChunkErrorBoundary extends Component<
     }
 
     if (this.state.hasError) {
+      const denied = detectAccessDenied(this.state.error);
+      if (denied) {
+        return (
+          <div className="flex min-h-dvh flex-col items-center justify-center p-6 text-center space-y-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <Lock01 size={28} />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-lg font-medium">
+                {denied.resource
+                  ? `No access to ${denied.resource}`
+                  : "No access"}
+              </h3>
+              <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                Your role doesn't include permission for this. Ask an
+                organization admin to update your role if you need it.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => this.setState({ hasError: false, error: null })}
+            >
+              Try again
+            </Button>
+          </div>
+        );
+      }
+
       return (
         <div className="flex min-h-dvh flex-col items-center justify-center p-6 text-center space-y-4">
           <div className="bg-destructive/10 p-3 rounded-full">

@@ -186,6 +186,84 @@ app.post("/local-session", async (c) => {
 });
 
 /**
+ * My Permissions Endpoint (authenticated)
+ *
+ * Returns the current user's role and permission map for their active
+ * organization. Used by the frontend useCapability hook so any member —
+ * not just admins — can resolve their own capabilities.
+ *
+ * This bypasses Better Auth's listRoles permission gate, which restricts
+ * the full role list to admins/owners. Members need to read just their
+ * own role, not the entire org's role catalog.
+ *
+ * Route: GET /api/auth/custom/my-permissions
+ */
+app.get("/my-permissions", async (c) => {
+  const session = (await auth.api.getSession({
+    headers: c.req.raw.headers,
+  })) as {
+    user?: { id: string };
+    session?: { activeOrganizationId?: string };
+  } | null;
+
+  if (!session?.user) {
+    return c.json({ error: "Authentication required" }, 401);
+  }
+
+  const orgId = session.session?.activeOrganizationId;
+  if (!orgId) {
+    return c.json({ role: null, permission: null });
+  }
+
+  const db = getDb().db;
+
+  // Find the user's member row in the active organization
+  const member = await db
+    .selectFrom("member")
+    .select(["role"])
+    .where("userId", "=", session.user.id)
+    .where("organizationId", "=", orgId)
+    .executeTakeFirst();
+
+  if (!member?.role) {
+    return c.json({ role: null, permission: null });
+  }
+
+  // Built-in roles (owner/admin/user) bypass custom permission lookups —
+  // owner & admin get full access, user gets only basic-usage tools (the
+  // server's AccessControl handles those rules; clients use the role name).
+  if (member.role === "owner" || member.role === "admin") {
+    return c.json({ role: member.role, permission: null });
+  }
+  if (member.role === "user") {
+    return c.json({ role: member.role, permission: {} });
+  }
+
+  // Custom role: look up the permission JSON in organizationRole.
+  // Better Auth stores it in camelCase column "organizationRole".
+  const customRole = await db
+    .selectFrom("organizationRole" as never)
+    .select(["permission" as never] as never)
+    .where("role" as never, "=", member.role as never)
+    .where("organizationId" as never, "=", orgId as never)
+    .executeTakeFirst();
+
+  let permission: Record<string, string[]> | null = null;
+  const raw = (customRole as { permission?: unknown })?.permission;
+  if (typeof raw === "string") {
+    try {
+      permission = JSON.parse(raw) as Record<string, string[]>;
+    } catch {
+      permission = null;
+    }
+  } else if (raw && typeof raw === "object") {
+    permission = raw as Record<string, string[]>;
+  }
+
+  return c.json({ role: member.role, permission });
+});
+
+/**
  * Domain Lookup Endpoint (authenticated, verified email required)
  *
  * For the onboarding flow: checks if the authenticated user's email domain

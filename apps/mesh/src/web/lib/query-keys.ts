@@ -52,6 +52,10 @@ export const KEYS = {
   organizationRoles: (locator: ProjectLocator) =>
     [locator, "organization-roles"] as const,
 
+  // Current user's role + permission map within the active org
+  myPermissions: (locator: ProjectLocator) =>
+    [locator, "my-permissions"] as const,
+
   // Connections (scoped by project)
   connections: (locator: ProjectLocator) => [locator, "connections"] as const,
   connectionsByBinding: (locator: ProjectLocator, binding: string) =>

@@ -12,6 +12,7 @@ import {
 } from "@decocms/mesh-sdk";
 import { toast } from "sonner";
 import { KEYS } from "../lib/query-keys";
+import { toFriendlyErrorMessage } from "../lib/access-denied";
 
 // ============================================================================
 // Trigger List Hook
@@ -253,9 +254,7 @@ export function useAutomationActions() {
       invalidateAll();
     },
     onError: (error) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to create automation",
-      );
+      toast.error(toFriendlyErrorMessage(error, "Failed to create automation"));
     },
   });
 
@@ -274,9 +273,7 @@ export function useAutomationActions() {
       }
     },
     onError: (error) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to update automation",
-      );
+      toast.error(toFriendlyErrorMessage(error, "Failed to update automation"));
     },
   });
 
@@ -293,9 +290,7 @@ export function useAutomationActions() {
       invalidateAll();
     },
     onError: (error) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to delete automation",
-      );
+      toast.error(toFriendlyErrorMessage(error, "Failed to delete automation"));
     },
   });
 

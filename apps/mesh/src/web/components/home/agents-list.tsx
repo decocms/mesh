@@ -17,6 +17,7 @@ import {
   useVirtualMCPs,
 } from "@decocms/mesh-sdk";
 import type { ProjectLocator, VirtualMCPEntity } from "@decocms/mesh-sdk";
+import { useCapability } from "@/web/hooks/use-capability";
 import { useDefaultHomeAgents } from "@/web/hooks/use-organization-settings";
 
 function readRecentAgentIds(locator: ProjectLocator): string[] {
@@ -158,9 +159,12 @@ function SeeAllButton() {
  * Agents list content component
  */
 function CreateAgentButton() {
+  const { granted: canManageAgents } = useCapability("agents:manage");
   const { createVirtualMCP, isCreating } = useCreateVirtualMCP({
     navigateOnCreate: true,
   });
+
+  if (!canManageAgents) return null;
 
   return (
     <button
@@ -245,6 +249,7 @@ function AgentsListContent() {
   const virtualMcps = useVirtualMCPs();
   const { locator } = useProjectContext();
   const orgDefaults = useDefaultHomeAgents();
+  const { granted: canManageAgents } = useCapability("agents:manage");
   const [importDecoOpen, setImportDecoOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
   const [aiImageModalOpen, setAiImageModalOpen] = useState(false);
@@ -472,6 +477,12 @@ function AgentsListContent() {
       );
 
     tiles = [...templateTiles, ...recentCustom];
+  }
+
+  // Recruit templates create new agents on click — hide them entirely for
+  // users who can't manage agents.
+  if (!canManageAgents) {
+    tiles = tiles.filter((tile) => tile.kind !== "template-recruit");
   }
 
   const hasAgents = tiles.some(

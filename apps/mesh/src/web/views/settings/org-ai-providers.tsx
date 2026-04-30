@@ -72,6 +72,13 @@ import {
 } from "@/web/hooks/use-organization-settings";
 import { SimpleModeConfigSchema } from "@/tools/organization/schema";
 import { ModelSelector } from "@/web/components/chat/select-model";
+import { useCapability } from "@/web/hooks/use-capability";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 
 function ErrorFallback({ error }: { error: Error }) {
   return (
@@ -88,10 +95,12 @@ function KeyList({
   keys,
   onDelete,
   isDeleting,
+  canManage,
 }: {
   keys: AiProviderKey[];
   onDelete: (keyId: string) => void;
   isDeleting: boolean;
+  canManage: boolean;
 }) {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const targetKey = keys.find((k) => k.id === deleteTarget);
@@ -110,18 +119,19 @@ function KeyList({
               added {formatDistanceToNow(new Date(key.createdAt))} ago
             </span>
           </div>
-          {/* Stop propagation so trash click doesn't trigger card's onClick */}
-          <div onClick={(e) => e.stopPropagation()}>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-muted-foreground hover:text-destructive"
-              disabled={isDeleting}
-              onClick={() => setDeleteTarget(key.id)}
-            >
-              <Trash01 size={14} />
-            </Button>
-          </div>
+          {canManage && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                disabled={isDeleting}
+                onClick={() => setDeleteTarget(key.id)}
+              >
+                <Trash01 size={14} />
+              </Button>
+            </div>
+          )}
         </div>
       ))}
 
@@ -430,6 +440,7 @@ function ProviderCard({
   keys: AiProviderKey[];
 }) {
   const { org } = useProjectContext();
+  const { granted: canManageProviders } = useCapability("ai-providers:manage");
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
@@ -733,23 +744,47 @@ function ProviderCard({
         }
         description={statusText}
         onClick={
-          !isOAuthPending && !isActivating && !isProvisioning
+          canManageProviders &&
+          !isOAuthPending &&
+          !isActivating &&
+          !isProvisioning
             ? handleCardClick
             : undefined
         }
         className={cn(
           (isOAuthPending || isActivating || isProvisioning) && "cursor-wait",
+          !canManageProviders && "cursor-not-allowed opacity-90",
         )}
         action={
           <div className="flex items-center gap-2">
             {isActive && (
               <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
             )}
+            {!canManageProviders && !isActive && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-xs text-muted-foreground">
+                      Not configured
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Ask an organization admin to add an API key for this
+                    provider.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </div>
         }
       >
         {isActive && !isCliActivate && (
-          <KeyList keys={keys} onDelete={deleteKey} isDeleting={isDeleting} />
+          <KeyList
+            keys={keys}
+            onDelete={deleteKey}
+            isDeleting={isDeleting}
+            canManage={canManageProviders}
+          />
         )}
       </SettingsCardItem>
 
@@ -983,6 +1018,7 @@ function creditColorClass(dollars: number): string {
 
 function DecoCreditsHero() {
   const { org } = useProjectContext();
+  const { granted: canManageProviders } = useCapability("ai-providers:manage");
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
@@ -1123,12 +1159,14 @@ function DecoCreditsHero() {
           </div>
 
           {/* Quick top-up */}
-          <div className="pt-4 border-t border-border/60">
-            <p className="text-xs font-medium text-muted-foreground mb-2.5">
-              Add credits
-            </p>
-            <QuickTopUp />
-          </div>
+          {canManageProviders && (
+            <div className="pt-4 border-t border-border/60">
+              <p className="text-xs font-medium text-muted-foreground mb-2.5">
+                Add credits
+              </p>
+              <QuickTopUp />
+            </div>
+          )}
         </div>
       </SettingsCard>
     </SettingsSection>
