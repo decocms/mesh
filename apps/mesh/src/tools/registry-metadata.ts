@@ -1164,7 +1164,7 @@ const PERMISSION_CAPABILITIES: PermissionCapability[] = [
  * ⚠️  Adding or removing a tool from the basic-usage capability above?
  *     You MUST also write a Kysely migration that backfills the change
  *     into existing custom roles in the `organizationRole` table.
- *     See `apps/mesh/migrations/072-backfill-basic-usage-roles.ts` for
+ *     See `apps/mesh/migrations/073-backfill-basic-usage-roles.ts` for
  *     the pattern. Snapshot the tools you're adding inside the migration
  *     — do not import this constant from a migration (migrations are
  *     immutable history).
