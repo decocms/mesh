@@ -61,7 +61,7 @@ export async function processFile(
       onUnsupportedFile({ fileName: file.name, modelName, accepted });
     } else {
       toast.error(`"${file.name}" can't be attached`, {
-        description: `${modelName} accepts ${accepted}. PowerPoint, Word, and Excel files aren't supported yet.`,
+        description: `${modelName} accepts ${accepted}. Word and Excel files aren't supported yet.`,
       });
     }
     return;
@@ -308,7 +308,6 @@ export function FileUploadButton({
 }
 
 const UNSUPPORTED_EXAMPLES = [
-  "PowerPoint (.pptx)",
   "Word documents (.docx)",
   "Excel spreadsheets (.xlsx)",
 ] as const;
