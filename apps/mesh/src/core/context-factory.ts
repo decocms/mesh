@@ -725,7 +725,53 @@ async function authenticateRequest(
       let organization: OrganizationContext | undefined;
       let role: string | undefined;
 
-      if (session.session.activeOrganizationId) {
+      // Prefer per-request org header (x-org-id / x-org-slug) over
+      // session.activeOrganizationId. The session row stores a single active
+      // org shared across all browser tabs, so switching orgs in one tab
+      // would otherwise leak into requests from other tabs. The frontend
+      // sends x-org-id derived from the URL (/$org) on every MCP call.
+      const requestedOrgId = req.headers.get("x-org-id");
+      const requestedOrgSlug = req.headers.get("x-org-slug");
+
+      if (requestedOrgId || requestedOrgSlug) {
+        const membership = await timings.measure(
+          "auth_query_membership_from_header",
+          () => {
+            let q = db
+              .selectFrom("member")
+              .innerJoin(
+                "organization",
+                "organization.id",
+                "member.organizationId",
+              )
+              .select([
+                "member.role",
+                "organization.id as orgId",
+                "organization.slug as orgSlug",
+                "organization.name as orgName",
+              ])
+              .where("member.userId", "=", session.user.id);
+            if (requestedOrgId) {
+              q = q.where("organization.id", "=", requestedOrgId);
+            } else if (requestedOrgSlug) {
+              q = q.where("organization.slug", "=", requestedOrgSlug);
+            }
+            return q.executeTakeFirst();
+          },
+        );
+
+        if (membership) {
+          organization = {
+            id: membership.orgId,
+            slug: membership.orgSlug,
+            name: membership.orgName,
+          };
+          role = membership.role;
+        }
+        // If header was provided but no membership matched, leave
+        // organization undefined so downstream access checks fail closed
+        // (403) rather than silently falling back to session state.
+      } else if (session.session.activeOrganizationId) {
         // Get full organization data (includes members with roles)
 
         const orgData = (await timings.measure(

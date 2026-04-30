@@ -62,11 +62,13 @@ function InvitationItem({ invitation }: { invitation: Invitation }) {
         toast.error(result.error.message);
         setIsAccepting(false);
       } else {
-        const setActiveResult = await authClient.organization.setActive({
-          organizationId: invitation.organizationId,
+        // Fetch org slug for redirect without mutating the session's active
+        // org (avoids cross-tab leak — see shell-layout.tsx).
+        const orgResult = await authClient.organization.getFullOrganization({
+          query: { organizationId: invitation.organizationId },
         });
         toast.success("Invitation accepted!");
-        const slug = setActiveResult?.data?.slug;
+        const slug = orgResult?.data?.slug;
         window.location.href = slug ? `/${slug}` : "/";
       }
     } catch {
