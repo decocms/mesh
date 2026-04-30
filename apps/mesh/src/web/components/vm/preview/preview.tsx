@@ -421,21 +421,22 @@ export function PreviewContent() {
           </div>
         )}
 
-        {!lastStartError && (booting || starting || lifecycleActive) && (
-          <div className="absolute inset-0 z-30 flex items-center justify-center bg-background">
-            <VmBootingState
-              since={
-                booting ? bootTrackedRef.current.at : startingSinceRef.current
-              }
-              hasSetupData={vmEvents.hasData("setup")}
-              scripts={vmEvents.scripts}
-              activeProcesses={vmEvents.activeProcesses}
-              onViewLogs={openEnv}
-              claimPhase={previewUrl ? null : claimPhase}
-              onRetry={retryAutoStart}
-            />
-          </div>
-        )}
+        {!lastStartError &&
+          (booting || starting || lifecycleActive || vmEvents.notFound) && (
+            <div className="absolute inset-0 z-30 flex items-center justify-center bg-background">
+              <VmBootingState
+                since={
+                  booting ? bootTrackedRef.current.at : startingSinceRef.current
+                }
+                hasSetupData={vmEvents.hasData("setup")}
+                scripts={vmEvents.scripts}
+                activeProcesses={vmEvents.activeProcesses}
+                onViewLogs={openEnv}
+                claimPhase={previewUrl ? null : claimPhase}
+                onRetry={retryAutoStart}
+              />
+            </div>
+          )}
 
         {viewMode === "visual" && !visualElement && (
           <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 rounded-full border border-violet-400/40 bg-violet-500/90 px-3 py-1 text-xs font-medium text-white shadow-md backdrop-blur-sm pointer-events-none select-none">
@@ -449,7 +450,7 @@ export function PreviewContent() {
             onDismiss={() => setVisualElement(null)}
           />
         )}
-        {previewUrl && !booting && (
+        {previewUrl && !booting && !vmEvents.notFound && (
           <iframe
             // Key on previewUrl: `src` mutations don't reliably refetch in all
             // browsers and leak in-frame state across branches.

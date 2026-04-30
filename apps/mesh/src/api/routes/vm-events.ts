@@ -51,7 +51,10 @@ import {
   getUserId,
   requireAuth,
   requireOrganization,
+  type MeshContext,
 } from "../../core/mesh-context";
+import { KyselySandboxRunnerStateStore } from "../../storage/sandbox-runner-state";
+import { removeVmMapEntry } from "../../tools/vm/vm-map";
 import type { Env } from "../hono-env";
 
 /**
@@ -141,6 +144,22 @@ app.get("/", async (c) => {
     });
 
     try {
+      if (runnerKind === "agent-sandbox") {
+        const stale = await isStaleHandle(runner, claimName);
+        if (stale) {
+          await cleanupStaleEntry({
+            ctx,
+            userId,
+            virtualMcpId,
+            projectRef,
+            branch,
+            runnerKind,
+          });
+          await stream.writeSSE({ event: "gone", data: "" }).catch(() => {});
+          return;
+        }
+      }
+
       // ---- Phase 1: lifecycle (pre-Ready) ---------------------------------
       const lifecycleOk = await emitLifecycle({
         stream,
@@ -163,6 +182,65 @@ app.get("/", async (c) => {
     }
   });
 });
+
+async function isStaleHandle(
+  runner: NonNullable<Awaited<ReturnType<typeof getOrInitSharedRunner>>>,
+  claimName: string,
+): Promise<boolean> {
+  try {
+    const exists = await runner.alive(claimName);
+    return !exists;
+  } catch (err) {
+    console.warn(
+      `[vm-events] alive probe failed for ${claimName}; assuming alive: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    return false;
+  }
+}
+
+/**
+ * Best-effort: remove the stale runner-state row + vmMap entry so the next
+ * VM_START provisions a fresh handle instead of resurrecting the dead one.
+ * Failures are logged, not thrown — the user-visible flow (emit `gone` →
+ * browser self-heal) is what matters; cleanup is correctness hygiene.
+ */
+async function cleanupStaleEntry(args: {
+  ctx: MeshContext;
+  userId: string;
+  virtualMcpId: string;
+  projectRef: string;
+  branch: string;
+  runnerKind: "docker" | "freestyle" | "agent-sandbox";
+}): Promise<void> {
+  const { ctx, userId, virtualMcpId, projectRef, branch, runnerKind } = args;
+  try {
+    const stateStore = new KyselySandboxRunnerStateStore(ctx.db);
+    await stateStore.delete({ userId, projectRef }, runnerKind);
+  } catch (err) {
+    console.warn(
+      `[vm-events] sandbox_runner_state delete failed for ${userId}/${projectRef}/${runnerKind}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+  try {
+    await removeVmMapEntry(
+      ctx.storage.virtualMcps,
+      virtualMcpId,
+      userId,
+      userId,
+      branch,
+    );
+  } catch (err) {
+    console.warn(
+      `[vm-events] vmMap remove failed for ${virtualMcpId}/${userId}/${branch}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+}
 
 /**
  * Drives the lifecycle phase stream (or its no-op equivalent for

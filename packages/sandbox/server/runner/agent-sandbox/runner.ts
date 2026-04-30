@@ -426,8 +426,8 @@ export class AgentSandboxRunner implements SandboxRunner {
       this.kubeConfig,
       this.namespace,
       handle,
-    ).catch(() => undefined);
-    return claim ? isSandboxReady(claim) : false;
+    );
+    return claim !== undefined;
   }
 
   /**
