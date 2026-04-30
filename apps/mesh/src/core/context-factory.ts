@@ -730,8 +730,27 @@ async function authenticateRequest(
       // org shared across all browser tabs, so switching orgs in one tab
       // would otherwise leak into requests from other tabs. The frontend
       // sends x-org-id derived from the URL (/$org) on every MCP call.
-      const requestedOrgId = req.headers.get("x-org-id");
-      const requestedOrgSlug = req.headers.get("x-org-slug");
+      //
+      // Fall back to query params on GET requests for SSE endpoints —
+      // `EventSource` can't set custom headers, so SSE callers append
+      // `?x-org-id=...` instead. GET-only restricts the surface to read paths
+      // (mutations always have a body and never go through EventSource).
+      // Membership is still verified below.
+      let requestedOrgId = req.headers.get("x-org-id");
+      let requestedOrgSlug = req.headers.get("x-org-slug");
+      if (
+        !requestedOrgId &&
+        !requestedOrgSlug &&
+        req.method.toUpperCase() === "GET"
+      ) {
+        try {
+          const params = new URL(req.url).searchParams;
+          requestedOrgId = params.get("x-org-id");
+          requestedOrgSlug = params.get("x-org-slug");
+        } catch {
+          // Malformed URL — leave both null and fall through to session state
+        }
+      }
 
       if (requestedOrgId || requestedOrgSlug) {
         const membership = await timings.measure(

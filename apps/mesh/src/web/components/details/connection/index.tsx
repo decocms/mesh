@@ -241,6 +241,7 @@ function ConnectionInspectorViewWithConnection({
   const navigate = useNavigate({ from: "/$org/settings/connections/$appSlug" });
   const queryClient = useQueryClient();
   const connectionActions = useConnectionActions();
+  const { org: projectOrg } = useProjectContext();
   const deleteConnection = useDeleteConnection({
     onSuccess: () => {
       if (siblings.length <= 1) {
@@ -316,7 +317,10 @@ function ConnectionInspectorViewWithConnection({
       try {
         const response = await fetch(`/api/connections/${connId}/oauth-token`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-org-id": projectOrg.id,
+          },
           credentials: "include",
           body: JSON.stringify({
             accessToken: tokenInfo.accessToken,
@@ -378,6 +382,7 @@ function ConnectionInspectorViewWithConnection({
         {
           method: "DELETE",
           credentials: "include",
+          headers: { "x-org-id": projectOrg.id },
         },
       );
 
@@ -586,6 +591,7 @@ function ConnectionInspectorViewWithConnection({
                       const authStatus = await isConnectionAuthenticated({
                         url: mcpProxyUrl.href,
                         token: null,
+                        orgId: projectOrg.id,
                       });
                       if (
                         authStatus.supportsOAuth &&
