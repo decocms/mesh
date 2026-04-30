@@ -1,4 +1,5 @@
 import {
+  BASIC_USAGE_TOOLS,
   getCapabilitySections,
   isCapabilityEnabled,
   toggleCapabilityInTools,
@@ -1131,8 +1132,10 @@ function buildPermission(
   const permission: Record<string, string[]> = {};
   if (data.allowAllStaticPermissions) {
     permission["self"] = ["*"];
-  } else if (data.staticPermissions.length > 0) {
-    permission["self"] = data.staticPermissions;
+  } else {
+    const tools = new Set(data.staticPermissions);
+    for (const tool of BASIC_USAGE_TOOLS) tools.add(tool);
+    if (tools.size > 0) permission["self"] = Array.from(tools);
   }
   for (const [connectionId, tools] of Object.entries(data.toolSet)) {
     if (tools.length > 0) {
