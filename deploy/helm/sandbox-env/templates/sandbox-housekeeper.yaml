@@ -31,7 +31,7 @@ metadata:
   labels:
     {{- include "sandbox-env.labels" . | nindent 4 }}
 rules:
-  # patch = annotate + spec.lifecycle.shutdownTime (graceful Idle/StuckReady);
+  # patch = annotate + spec.lifecycle.shutdownTime (graceful Idle reap);
   # delete = ReconcilerError fall-through where shutdownTime is unhonored.
   - apiGroups: ["extensions.agents.x-k8s.io"]
     resources: ["sandboxclaims"]
@@ -121,8 +121,6 @@ spec:
                   value: agent-sandbox-system
                 - name: TTL_MS
                   value: {{ mul .Values.housekeeper.idleTtlSeconds 1000 | quote }}
-                - name: STUCK_TTL_MS
-                  value: {{ mul .Values.housekeeper.stuckReadyTtlSeconds 1000 | quote }}
                 - name: PROBE_TIMEOUT_SEC
                   value: {{ .Values.housekeeper.probeTimeoutSeconds | quote }}
                 - name: CLAIM_SELECTOR

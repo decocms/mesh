@@ -78,26 +78,14 @@ export function buildChildEnv(
 
     // Sandbox runner: read from env by resolveRunnerKindFromEnv() in workers
     STUDIO_SANDBOX_RUNNER: process.env.STUDIO_SANDBOX_RUNNER,
-    // Per-env SandboxTemplate name override (sandbox-env Helm chart suffixes
-    // it with envName). Workers must inherit so claim creation hits the
-    // right template.
     STUDIO_SANDBOX_TEMPLATE_NAME: process.env.STUDIO_SANDBOX_TEMPLATE_NAME,
-    // Preview-URL templating + per-claim HTTPRoute parent. Mesh in workers
-    // creates SandboxClaims and mints HTTPRoutes; without these the runner
-    // silently falls back to in-process proxying / no preview URL.
+    STUDIO_ENV: process.env.STUDIO_ENV,
     STUDIO_SANDBOX_PREVIEW_URL_PATTERN:
       process.env.STUDIO_SANDBOX_PREVIEW_URL_PATTERN,
     STUDIO_SANDBOX_PREVIEW_GATEWAY_NAME:
       process.env.STUDIO_SANDBOX_PREVIEW_GATEWAY_NAME,
     STUDIO_SANDBOX_PREVIEW_GATEWAY_NAMESPACE:
       process.env.STUDIO_SANDBOX_PREVIEW_GATEWAY_NAMESPACE,
-    // In-cluster K8s API discovery vars, set by Kubernetes when a service
-    // account is mounted. The agent-sandbox runner's `KubeConfig.loadFromDefault()`
-    // reads these from `process.env` to build the API URL — workers without
-    // them fall through to `https://undefined:undefined/...` and every claim
-    // creation throws a transport error. The primary thread inherits env
-    // naturally from PID 1 and works fine, which is why this surfaces as
-    // "sometimes weirdly works" (~1/N of requests succeed when N threads).
     KUBERNETES_SERVICE_HOST: process.env.KUBERNETES_SERVICE_HOST,
     KUBERNETES_SERVICE_PORT: process.env.KUBERNETES_SERVICE_PORT,
     FREESTYLE_API_KEY: process.env.FREESTYLE_API_KEY,

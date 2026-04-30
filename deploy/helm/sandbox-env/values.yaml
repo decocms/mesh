@@ -236,11 +236,8 @@ mesh:
     app.kubernetes.io/instance: "deco-studio"
 
 # ── idle-reap housekeeper ──────────────────────────────────────────────
-# CronJob that sweeps studio sandboxes: direct-deletes ReconcilerError
-# claims, gracefully shuts down idle Ready claims (idleTtlSeconds), and
-# escalates Ready-but-unreachable claims to a StuckReady shutdown
-# (stuckReadyTtlSeconds). Each reap emits a Kubernetes Event for
-# post-mortem via `kubectl get events`.
+# CronJob that direct-deletes ReconcilerError claims and gracefully shuts
+# down idle Ready claims. Emits a Kubernetes Event per reap.
 housekeeper:
   enabled: false
 
@@ -249,11 +246,6 @@ housekeeper:
   # Should match (or be shorter than) DEFAULT_IDLE_TTL_MS in runner.ts.
   idleTtlSeconds: 900
 
-  # Long enough to outlast CNI/NetworkPolicy churn; short enough that a
-  # wedged daemon doesn't sit until the operator's hard ceiling.
-  stuckReadyTtlSeconds: 1800
-
-  # Healthy daemon responds <50ms; this only matters on the failure path.
   probeTimeoutSeconds: 2
 
   # 600s ≈ 400 sandboxes/sweep at ~1.5s/claim worst case.
