@@ -165,7 +165,19 @@ export class HostSandboxRunner implements SandboxRunner {
     });
 
     const proc = await this.spawnFn({ workdir, env, daemonPort });
-    await this.waitForHealthy(daemonUrl);
+    try {
+      await this.waitForHealthy(daemonUrl);
+    } catch (err) {
+      // Daemon never reported healthy — kill it so we don't leak the child
+      // process or pin daemonPort/devPort. The deterministic workdir is left
+      // in place; a retry will reuse it.
+      try {
+        proc.kill("SIGKILL");
+      } catch {
+        /* already gone */
+      }
+      throw err;
+    }
 
     const rec: HostRecord = {
       id,
@@ -376,9 +388,11 @@ function isPidAlive(pid: number): boolean {
 
 /**
  * Pre-allocate a host-side TCP port. The daemon binds to it on startup.
- * Race window is non-zero (kernel may hand the port to another process
- * between close and the daemon's bind), so the caller retries `ensure` on
- * health-probe timeout. In practice this never fires on a developer machine.
+ * Race window is non-zero — the kernel may hand the port to another process
+ * between close() and the daemon's bind() — in which case the daemon fails
+ * to come up, `waitForHealthy` times out, and `ensure()` rejects. There is
+ * no automatic retry; the caller (e.g. VM_START) surfaces the error. In
+ * practice this never fires on a developer machine.
  */
 function preallocatePort(): Promise<number> {
   return new Promise((resolve_, reject) => {
