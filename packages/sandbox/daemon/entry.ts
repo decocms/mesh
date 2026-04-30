@@ -129,7 +129,7 @@ const eventsH = makeEventsHandler({
 });
 const idleH = makeIdleHandler();
 const proxyH = makeProxyHandler({ broadcaster, getDevPort });
-const wsProxy = makeWsUpgrader(getDevPort);
+const wsProxy = makeWsUpgrader(getDevPort, { onClientMessage: bumpActivity });
 
 Bun.serve<WsProxyData, never>({
   port: config.proxyPort,

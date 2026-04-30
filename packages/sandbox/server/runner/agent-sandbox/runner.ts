@@ -341,6 +341,18 @@ export interface AgentSandboxRunnerOptions {
    * floored to `IDLE_SWEEP_MIN_INTERVAL_MS`.
    */
   idleSweepIntervalMs?: number;
+  /**
+   * Whether the sweep should reach daemons via in-cluster Service DNS
+   * (`<handle>.<namespace>.svc.cluster.local:9000`). When false, the sweep
+   * falls back to whatever port-forwarders are already in the records cache
+   * — appropriate for dev where mesh runs outside the cluster.
+   *
+   * Defaults to detecting in-cluster execution via `KUBERNETES_SERVICE_HOST`
+   * (the standard downward env var injected into every pod). Override to
+   * force one mode in tests or unusual deploys (e.g. mesh-in-cluster talking
+   * to a *different* cluster's daemons through a tunnel).
+   */
+  inClusterDaemonAccess?: boolean;
 }
 
 export class AgentSandboxRunner implements SandboxRunner {
@@ -370,6 +382,7 @@ export class AgentSandboxRunner implements SandboxRunner {
    */
   private readonly previewGateway: { name: string; namespace: string } | null;
   private readonly idleSweepIntervalMs: number;
+  private readonly inClusterDaemonAccess: boolean;
   private idleSweepTimer: ReturnType<typeof setInterval> | null = null;
   /** True while a sweep is in flight; the next tick skips so they don't pile up. */
   private idleSweepRunning = false;
@@ -401,6 +414,9 @@ export class AgentSandboxRunner implements SandboxRunner {
         IDLE_SWEEP_MIN_INTERVAL_MS,
         Math.floor(this.idleTtlMs / IDLE_SWEEP_DIVISOR),
       );
+    this.inClusterDaemonAccess =
+      opts.inClusterDaemonAccess ??
+      Boolean(process.env.KUBERNETES_SERVICE_HOST);
     if (opts.idleSweepEnabled !== false) {
       this.startIdleSweep();
     }
@@ -1556,14 +1572,19 @@ export class AgentSandboxRunner implements SandboxRunner {
    * apiserver can't stack up overlapping sweeps.
    */
   async runIdleSweepOnce(): Promise<void> {
-    if (this.idleSweepRunning || this.closed) return;
+    if (this.idleSweepRunning || this.closed) {
+      this.metrics?.sweepTick.add(1, { outcome: "skipped" });
+      return;
+    }
     this.idleSweepRunning = true;
+    let listFailed = false;
     try {
       const claims = await listSandboxClaims(
         this.kubeConfig,
         this.namespace,
         STUDIO_CLAIM_LABEL_SELECTOR,
       ).catch((err) => {
+        listFailed = true;
         console.warn(
           `[${LOG_LABEL}] idle-sweep list failed: ${err instanceof Error ? err.message : String(err)}`,
         );
@@ -1576,6 +1597,9 @@ export class AgentSandboxRunner implements SandboxRunner {
         if (this.closed) break;
         await this.refreshClaimIfActive(claim);
       }
+      this.metrics?.sweepTick.add(1, {
+        outcome: listFailed ? "list_failed" : "ok",
+      });
     } finally {
       this.idleSweepRunning = false;
     }
@@ -1594,38 +1618,58 @@ export class AgentSandboxRunner implements SandboxRunner {
   private async refreshClaimIfActive(claim: SandboxResource): Promise<void> {
     const handle = claim.metadata?.name;
     if (!handle) return;
-    if (!isSandboxReady(claim)) return;
+    if (!isSandboxReady(claim)) {
+      this.metrics?.sweepOutcome.add(1, { outcome: "unready" });
+      return;
+    }
     const daemonUrl = this.resolveSweepDaemonUrl(claim);
-    if (!daemonUrl) return;
+    if (!daemonUrl) {
+      this.metrics?.sweepOutcome.add(1, { outcome: "unreachable" });
+      return;
+    }
     const idle = await probeDaemonIdle(daemonUrl);
-    if (!idle) return;
-    if (idle.idleMs >= this.idleTtlMs) return;
+    if (!idle) {
+      this.metrics?.sweepOutcome.add(1, { outcome: "probe_failed" });
+      return;
+    }
+    if (idle.idleMs >= this.idleTtlMs) {
+      this.metrics?.sweepOutcome.add(1, { outcome: "idle" });
+      return;
+    }
+    let patchFailed = false;
     await patchSandboxClaimShutdown(
       this.kubeConfig,
       this.namespace,
       handle,
       this.computeShutdownTime(),
-    ).catch((err) =>
+    ).catch((err) => {
+      patchFailed = true;
       console.warn(
         `[${LOG_LABEL}] idle-sweep TTL refresh failed for ${handle}: ${err instanceof Error ? err.message : String(err)}`,
-      ),
-    );
+      );
+    });
+    this.metrics?.sweepOutcome.add(1, {
+      outcome: patchFailed ? "patch_failed" : "refreshed",
+    });
   }
 
   /**
    * Pick a URL the sweep can use to reach the daemon without disturbing
    * the in-memory record state.
-   *  - prod (in-cluster mesh, `previewUrlPattern` set): synthesize the
-   *    in-cluster Service URL straight from the handle. No port-forward,
-   *    no rehydrate.
-   *  - dev: use only the cached record's port-forwarder. Skipping cold
-   *    sandboxes is fine because dev usage is single-user; if the user
-   *    isn't actively using it, letting it reap is correct.
+   *  - in-cluster mesh: synthesize the in-cluster Service URL straight from
+   *    the handle. No port-forward, no rehydrate. Gated on
+   *    `inClusterDaemonAccess` (defaults to KUBERNETES_SERVICE_HOST set);
+   *    deliberately decoupled from `previewUrlPattern` because the two
+   *    concerns are separate (URL minting vs. control-plane reachability)
+   *    and a hybrid deploy (in-cluster mesh, no public preview) is valid.
+   *  - dev (out-of-cluster): use only the cached record's port-forwarder.
+   *    Skipping cold sandboxes is fine because dev usage is single-user;
+   *    if the user isn't actively using it, letting it reap is correct.
    */
   private resolveSweepDaemonUrl(claim: SandboxResource): string | null {
     const handle = claim.metadata?.name;
     if (!handle) return null;
-    if (this.previewUrlPattern) {
+    if (this.inClusterDaemonAccess) {
       return `http://${handle}.${this.namespace}.svc.cluster.local:${DAEMON_CONTAINER_PORT}`;
     }
     const cached = this.records.get(handle);
@@ -1657,6 +1701,21 @@ interface RunnerMetrics {
   active: UpDownCounter;
   ensureOutcome: Counter;
   proxyDurationMs: Histogram;
+  /**
+   * Per-claim sweep outcome. Labels: `outcome` ∈ `refreshed` (active claim,
+   * shutdownTime patched), `idle` (past TTL, left for operator to reap),
+   * `unready` (claim not Ready, skipped), `unreachable` (resolveSweepDaemonUrl
+   * returned null — cold dev cache), `probe_failed` (daemon /idle errored or
+   * malformed), `patch_failed` (refresh patch threw). The first three are the
+   * normal split; the last three should stay near zero in steady state.
+   */
+  sweepOutcome: Counter;
+  /**
+   * Sweep-tick outcome. Labels: `outcome` ∈ `ok`, `list_failed`, `skipped`
+   * (previous tick still in flight). `list_failed` going non-zero means
+   * sweep is functionally off — alert on it.
+   */
+  sweepTick: Counter;
 }
 
 function buildRunnerMetrics(meter: Meter): RunnerMetrics {
@@ -1675,6 +1734,16 @@ function buildRunnerMetrics(meter: Meter): RunnerMetrics {
       description:
         "Wall-clock latency of mesh-mediated requests to the sandbox daemon: tool exec proxies (source=daemon) and preview iframe traffic (source=preview).",
       unit: "ms",
+    }),
+    sweepOutcome: meter.createCounter("studio.sandbox.sweep.outcome", {
+      description:
+        "Per-claim outcome of the agent-sandbox idle sweep. Use to spot probe/patch failures (which silently let claims reap).",
+      unit: "{claim}",
+    }),
+    sweepTick: meter.createCounter("studio.sandbox.sweep.tick", {
+      description:
+        "Per-tick outcome of the agent-sandbox idle sweep. `list_failed` going non-zero means the sweep is effectively off.",
+      unit: "{tick}",
     }),
   };
 }

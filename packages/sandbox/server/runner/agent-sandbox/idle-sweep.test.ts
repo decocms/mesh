@@ -74,6 +74,7 @@ function newRunner() {
     idleTtlMs: 60_000,
     previewUrlPattern: PREVIEW_PATTERN,
     idleSweepEnabled: false,
+    inClusterDaemonAccess: true,
   });
 }
 

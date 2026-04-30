@@ -33,7 +33,21 @@ export interface WsProxyData {
   pending: (string | ArrayBuffer | Uint8Array)[];
 }
 
-export function makeWsUpgrader(getDevPort: () => number) {
+export interface WsUpgraderOptions {
+  /**
+   * Called on every client→daemon frame. Wired to `bumpActivity()` so a
+   * user with only an HMR-keepalive WebSocket (no fresh HTTP fetches) still
+   * keeps the sandbox alive. Upstream→client frames are deliberately not
+   * counted: those are the dev server emitting build output, not the user
+   * being present.
+   */
+  onClientMessage?: () => void;
+}
+
+export function makeWsUpgrader(
+  getDevPort: () => number,
+  opts: WsUpgraderOptions = {},
+) {
   return {
     /** Build the per-connection state attached to ws.data at upgrade time. */
     upgradeData(req: Request): WsProxyData {
@@ -80,6 +94,7 @@ export function makeWsUpgrader(getDevPort: () => number) {
     },
 
     message(ws: ServerWebSocket<WsProxyData>, message: string | Buffer): void {
+      opts.onClientMessage?.();
       const upstream = ws.data.upstream;
       const frame = typeof message === "string" ? message : message.buffer;
       if (upstream && upstream.readyState === WebSocket.OPEN) {
