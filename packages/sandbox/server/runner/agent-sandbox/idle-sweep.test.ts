@@ -1,13 +1,3 @@
-/**
- * Focused tests for AgentSandboxRunner's idle-sweep loop.
- *
- * Mocks `globalThis.fetch` so all three call kinds the sweep makes
- * (listSandboxClaims → K8s, probeDaemonIdle → daemon, patchSandboxClaimShutdown
- * → K8s) round-trip through one harness. Constructs the runner with
- * `idleSweepEnabled: false` so the timer never auto-fires; the test drives
- * sweeps by calling `runIdleSweepOnce()` directly.
- */
-
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { AgentSandboxRunner } from "./runner";
 import type { SandboxResource } from "./client";
@@ -98,7 +88,7 @@ describe("AgentSandboxRunner idle sweep", () => {
         if (call.url.endsWith("/_decopilot_vm/idle")) {
           return jsonResp(200, {
             lastActivityAt: new Date().toISOString(),
-            idleMs: 5_000, // active (< 60s TTL)
+            idleMs: 5_000,
           });
         }
         if (call.method === "PATCH") return jsonResp(200, {});
@@ -114,7 +104,6 @@ describe("AgentSandboxRunner idle sweep", () => {
         return m?.[1];
       });
       expect(patchedNames.sort()).toEqual(["studio-sb-a", "studio-sb-b"]);
-      // Each PATCH carries a fresh shutdownTime in its merge-patch body.
       for (const p of patches) {
         const body = JSON.parse(p.body ?? "{}");
         expect(body.spec.lifecycle.shutdownPolicy).toBe("Delete");
@@ -135,7 +124,7 @@ describe("AgentSandboxRunner idle sweep", () => {
         if (call.url.endsWith("/_decopilot_vm/idle")) {
           return jsonResp(200, {
             lastActivityAt: "2026-01-01T00:00:00.000Z",
-            idleMs: 999_999_999, // way past 60s TTL
+            idleMs: 999_999_999,
           });
         }
         if (call.method === "PATCH") return jsonResp(200, {});
@@ -159,7 +148,6 @@ describe("AgentSandboxRunner idle sweep", () => {
         return new Response("unhandled", { status: 500 });
       };
       await runner.runIdleSweepOnce();
-      // No probe (no daemon URL fetch), no patch.
       expect(calls.some((c) => c.url.endsWith("/_decopilot_vm/idle"))).toBe(
         false,
       );
@@ -198,7 +186,6 @@ describe("AgentSandboxRunner idle sweep", () => {
         return new Response("unhandled", { status: 500 });
       };
       await expect(runner.runIdleSweepOnce()).resolves.toBeUndefined();
-      // No daemon probes — list failed.
       expect(calls.some((c) => c.url.endsWith("/_decopilot_vm/idle"))).toBe(
         false,
       );

@@ -53,18 +53,10 @@ export async function probeDaemonHealth(
 }
 
 export interface DaemonIdleStatus {
-  /** ISO timestamp of the last request the daemon served (excluding /health and /idle). */
   lastActivityAt: string;
-  /** Milliseconds since `lastActivityAt`. Already clamped to >= 0 by the daemon. */
   idleMs: number;
 }
 
-/**
- * Returns the parsed `/_decopilot_vm/idle` response, or null if the daemon is
- * unreachable or replies with the wrong shape. Used by the idle-sweep loop —
- * a null return means "don't bump shutdownTime", which lets the operator reap
- * the claim if it's already past its deadline.
- */
 export async function probeDaemonIdle(
   daemonUrl: string,
 ): Promise<DaemonIdleStatus | null> {

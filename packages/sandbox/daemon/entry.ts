@@ -139,10 +139,6 @@ Bun.serve<WsProxyData, never>({
     const url = new URL(req.url);
     const p = url.pathname;
 
-    // Bump activity for any meaningful inbound request. Skipped paths must
-    // not count as "user activity" or the idle sweep would never see the
-    // pod as idle: /health is mesh's readiness probe (polled at boot only,
-    // but cheap to skip anyway); /_decopilot_vm/idle is the sweep itself.
     if (p !== "/health" && p !== "/_decopilot_vm/idle") {
       bumpActivity();
     }

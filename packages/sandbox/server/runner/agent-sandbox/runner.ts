@@ -124,21 +124,9 @@ const RESERVED_ENV_KEYS = new Set([
   "PACKAGE_MANAGER",
 ]);
 
-// Default idle-reap TTL: 15 min. Encoded into the claim's
-// `spec.lifecycle.shutdownTime` at provision time and refreshed by the
-// idle-sweep loop (`startIdleSweep`) whenever the daemon reports recent
-// activity. Mesh code paths don't push the deadline directly — the daemon
-// is the single source of truth because it sees 100% of traffic to the pod
-// (preview reverse-proxy, /_decopilot_vm/* admin, exec, SSE, websocket).
 const DEFAULT_IDLE_TTL_MS = 15 * 60 * 1000;
-// Sweep cadence: idleTtlMs / 5 → ~3 min on the default 15-min TTL. Picks
-// up activity well before the deadline elapses while keeping the K8s API
-// call rate proportional to (active sandboxes / sweep period).
 const IDLE_SWEEP_DIVISOR = 5;
 const IDLE_SWEEP_MIN_INTERVAL_MS = 30_000;
-// Selector matches the labels `buildClaim` writes on every studio claim.
-// Filters out any non-studio sandboxes that share the namespace (e.g. the
-// deco/ai workload's `purpose=deco-environment` claims).
 const STUDIO_CLAIM_LABEL_SELECTOR =
   "app.kubernetes.io/managed-by=studio,app.kubernetes.io/name=studio-sandbox";
 
@@ -330,28 +318,8 @@ export interface AgentSandboxRunnerOptions {
     name: string;
     namespace: string;
   };
-  /**
-   * Set `false` to disable the idle-sweep background loop. Defaults to
-   * enabled. Tests that want to drive ticks deterministically pass `false`
-   * and call `runIdleSweepOnce()` themselves.
-   */
   idleSweepEnabled?: boolean;
-  /**
-   * Override sweep cadence (ms). Defaults to `idleTtlMs / IDLE_SWEEP_DIVISOR`,
-   * floored to `IDLE_SWEEP_MIN_INTERVAL_MS`.
-   */
   idleSweepIntervalMs?: number;
-  /**
-   * Whether the sweep should reach daemons via in-cluster Service DNS
-   * (`<handle>.<namespace>.svc.cluster.local:9000`). When false, the sweep
-   * falls back to whatever port-forwarders are already in the records cache
-   * — appropriate for dev where mesh runs outside the cluster.
-   *
-   * Defaults to detecting in-cluster execution via `KUBERNETES_SERVICE_HOST`
-   * (the standard downward env var injected into every pod). Override to
-   * force one mode in tests or unusual deploys (e.g. mesh-in-cluster talking
-   * to a *different* cluster's daemons through a tunnel).
-   */
   inClusterDaemonAccess?: boolean;
 }
 
@@ -384,7 +352,6 @@ export class AgentSandboxRunner implements SandboxRunner {
   private readonly idleSweepIntervalMs: number;
   private readonly inClusterDaemonAccess: boolean;
   private idleSweepTimer: ReturnType<typeof setInterval> | null = null;
-  /** True while a sweep is in flight; the next tick skips so they don't pile up. */
   private idleSweepRunning = false;
   private closed = false;
 
@@ -1545,17 +1512,6 @@ export class AgentSandboxRunner implements SandboxRunner {
     });
   }
 
-  // ---- Idle sweep -----------------------------------------------------------
-
-  /**
-   * Start the periodic sweep that refreshes `spec.lifecycle.shutdownTime` on
-   * any claim whose daemon reports recent activity (`idleMs < idleTtlMs`).
-   * Idle claims are intentionally left alone — the operator's deadline is
-   * already correct and will reap them.
-   *
-   * Idempotent: a second call with the timer already running is a no-op.
-   * `unref()` so the sweep doesn't keep the Bun process alive on shutdown.
-   */
   private startIdleSweep(): void {
     if (this.idleSweepTimer || this.closed) return;
     const timer = setInterval(() => {
@@ -1565,12 +1521,6 @@ export class AgentSandboxRunner implements SandboxRunner {
     this.idleSweepTimer = timer;
   }
 
-  /**
-   * One sweep tick. Public-ish (called via the public `close()` and from
-   * tests) — never throws; logs and continues per claim so a single failed
-   * probe doesn't block the rest. Skips if already running so a slow K8s
-   * apiserver can't stack up overlapping sweeps.
-   */
   async runIdleSweepOnce(): Promise<void> {
     if (this.idleSweepRunning || this.closed) {
       this.metrics?.sweepTick.add(1, { outcome: "skipped" });
@@ -1590,9 +1540,6 @@ export class AgentSandboxRunner implements SandboxRunner {
         );
         return [] as SandboxResource[];
       });
-      // Process serially. Sweep is bounded by the number of active studio
-      // sandboxes (tens, not thousands) and runs every ~3 min — burst-firing
-      // K8s API patches in parallel is unnecessary load.
       for (const claim of claims) {
         if (this.closed) break;
         await this.refreshClaimIfActive(claim);
@@ -1605,16 +1552,6 @@ export class AgentSandboxRunner implements SandboxRunner {
     }
   }
 
-  /**
-   * Probe one claim's daemon and patch `shutdownTime` if it's been touched
-   * within `idleTtlMs`. No-op when:
-   *  - claim isn't ready (operator will mark not-ready or reap on its own),
-   *  - daemon URL can't be resolved (dev mode + cold records cache: skip
-   *    rather than burn a port-forward solely for the sweep),
-   *  - `/idle` is unreachable (transient pod issue; let the operator decide),
-   *  - daemon reports `idleMs >= idleTtlMs` (operator's deadline is correct;
-   *    leaving shutdownTime alone allows reaping).
-   */
   private async refreshClaimIfActive(claim: SandboxResource): Promise<void> {
     const handle = claim.metadata?.name;
     if (!handle) return;
@@ -1653,19 +1590,6 @@ export class AgentSandboxRunner implements SandboxRunner {
     });
   }
 
-  /**
-   * Pick a URL the sweep can use to reach the daemon without disturbing
-   * the in-memory record state.
-   *  - in-cluster mesh: synthesize the in-cluster Service URL straight from
-   *    the handle. No port-forward, no rehydrate. Gated on
-   *    `inClusterDaemonAccess` (defaults to KUBERNETES_SERVICE_HOST set);
-   *    deliberately decoupled from `previewUrlPattern` because the two
-   *    concerns are separate (URL minting vs. control-plane reachability)
-   *    and a hybrid deploy (in-cluster mesh, no public preview) is valid.
-   *  - dev (out-of-cluster): use only the cached record's port-forwarder.
-   *    Skipping cold sandboxes is fine because dev usage is single-user;
-   *    if the user isn't actively using it, letting it reap is correct.
-   */
   private resolveSweepDaemonUrl(claim: SandboxResource): string | null {
     const handle = claim.metadata?.name;
     if (!handle) return null;
@@ -1676,11 +1600,6 @@ export class AgentSandboxRunner implements SandboxRunner {
     return cached?.daemonUrl ?? null;
   }
 
-  /**
-   * Stop the idle sweep, close any open port-forwarders, and prevent
-   * further provisioning. Tests call this in afterEach; mesh wires it to
-   * graceful-shutdown if/when one exists.
-   */
   close(): void {
     if (this.closed) return;
     this.closed = true;
@@ -1701,20 +1620,7 @@ interface RunnerMetrics {
   active: UpDownCounter;
   ensureOutcome: Counter;
   proxyDurationMs: Histogram;
-  /**
-   * Per-claim sweep outcome. Labels: `outcome` ∈ `refreshed` (active claim,
-   * shutdownTime patched), `idle` (past TTL, left for operator to reap),
-   * `unready` (claim not Ready, skipped), `unreachable` (resolveSweepDaemonUrl
-   * returned null — cold dev cache), `probe_failed` (daemon /idle errored or
-   * malformed), `patch_failed` (refresh patch threw). The first three are the
-   * normal split; the last three should stay near zero in steady state.
-   */
   sweepOutcome: Counter;
-  /**
-   * Sweep-tick outcome. Labels: `outcome` ∈ `ok`, `list_failed`, `skipped`
-   * (previous tick still in flight). `list_failed` going non-zero means
-   * sweep is functionally off — alert on it.
-   */
   sweepTick: Counter;
 }
 

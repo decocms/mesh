@@ -34,13 +34,6 @@ export interface WsProxyData {
 }
 
 export interface WsUpgraderOptions {
-  /**
-   * Called on every client→daemon frame. Wired to `bumpActivity()` so a
-   * user with only an HMR-keepalive WebSocket (no fresh HTTP fetches) still
-   * keeps the sandbox alive. Upstream→client frames are deliberately not
-   * counted: those are the dev server emitting build output, not the user
-   * being present.
-   */
   onClientMessage?: () => void;
 }
 

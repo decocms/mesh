@@ -672,16 +672,6 @@ interface SandboxClaimList {
   items: SandboxResource[];
 }
 
-/**
- * List SandboxClaims in `namespace`, optionally filtered by a label selector
- * (e.g. `app.kubernetes.io/managed-by=studio`). Used by the idle-sweep to
- * iterate every claim mesh has ever provisioned, not just the ones in the
- * in-process records cache (which is cold after a mesh restart while the pods
- * are still alive).
- *
- * Returns an empty array on a missing namespace (404) so callers don't have
- * to special-case fresh installs.
- */
 export async function listSandboxClaims(
   kc: KubeConfig,
   namespace: string,
