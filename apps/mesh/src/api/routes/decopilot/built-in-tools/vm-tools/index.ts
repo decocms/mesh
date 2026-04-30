@@ -87,6 +87,48 @@ function sanitizeFilename(name: string): string | null {
 }
 
 /**
+ * Find a non-colliding key by appending `-1`, `-2`, ... before the
+ * extension on collision. Avoids the silent-overwrite footgun when the
+ * model regenerates an artifact under the same default name in two
+ * turns of the same thread — both files end up in the chip list, the
+ * user can pick.
+ *
+ * Cap at COLLISION_LIMIT to bound HEAD-request cost on a pathological
+ * input. Race with another concurrent share_with_user is theoretical
+ * (single user, mostly sequential turns) — skip the If-None-Match dance.
+ */
+const COLLISION_LIMIT = 100;
+async function findFreeKey(
+  storage: NonNullable<VmToolsParams["ctx"]["objectStorage"]>,
+  baseKey: string,
+): Promise<string> {
+  const exists = async (k: string): Promise<boolean> => {
+    try {
+      await storage.head(k);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  if (!(await exists(baseKey))) return baseKey;
+
+  const slashIdx = baseKey.lastIndexOf("/");
+  const dir = baseKey.slice(0, slashIdx + 1);
+  const fname = baseKey.slice(slashIdx + 1);
+  const dotIdx = fname.lastIndexOf(".");
+  const stem = dotIdx > 0 ? fname.slice(0, dotIdx) : fname;
+  const ext = dotIdx > 0 ? fname.slice(dotIdx) : "";
+
+  for (let i = 1; i <= COLLISION_LIMIT; i++) {
+    const candidate = `${dir}${stem}-${i}${ext}`;
+    if (!(await exists(candidate))) return candidate;
+  }
+  throw new Error(
+    `Could not find a free key after ${COLLISION_LIMIT} attempts for ${baseKey}`,
+  );
+}
+
+/**
  * Build a stable file-redirect URL. Must encode each path segment so
  * keys carrying URL-special chars (`?`, `#`, `&`, space, ...) survive
  * round-trip — the `/api/:org/files/*` route reads `c.req.path` which
@@ -280,13 +322,19 @@ export function createVmTools(params: VmToolsParams) {
       if (!orgId || !storage) {
         throw new Error("Object storage is not configured for this org");
       }
-      const filename = sanitizeFilename(
+      const requestedFilename = sanitizeFilename(
         input.name ?? path.basename(input.source),
       );
-      if (!filename) {
+      if (!requestedFilename) {
         throw new Error(`Invalid filename: ${input.name ?? input.source}`);
       }
-      const key = `model-outputs/${threadId}/${filename}`;
+      const baseKey = `model-outputs/${threadId}/${requestedFilename}`;
+      // Dedupe key on collision so a regenerated artifact lands as
+      // `report-1.csv` instead of silently clobbering `report.csv`. The
+      // chip UI picks both up. The response surfaces the actual key /
+      // filename used so the model can mention the right name in its reply.
+      const key = await findFreeKey(storage, baseKey);
+      const filename = key.split("/").pop() ?? requestedFilename;
       const presignedPutUrl = await storage.presignedPutUrl(key);
       await call("/_decopilot_vm/upload_to_url", {
         path: input.source,
