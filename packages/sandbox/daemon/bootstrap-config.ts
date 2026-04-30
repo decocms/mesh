@@ -1,11 +1,6 @@
 import type { BootstrapPayload } from "./persistence";
 import type { Config, PackageManager, Runtime } from "./types";
 
-/**
- * Materialize a Config from a validated bootstrap payload. Mirrors loadConfig
- * but skips env-shaped validation (already done at the route layer) and
- * derives the same `pathPrefix` rules.
- */
 export function configFromBootstrap(
   payload: BootstrapPayload,
   daemonBootId: string,

@@ -1,11 +1,3 @@
-/**
- * Stable, deterministic JSON encoder used to derive a content hash for the
- * bootstrap payload. Recursive sort by key, no whitespace, undefined treated
- * the same as a missing key, env-map sorted by key.
- *
- * Two payloads that differ only in key insertion order or in the presence
- * of explicit `undefined` fields hash to the same value. Pure function.
- */
 export function canonicalize(value: unknown): string {
   return JSON.stringify(canonical(value));
 }

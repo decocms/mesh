@@ -295,11 +295,6 @@ describe("daemon e2e (runs generated script under Bun)", () => {
       );
       const [r1, r2] = await Promise.all([first, second]);
       const statuses = [r1.status, r2.status].sort();
-      // Exactly one accepted (200); the other is rejected by either the
-      // re-entry guard (409) or — if the in-flight orchestrator already
-      // failed and flipped phase to `failed` — the Phase 1 not-ready guard
-      // (503). Both encode the same invariant: only one orchestrator
-      // can run.
       expect(statuses[0]).toBe(200);
       expect([409, 503]).toContain(statuses[1]);
     } finally {
@@ -666,9 +661,6 @@ describe("daemon e2e (auth on mutating routes)", () => {
   const toBody = (obj: unknown) =>
     Buffer.from(JSON.stringify(obj), "utf-8").toString("base64");
 
-  // The full set of mutating endpoints the daemon exposes today. Each entry
-  // returns 401 without bearer / wrong bearer, and not-401 with the right
-  // bearer. Bodies are minimal — we only care about the status code.
   const MUTATING_POSTS: Array<{
     name: string;
     path: string;
@@ -765,10 +757,6 @@ describe("daemon e2e (auth on mutating routes)", () => {
     ctrl.abort();
   });
 
-  // Regression guard: mesh attaches Authorization: Bearer <token> to every
-  // path, including the unauth'd ones. The unauth'd handlers must accept
-  // the header silently — no 400, no extra validation. If this ever flips
-  // to 401/400, mesh's daemon-client.ts breaks for every studio UI flow.
   it("GET /health tolerates an arbitrary Authorization header", async () => {
     const res = await fetch(`http://localhost:${daemonPort}/health`, {
       headers: { Authorization: "Bearer junk-token" },

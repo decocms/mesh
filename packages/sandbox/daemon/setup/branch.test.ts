@@ -34,7 +34,6 @@ describe("resolveBranch", () => {
 
   it("creates local branch when fetch fails and local doesn't exist", () => {
     const gitSync = mock((args: string[]) => {
-      // The wrapper prepends ["-c", "safe.directory=*"] — strip that.
       const a = args[0] === "-c" ? args.slice(2) : args;
       if (a[0] === "fetch") {
         throw Object.assign(new Error("no branch"), { stderr: "" });

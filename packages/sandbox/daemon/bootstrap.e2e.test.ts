@@ -1,10 +1,3 @@
-/**
- * End-to-end tests for the bootstrap state machine (Phase 1).
- *
- * Spawns the bundled daemon under Bun without DAEMON_TOKEN so the daemon
- * comes up in `pending-bootstrap`. Tests then drive POST /_decopilot_vm/bootstrap
- * directly and observe phase via /health.
- */
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
   mkdtempSync,
@@ -63,9 +56,7 @@ async function waitForPort(
     try {
       const res = await fetch(`http://localhost:${port}/health`);
       if (res.ok) return;
-    } catch {
-      /* not up yet */
-    }
+    } catch {}
     await new Promise((r) => setTimeout(r, 50));
   }
   throw new Error(`daemon did not listen on :${port} within ${timeoutMs}ms`);
@@ -76,7 +67,6 @@ interface StartOpts {
   strictNonce?: boolean;
   bootstrapTimeoutMs?: number;
   preseedBootstrapJson?: string;
-  // Optional override for the bootstrap dir (skip mkdtemp)
   bootstrapDirOverride?: string;
   extraEnv?: Record<string, string>;
 }
@@ -107,9 +97,6 @@ async function startDaemon(opts: StartOpts = {}) {
   if (opts.withClaimNonce) env.CLAIM_NONCE = VALID_NONCE;
   if (opts.strictNonce) env.STRICT_NONCE = "true";
 
-  // Important: do NOT pass DAEMON_TOKEN (parent shell may have it set);
-  // the bootstrap path is gated by its absence. Strip BEFORE applying
-  // extraEnv so opt-in env-driven tests can re-set it.
   delete env.DAEMON_TOKEN;
   delete env.CLONE_URL;
   delete env.REPO_NAME;
@@ -277,7 +264,6 @@ describe("daemon bootstrap (state machine)", () => {
     for (const r of results) expect(r.status).toBe(200);
     const hashes = new Set(results.map((r) => r.json.hash as string));
     expect(hashes.size).toBe(1);
-    // bootstrap.json exists and is non-empty
     const bytes = readFileSync(join(bootstrapDir, "bootstrap.json"), "utf-8");
     expect(bytes.length).toBeGreaterThan(10);
   });
@@ -345,11 +331,6 @@ describe("daemon bootstrap (state machine)", () => {
   });
 
   it("Phase 0 regression: POST /bootstrap tolerates an arbitrary Authorization header", async () => {
-    // Mesh's `proxyDaemonRequest` stamps a bearer on every path it forwards.
-    // Bootstrap is unauth-by-design (phase + nonce gated), but the handler
-    // must not reject a request just because Authorization was attached.
-    // A 200 (first call accepted) or 409 (already-bootstrapped from an
-    // earlier test in this describe block) both prove the header is ignored.
     const raw = JSON.stringify(basicPayload());
     const b64 = Buffer.from(raw, "utf-8").toString("base64");
     const res = await fetch(
@@ -397,8 +378,6 @@ describe("daemon bootstrap (file rehydration)", () => {
       daemonToken: VALID_TOKEN,
       runtime: "node",
     };
-    // Recompute canonical JSON the same way the daemon does. Simple
-    // serializer: keys sorted, no whitespace, undefined dropped.
     const canonical = (v: unknown): unknown => {
       if (v === undefined) return undefined;
       if (Array.isArray(v))
@@ -469,25 +448,17 @@ describe("daemon bootstrap (file rehydration)", () => {
         withClaimNonce: true,
         bootstrapDirOverride: dir,
       });
-      // After daemon hydrates it should have removed the .tmp.
       let stillThere = false;
       try {
         statSync(join(dir, "bootstrap.json.tmp"));
         stillThere = true;
-      } catch {
-        /* gone — good */
-      }
+      } catch {}
       expect(stillThere).toBe(false);
     } finally {
-      // stopDaemon will rm the override dir too.
     }
   });
 
   it("kill -9 mid-write equivalent: existing valid file rehydrates", async () => {
-    // Direct simulation: bootstrap, snapshot the file bytes, kill the
-    // daemon, restart pointing at a fresh dir holding those bytes. Covers
-    // the same atomic-rename + boot-rehydration code path that a true
-    // kill -9 mid-write would exercise.
     await startDaemon({ withClaimNonce: true });
     const r = await postBootstrap(basicPayload());
     expect(r.status).toBe(200);
@@ -538,7 +509,6 @@ describe("daemon bootstrap (timeout + back-compat)", () => {
       withClaimNonce: false,
       extraEnv: {
         DAEMON_TOKEN: VALID_TOKEN,
-        // No clone — keeps orchestrator a no-op so phase stays ready.
       },
     });
     const h = await getHealth();

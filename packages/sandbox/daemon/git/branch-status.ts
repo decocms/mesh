@@ -3,7 +3,6 @@ import type { Broadcaster } from "../events/broadcast";
 import type { Config, BranchStatus } from "../types";
 import { gitSync as rawGitSync } from "./git-sync";
 
-// Per-invocation -c safe.directory=* — see SPEC-daemon-bootstrap.md option (c).
 const gitSync = (args: string[], opts: Parameters<typeof rawGitSync>[1]) =>
   rawGitSync(["-c", "safe.directory=*", ...args], opts);
 

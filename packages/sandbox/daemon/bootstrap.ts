@@ -18,14 +18,8 @@ const VALID_RUNTIMES = new Set(["node", "bun", "deno"]);
 const VALID_PMS = new Set(["npm", "pnpm", "yarn", "bun", "deno"]);
 
 export interface BootstrapHandlerDeps {
-  /** UUID stamped at daemon process start; round-trips on every response. */
   daemonBootId: string;
-  /**
-   * Storage dir for `bootstrap.json` (defaults to `/home/sandbox/.daemon`).
-   * Override exists for tests; do not pass in production.
-   */
   storageDir?: string;
-  /** Called inside the mutex once a bootstrap is accepted (for orchestrator wiring). */
   onAccepted?: (payload: BootstrapPayload) => void;
 }
 
@@ -43,7 +37,6 @@ export function makeBootstrapHandler(deps: BootstrapHandlerDeps) {
     }
     const payload = raw as Partial<BootstrapPayload>;
 
-    // 1. schemaVersion known? 400.
     if (payload.schemaVersion !== 1) {
       return jsonResponse(
         { error: `unknown schemaVersion: ${String(payload.schemaVersion)}` },
@@ -51,12 +44,10 @@ export function makeBootstrapHandler(deps: BootstrapHandlerDeps) {
       );
     }
 
-    // 2. claimNonce matches process.env.CLAIM_NONCE (downward API)? 403.
     if (typeof payload.claimNonce !== "string" || !payload.claimNonce) {
       return jsonResponse({ error: "claimNonce required" }, 400);
     }
 
-    // 3. daemonToken length check.
     if (
       typeof payload.daemonToken !== "string" ||
       payload.daemonToken.length < 32
@@ -64,8 +55,6 @@ export function makeBootstrapHandler(deps: BootstrapHandlerDeps) {
       return jsonResponse({ error: "daemonToken must be ≥ 32 chars" }, 400);
     }
 
-    // 4. Light shape validation so a malformed payload doesn't survive
-    //    until orchestrator-time. Spec keeps the schema deliberately small.
     if (!VALID_RUNTIMES.has(payload.runtime as string)) {
       return jsonResponse(
         { error: `runtime invalid: ${String(payload.runtime)}` },
@@ -91,7 +80,6 @@ export function makeBootstrapHandler(deps: BootstrapHandlerDeps) {
       const persistedHash = getBootstrapHash();
       const incomingHash = hashPayload(fullPayload);
 
-      // Failed is terminal regardless of payload.
       if (phase === "failed") {
         return jsonResponse(
           { phase, bootId: deps.daemonBootId, hash: incomingHash },
@@ -100,7 +88,6 @@ export function makeBootstrapHandler(deps: BootstrapHandlerDeps) {
       }
 
       if (persistedHash !== null) {
-        // Already bootstrapped (or in-flight bootstrapping). Idempotency check.
         if (incomingHash !== persistedHash) {
           return jsonResponse(
             {
@@ -112,16 +99,12 @@ export function makeBootstrapHandler(deps: BootstrapHandlerDeps) {
             409,
           );
         }
-        // Same payload — return current phase as a 200.
         return jsonResponse(
           { phase, bootId: deps.daemonBootId, hash: persistedHash },
           200,
         );
       }
 
-      // No persisted payload yet. Defense-in-depth: only accept from
-      // pending-bootstrap. (ready/bootstrapping with hash=null shouldn't
-      // happen, but guard anyway.)
       if (phase !== "pending-bootstrap") {
         return jsonResponse(
           { phase, bootId: deps.daemonBootId, hash: incomingHash },
