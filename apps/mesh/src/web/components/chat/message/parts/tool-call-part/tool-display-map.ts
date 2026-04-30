@@ -54,7 +54,7 @@ export const TOOL_DISPLAY_MAP: Record<string, ToolDisplay> = {
 
   // Sandbox / code execution tools
   sandbox: { icon: Code02, label: "Run Code" },
-  copy_to_sandbox: { icon: Download01, label: "Copy to Sandbox" },
+  copy_to_sandbox: { icon: Download01, label: "Load File" },
   share_with_user: { icon: Upload01, label: "Share with User" },
 
   // Browser / web tools
