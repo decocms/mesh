@@ -1,4 +1,5 @@
 import type { Phase } from "../state";
+import { getLastError } from "../state";
 import { jsonResponse } from "./body-parser";
 
 export interface HealthDeps {
@@ -15,5 +16,6 @@ export function makeHealthHandler(deps: HealthDeps): () => Response {
       bootId: deps.config.daemonBootId,
       setup: deps.getSetup(),
       phase: deps.getPhase ? deps.getPhase() : "ready",
+      lastError: getLastError(),
     });
 }

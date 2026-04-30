@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { loadConfig } from "./config";
-import { configFromBootstrap } from "./bootstrap-config";
+import { unlinkSync } from "node:fs";
+import { join } from "node:path";
+import { loadBootConfigFromEnv, tryLoadTenantConfigFromEnv } from "./config";
+import { tenantConfigFromBootstrap } from "./bootstrap-config";
 import { REPLAY_BYTES } from "./constants";
 import { Broadcaster } from "./events/broadcast";
 import { ProcessManager } from "./process/run-process";
@@ -29,35 +31,50 @@ import { bumpActivity } from "./activity";
 import { startUpstreamProbe } from "./probe";
 import { BranchStatusMonitor } from "./git/branch-status";
 import { discoverDescendantListeningPorts } from "./process/port-discovery";
-import { readBootstrap, type BootstrapPayload } from "./persistence";
+import {
+  BOOTSTRAP_FILENAME,
+  readBootstrap,
+  type BootstrapPayload,
+} from "./persistence";
 import {
   bootstrapMutex,
+  clearTenantConfig,
+  getBootConfig,
   getPhase,
-  peekConfig,
+  peekTenantConfig,
+  setBootConfig,
   setBootstrapHash,
-  setConfig,
+  setLastError,
   setPhase,
+  setTenantConfig,
 } from "./state";
 import { makeBootstrapHandler } from "./bootstrap";
-import type { Config } from "./types";
+import type { Config, TenantConfig } from "./types";
 
-// Auto-generate DAEMON_BOOT_ID when not provided (dev/test). In production
-// the runner supplies a per-container UUID via env.
 if (!process.env.DAEMON_BOOT_ID) {
   process.env.DAEMON_BOOT_ID = randomUUID();
 }
-const DAEMON_BOOT_ID = process.env.DAEMON_BOOT_ID;
-
-const dropPrivileges = process.env.DAEMON_DROP_PRIVILEGES === "1";
-const PROXY_PORT = parseInt(process.env.PROXY_PORT ?? "9000", 10);
-
-const BOOTSTRAP_TIMEOUT_MS = parseInt(
-  process.env.BOOTSTRAP_TIMEOUT_MS ?? `${5 * 60 * 1000}`,
-  10,
-);
 
 const BOOTSTRAP_DIR =
   process.env.DAEMON_BOOTSTRAP_DIR ?? "/home/sandbox/.daemon";
+
+// Boot config is required: token + bootId + appRoot. Without DAEMON_TOKEN
+// we have no auth boundary, so the daemon refuses to start. This is the
+// only fatal config check; everything else (tenant repo, runtime) is
+// optional and can arrive later via bootstrap.
+const bootConfig = (() => {
+  try {
+    return loadBootConfigFromEnv(process.env);
+  } catch (e) {
+    console.error(`[daemon] boot config invalid: ${(e as Error).message}`);
+    process.exit(1);
+  }
+})();
+setBootConfig(bootConfig);
+
+const DAEMON_BOOT_ID = bootConfig.daemonBootId;
+const PROXY_PORT = bootConfig.proxyPort;
+const dropPrivileges = bootConfig.dropPrivileges;
 
 const broadcaster = new Broadcaster(REPLAY_BYTES);
 const processManager = new ProcessManager({
@@ -68,13 +85,13 @@ const processManager = new ProcessManager({
 
 let orchestrator: SetupOrchestrator | null = null;
 let branchStatus: BranchStatusMonitor | null = null;
-let mutatingHandlers: ReturnType<typeof buildMutatingHandlers> | null = null;
 let activeConfig: Config | null = null;
+let tenantHandlers: {
+  execH: ReturnType<typeof makeExecHandler>;
+} | null = null;
 
 let discoveredScripts: string[] | null = null;
 
-// Intercept the `scripts` event so SSE replay can serve the latest list on
-// connect. The orchestrator broadcasts this once setup completes.
 const origEvent = broadcaster.broadcastEvent.bind(broadcaster);
 broadcaster.broadcastEvent = (event: string, data: unknown) => {
   if (event === "scripts") {
@@ -96,9 +113,6 @@ const getDiscoveredPorts = (): number[] => {
 const lastStatus = startUpstreamProbe({
   upstreamHost: "localhost",
   getDiscoveredPorts,
-  // Untrusted: only used until /proc shows a listener. Honored by frameworks
-  // that respect PORT, and used in e2e tests where there's no managed dev
-  // process and the upstream is started externally.
   getFallbackPort: () => activeConfig?.devPort ?? 3000,
   onChange: (s) =>
     broadcaster.broadcastEvent("status", { type: "status", ...s }),
@@ -107,49 +121,86 @@ const lastStatus = startUpstreamProbe({
 const getDevPort = (): number =>
   lastStatus.port ?? activeConfig?.devPort ?? 3000;
 
-function buildMutatingHandlers(config: Config) {
+const readH = makeReadHandler({
+  appRoot: bootConfig.appRoot,
+  dropPrivileges,
+});
+const writeH = makeWriteHandler({
+  appRoot: bootConfig.appRoot,
+  dropPrivileges,
+});
+const editH = makeEditHandler({
+  appRoot: bootConfig.appRoot,
+  dropPrivileges,
+});
+const grepH = makeGrepHandler({
+  appRoot: bootConfig.appRoot,
+  dropPrivileges,
+});
+const globH = makeGlobHandler({
+  appRoot: bootConfig.appRoot,
+  dropPrivileges,
+});
+const bashH = makeBashHandler({
+  appRoot: bootConfig.appRoot,
+  dropPrivileges,
+});
+const killH = makeKillHandler(processManager);
+
+function activateTenant(tenant: TenantConfig): void {
+  const config: Config = { ...getBootConfig(), ...tenant };
+  activeConfig = config;
   const orch = new SetupOrchestrator({
     config,
     broadcaster,
     processManager,
     dropPrivileges,
-    onTerminal: (outcome) => {
+    onTerminal: (outcome, reason) => {
       void bootstrapMutex.run(() => {
-        const cur = getPhase();
-        if (cur === "failed") return;
-        if (outcome === "ready" && cur === "bootstrapping") {
+        if (outcome === "ready") {
           setPhase("ready");
-          clearBootstrapTimeout();
         } else if (outcome === "failed") {
-          setPhase("failed");
-          clearBootstrapTimeout();
+          handleOrchestratorFailure(reason ?? "orchestrator failed");
         }
       });
     },
   });
   orchestrator = orch;
   branchStatus = new BranchStatusMonitor(config, broadcaster);
-  return {
-    readH: makeReadHandler({ appRoot: config.appRoot, dropPrivileges }),
-    writeH: makeWriteHandler({ appRoot: config.appRoot, dropPrivileges }),
-    editH: makeEditHandler({ appRoot: config.appRoot, dropPrivileges }),
-    grepH: makeGrepHandler({ appRoot: config.appRoot, dropPrivileges }),
-    globH: makeGlobHandler({ appRoot: config.appRoot, dropPrivileges }),
-    bashH: makeBashHandler({ appRoot: config.appRoot, dropPrivileges }),
+  tenantHandlers = {
     execH: makeExecHandler({
       config,
       processManager,
       orchestrator: orch,
       setupState: orch.state,
     }),
-    killH: makeKillHandler(processManager),
-    daemonToken: config.daemonToken,
   };
 }
 
-function activateConfig(config: Config): void {
-  activeConfig = config;
-  mutatingHandlers = buildMutatingHandlers(config);
+function deactivateTenant(): void {
+  orchestrator = null;
+  branchStatus = null;
+  activeConfig = null;
+  tenantHandlers = null;
+  clearTenantConfig();
+  setBootstrapHash(null);
+  try {
+    unlinkSync(join(BOOTSTRAP_DIR, BOOTSTRAP_FILENAME));
+  } catch {}
+}
+
+// Caller MUST hold bootstrapMutex. Drops orchestrator state, deletes
+// bootstrap.json, broadcasts the failure reason, and sets phase back to
+// pending-bootstrap so mesh can re-POST a corrected payload without a
+// pod-recreate roundtrip. lastError is surfaced on /health for diagnostics.
+function handleOrchestratorFailure(reason: string): void {
+  setLastError(reason);
+  deactivateTenant();
+  setPhase("pending-bootstrap");
+  broadcaster.broadcastChunk(
+    "setup",
+    `\r\n[daemon] orchestrator failed (${reason}); awaiting new bootstrap\r\n`,
+  );
 }
 
 const scriptsHandler = makeScriptsHandler(() => discoveredScripts ?? []);
@@ -181,38 +232,13 @@ const idleH = makeIdleHandler();
 const proxyH = makeProxyHandler({ broadcaster, getDevPort });
 const wsProxy = makeWsUpgrader(getDevPort, { onClientMessage: bumpActivity });
 
-let bootstrapTimeout: ReturnType<typeof setTimeout> | null = null;
-function armBootstrapTimeout() {
-  if (bootstrapTimeout) clearTimeout(bootstrapTimeout);
-  bootstrapTimeout = setTimeout(() => {
-    void bootstrapMutex.run(() => {
-      const cur = getPhase();
-      if (cur === "pending-bootstrap") {
-        setPhase("failed");
-        broadcaster.broadcastChunk(
-          "setup",
-          `\r\n[daemon] bootstrap timeout (${BOOTSTRAP_TIMEOUT_MS}ms) — phase=failed\r\n`,
-        );
-      }
-    });
-  }, BOOTSTRAP_TIMEOUT_MS);
-  bootstrapTimeout.unref?.();
-}
-function clearBootstrapTimeout() {
-  if (bootstrapTimeout) {
-    clearTimeout(bootstrapTimeout);
-    bootstrapTimeout = null;
-  }
-}
-
 const bootstrapH = makeBootstrapHandler({
   daemonBootId: DAEMON_BOOT_ID,
   storageDir: BOOTSTRAP_DIR,
   onAccepted: () => {
-    const cfg = peekConfig();
-    if (!cfg) return;
-    activateConfig(cfg);
-    clearBootstrapTimeout();
+    const tenant = peekTenantConfig();
+    if (!tenant) return;
+    activateTenant(tenant);
     if (process.env.DAEMON_NO_AUTOSTART !== "1") {
       queueMicrotask(() => {
         void runBootSetup();
@@ -222,38 +248,39 @@ const bootstrapH = makeBootstrapHandler({
 });
 
 function hydrate(): void {
-  if (process.env.DAEMON_TOKEN) {
-    let cfg: Config;
-    try {
-      cfg = loadConfig(process.env);
-    } catch (e) {
-      console.error(`[daemon] env config invalid: ${(e as Error).message}`);
-      setPhase("failed");
-      return;
-    }
-    setConfig(cfg);
-    setPhase("ready");
-    activateConfig(cfg);
+  let envTenant: TenantConfig | null = null;
+  try {
+    envTenant = tryLoadTenantConfigFromEnv(process.env);
+  } catch (e) {
+    // env tenant data is malformed (e.g., bad RUNTIME). Don't crash —
+    // mesh can still POST a valid bootstrap. Surface via lastError.
+    setLastError(`env tenant config invalid: ${(e as Error).message}`);
+  }
+  if (envTenant) {
+    setTenantConfig(envTenant);
+    activateTenant(envTenant);
+    setPhase("bootstrapping");
     return;
   }
 
   const outcome = readBootstrap(BOOTSTRAP_DIR);
   if (outcome.kind === "valid") {
     const payload = outcome.file.payload as BootstrapPayload;
+    const tenant = tenantConfigFromBootstrap(payload);
     setBootstrapHash(outcome.file.hash);
-    const cfg = configFromBootstrap(payload, DAEMON_BOOT_ID);
-    setConfig(cfg);
+    setTenantConfig(tenant);
+    activateTenant(tenant);
     setPhase("bootstrapping");
-    activateConfig(cfg);
     return;
   }
   if (outcome.kind === "invalid") {
     console.error(`[daemon] bootstrap.json invalid: ${outcome.reason}`);
-    setPhase("failed");
-    return;
+    setLastError(`bootstrap.json invalid: ${outcome.reason}`);
+    try {
+      unlinkSync(join(BOOTSTRAP_DIR, BOOTSTRAP_FILENAME));
+    } catch {}
   }
   setPhase("pending-bootstrap");
-  armBootstrapTimeout();
 }
 
 hydrate();
@@ -270,9 +297,6 @@ Bun.serve<WsProxyData, never>({
       bumpActivity();
     }
 
-    // WebSocket upgrade — Vite HMR + any other dev-server WS. We forward
-    // to in-pod localhost:devPort so HMR survives the daemon's reverse
-    // proxy. Daemon-internal SSE (/_decopilot_vm/events) stays HTTP.
     if (
       req.headers.get("upgrade")?.toLowerCase() === "websocket" &&
       !p.startsWith("/_decopilot_vm/")
@@ -290,31 +314,34 @@ Bun.serve<WsProxyData, never>({
       return scriptsHandler();
 
     if (req.method === "POST" && p === "/_decopilot_vm/bootstrap") {
-      if (getPhase() === "pending-bootstrap") armBootstrapTimeout();
       return bootstrapH(req);
     }
 
     if (req.method === "POST" && p.startsWith("/_decopilot_vm/")) {
-      const handlers = mutatingHandlers;
-      if (!handlers || getPhase() !== "ready") {
-        return jsonResponse(
-          {
-            error: "daemon not ready",
-            phase: getPhase(),
-          },
-          503,
-        );
-      }
-      const denied = requireToken(req, handlers.daemonToken);
+      const denied = requireToken(req, bootConfig.daemonToken);
       if (denied) return denied;
-      if (p === "/_decopilot_vm/read") return handlers.readH(req);
-      if (p === "/_decopilot_vm/write") return handlers.writeH(req);
-      if (p === "/_decopilot_vm/edit") return handlers.editH(req);
-      if (p === "/_decopilot_vm/grep") return handlers.grepH(req);
-      if (p === "/_decopilot_vm/glob") return handlers.globH(req);
-      if (p === "/_decopilot_vm/bash") return handlers.bashH(req);
-      if (p.startsWith("/_decopilot_vm/exec/")) return handlers.execH(req);
-      if (p.startsWith("/_decopilot_vm/kill/")) return handlers.killH(req);
+
+      // Boot-time handlers: usable from `pending-bootstrap` onward. Bash,
+      // file ops, kill, and grep don't need orchestrator state.
+      if (p === "/_decopilot_vm/read") return readH(req);
+      if (p === "/_decopilot_vm/write") return writeH(req);
+      if (p === "/_decopilot_vm/edit") return editH(req);
+      if (p === "/_decopilot_vm/grep") return grepH(req);
+      if (p === "/_decopilot_vm/glob") return globH(req);
+      if (p === "/_decopilot_vm/bash") return bashH(req);
+      if (p.startsWith("/_decopilot_vm/kill/")) return killH(req);
+
+      // Tenant-dependent handlers: need a configured orchestrator. Until
+      // bootstrap (or env-driven hydrate) sets a tenant, exec is gated.
+      if (p.startsWith("/_decopilot_vm/exec/")) {
+        if (!tenantHandlers) {
+          return jsonResponse(
+            { error: "tenant not configured", phase: getPhase() },
+            503,
+          );
+        }
+        return tenantHandlers.execH(req);
+      }
     }
 
     if (req.method === "OPTIONS" && p.startsWith("/_decopilot_vm/")) {
@@ -342,10 +369,6 @@ Bun.serve<WsProxyData, never>({
   },
 });
 
-// Start the branch-status monitor once .git is on disk. Two paths:
-// (1) resume-on-restart — the .git already exists before we call run();
-// (2) fresh clone — .git appears after orchestrator finishes cloning.
-// Either way, emit+watch after orchestrator.run() completes.
 async function runBootSetup() {
   if (!orchestrator || !branchStatus) return;
   await orchestrator.run();
@@ -353,7 +376,6 @@ async function runBootSetup() {
   branchStatus.watch();
 }
 
-// Kick boot setup unless opted out (used only by tests).
 if (process.env.DAEMON_NO_AUTOSTART !== "1") {
   if (getPhase() === "ready" || getPhase() === "bootstrapping") {
     void runBootSetup();

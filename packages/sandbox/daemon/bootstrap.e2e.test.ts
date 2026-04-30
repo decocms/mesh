@@ -13,7 +13,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 
 const DAEMON_BUNDLE = join(import.meta.dir, "dist", "daemon.js");
-const VALID_TOKEN = "t".repeat(32);
+const BOOT_TOKEN = "t".repeat(32);
 const HOOK_TIMEOUT_MS = 30_000;
 const PORT_WAIT_TIMEOUT_MS = 20_000;
 
@@ -62,10 +62,10 @@ async function waitForPort(
 }
 
 interface StartOpts {
-  bootstrapTimeoutMs?: number;
   preseedBootstrapJson?: string;
   bootstrapDirOverride?: string;
   extraEnv?: Record<string, string>;
+  omitToken?: boolean;
 }
 
 async function startDaemon(opts: StartOpts = {}) {
@@ -85,19 +85,18 @@ async function startDaemon(opts: StartOpts = {}) {
     DAEMON_BOOT_ID: `boot-${daemonPort}`,
     APP_ROOT: appDir,
     PROXY_PORT: String(daemonPort),
-    DEV_PORT: "3000",
     DAEMON_NO_AUTOSTART: "1",
     DAEMON_DROP_PRIVILEGES: "0",
     DAEMON_BOOTSTRAP_DIR: bootstrapDir,
-    BOOTSTRAP_TIMEOUT_MS: String(opts.bootstrapTimeoutMs ?? 60_000),
   };
+  if (!opts.omitToken) env.DAEMON_TOKEN = BOOT_TOKEN;
 
-  delete env.DAEMON_TOKEN;
   delete env.CLONE_URL;
   delete env.REPO_NAME;
   delete env.BRANCH;
   delete env.GIT_USER_NAME;
   delete env.GIT_USER_EMAIL;
+  delete env.RUNTIME;
   Object.assign(env, opts.extraEnv ?? {});
 
   daemonProc = spawn("bun", [DAEMON_BUNDLE], {
@@ -138,7 +137,6 @@ async function stopDaemon() {
 
 interface BootstrapPayload {
   schemaVersion: 1;
-  daemonToken: string;
   runtime: "node" | "bun" | "deno";
   cloneUrl?: string;
   repoName?: string;
@@ -147,16 +145,13 @@ interface BootstrapPayload {
   gitUserEmail?: string;
   packageManager?: "npm" | "pnpm" | "yarn" | "bun" | "deno";
   devPort?: number;
-  appRoot?: string;
   env?: Record<string, string>;
 }
 
 function basicPayload(over: Partial<BootstrapPayload> = {}): BootstrapPayload {
   return {
     schemaVersion: 1,
-    daemonToken: VALID_TOKEN,
     runtime: "node",
-    appRoot: appDir,
     ...over,
   };
 }
@@ -183,6 +178,7 @@ async function getHealth(): Promise<{
   bootId: string;
   setup: { running: boolean; done: boolean };
   phase: string;
+  lastError: string | null;
 }> {
   const res = await fetch(`http://localhost:${daemonPort}/health`);
   return res.json() as Promise<{
@@ -190,6 +186,7 @@ async function getHealth(): Promise<{
     bootId: string;
     setup: { running: boolean; done: boolean };
     phase: string;
+    lastError: string | null;
   }>;
 }
 
@@ -201,7 +198,7 @@ describe("daemon bootstrap (state machine)", () => {
     await stopDaemon();
   }, HOOK_TIMEOUT_MS);
 
-  it("starts in pending-bootstrap when no env-driven token + no file", async () => {
+  it("starts in pending-bootstrap when env carries no tenant config", async () => {
     const h = await getHealth();
     expect(h.phase).toBe("pending-bootstrap");
   });
@@ -240,8 +237,8 @@ describe("daemon bootstrap (state machine)", () => {
     expect(r.status).toBe(400);
   });
 
-  it("daemonToken < 32 chars → 400", async () => {
-    const r = await postBootstrap(basicPayload({ daemonToken: "short" }));
+  it("runtime invalid → 400", async () => {
+    const r = await postBootstrap(basicPayload({ runtime: "ruby" as never }));
     expect(r.status).toBe(400);
   });
 
@@ -279,7 +276,27 @@ describe("daemon bootstrap (state machine)", () => {
     expect((await getHealth()).phase).toBe("bootstrapping");
   });
 
-  it("mutating routes return 503 with phase when not ready", async () => {
+  it("bash works in pending-bootstrap (general-compute surface)", async () => {
+    expect((await getHealth()).phase).toBe("pending-bootstrap");
+    const b64 = Buffer.from(
+      JSON.stringify({ command: "echo hello" }),
+      "utf-8",
+    ).toString("base64");
+    const res = await fetch(
+      `http://localhost:${daemonPort}/_decopilot_vm/bash`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${BOOT_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: b64,
+      },
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("bash without bearer returns 401 in pending-bootstrap", async () => {
     const b64 = Buffer.from(
       JSON.stringify({ command: "true" }),
       "utf-8",
@@ -288,11 +305,19 @@ describe("daemon bootstrap (state machine)", () => {
       `http://localhost:${daemonPort}/_decopilot_vm/bash`,
       {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${VALID_TOKEN}`,
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: b64,
+      },
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it("exec (managed scripts) requires tenant config → 503 pre-bootstrap", async () => {
+    const res = await fetch(
+      `http://localhost:${daemonPort}/_decopilot_vm/exec/dev`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${BOOT_TOKEN}` },
       },
     );
     expect(res.status).toBe(503);
@@ -344,7 +369,6 @@ describe("daemon bootstrap (file rehydration)", () => {
   function buildValidFileBytes(): string {
     const payload = {
       schemaVersion: 1,
-      daemonToken: VALID_TOKEN,
       runtime: "node",
     };
     const canonical = (v: unknown): unknown => {
@@ -375,7 +399,7 @@ describe("daemon bootstrap (file rehydration)", () => {
     expect(h.phase).toBe("bootstrapping");
   });
 
-  it("unknown schemaVersion in file → phase=failed (and :9000 still binds)", async () => {
+  it("unknown schemaVersion in file → file deleted, phase=pending-bootstrap", async () => {
     await startDaemon({
       preseedBootstrapJson: JSON.stringify({
         schemaVersion: 99,
@@ -384,13 +408,13 @@ describe("daemon bootstrap (file rehydration)", () => {
       }),
     });
     const h = await getHealth();
-    expect(h.phase).toBe("failed");
+    expect(h.phase).toBe("pending-bootstrap");
+    expect(h.lastError).toContain("schemaVersion");
   });
 
-  it("hash mismatch in file → phase=failed", async () => {
+  it("hash mismatch in file → file deleted, phase=pending-bootstrap", async () => {
     const payload = {
       schemaVersion: 1,
-      daemonToken: VALID_TOKEN,
       runtime: "node",
     };
     const bytes = JSON.stringify({
@@ -402,7 +426,8 @@ describe("daemon bootstrap (file rehydration)", () => {
       preseedBootstrapJson: bytes,
     });
     const h = await getHealth();
-    expect(h.phase).toBe("failed");
+    expect(h.phase).toBe("pending-bootstrap");
+    expect(h.lastError).toContain("hash mismatch");
   });
 
   it(".tmp leftover is cleaned up on boot", async () => {
@@ -441,37 +466,20 @@ describe("daemon bootstrap (file rehydration)", () => {
   });
 });
 
-describe("daemon bootstrap (timeout + back-compat)", () => {
+describe("daemon boot (token + env tenant)", () => {
   afterEach(async () => {
     await stopDaemon();
   }, HOOK_TIMEOUT_MS);
 
-  it("bootstrap timeout fires when no POST arrives → phase=failed", async () => {
+  it("env-driven tenant config: RUNTIME set → phase=bootstrapping", async () => {
     await startDaemon({
-      bootstrapTimeoutMs: 500,
-    });
-    expect((await getHealth()).phase).toBe("pending-bootstrap");
-    await new Promise((r) => setTimeout(r, 1500));
-    expect((await getHealth()).phase).toBe("failed");
-  });
-
-  it("subsequent bootstrap call after failed → 409", async () => {
-    await startDaemon({
-      bootstrapTimeoutMs: 300,
-    });
-    await new Promise((r) => setTimeout(r, 1000));
-    const r = await postBootstrap(basicPayload());
-    expect(r.status).toBe(409);
-    expect(r.json.phase).toBe("failed");
-  });
-
-  it("env-driven path: DAEMON_TOKEN set → phase=ready (back-compat)", async () => {
-    await startDaemon({
-      extraEnv: {
-        DAEMON_TOKEN: VALID_TOKEN,
-      },
+      extraEnv: { RUNTIME: "node" },
     });
     const h = await getHealth();
-    expect(h.phase).toBe("ready");
+    expect(h.phase).toBe("bootstrapping");
+  });
+
+  it("missing DAEMON_TOKEN at boot → daemon refuses to start", async () => {
+    await expect(startDaemon({ omitToken: true })).rejects.toThrow();
   });
 });

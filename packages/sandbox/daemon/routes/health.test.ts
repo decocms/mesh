@@ -22,6 +22,7 @@ describe("makeHealthHandler", () => {
       bootId: "boot-xyz",
       setup: { running: false, done: false },
       phase: "ready",
+      lastError: null,
     } as never);
   });
 

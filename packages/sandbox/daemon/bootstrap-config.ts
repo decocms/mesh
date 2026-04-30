@@ -1,10 +1,9 @@
 import type { BootstrapPayload } from "./persistence";
-import type { Config, PackageManager, Runtime } from "./types";
+import type { PackageManager, Runtime, TenantConfig } from "./types";
 
-export function configFromBootstrap(
+export function tenantConfigFromBootstrap(
   payload: BootstrapPayload,
-  daemonBootId: string,
-): Config {
+): TenantConfig {
   const runtime = payload.runtime as Runtime;
   const pathPrefix =
     runtime === "bun"
@@ -13,11 +12,7 @@ export function configFromBootstrap(
         ? "export PATH=/opt/deno/bin:$PATH && "
         : "";
 
-  const proxyPort = parseInt(process.env.PROXY_PORT ?? "9000", 10);
-
   return Object.freeze({
-    daemonToken: payload.daemonToken,
-    daemonBootId,
     cloneUrl: payload.cloneUrl ?? null,
     repoName: payload.repoName ?? null,
     branch: payload.branch ?? null,
@@ -26,8 +21,7 @@ export function configFromBootstrap(
     packageManager: (payload.packageManager ?? null) as PackageManager | null,
     devPort: payload.devPort ?? 3000,
     runtime,
-    appRoot: payload.appRoot ?? "/app",
-    proxyPort,
     pathPrefix,
+    env: Object.freeze({ ...(payload.env ?? {}) }),
   });
 }
