@@ -17,6 +17,7 @@ import {
   proxyDaemonRequest,
   daemonBash,
 } from "../../daemon-client";
+import type { DaemonHealth } from "../../daemon-client";
 import { applyPreviewPattern } from "../shared";
 import type { RunnerStateStore } from "../state-store";
 import type {
@@ -43,7 +44,7 @@ type SpawnFn = (args: {
   env: Record<string, string>;
   daemonPort: number;
 }) => Promise<DaemonProcess>;
-type HealthProbeFn = (daemonUrl: string) => Promise<{ bootId: string } | null>;
+type HealthProbeFn = (daemonUrl: string) => Promise<DaemonHealth | null>;
 type KillFn = (pid: number, signal: NodeJS.Signals) => void;
 type IsAliveFn = (pid: number) => boolean;
 
@@ -86,14 +87,14 @@ interface PersistedHostState {
 export class HostSandboxRunner implements SandboxRunner {
   readonly kind = RUNNER_KIND;
 
-  protected readonly records = new Map<string, HostRecord>();
-  protected readonly homeDir: string;
-  protected readonly stateStore: RunnerStateStore | null;
-  protected readonly previewUrlPattern: string | null;
-  protected readonly spawnFn: SpawnFn;
-  protected readonly probeFn: HealthProbeFn;
-  protected readonly killFn: KillFn;
-  protected readonly isAliveFn: IsAliveFn;
+  private readonly records = new Map<string, HostRecord>();
+  private readonly homeDir: string;
+  private readonly stateStore: RunnerStateStore | null;
+  private readonly previewUrlPattern: string | null;
+  private readonly spawnFn: SpawnFn;
+  private readonly probeFn: HealthProbeFn;
+  private readonly killFn: KillFn;
+  private readonly isAliveFn: IsAliveFn;
 
   constructor(opts: HostRunnerOptions) {
     if (!opts.homeDir) {
@@ -111,6 +112,12 @@ export class HostSandboxRunner implements SandboxRunner {
   // ---- SandboxRunner surface ------------------------------------------------
 
   async ensure(_id: SandboxId, _opts: EnsureOptions = {}): Promise<Sandbox> {
+    // spawnFn, probeFn, workdirFor, toSandbox, killFn used in Task 7.
+    void (this.spawnFn,
+    this.probeFn,
+    this.killFn,
+    this.workdirFor,
+    this.toSandbox);
     throw new Error("not implemented (Task 7)");
   }
 
@@ -169,7 +176,7 @@ export class HostSandboxRunner implements SandboxRunner {
 
   // ---- Internal helpers ------------------------------------------------------
 
-  protected workdirFor(handle: string): string {
+  private workdirFor(handle: string): string {
     return join(this.homeDir, "sandboxes", handle);
   }
 
@@ -183,7 +190,7 @@ export class HostSandboxRunner implements SandboxRunner {
     return `http://${rec.handle}.localhost:${ingressPort}/`;
   }
 
-  protected toSandbox(rec: HostRecord): Sandbox {
+  private toSandbox(rec: HostRecord): Sandbox {
     return {
       handle: rec.handle,
       workdir: rec.workdir,
@@ -209,10 +216,12 @@ export class HostSandboxRunner implements SandboxRunner {
   }
 
   /** Filled in by Task 8. */
-  protected async rehydrate(
+  private async rehydrate(
     _id: SandboxId,
     _persisted: { handle: string; state: Record<string, unknown> },
   ): Promise<HostRecord | null> {
+    // PersistedHostState used here in Task 8 for state casting.
+    void ({} as PersistedHostState);
     return null;
   }
 }
@@ -252,7 +261,7 @@ export function preallocatePort(): Promise<number> {
   });
 }
 
-async function defaultSpawn(args: {
+export async function defaultSpawn(args: {
   workdir: string;
   env: Record<string, string>;
   daemonPort: number;
@@ -284,12 +293,4 @@ export const __test__ = {
 // the module but exported under __internal so the test file can validate
 // shape if needed). Currently only the test seam types are surfaced via
 // HostRunnerOptions.
-export type {
-  DaemonProcess,
-  SpawnFn,
-  HealthProbeFn,
-  KillFn,
-  IsAliveFn,
-  HostRecord,
-  PersistedHostState,
-};
+export type { DaemonProcess, SpawnFn, HealthProbeFn, KillFn, IsAliveFn };
