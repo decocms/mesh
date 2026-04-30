@@ -97,6 +97,3 @@ export function resolveRunnerKindFromEnv(): RunnerKind {
   }
   return kind;
 }
-
-/** Backwards-compat alias retained for existing call sites; same behavior. */
-export const tryResolveRunnerKindFromEnv = resolveRunnerKindFromEnv;

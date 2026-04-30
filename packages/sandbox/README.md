@@ -45,9 +45,6 @@ Preconditions:
   at startup.
 - `agent-sandbox` is opt-in only — never auto-selected.
 
-`tryResolveRunnerKindFromEnv()` is retained as a back-compat alias for the same
-function and may be removed in a future release.
-
 ## URL shape
 
 - **Prod**: `https://<handle>.<root>/*` → pod dev server on `:3000`

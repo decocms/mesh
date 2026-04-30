@@ -39,7 +39,7 @@ import { streamSSE } from "hono/streaming";
 import {
   composeSandboxRef,
   computeHandle,
-  tryResolveRunnerKindFromEnv,
+  resolveRunnerKindFromEnv,
 } from "@decocms/sandbox/runner";
 import type { ClaimPhase } from "@decocms/sandbox/runner/agent-sandbox";
 import {
@@ -111,7 +111,7 @@ app.get("/", async (c) => {
     virtualMcpId,
     branch,
   });
-  const runnerKind = tryResolveRunnerKindFromEnv();
+  const runnerKind = resolveRunnerKindFromEnv();
   // The handle is the same value the runner stored in its state-store when
   // VM_START provisioned the sandbox, so the daemon-proxy lookup hits.
   const claimName = computeHandle({ userId, projectRef }, branch);
@@ -264,7 +264,7 @@ async function cleanupStaleEntry(args: {
  */
 async function emitLifecycle(args: {
   stream: import("hono/streaming").SSEStreamingApi;
-  runnerKind: ReturnType<typeof tryResolveRunnerKindFromEnv>;
+  runnerKind: ReturnType<typeof resolveRunnerKindFromEnv>;
   claimName: string;
   runner: NonNullable<Awaited<ReturnType<typeof getOrInitSharedRunner>>>;
   signal: AbortSignal;

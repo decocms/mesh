@@ -364,7 +364,7 @@ export class HostSandboxRunner implements SandboxRunner {
 
 // ---- Module-private helpers (used from later tasks) --------------------------
 
-export function isPidAlive(pid: number): boolean {
+function isPidAlive(pid: number): boolean {
   if (pid <= 0) return false;
   try {
     process.kill(pid, 0);
@@ -380,7 +380,7 @@ export function isPidAlive(pid: number): boolean {
  * between close and the daemon's bind), so the caller retries `ensure` on
  * health-probe timeout. In practice this never fires on a developer machine.
  */
-export function preallocatePort(): Promise<number> {
+function preallocatePort(): Promise<number> {
   return new Promise((resolve_, reject) => {
     const srv = createServer();
     srv.unref();
@@ -442,7 +442,7 @@ function deriveRepoLabel(cloneUrl: string): string {
   }
 }
 
-export async function defaultSpawn(args: {
+async function defaultSpawn(args: {
   workdir: string;
   env: Record<string, string>;
   daemonPort: number;
@@ -464,15 +464,3 @@ export async function defaultSpawn(args: {
     },
   };
 }
-
-export const __test__ = {
-  HEALTH_PROBE_TIMEOUT_MS,
-  HEALTH_PROBE_INTERVAL_MS,
-  STOP_GRACE_MS,
-};
-
-// Internal types/exports to be referenced from Tasks 7-9 (kept private to
-// the module but exported under __internal so the test file can validate
-// shape if needed). Currently only the test seam types are surfaced via
-// HostRunnerOptions.
-export type { DaemonProcess, SpawnFn, HealthProbeFn, KillFn, IsAliveFn };
