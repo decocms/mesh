@@ -109,6 +109,15 @@ async function instantiate(
   const stateStore = new KyselySandboxRunnerStateStore(db);
   const previewUrlPattern = readPreviewUrlPattern();
   switch (kind) {
+    case "host": {
+      const { HostSandboxRunner } = await import("@decocms/sandbox/runner");
+      const { getSettings } = await import("@/settings");
+      return new HostSandboxRunner({
+        homeDir: getSettings().dataDir,
+        stateStore,
+        previewUrlPattern,
+      });
+    }
     case "docker":
       return new DockerSandboxRunner({ stateStore, previewUrlPattern });
     case "freestyle": {
