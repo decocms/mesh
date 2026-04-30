@@ -7,7 +7,7 @@ import { DEFAULT_LOGO, PROVIDER_LOGOS } from "@/web/utils/ai-providers-logos";
 import { ToolSetSelector } from "@/web/components/tool-set-selector.tsx";
 import { useMembers } from "@/web/hooks/use-members";
 import { type OrganizationRole } from "@/web/hooks/use-organization-roles";
-import { authClient } from "@/web/lib/auth-client";
+import { useOrgAuthClient } from "@/web/hooks/use-org-auth-client";
 import { KEYS } from "@/web/lib/query-keys";
 import { track } from "@/web/lib/posthog-client";
 import {
@@ -1231,11 +1231,12 @@ interface RoleDetailPageProps {
 
 export function RoleDetailPage(props: RoleDetailPageProps) {
   const { locator } = useProjectContext();
+  const orgAuth = useOrgAuthClient();
   const connections = useConnections();
 
   const { data: membersData, isPending: membersPending } = useQuery({
     queryKey: KEYS.members(locator),
-    queryFn: () => authClient.organization.listMembers(),
+    queryFn: () => orgAuth.organization.listMembers(),
   });
 
   if (membersPending || !connections) {
@@ -1269,6 +1270,7 @@ function RoleDetailPageInner({
   connections: ConnectionEntity[];
 }) {
   const { locator } = useProjectContext();
+  const orgAuth = useOrgAuthClient();
   const queryClient = useQueryClient();
 
   const isBuiltin = target.kind === "builtin";
@@ -1305,7 +1307,7 @@ function RoleDetailPageInner({
           (id: string) => !formData.memberIds.includes(id),
         );
         for (const memberId of toAdd) {
-          const r = await authClient.organization.updateMemberRole({
+          const r = await orgAuth.organization.updateMemberRole({
             memberId,
             role: [currentSlug],
           });
@@ -1313,7 +1315,7 @@ function RoleDetailPageInner({
             throw new Error(r.error.message ?? "Something went wrong");
         }
         for (const memberId of toRemove) {
-          const r = await authClient.organization.updateMemberRole({
+          const r = await orgAuth.organization.updateMemberRole({
             memberId,
             role: ["user"],
           });
@@ -1326,7 +1328,7 @@ function RoleDetailPageInner({
         await syncMembers(formData.role.slug!);
         return formData;
       } else if (formData.role.id) {
-        const r = await authClient.organization.updateRole({
+        const r = await orgAuth.organization.updateRole({
           roleId: formData.role.id,
           data: { permission },
         });
@@ -1335,14 +1337,14 @@ function RoleDetailPageInner({
         await syncMembers(formData.role.slug!);
         return formData;
       } else {
-        const r = await authClient.organization.createRole({
+        const r = await orgAuth.organization.createRole({
           role: roleSlug,
           permission,
         });
         if (r?.error)
           throw new Error(r.error.message ?? "Something went wrong");
         for (const memberId of formData.memberIds) {
-          const mr = await authClient.organization.updateMemberRole({
+          const mr = await orgAuth.organization.updateMemberRole({
             memberId,
             role: [roleSlug],
           });
