@@ -1,8 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { unlinkSync } from "node:fs";
 import { join } from "node:path";
-import { loadBootConfigFromEnv, tryLoadTenantConfigFromEnv } from "./config";
-import { tenantConfigFromBootstrap } from "./bootstrap-config";
+import { loadBootConfigFromEnv } from "./config";
 import { REPLAY_BYTES } from "./constants";
 import { Broadcaster } from "./events/broadcast";
 import { ProcessManager } from "./process/run-process";
@@ -246,44 +245,6 @@ const bootstrapH = makeBootstrapHandler({
     }
   },
 });
-
-function hydrate(): void {
-  let envTenant: TenantConfig | null = null;
-  try {
-    envTenant = tryLoadTenantConfigFromEnv(process.env);
-  } catch (e) {
-    // env tenant data is malformed (e.g., bad RUNTIME). Don't crash —
-    // mesh can still POST a valid bootstrap. Surface via lastError.
-    setLastError(`env tenant config invalid: ${(e as Error).message}`);
-  }
-  if (envTenant) {
-    setTenantConfig(envTenant);
-    activateTenant(envTenant);
-    setPhase("bootstrapping");
-    return;
-  }
-
-  const outcome = readBootstrap(BOOTSTRAP_DIR);
-  if (outcome.kind === "valid") {
-    const payload = outcome.file.payload as BootstrapPayload;
-    const tenant = tenantConfigFromBootstrap(payload);
-    setBootstrapHash(outcome.file.hash);
-    setTenantConfig(tenant);
-    activateTenant(tenant);
-    setPhase("bootstrapping");
-    return;
-  }
-  if (outcome.kind === "invalid") {
-    console.error(`[daemon] bootstrap.json invalid: ${outcome.reason}`);
-    setLastError(`bootstrap.json invalid: ${outcome.reason}`);
-    try {
-      unlinkSync(join(BOOTSTRAP_DIR, BOOTSTRAP_FILENAME));
-    } catch {}
-  }
-  setPhase("pending-bootstrap");
-}
-
-hydrate();
 
 Bun.serve<WsProxyData, never>({
   port: PROXY_PORT,

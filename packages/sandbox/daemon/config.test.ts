@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { loadBootConfigFromEnv, tryLoadTenantConfigFromEnv } from "./config";
+import { loadBootConfigFromEnv } from "./config";
 
 const base = {
   DAEMON_TOKEN: "t".repeat(32),
@@ -36,67 +36,5 @@ describe("loadBootConfigFromEnv", () => {
     expect(() =>
       loadBootConfigFromEnv({ DAEMON_TOKEN: base.DAEMON_TOKEN }),
     ).toThrow(/DAEMON_BOOT_ID/);
-  });
-});
-
-describe("tryLoadTenantConfigFromEnv", () => {
-  it("returns null when env carries no tenant material", () => {
-    expect(tryLoadTenantConfigFromEnv({})).toBeNull();
-  });
-
-  it("derives pathPrefix from runtime=bun", () => {
-    const cfg = tryLoadTenantConfigFromEnv({ RUNTIME: "bun" });
-    expect(cfg?.pathPrefix).toBe("export PATH=/opt/bun/bin:$PATH && ");
-  });
-
-  it("derives pathPrefix from runtime=deno", () => {
-    const cfg = tryLoadTenantConfigFromEnv({ RUNTIME: "deno" });
-    expect(cfg?.pathPrefix).toBe("export PATH=/opt/deno/bin:$PATH && ");
-  });
-
-  it("rejects invalid BRANCH names", () => {
-    expect(() =>
-      tryLoadTenantConfigFromEnv({
-        CLONE_URL: "x",
-        REPO_NAME: "x",
-        BRANCH: "-danger",
-        GIT_USER_NAME: "u",
-        GIT_USER_EMAIL: "u@x",
-      }),
-    ).toThrow(/BRANCH/);
-    expect(() =>
-      tryLoadTenantConfigFromEnv({
-        CLONE_URL: "x",
-        REPO_NAME: "x",
-        BRANCH: "has space",
-        GIT_USER_NAME: "u",
-        GIT_USER_EMAIL: "u@x",
-      }),
-    ).toThrow(/BRANCH/);
-  });
-
-  it("rejects unknown PACKAGE_MANAGER", () => {
-    expect(() =>
-      tryLoadTenantConfigFromEnv({ RUNTIME: "node", PACKAGE_MANAGER: "nope" }),
-    ).toThrow(/PACKAGE_MANAGER/);
-  });
-
-  it("parses full clone + workload config", () => {
-    const cfg = tryLoadTenantConfigFromEnv({
-      CLONE_URL: "https://x@github.com/org/repo.git",
-      REPO_NAME: "org/repo",
-      BRANCH: "deco/happy-panda",
-      GIT_USER_NAME: "Deco",
-      GIT_USER_EMAIL: "deco@example.com",
-      PACKAGE_MANAGER: "pnpm",
-      DEV_PORT: "4321",
-      RUNTIME: "bun",
-    });
-    expect(cfg?.cloneUrl).toBe("https://x@github.com/org/repo.git");
-    expect(cfg?.repoName).toBe("org/repo");
-    expect(cfg?.branch).toBe("deco/happy-panda");
-    expect(cfg?.packageManager).toBe("pnpm");
-    expect(cfg?.devPort).toBe(4321);
-    expect(cfg?.pathPrefix).toBe("export PATH=/opt/bun/bin:$PATH && ");
   });
 });
