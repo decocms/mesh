@@ -66,9 +66,8 @@ spec:
           port: 9000
     {{- end }}
     {{- if .Values.housekeeper.enabled }}
-    # Housekeeper — probes /_decopilot_vm/idle to reap idle sandboxes.
-    # Runs in agent-sandbox-system (same ns as pods), so no namespaceSelector
-    # needed; scoped to the housekeeper pod by its app.kubernetes.io/name label.
+    # Housekeeper probes /_decopilot_vm/idle. Same namespace as pods, so
+    # podSelector alone is enough (no namespaceSelector).
     - from:
         - podSelector:
             matchLabels:

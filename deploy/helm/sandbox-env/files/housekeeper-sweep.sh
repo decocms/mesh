@@ -1,32 +1,9 @@
 #!/bin/sh
-# sandbox-housekeeper sweep — invoked once per CronJob run.
+# sandbox-housekeeper sweep — one CronJob run.
 #
-# Inputs (env, set by the CronJob spec):
-#   NS                     namespace to scan (always agent-sandbox-system today).
-#   TTL_MS                 idle TTL in ms — claims with idleMs >= this are reaped.
-#   STUCK_TTL_MS           consecutive probe failures older than this trigger a
-#                          StuckReady reap (catches wedged daemons that present
-#                          TCP but don't reply meaningfully).
-#   PROBE_TIMEOUT_SEC      curl --max-time per probe and per re-probe.
-#   CLAIM_SELECTOR         label selector for studio claims (mirrors mesh's
-#                          buildClaim labels in runner.ts).
-#   POD_SELECTOR           label selector for claimed sandbox pods.
-#   RUN_ID                 cronjob pod name (downward API).
-#
-# Output: structured stdout (one event per line, key=value).
-# Side effects:
-#   - Idle / StuckReady reaps patch spec.lifecycle.shutdownTime so the
-#     agent-sandbox operator drains the pod gracefully (SIGTERM →
-#     terminationGracePeriodSeconds → delete). Same contract mesh uses
-#     for per-ensure() refresh in client.ts:patchSandboxClaimShutdown.
-#   - ReconcilerError reaps fall through to a direct kubectl delete because
-#     the operator has already given up; patching shutdownTime would never
-#     be honored.
-#   - Both paths annotate the claim, emit a Kubernetes Event for
-#     post-mortem, and delete the per-claim HTTPRoute first so traffic
-#     stops resolving to the pod before SIGTERM lands.
-# Probe failures escalate to a StuckReady reap only after STUCK_TTL_MS;
-# transient failures skip the claim, leaving idle accounting untouched.
+# Env (set by the CronJob spec):
+#   NS, TTL_MS, STUCK_TTL_MS, PROBE_TIMEOUT_SEC,
+#   CLAIM_SELECTOR, POD_SELECTOR, RUN_ID.
 
 set -eu
 
@@ -50,27 +27,21 @@ log() {
   printf '[%s] [housekeeper] run=%s %s\n' "$(now_iso)" "$RUN_ID" "$*"
 }
 
-# Normalize ISO 8601 ("2026-04-30T00:44:41Z") into the
-# "YYYY-MM-DD HH:MM:SS" form that both busybox `date` (alpine) and GNU
-# `date` (Debian) accept — busybox rejects the `T` separator and trailing
-# `Z`. Fractional seconds (operator-emitted timestamps may carry them) are
-# stripped too. Falls back to now() if `date -d` still rejects, which keeps
-# the script working under future image swaps but resets the StuckReady
-# age clock for that sweep — log lines will show age_ms ≈ 0 if you hit
-# this fallback.
+# Normalize ISO 8601 to a form busybox `date` (alpine) accepts —
+# busybox rejects the `T` separator and trailing `Z`. Fractional seconds
+# stripped too. Falls back to now() if `date -d` still rejects (resets
+# the StuckReady age clock for that sweep — age_ms ≈ 0 in logs).
 iso_to_secs() {
   norm=$(printf '%s' "$1" | tr 'T' ' ' | sed 's/\.[0-9]*Z$//; s/Z$//')
   date -u -d "$norm" +%s 2>/dev/null || now_secs
 }
 
-# JSONPath escapes dots in label/annotation keys with a backslash. Escape
-# once so callers can pass the raw key.
+# JSONPath escapes dots in keys with a backslash.
 jsonpath_for_annotation() {
   printf '%s' "$1" | sed 's/\./\\./g'
 }
 
-# Emit a Kubernetes Event referencing the SandboxClaim. Best-effort: failures
-# are swallowed so a misconfigured Event API doesn't block the reap.
+# Best-effort — a misconfigured Event API shouldn't block the reap.
 emit_event() {
   claim="$1"; reason="$2"; action="$3"; msg="$4"
   ts=$(now_iso)
@@ -96,16 +67,12 @@ lastTimestamp: ${ts}
 YAML
 }
 
-# Probe http://<podIP>:9000/_decopilot_vm/idle. Echoes one of:
-#   <digits>          → idleMs reported by the daemon (success).
-#   __unreachable__   → connect/timeout (network or pod down).
-#   __not_found__     → HTTP 404 (endpoint absent — daemon image drift).
-#   __server_error__  → HTTP 5xx (daemon error).
-#   __bad_shape__     → HTTP 200 but body has no parseable idleMs.
-#
-# Distinguishing these in logs lets ops tell "cluster-wide NetworkPolicy
-# regression" (lots of __unreachable__) from "daemon shape drift" (lots of
-# __not_found__ or __bad_shape__) without needing a debugger.
+# Probe /_decopilot_vm/idle. Echoes one of:
+#   <digits>          idleMs (success)
+#   __unreachable__   connect/timeout
+#   __not_found__     HTTP 404
+#   __server_error__  HTTP 5xx
+#   __bad_shape__     HTTP 200 but no parseable idleMs
 probe_daemon() {
   ip="$1"
   body=$(mktemp)
@@ -133,9 +100,8 @@ probe_daemon() {
   esac
 }
 
-# Stamp first-failed-at on the claim. If already stamped, preserves the
-# original timestamp so consecutive-failure age accumulates across sweeps.
-# Echoes the (possibly preserved) ISO timestamp.
+# Echoes the ISO timestamp; preserves the existing stamp on repeats so
+# consecutive-failure age accumulates across sweeps.
 mark_probe_failure() {
   claim="$1"; detail="$2"
   jp=$(jsonpath_for_annotation "$PROBE_FAIL_ANNOT")
@@ -159,34 +125,24 @@ clear_probe_failure() {
     "${PROBE_FAIL_DETAIL_ANNOT}-" >/dev/null 2>&1 || true
 }
 
-# Stamp annotation breadcrumbs + Kubernetes Event + delete the per-claim
-# HTTPRoute. Shared prelude for both reap paths; the caller decides whether
-# to follow up with a shutdown patch (graceful) or a direct delete (force).
+# Shared prelude for both reap paths.
 mark_for_reap() {
   claim="$1"; reason="$2"; detail="$3"; action="$4"
-  # Annotate so kube-audit retains *why* this claim was reaped. Best-effort
-  # breadcrumbs — survive only as long as the claim object, which is why we
-  # also emit a Kubernetes Event.
   kubectl annotate sandboxclaim "$claim" -n "$NS" --overwrite \
     "studio.decocms.com/reap-reason=${reason}" \
     "studio.decocms.com/reap-detail=${detail}" \
     "studio.decocms.com/reap-at=$(now_iso)" \
     "studio.decocms.com/reap-run=${RUN_ID}" >/dev/null 2>&1 || true
   emit_event "$claim" "SandboxReaped" "$action" "housekeeper: $reason ($detail)"
-  # HTTPRoute deletion first so traffic stops resolving to the pod before
-  # it enters termination — avoids 502s during the SIGTERM drain window.
-  # Selector matches LABEL_KEYS.sandboxHandle in mesh runner.ts.
+  # Delete HTTPRoute first so traffic stops resolving to the pod before
+  # SIGTERM lands — avoids 502s during the drain window.
   kubectl delete httproute -n "$NS" \
     -l "studio.decocms.com/sandbox-handle=${claim}" \
     --ignore-not-found >/dev/null 2>&1 || true
 }
 
-# Healthy-claim reap: patch spec.lifecycle.shutdownTime to "now" so the
-# operator handles the actual drain (SIGTERM → terminationGracePeriodSeconds
-# → delete pod → delete claim). Used for Idle and StuckReady — both cases
-# where the operator is functional and a graceful drain is preferable to
-# a direct delete. Mirrors the contract used by mesh's per-ensure() refresh
-# in `patchSandboxClaimShutdown` (packages/sandbox/.../client.ts).
+# Graceful path: operator drains the pod via shutdownTime. Used for Idle
+# and StuckReady where the operator is still functional.
 request_shutdown() {
   claim="$1"; reason="$2"; detail="$3"
   log "shutdown claim=$claim reason=$reason detail=\"$detail\""
@@ -197,9 +153,7 @@ request_shutdown() {
     >/dev/null 2>&1 || true
 }
 
-# Forceful reap: direct kubectl delete, no graceful drain. Used only for
-# ReconcilerError — the operator has already given up on the claim, so
-# patching shutdownTime would never be honored.
+# ReconcilerError path: operator has given up, so shutdownTime is unhonored.
 force_delete_claim() {
   claim="$1"; reason="$2"; detail="$3"
   log "delete claim=$claim reason=$reason detail=\"$detail\""
@@ -215,9 +169,7 @@ CLAIMS_FILE=$(mktemp)
 PODS_FILE=$(mktemp)
 trap 'rm -f "$CLAIMS_FILE" "$PODS_FILE"' EXIT
 
-# Single API call returns name + Ready + reason for every studio claim.
-# Pipe-delimited so `read` can split without jq — keeps the script
-# portable across kubectl images that don't ship jq.
+# Pipe-delimited so `read` can split without jq.
 kubectl get sandboxclaims -n "$NS" -l "$CLAIM_SELECTOR" \
   -o jsonpath='{range .items[*]}{.metadata.name}|{.status.conditions[?(@.type=="Ready")].status}|{.status.conditions[?(@.type=="Ready")].reason}{"\n"}{end}' \
   > "$CLAIMS_FILE" 2>/dev/null || true
@@ -227,9 +179,6 @@ if ! [ -s "$CLAIMS_FILE" ]; then
   exit 0
 fi
 
-# Pod IPs in one call, keyed by sandbox-handle. mesh's runner.ts stamps
-# studio.decocms.com/sandbox-handle and studio.decocms.com/role=claimed
-# on every claimed pod via additionalPodMetadata.
 kubectl get pods -n "$NS" -l "$POD_SELECTOR" \
   -o jsonpath='{range .items[*]}{.metadata.labels.studio\.decocms\.com/sandbox-handle}|{.status.podIP}{"\n"}{end}' \
   > "$PODS_FILE" 2>/dev/null || true
@@ -238,15 +187,12 @@ total=0
 reaped=0
 skipped=0
 
-# Read from a redirected file (NOT a pipe-into-while). Pipe-into-while
-# runs the loop in a subshell so set -eu and counter mutations don't
-# propagate; the redirect form keeps the loop in the parent shell.
+# Redirect (not pipe) so the loop stays in the parent shell — pipe-into-
+# while subshells the body and counter mutations would be lost.
 while IFS='|' read -r CLAIM READY REASON; do
   [ -z "$CLAIM" ] && continue
   total=$((total + 1))
 
-  # Operator-side liveness: claim is broken, no point probing or asking
-  # the operator to drain it. Direct delete.
   if [ "$READY" = "False" ] && [ "$REASON" = "ReconcilerError" ]; then
     force_delete_claim "$CLAIM" "ReconcilerError" "operator failed to reconcile"
     reaped=$((reaped + 1))
@@ -282,24 +228,20 @@ while IFS='|' read -r CLAIM READY REASON; do
       fi
       ;;
     *)
-      # Probe succeeded — RESULT is digits. Clear any prior failure mark.
       IDLE_MS="$RESULT"
       clear_probe_failure "$CLAIM"
       if [ "$IDLE_MS" -lt "$TTL_MS" ]; then
         log "keep claim=$CLAIM idle_ms=$IDLE_MS remaining_ms=$((TTL_MS - IDLE_MS))"
         continue
       fi
-      # Re-probe right before delete to close the race window between
-      # "decided to reap" and "delete completes". If a request hit the
-      # daemon in the gap, idleMs resets and we abort the reap. This
-      # narrows but does not eliminate the race; an in-flight request
-      # arriving after the second probe still gets connection-reset.
+      # Re-probe right before reap to narrow (not eliminate) the
+      # activity-during-decide race. An in-flight request arriving after
+      # this second probe still gets connection-reset.
       RESULT2=$(probe_daemon "$POD_IP")
       case "$RESULT2" in
         __*)
-          # Re-probe failed where the first one succeeded. Conservative:
-          # don't reap from this branch — next sweep will pick it up via
-          # the probe-failure path (which has its own StuckReady escalation).
+          # Conservative: next sweep picks it up via the probe-failure
+          # path with its own StuckReady escalation.
           log "abort-reap claim=$CLAIM reason=re-probe-failed first_idle_ms=$IDLE_MS detail=$RESULT2"
           skipped=$((skipped + 1))
           ;;

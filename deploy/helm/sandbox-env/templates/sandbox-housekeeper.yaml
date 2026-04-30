@@ -1,35 +1,7 @@
 {{- if .Values.housekeeper.enabled }}
 {{- /*
-Idle-reap housekeeper for studio sandbox claims.
-
-What it does:
-- Probes each Ready sandbox's daemon at /_decopilot_vm/idle every
-  `housekeeper.schedule` minutes. When idle ≥ idleTtlSeconds, patches
-  spec.lifecycle.shutdownTime so the agent-sandbox operator drains the
-  pod gracefully (SIGTERM → terminationGracePeriodSeconds → delete).
-- Direct-deletes claims stuck in ReconcilerError — the operator has
-  already given up, so a shutdownTime patch would never be honored.
-- Escalates "Ready but unreachable" claims to a StuckReady shutdown once
-  they exceed stuckReadyTtlSeconds (catches wedged daemons that present
-  TCP but don't respond meaningfully).
-- Re-probes immediately before requesting shutdown to narrow the
-  activity-during-reap race window.
-- Emits a Kubernetes Event per reap so post-mortem via `kubectl get events`
-  works after the claim is gone.
-
-Per-env scoping:
-Mesh stamps studio.decocms.com/env=<envName> on every SandboxClaim,
-claimed Pod, and per-claim HTTPRoute when STUDIO_ENV is set in the studio
-chart's configMap. The default selectors here pick that label up so each
-env release sweeps only its own claims. See values.yaml for the override
-to use during a phased rollout (before mesh has been upgraded with
-STUDIO_ENV propagation).
-
-Layout:
-- ConfigMap holds the sweep script (files/housekeeper-sweep.sh) — keeps
-  this YAML readable and lets the script be lint-tested in isolation.
-- CronJob mounts the ConfigMap at /scripts/sweep.sh and passes config via
-  env vars, so the script has zero Helm-templating inside it.
+Idle-reap housekeeper for studio sandbox claims. See values.yaml for the
+behavior contract; sweep logic lives in files/housekeeper-sweep.sh.
 */ -}}
 ---
 apiVersion: v1
@@ -59,23 +31,18 @@ metadata:
   labels:
     {{- include "sandbox-env.labels" . | nindent 4 }}
 rules:
-  # Reap target: list to discover, get to read probe-fail annotations,
-  # patch to stamp annotations + spec.lifecycle.shutdownTime (the graceful
-  # path for Idle / StuckReady), delete for ReconcilerError fall-through
-  # where the operator can't honor a shutdownTime patch.
+  # patch = annotate + spec.lifecycle.shutdownTime (graceful Idle/StuckReady);
+  # delete = ReconcilerError fall-through where shutdownTime is unhonored.
   - apiGroups: ["extensions.agents.x-k8s.io"]
     resources: ["sandboxclaims"]
     verbs: ["get", "list", "patch", "delete"]
-  # Pod IPs come from a label-selected list (studio.decocms.com/role=claimed).
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["list"]
-  # Reap events for post-mortem after the claim object is gone.
+  # Reap events outlive the claim object — used for post-mortem.
   - apiGroups: [""]
     resources: ["events"]
     verbs: ["create"]
-  # Per-claim HTTPRoute deletion is by sandbox-handle label, which needs
-  # list in addition to delete.
   - apiGroups: ["gateway.networking.k8s.io"]
     resources: ["httproutes"]
     verbs: ["list", "delete"]
@@ -104,15 +71,12 @@ metadata:
   labels:
     {{- include "sandbox-env.labels" . | nindent 4 }}
   annotations:
-    # Roll the CronJob template when the script content changes so the next
-    # scheduled run picks up new logic without an explicit redeploy of the
-    # CronJob spec.
+    # Rolls the CronJob spec when sweep.sh changes so the next run picks
+    # up new logic without an explicit redeploy.
     checksum/script: {{ .Files.Get "files/housekeeper-sweep.sh" | sha256sum }}
 spec:
   schedule: {{ .Values.housekeeper.schedule | quote }}
   concurrencyPolicy: Forbid
-  # Without this, a missed slot (controller-manager downtime, scheduling
-  # pressure) is silently skipped instead of catching up.
   startingDeadlineSeconds: {{ .Values.housekeeper.startingDeadlineSeconds }}
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -127,8 +91,6 @@ spec:
         spec:
           serviceAccountName: {{ include "sandbox-env.housekeeperName" . }}
           restartPolicy: Never
-          # Restricted-PSS-compliant: non-root, no privilege escalation,
-          # read-only rootfs, no capabilities.
           securityContext:
             runAsNonRoot: true
             runAsUser: 1001
@@ -148,8 +110,6 @@ spec:
               resources:
                 {{- toYaml .Values.housekeeper.resources | nindent 16 }}
               env:
-                # Cronjob pod name as run id — used in log lines and on the
-                # reap-run annotation so a sweep's effects are traceable.
                 - name: RUN_ID
                   valueFrom:
                     fieldRef:

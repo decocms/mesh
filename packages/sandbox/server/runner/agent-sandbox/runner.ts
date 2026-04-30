@@ -262,19 +262,10 @@ export interface AgentSandboxRunnerOptions {
   /** SandboxTemplate all claims reference. */
   sandboxTemplateName?: string;
   /**
-   * Studio environment name (e.g. "prod", "staging"). When set, every
-   * SandboxClaim, claimed Pod, and per-claim HTTPRoute is stamped with
-   * `studio.decocms.com/env=<envName>` so the sandbox-env Helm chart's
-   * housekeeper can scope its sweep to a single environment instead of
-   * every studio claim in the namespace.
-   *
-   * Optional — single-env installs that don't run a per-env housekeeper
-   * can leave this unset and the label is omitted (no behavioral change
-   * for them). Mesh wires it from `STUDIO_ENV`.
-   *
-   * Constraint: must be a DNS-label-safe value (a-z0-9-, starts with a
-   * letter, ≤63 chars). Validated at construction; an invalid value
-   * throws rather than letting the operator silently reject the claim.
+   * Studio environment name. When set, stamped as
+   * `studio.decocms.com/env=<envName>` on claims/pods/HTTPRoutes so the
+   * sandbox-env housekeeper can scope per-env. Must be DNS-label-safe;
+   * validated at construction.
    */
   envName?: string;
   /**
@@ -1558,9 +1549,6 @@ const LABEL_KEYS = {
   sandboxHandle: "studio.decocms.com/sandbox-handle",
   orgId: "studio.decocms.com/org-id",
   userId: "studio.decocms.com/user-id",
-  // Stamped on claims, claimed pods, and per-claim HTTPRoutes when the
-  // runner is constructed with envName, so the sandbox-env Helm chart's
-  // housekeeper can scope its sweep to a single environment.
   env: "studio.decocms.com/env",
 } as const;
 
@@ -1576,11 +1564,9 @@ function sanitizeLabelValue(value: string): string {
   return LABEL_VALUE_RE.test(truncated) ? truncated : "";
 }
 
-// Same DNS-label rules the sandbox-env chart enforces on envName: lowercase
-// alphanumeric or '-', start with a letter, end alphanumeric, ≤32 chars.
-// Tighter than the generic LABEL_VALUE_RE because envName flows into K8s
-// resource names (housekeeper-<env>, studio-sandbox-<env>) where the longer
-// charset would break things.
+// Tighter than LABEL_VALUE_RE — envName flows into K8s resource names
+// (e.g. studio-sandbox-<env>), which require this restricted charset.
+// Must match the regex the sandbox-env chart enforces on envName.
 const ENV_NAME_RE = /^[a-z]([a-z0-9-]{0,30}[a-z0-9])?$/;
 
 function normalizeEnvName(raw: string | undefined): string | null {
