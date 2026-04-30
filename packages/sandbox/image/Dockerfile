@@ -52,6 +52,25 @@ RUN userdel --remove bun \
   && chown -R sandbox:sandbox /app /opt/sandbox-daemon
 
 WORKDIR /app
+
+# node-pty is a native addon. The daemon bundle marks it `--external`, so it
+# must be installed inside the image. `bun init -y` creates a minimal
+# package.json; `bun add` triggers node-pty's prebuilt-binary download (or
+# builds from source for archs without prebuilts). build-essential + python3
+# are required for the node-gyp fallback on architectures (e.g. linux-arm64)
+# that have no pre-built binary. build-essential is removed after the build to
+# keep the layer lean. The `find … chmod +x` step ensures the spawn-helper
+# binary is executable (relevant on macOS-targeted prebuilds; no-op on Linux).
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends build-essential \
+  && rm -rf /var/lib/apt/lists/* \
+  && cd /opt/sandbox-daemon \
+  && bun init -y \
+  && bun add node-pty@^1.0.0 \
+  && find /opt/sandbox-daemon/node_modules/node-pty -name "spawn-helper" -exec chmod +x {} \; \
+  && chown -R sandbox:sandbox /opt/sandbox-daemon \
+  && apt-get purge -y --auto-remove build-essential
+
 COPY --chown=sandbox:sandbox daemon/dist/daemon.js /opt/sandbox-daemon/daemon.js
 COPY --chown=sandbox:sandbox image/skills /mnt/skills/public
 
