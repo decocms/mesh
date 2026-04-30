@@ -154,7 +154,7 @@ export const VmMapEntrySchema = z.object({
     .describe(
       "URL where the VM's iframe-proxied UI is served, or null when the sandbox has no dev server (blank / tool sandboxes).",
     ),
-  runnerKind: z.enum(["docker", "freestyle", "agent-sandbox"]).optional(),
+  runnerKind: z.enum(["host", "docker", "freestyle", "agent-sandbox"]).optional(),
   createdAt: z
     .number()
     .optional()
