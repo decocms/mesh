@@ -7,11 +7,18 @@
  */
 
 import * as net from "node:net";
-import type { DockerSandboxRunner } from "./runner";
 
 const HOST_RE = /^([^.]+)\.localhost(?::\d+)?$/i;
 const MAX_HEADER_BYTES = 16 * 1024;
 const HEADERS_TERMINATOR = Buffer.from("\r\n\r\n");
+
+/**
+ * Structural view: any runner that can map a handle to a host-side daemon
+ * TCP port. Both DockerSandboxRunner and HostSandboxRunner implement this.
+ */
+export interface DaemonPortResolver {
+  resolveDaemonPort(handle: string): Promise<number | null>;
+}
 
 function extractHandle(hostHeader: string | null): string | null {
   if (!hostHeader) return null;
@@ -47,7 +54,7 @@ function parseRequestHead(
  * server traffic is forwarded onward from the daemon, never exposed directly.
  */
 async function resolveTarget(
-  runner: DockerSandboxRunner,
+  runner: DaemonPortResolver,
   handle: string,
 ): Promise<number | null> {
   const port = await runner.resolveDaemonPort(handle);
@@ -59,7 +66,7 @@ async function resolveTarget(
  * sandbox use. Returning null → 503 (correct before any sandbox exists).
  */
 export function startLocalSandboxIngress(
-  getRunner: () => DockerSandboxRunner | null,
+  getRunner: () => DaemonPortResolver | null,
   port: number,
 ): net.Server[] {
   const handleConnection = (client: net.Socket): void => {
