@@ -10,8 +10,9 @@
  * absent — the daemon runs in the user's trust boundary.
  */
 
-import { randomBytes, randomUUID } from "node:crypto";
-import { mkdir, rm } from "node:fs/promises";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,12 +36,6 @@ import type {
 
 const RUNNER_KIND = "host" as const;
 const HEALTH_PROBE_TIMEOUT_MS = 30_000;
-// Resolve daemon entry path relative to this file so it works regardless of
-// the process cwd (e.g. when mesh is started from apps/mesh/ via
-// `bun run --cwd=apps/mesh dev:server`).
-const DAEMON_ENTRY = resolve(
-  fileURLToPath(new URL("../../../daemon/entry.ts", import.meta.url)),
-);
 const HEALTH_PROBE_INTERVAL_MS = 250;
 const STOP_GRACE_MS = 2_000;
 
@@ -112,7 +107,7 @@ export class HostSandboxRunner implements SandboxRunner {
     this.homeDir = opts.homeDir;
     this.stateStore = opts.stateStore ?? null;
     this.previewUrlPattern = opts.previewUrlPattern ?? null;
-    this.spawnFn = opts._spawn ?? defaultSpawn;
+    this.spawnFn = opts._spawn ?? createDefaultSpawn(this.homeDir);
     this.probeFn = opts._probe ?? probeDaemonHealth;
     this.killFn = opts._kill ?? ((pid, sig) => process.kill(pid, sig));
     this.isAliveFn = opts._isAlive ?? isPidAlive;
@@ -456,25 +451,99 @@ function deriveRepoLabel(cloneUrl: string): string {
   }
 }
 
-async function defaultSpawn(args: {
-  workdir: string;
-  env: Record<string, string>;
-  daemonPort: number;
-}): Promise<DaemonProcess> {
-  const proc = Bun.spawn({
-    cmd: ["bun", "run", DAEMON_ENTRY],
-    // cwd is intentionally inherited from the parent — daemon resolves
-    // its own paths relative to the entry file.
-    env: { ...process.env, ...args.env },
-    stdout: "inherit",
-    stderr: "inherit",
-    stdin: "ignore",
-  });
-  return {
-    pid: proc.pid,
-    kill: (sig) => {
-      proc.kill(sig as NodeJS.Signals | number | undefined);
-      return true;
-    },
+// ---- Daemon executable resolution ------------------------------------------
+//
+// In dev (source tree present), spawn `bun run <daemon/entry.ts>` so the
+// daemon code reloads on file change without a build step.
+//
+// In production (`bunx decocms@latest`), `runner.ts` has been inlined into
+// `dist/server/server.js`, so the source TS path resolves to the
+// nonexistent `<bunx-cache>/node_modules/daemon/entry.ts`. Materialize the
+// embedded bundle (loaded lazily from `daemon-asset.ts`) into
+// `${homeDir}/.deco/cache/sandbox-daemon-<hash>.js` and spawn that.
+//
+// `node-pty` is a runtime dep of the daemon. Its install location lives
+// inside the parent's `node_modules` tree, but the materialized bundle
+// sits in DATA_DIR — bun won't find `node-pty` by walking up from there.
+// Resolve the parent's node_modules dir at the call site and pass it via
+// `NODE_PATH` so the spawned daemon can `import "node-pty"`.
+
+function resolveSourceDaemonPath(): string {
+  return resolve(
+    fileURLToPath(new URL("../../../daemon/entry.ts", import.meta.url)),
+  );
+}
+
+function resolveNodePtyNodeModulesDir(): string {
+  // node-pty is a peer of the parent process (decocms ships it as a direct
+  // dep; in dev it lives in packages/sandbox/node_modules). We resolve from
+  // this module's location and walk back to the enclosing node_modules
+  // root.
+  const ptyEntry = Bun.resolveSync("node-pty", import.meta.dir);
+  const marker = "/node_modules/";
+  const idx = ptyEntry.lastIndexOf(marker);
+  if (idx < 0) {
+    throw new Error(
+      `[HostSandboxRunner] could not derive node_modules path from node-pty resolution: ${ptyEntry}`,
+    );
+  }
+  return ptyEntry.slice(0, idx + marker.length - 1);
+}
+
+async function materializeDaemonBundle(homeDir: string): Promise<string> {
+  // Lazy-imported so tests using the `_spawn` test seam don't trigger the
+  // text-import resolution (which would require `daemon/dist/daemon.js` to
+  // exist on disk before the bundle has been built).
+  const { DAEMON_BUNDLE } = await import("./daemon-asset");
+  const hash = createHash("sha256")
+    .update(DAEMON_BUNDLE)
+    .digest("hex")
+    .slice(0, 16);
+  const cacheDir = join(homeDir, ".deco", "cache");
+  const cachePath = join(cacheDir, `sandbox-daemon-${hash}.js`);
+  if (existsSync(cachePath)) return cachePath;
+  await mkdir(cacheDir, { recursive: true });
+  // Write atomically — concurrent spawns racing to materialize the same
+  // hashed file are tolerated because `rename` is atomic on POSIX.
+  const tmpPath = `${cachePath}.${process.pid}.tmp`;
+  await writeFile(tmpPath, DAEMON_BUNDLE);
+  await rename(tmpPath, cachePath);
+  return cachePath;
+}
+
+async function resolveDaemonExec(homeDir: string): Promise<string> {
+  const sourceTs = resolveSourceDaemonPath();
+  if (existsSync(sourceTs)) return sourceTs;
+  return materializeDaemonBundle(homeDir);
+}
+
+function createDefaultSpawn(homeDir: string): SpawnFn {
+  return async (args) => {
+    const daemonExec = await resolveDaemonExec(homeDir);
+    const ptyNodeModulesDir = resolveNodePtyNodeModulesDir();
+    const existingNodePath = process.env.NODE_PATH;
+    const nodePath = existingNodePath
+      ? `${ptyNodeModulesDir}:${existingNodePath}`
+      : ptyNodeModulesDir;
+    const proc = Bun.spawn({
+      cmd: ["bun", "run", daemonExec],
+      // cwd is intentionally inherited from the parent — daemon resolves
+      // its own paths relative to the entry file.
+      env: {
+        ...process.env,
+        NODE_PATH: nodePath,
+        ...args.env,
+      },
+      stdout: "inherit",
+      stderr: "inherit",
+      stdin: "ignore",
+    });
+    return {
+      pid: proc.pid,
+      kill: (sig) => {
+        proc.kill(sig as NodeJS.Signals | number | undefined);
+        return true;
+      },
+    };
   };
 }
