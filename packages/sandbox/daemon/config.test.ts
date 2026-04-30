@@ -92,32 +92,3 @@ describe("loadConfig", () => {
   });
 });
 
-describe("loadConfig cloneDepth", () => {
-  const baseEnv = {
-    DAEMON_TOKEN: "x".repeat(48),
-    DAEMON_BOOT_ID: "boot",
-  };
-
-  it("defaults to shallow when CLONE_DEPTH is unset", () => {
-    expect(loadConfig({ ...baseEnv }).cloneDepth).toBe("shallow");
-  });
-
-  it("returns 'full' when CLONE_DEPTH=full", () => {
-    expect(loadConfig({ ...baseEnv, CLONE_DEPTH: "full" }).cloneDepth).toBe(
-      "full",
-    );
-  });
-
-  it("returns 'shallow' when CLONE_DEPTH=shallow", () => {
-    expect(loadConfig({ ...baseEnv, CLONE_DEPTH: "shallow" }).cloneDepth).toBe(
-      "shallow",
-    );
-  });
-
-  it("throws on invalid CLONE_DEPTH", () => {
-    expect(() => loadConfig({ ...baseEnv, CLONE_DEPTH: "deep" })).toThrow(
-      /CLONE_DEPTH invalid/,
-    );
-  });
-});
-
