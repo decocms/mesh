@@ -147,6 +147,9 @@ app.get("/", async (c) => {
     });
   }
 
+  c.header("X-Accel-Buffering", "no");
+  c.header("Content-Encoding", "identity");
+
   return streamSSE(c, async (stream) => {
     const abortCtl = new AbortController();
     const heartbeat = setInterval(() => {
