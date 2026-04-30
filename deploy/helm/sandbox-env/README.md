@@ -28,6 +28,13 @@ installed (it ships the CRDs + controller).
   chart's `configMap.meshConfig`. Without that override the runner falls
   back to `studio-sandbox` (no suffix) and claim creation fails with
   `sandboxtemplate not found`.
+- The studio release must also set `STUDIO_ENV=<envName>` (same envName)
+  so mesh stamps `studio.decocms.com/env=<envName>` on every SandboxClaim,
+  pod, and HTTPRoute it creates. The housekeeper's default selectors
+  scope sweeps to that env label — without it the housekeeper matches
+  zero claims and reaps nothing. Single-env installs that don't enable
+  the housekeeper can leave `STUDIO_ENV` unset (the label is then
+  omitted and behavior is unchanged).
 
 ## Preview gateway auth model
 
@@ -58,7 +65,7 @@ Published as an OCI artifact at
 ```bash
 helm install sandbox-env-staging \
   oci://ghcr.io/decocms/studio/charts/sandbox-env \
-  --version 0.1.0 \
+  --version 0.5.0 \
   --namespace agent-sandbox-system \
   --set envName=staging \
   --set mesh.namespace=deco-studio-staging \
@@ -75,6 +82,7 @@ this runner:
 configMap:
   meshConfig:
     STUDIO_SANDBOX_RUNNER: "agent-sandbox"
+    STUDIO_ENV: "staging"
     STUDIO_SANDBOX_TEMPLATE_NAME: "studio-sandbox-staging"
     STUDIO_SANDBOX_PREVIEW_URL_PATTERN: "https://{handle}.preview.staging.example.com"
     # Per-claim HTTPRoute attaches to this Gateway. Both required whenever
@@ -100,7 +108,7 @@ spec:
   source:
     repoURL: ghcr.io/decocms/studio/charts
     chart: sandbox-env
-    targetRevision: 0.1.0
+    targetRevision: 0.5.0
     helm:
       values: |
         envName: staging
@@ -118,6 +126,27 @@ spec:
 ```
 
 Repeat the `Application` per env, varying `metadata.name` and `envName`.
+
+### Upgrading an existing release to enable the housekeeper
+
+`helm upgrade --reuse-values` does NOT pull in defaults for newly-added
+values keys, so an upgrade that flips `housekeeper.enabled=true` on a
+release installed before the housekeeper landed will fail with
+`nil pointer evaluating interface {}.repository`. Use
+`--reset-then-reuse-values` (Helm 3.14+) instead, or re-pass the full
+values file:
+
+```bash
+helm upgrade sandbox-env-staging \
+  oci://ghcr.io/decocms/studio/charts/sandbox-env \
+  --version 0.5.0 \
+  --namespace agent-sandbox-system \
+  --reset-then-reuse-values \
+  --set housekeeper.enabled=true
+```
+
+ArgoCD users are unaffected — `Application.spec.source.helm.values` is a
+re-render from scratch, not a merge.
 
 ## Layout
 

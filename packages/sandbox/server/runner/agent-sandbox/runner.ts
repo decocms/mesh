@@ -271,6 +271,13 @@ export interface AgentSandboxRunnerOptions {
   /** SandboxTemplate all claims reference. */
   sandboxTemplateName?: string;
   /**
+   * Studio environment name. When set, stamped as
+   * `studio.decocms.com/env=<envName>` on claims/pods/HTTPRoutes so the
+   * sandbox-env housekeeper can scope per-env. Must be DNS-label-safe;
+   * validated at construction.
+   */
+  envName?: string;
+  /**
    * Deterministic DAEMON_TOKEN override — tests inject a fixed value so
    * recorded fetch payloads are stable. Prod leaves this undefined.
    */
@@ -325,6 +332,7 @@ export class AgentSandboxRunner implements SandboxRunner {
   private readonly portForward: PortForward;
   private readonly namespace: string;
   private readonly sandboxTemplateName: string;
+  private readonly envName: string | null;
   private readonly tokenGenerator: () => string;
   private readonly idleTtlMs: number;
   /**
@@ -350,6 +358,7 @@ export class AgentSandboxRunner implements SandboxRunner {
     this.namespace = opts.namespace ?? DEFAULT_NAMESPACE;
     this.sandboxTemplateName =
       opts.sandboxTemplateName ?? DEFAULT_TEMPLATE_NAME;
+    this.envName = normalizeEnvName(opts.envName);
     this.tokenGenerator =
       opts.tokenGenerator ??
       (() => randomBytes(DAEMON_TOKEN_BYTES).toString("hex"));
@@ -874,6 +883,7 @@ export class AgentSandboxRunner implements SandboxRunner {
         labels: {
           "app.kubernetes.io/name": "studio-sandbox",
           "app.kubernetes.io/managed-by": "studio",
+          ...(this.envName ? { [LABEL_KEYS.env]: this.envName } : {}),
           ...buildTenantLabels(opts.tenant),
         },
       },
@@ -888,6 +898,7 @@ export class AgentSandboxRunner implements SandboxRunner {
           labels: buildTenantLabels(opts.tenant, {
             [LABEL_KEYS.role]: "claimed",
             [LABEL_KEYS.sandboxHandle]: handle,
+            ...(this.envName ? { [LABEL_KEYS.env]: this.envName } : {}),
           }),
         },
         // `valueFrom.secretKeyRef` isn't supported on SandboxClaim env; RBAC
@@ -1041,6 +1052,7 @@ export class AgentSandboxRunner implements SandboxRunner {
           [LABEL_KEYS.sandboxHandle]: handle,
           "app.kubernetes.io/name": "studio-sandbox",
           "app.kubernetes.io/managed-by": "studio",
+          ...(this.envName ? { [LABEL_KEYS.env]: this.envName } : {}),
         }),
       },
       spec: {
@@ -1587,6 +1599,7 @@ const LABEL_KEYS = {
   sandboxHandle: "studio.decocms.com/sandbox-handle",
   orgId: "studio.decocms.com/org-id",
   userId: "studio.decocms.com/user-id",
+  env: "studio.decocms.com/env",
 } as const;
 
 // K8s label values: ≤63 chars, must match `(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?`.
@@ -1599,6 +1612,23 @@ const MAX_LABEL_VALUE_LEN = 63;
 function sanitizeLabelValue(value: string): string {
   const truncated = value.slice(0, MAX_LABEL_VALUE_LEN);
   return LABEL_VALUE_RE.test(truncated) ? truncated : "";
+}
+
+// Tighter than LABEL_VALUE_RE — envName flows into K8s resource names
+// (e.g. studio-sandbox-<env>), which require this restricted charset.
+// Must match the regex the sandbox-env chart enforces on envName.
+const ENV_NAME_RE = /^[a-z]([a-z0-9-]{0,30}[a-z0-9])?$/;
+
+function normalizeEnvName(raw: string | undefined): string | null {
+  if (raw === undefined) return null;
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  if (!ENV_NAME_RE.test(trimmed)) {
+    throw new Error(
+      `AgentSandboxRunner: envName=${JSON.stringify(trimmed)} is not a valid DNS-label-safe environment name (lowercase alphanumeric or '-', starts with a letter, ends alphanumeric, ≤32 chars). Mesh sets this from STUDIO_ENV; check the studio chart's configMap.`,
+    );
+  }
+  return trimmed;
 }
 
 /**

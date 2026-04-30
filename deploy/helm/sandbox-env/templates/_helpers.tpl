@@ -136,3 +136,21 @@ atomic and gives a pointer to the right install command.
 {{- end }}
 {{- end }}
 {{- end }}
+
+{{- define "sandbox-env.housekeeperName" -}}
+{{- printf "sandbox-housekeeper-%s" (include "sandbox-env.envName" .) -}}
+{{- end }}
+
+{{/*
+Default housekeeper selectors. Mirror the labels mesh stamps in runner.ts
+(`studio.decocms.com/env=<envName>` requires STUDIO_ENV); during phased
+rollout, .Values.housekeeper.{claimSelector,podSelector} can be overridden
+to drop the env scope. README has copy-paste values.
+*/}}
+{{- define "sandbox-env.housekeeperClaimSelector" -}}
+{{- printf "app.kubernetes.io/managed-by=studio,app.kubernetes.io/name=studio-sandbox,studio.decocms.com/env=%s" (include "sandbox-env.envName" .) -}}
+{{- end }}
+
+{{- define "sandbox-env.housekeeperPodSelector" -}}
+{{- printf "studio.decocms.com/role=claimed,studio.decocms.com/env=%s" (include "sandbox-env.envName" .) -}}
+{{- end }}

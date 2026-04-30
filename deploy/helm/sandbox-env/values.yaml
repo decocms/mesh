@@ -234,3 +234,46 @@ mesh:
   podSelectorLabels:
     app.kubernetes.io/name: "chart-deco-studio"
     app.kubernetes.io/instance: "deco-studio"
+
+# ── idle-reap housekeeper ──────────────────────────────────────────────
+# CronJob that direct-deletes ReconcilerError claims and gracefully shuts
+# down idle Ready claims. Emits a Kubernetes Event per reap.
+housekeeper:
+  enabled: false
+
+  schedule: "*/5 * * * *"
+
+  # Should match (or be shorter than) DEFAULT_IDLE_TTL_MS in runner.ts.
+  idleTtlSeconds: 900
+
+  probeTimeoutSeconds: 2
+
+  # 600s ≈ 400 sandboxes/sweep at ~1.5s/claim worst case.
+  activeDeadlineSeconds: 600
+
+  # Grace window for slots missed during controller-manager downtime.
+  startingDeadlineSeconds: 240
+
+  ttlSecondsAfterFinished: 300
+
+  # Empty = use env-scoped defaults from the housekeeper{Claim,Pod}Selector
+  # helpers. Override during phased rollout (before mesh propagates
+  # STUDIO_ENV) — the env-scoped default matches zero claims without the
+  # label. README has the unscoped copy-paste.
+  claimSelector: ""
+  podSelector: ""
+
+  # alpine/k8s bundles kubectl + curl in one image (the sweep needs both).
+  # Tag pinned — `latest` would silently change at the next scheduled run.
+  image:
+    repository: alpine/k8s
+    tag: "1.32.0"
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi

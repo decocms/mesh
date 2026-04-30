@@ -68,6 +68,11 @@ function readSandboxTemplateName(): string | undefined {
   return raw && raw.trim() !== "" ? raw : undefined;
 }
 
+function readEnvName(): string | undefined {
+  const raw = process.env.STUDIO_ENV;
+  return raw && raw.trim() !== "" ? raw : undefined;
+}
+
 // Per-claim HTTPRoute attaches to this Gateway. When NAME + NAMESPACE are
 // set alongside STUDIO_SANDBOX_PREVIEW_URL_PATTERN, mesh mints one
 // HTTPRoute per SandboxClaim so the wildcard Gateway can route directly
@@ -128,6 +133,7 @@ async function instantiate(
         stateStore,
         previewUrlPattern,
         sandboxTemplateName: readSandboxTemplateName(),
+        envName: readEnvName(),
         previewGateway: readPreviewGateway(),
         meter,
       });
