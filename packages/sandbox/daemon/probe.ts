@@ -11,10 +11,11 @@ export interface ProbeDeps {
   upstreamHost: string;
   /**
    * Ports owned by descendants of the daemon's managed dev process, per
-   * /proc inspection. Authoritative: if /proc says the dev server holds
-   * a TCP listener, the server *is* up — `ready: true` flips immediately
-   * without waiting on a slow first compile. HEAD-probing these is only
-   * to enrich `htmlSupport`, not to gate readiness.
+   * /proc inspection. The discovery list picks the candidate port (so the
+   * preview reverse-proxy lands on the right socket), but `ready` is still
+   * gated on at least one HEAD response — a process that's bound the port
+   * but isn't accepting yet (early bind during framework bootstrap, lazy
+   * compile that times out the HEAD) shouldn't read as ready.
    */
   getDiscoveredPorts: () => number[];
   /**
@@ -118,7 +119,7 @@ export function startUpstreamProbe(deps: ProbeDeps): ProbeState {
       const responded = results.filter((r) => r.responded);
       const best = responded.sort((a, b) => b.score - a.score)[0] ?? results[0];
       state.port = best.port;
-      state.ready = true;
+      state.ready = responded.length > 0;
       state.htmlSupport = best.htmlSupport;
     } else {
       // Untrusted fallback: env-hint port only, gated on a successful HEAD.
