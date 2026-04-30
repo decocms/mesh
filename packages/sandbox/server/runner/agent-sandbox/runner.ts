@@ -122,10 +122,6 @@ const RESERVED_ENV_KEYS = new Set([
   "PACKAGE_MANAGER",
 ]);
 
-// Default idle-reap TTL: 15 min from each ensure() hit. Every code-initiated
-// request flows through ensure() (or touches a record via getRecord, which
-// bumps the TTL on the K8s side), so an active sandbox pushes this forward;
-// abandoned sandboxes roll off at T+15m via the operator.
 const DEFAULT_IDLE_TTL_MS = 15 * 60 * 1000;
 
 /**
@@ -344,6 +340,7 @@ export class AgentSandboxRunner implements SandboxRunner {
    * adopt, and delete.
    */
   private readonly previewGateway: { name: string; namespace: string } | null;
+  private closed = false;
 
   constructor(opts: AgentSandboxRunnerOptions = {}) {
     this.stateStore = opts.stateStore ?? null;
@@ -1375,7 +1372,12 @@ export class AgentSandboxRunner implements SandboxRunner {
     return new Promise((resolve, reject) => {
       const tryBind = (port: number, attempt: number) => {
         const server = net.createServer((socket) =>
-          this.handleForwardedConnection(socket, podName, containerPort),
+          this.handleForwardedConnection(
+            socket,
+            podName,
+            containerPort,
+            handle,
+          ),
         );
         server.once("error", (err: NodeJS.ErrnoException) => {
           if (err.code === "EADDRINUSE" && attempt < PORT_WALK_LIMIT) {
@@ -1411,6 +1413,7 @@ export class AgentSandboxRunner implements SandboxRunner {
     socket: net.Socket,
     podName: string,
     containerPort: number,
+    handle: string,
   ): void {
     // Inbound bytes pipe through a PassThrough rather than the socket
     // directly: `portForward` attaches its 'data' listener only after the
@@ -1455,7 +1458,10 @@ export class AgentSandboxRunner implements SandboxRunner {
         }
         ws = opened as ForwardWebSocket;
         ws.on("close", cleanup);
-        ws.on("error", cleanup);
+        ws.on("error", () => {
+          this.invalidateRecord(handle);
+          cleanup();
+        });
         if (closed) {
           try {
             ws.close();
@@ -1466,6 +1472,7 @@ export class AgentSandboxRunner implements SandboxRunner {
         console.warn(
           `[${LOG_LABEL}] port-forward to ${podName}:${containerPort} failed: ${err instanceof Error ? err.message : String(err)}`,
         );
+        this.invalidateRecord(handle);
         cleanup();
       });
   }
@@ -1478,6 +1485,15 @@ export class AgentSandboxRunner implements SandboxRunner {
         );
       }
     });
+  }
+
+  close(): void {
+    if (this.closed) return;
+    this.closed = true;
+    for (const rec of this.records.values()) {
+      this.closeForwarder(rec.daemonForward);
+    }
+    this.records.clear();
   }
 }
 
