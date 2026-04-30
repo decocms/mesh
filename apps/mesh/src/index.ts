@@ -107,22 +107,28 @@ const previewProxyDeps = {
   },
 };
 
-// Docker-only boot/dev wiring. Both hooks (boot sweep + local ingress) are
-// intimate with Docker-specific primitives (labels, host-port mappings);
-// other runners manage their own VM/ingress lifecycle.
-const { tryResolveRunnerKindFromEnv } = await import("@decocms/sandbox/runner");
-if (tryResolveRunnerKindFromEnv() === "docker") {
-  const { sweepDockerOrphansOnBoot, startLocalSandboxIngress } = await import(
-    "@decocms/sandbox/runner"
-  );
-  const { asDockerRunner, getSharedRunnerIfInit } = await import(
-    "./sandbox/lifecycle"
-  );
+// Boot/dev wiring for local runners (docker + host). The boot sweep is
+// Docker-only — host runner's rehydrate() probes /health and discards dead
+// state on its own. The local ingress is shared by both runners.
+const { resolveRunnerKindFromEnv } = await import("@decocms/sandbox/runner");
+const sandboxRunnerKind = resolveRunnerKindFromEnv();
+const ingressEligible =
+  sandboxRunnerKind === "docker" || sandboxRunnerKind === "host";
+
+if (ingressEligible) {
+  const { startLocalSandboxIngress } = await import("@decocms/sandbox/runner");
+  const { getSharedRunnerIfInit } = await import("./sandbox/lifecycle");
 
   // Boot sweep (best-effort). Shutdown cleanup can't cover crashes —
   // SIGTERM races with the parent killing postgres — so the boot sweep is
   // what actually keeps `docker ps` empty between sessions.
-  await sweepDockerOrphansOnBoot();
+  // Host runner's rehydrate() probes /health and discards dead state on its own.
+  if (sandboxRunnerKind === "docker") {
+    const { sweepDockerOrphansOnBoot } = await import(
+      "@decocms/sandbox/runner"
+    );
+    await sweepDockerOrphansOnBoot();
+  }
 
   // Port 7070 default: macOS AirPlay Receiver owns `*:7000` on v4+v6, so a
   // Chrome Happy-Eyeballs race would hit Apple. Enabled by default in dev;
@@ -132,10 +138,16 @@ if (tryResolveRunnerKindFromEnv() === "docker") {
     process.env.MESH_LOCAL_SANDBOX_INGRESS === "1";
   if (ingressDevEnabled) {
     const ingressPort = Number(process.env.SANDBOX_INGRESS_PORT ?? 7070);
-    ingressServers = startLocalSandboxIngress(
-      () => asDockerRunner(getSharedRunnerIfInit()),
-      ingressPort,
-    );
+    ingressServers = startLocalSandboxIngress(() => {
+      const r = getSharedRunnerIfInit();
+      if (!r) return null;
+      if (r.kind !== "docker" && r.kind !== "host") return null;
+      // Both DockerSandboxRunner and HostSandboxRunner expose
+      // resolveDaemonPort; the structural cast is safe after the kind check.
+      return r as unknown as {
+        resolveDaemonPort(handle: string): Promise<number | null>;
+      };
+    }, ingressPort);
   }
 }
 
