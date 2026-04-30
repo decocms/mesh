@@ -84,12 +84,6 @@ spec:
             - name: WORKDIR
               value: "/app"
             # DAEMON_TOKEN is injected per-claim via SandboxClaim.spec.env.
-            - name: CLAIM_NONCE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.annotations['decocms.io/claim-nonce']
-            - name: STRICT_NONCE
-              value: "true"
             {{- if .Values.readOnlyRootFilesystem }}
             # With RO rootfs + emptyDir on /app, the mount root is owned
             # root:1000 (fsGroup). Git 2.35+'s "dubious ownership" check

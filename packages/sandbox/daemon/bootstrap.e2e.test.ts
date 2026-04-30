@@ -14,7 +14,6 @@ import { createHash } from "node:crypto";
 
 const DAEMON_BUNDLE = join(import.meta.dir, "dist", "daemon.js");
 const VALID_TOKEN = "t".repeat(32);
-const VALID_NONCE = "n".repeat(32);
 const HOOK_TIMEOUT_MS = 30_000;
 const PORT_WAIT_TIMEOUT_MS = 20_000;
 
@@ -63,8 +62,6 @@ async function waitForPort(
 }
 
 interface StartOpts {
-  withClaimNonce?: boolean;
-  strictNonce?: boolean;
   bootstrapTimeoutMs?: number;
   preseedBootstrapJson?: string;
   bootstrapDirOverride?: string;
@@ -94,8 +91,6 @@ async function startDaemon(opts: StartOpts = {}) {
     DAEMON_BOOTSTRAP_DIR: bootstrapDir,
     BOOTSTRAP_TIMEOUT_MS: String(opts.bootstrapTimeoutMs ?? 60_000),
   };
-  if (opts.withClaimNonce) env.CLAIM_NONCE = VALID_NONCE;
-  if (opts.strictNonce) env.STRICT_NONCE = "true";
 
   delete env.DAEMON_TOKEN;
   delete env.CLONE_URL;
@@ -143,7 +138,6 @@ async function stopDaemon() {
 
 interface BootstrapPayload {
   schemaVersion: 1;
-  claimNonce: string;
   daemonToken: string;
   runtime: "node" | "bun" | "deno";
   cloneUrl?: string;
@@ -160,7 +154,6 @@ interface BootstrapPayload {
 function basicPayload(over: Partial<BootstrapPayload> = {}): BootstrapPayload {
   return {
     schemaVersion: 1,
-    claimNonce: VALID_NONCE,
     daemonToken: VALID_TOKEN,
     runtime: "node",
     appRoot: appDir,
@@ -202,7 +195,7 @@ async function getHealth(): Promise<{
 
 describe("daemon bootstrap (state machine)", () => {
   beforeEach(async () => {
-    await startDaemon({ withClaimNonce: true });
+    await startDaemon();
   }, HOOK_TIMEOUT_MS);
   afterEach(async () => {
     await stopDaemon();
@@ -250,11 +243,6 @@ describe("daemon bootstrap (state machine)", () => {
   it("daemonToken < 32 chars → 400", async () => {
     const r = await postBootstrap(basicPayload({ daemonToken: "short" }));
     expect(r.status).toBe(400);
-  });
-
-  it("claimNonce mismatch → 403", async () => {
-    const r = await postBootstrap(basicPayload({ claimNonce: "wrong" }));
-    expect(r.status).toBe(403);
   });
 
   it("concurrent identical POSTs (10) → all 200, file written once", async () => {
@@ -348,24 +336,6 @@ describe("daemon bootstrap (state machine)", () => {
   });
 });
 
-describe("daemon bootstrap (CLAIM_NONCE absent + strict mode)", () => {
-  afterEach(async () => {
-    await stopDaemon();
-  }, HOOK_TIMEOUT_MS);
-
-  it("when CLAIM_NONCE is unset and STRICT_NONCE=false, accepts any nonce", async () => {
-    await startDaemon({ withClaimNonce: false });
-    const r = await postBootstrap(basicPayload({ claimNonce: "anything" }));
-    expect(r.status).toBe(200);
-  });
-
-  it("when CLAIM_NONCE is unset and STRICT_NONCE=true, rejects all", async () => {
-    await startDaemon({ withClaimNonce: false, strictNonce: true });
-    const r = await postBootstrap(basicPayload());
-    expect(r.status).toBe(403);
-  });
-});
-
 describe("daemon bootstrap (file rehydration)", () => {
   afterEach(async () => {
     await stopDaemon();
@@ -374,7 +344,6 @@ describe("daemon bootstrap (file rehydration)", () => {
   function buildValidFileBytes(): string {
     const payload = {
       schemaVersion: 1,
-      claimNonce: VALID_NONCE,
       daemonToken: VALID_TOKEN,
       runtime: "node",
     };
@@ -400,7 +369,6 @@ describe("daemon bootstrap (file rehydration)", () => {
 
   it("hydrates from valid bootstrap.json → phase=bootstrapping", async () => {
     await startDaemon({
-      withClaimNonce: true,
       preseedBootstrapJson: buildValidFileBytes(),
     });
     const h = await getHealth();
@@ -409,7 +377,6 @@ describe("daemon bootstrap (file rehydration)", () => {
 
   it("unknown schemaVersion in file → phase=failed (and :9000 still binds)", async () => {
     await startDaemon({
-      withClaimNonce: true,
       preseedBootstrapJson: JSON.stringify({
         schemaVersion: 99,
         hash: "x",
@@ -423,7 +390,6 @@ describe("daemon bootstrap (file rehydration)", () => {
   it("hash mismatch in file → phase=failed", async () => {
     const payload = {
       schemaVersion: 1,
-      claimNonce: VALID_NONCE,
       daemonToken: VALID_TOKEN,
       runtime: "node",
     };
@@ -433,7 +399,6 @@ describe("daemon bootstrap (file rehydration)", () => {
       payload,
     });
     await startDaemon({
-      withClaimNonce: true,
       preseedBootstrapJson: bytes,
     });
     const h = await getHealth();
@@ -445,7 +410,6 @@ describe("daemon bootstrap (file rehydration)", () => {
     writeFileSync(join(dir, "bootstrap.json.tmp"), "junk");
     try {
       await startDaemon({
-        withClaimNonce: true,
         bootstrapDirOverride: dir,
       });
       let stillThere = false;
@@ -459,7 +423,7 @@ describe("daemon bootstrap (file rehydration)", () => {
   });
 
   it("kill -9 mid-write equivalent: existing valid file rehydrates", async () => {
-    await startDaemon({ withClaimNonce: true });
+    await startDaemon();
     const r = await postBootstrap(basicPayload());
     expect(r.status).toBe(200);
     const fileBytes = readFileSync(
@@ -470,7 +434,6 @@ describe("daemon bootstrap (file rehydration)", () => {
     const dir = mkdtempSync(join(tmpdir(), "daemon-rehydrate-"));
     writeFileSync(join(dir, "bootstrap.json"), fileBytes);
     await startDaemon({
-      withClaimNonce: true,
       bootstrapDirOverride: dir,
     });
     const h = await getHealth();
@@ -485,7 +448,6 @@ describe("daemon bootstrap (timeout + back-compat)", () => {
 
   it("bootstrap timeout fires when no POST arrives → phase=failed", async () => {
     await startDaemon({
-      withClaimNonce: true,
       bootstrapTimeoutMs: 500,
     });
     expect((await getHealth()).phase).toBe("pending-bootstrap");
@@ -495,7 +457,6 @@ describe("daemon bootstrap (timeout + back-compat)", () => {
 
   it("subsequent bootstrap call after failed → 409", async () => {
     await startDaemon({
-      withClaimNonce: true,
       bootstrapTimeoutMs: 300,
     });
     await new Promise((r) => setTimeout(r, 1000));
@@ -506,7 +467,6 @@ describe("daemon bootstrap (timeout + back-compat)", () => {
 
   it("env-driven path: DAEMON_TOKEN set → phase=ready (back-compat)", async () => {
     await startDaemon({
-      withClaimNonce: false,
       extraEnv: {
         DAEMON_TOKEN: VALID_TOKEN,
       },

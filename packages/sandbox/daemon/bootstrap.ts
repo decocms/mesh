@@ -23,6 +23,9 @@ export interface BootstrapHandlerDeps {
   onAccepted?: (payload: BootstrapPayload) => void;
 }
 
+// Unauthenticated. NetworkPolicy is the trust boundary — only mesh pods can
+// reach :9000, so first valid POST wins. Don't add auth here without also
+// thinking through how mesh delivers a pre-bootstrap secret.
 export function makeBootstrapHandler(deps: BootstrapHandlerDeps) {
   return async (req: Request): Promise<Response> => {
     let raw: unknown;
@@ -42,10 +45,6 @@ export function makeBootstrapHandler(deps: BootstrapHandlerDeps) {
         { error: `unknown schemaVersion: ${String(payload.schemaVersion)}` },
         400,
       );
-    }
-
-    if (typeof payload.claimNonce !== "string" || !payload.claimNonce) {
-      return jsonResponse({ error: "claimNonce required" }, 400);
     }
 
     if (

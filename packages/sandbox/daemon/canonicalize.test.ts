@@ -37,13 +37,11 @@ describe("canonicalize", () => {
     const a = {
       schemaVersion: 1,
       runtime: "node",
-      claimNonce: "n",
       daemonToken: "t".repeat(32),
       env: { B: "2", A: "1" },
     };
     const b = {
       env: { A: "1", B: "2" },
-      claimNonce: "n",
       runtime: "node",
       daemonToken: "t".repeat(32),
       schemaVersion: 1,
