@@ -16,12 +16,18 @@ import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  daemonBash,
+  daemonBootstrap,
   probeDaemonHealth,
   proxyDaemonRequest,
-  daemonBash,
 } from "../../daemon-client";
 import type { DaemonHealth } from "../../daemon-client";
-import { applyPreviewPattern, computeHandle } from "../shared";
+import {
+  applyPreviewPattern,
+  bootstrapAndWaitReady,
+  buildBootstrapPayload,
+  computeHandle,
+} from "../shared";
 import type { RunnerStateStore } from "../state-store";
 import type {
   EnsureOptions,
@@ -34,14 +40,12 @@ import type {
 } from "../types";
 
 const RUNNER_KIND = "host" as const;
-const HEALTH_PROBE_TIMEOUT_MS = 30_000;
 // Resolve daemon entry path relative to this file so it works regardless of
 // the process cwd (e.g. when mesh is started from apps/mesh/ via
 // `bun run --cwd=apps/mesh dev:server`).
 const DAEMON_ENTRY = resolve(
   fileURLToPath(new URL("../../../daemon/entry.ts", import.meta.url)),
 );
-const HEALTH_PROBE_INTERVAL_MS = 250;
 const STOP_GRACE_MS = 2_000;
 
 type DaemonProcess = {
@@ -56,6 +60,7 @@ type SpawnFn = (args: {
 type HealthProbeFn = (daemonUrl: string) => Promise<DaemonHealth | null>;
 type KillFn = (pid: number, signal: NodeJS.Signals) => void;
 type IsAliveFn = (pid: number) => boolean;
+type BootstrapFn = typeof daemonBootstrap;
 
 export interface HostRunnerOptions {
   /** Root data directory; usually `settings.home` (i.e. DATA_DIR). */
@@ -71,6 +76,8 @@ export interface HostRunnerOptions {
   _kill?: KillFn;
   /** @internal test seam */
   _isAlive?: IsAliveFn;
+  /** @internal test seam */
+  _bootstrap?: BootstrapFn;
 }
 
 interface HostRecord {
@@ -104,6 +111,7 @@ export class HostSandboxRunner implements SandboxRunner {
   private readonly probeFn: HealthProbeFn;
   private readonly killFn: KillFn;
   private readonly isAliveFn: IsAliveFn;
+  private readonly bootstrapFn: BootstrapFn;
 
   constructor(opts: HostRunnerOptions) {
     if (!opts.homeDir) {
@@ -116,6 +124,7 @@ export class HostSandboxRunner implements SandboxRunner {
     this.probeFn = opts._probe ?? probeDaemonHealth;
     this.killFn = opts._kill ?? ((pid, sig) => process.kill(pid, sig));
     this.isAliveFn = opts._isAlive ?? isPidAlive;
+    this.bootstrapFn = opts._bootstrap ?? daemonBootstrap;
   }
 
   // ---- SandboxRunner surface ------------------------------------------------
@@ -152,25 +161,26 @@ export class HostSandboxRunner implements SandboxRunner {
     const daemonUrl = `http://127.0.0.1:${daemonPort}`;
     const devPort = await preallocatePort();
 
-    const env = buildDaemonEnv({
-      token,
-      bootId,
-      workdir,
-      daemonPort,
-      devPort,
-      runtime: opts.workload?.runtime ?? "node",
-      packageManager: opts.workload?.packageManager ?? null,
-      repo: opts.repo ?? null,
-      extraEnv: opts.env,
-    });
+    // Boot env carries only the BootConfig the daemon reads at startup
+    // (`config.ts:loadBootConfigFromEnv`). Tenant config — runtime, repo,
+    // dev port, caller env — flows through `daemonBootstrap` below.
+    const env = buildDaemonBootEnv({ token, bootId, workdir, daemonPort });
 
     const proc = await this.spawnFn({ workdir, env, daemonPort });
     try {
-      await this.waitForHealthy(daemonUrl);
+      const payload = buildBootstrapPayload(opts, {
+        daemonToken: token,
+        workdir,
+        devPort,
+      });
+      await bootstrapAndWaitReady(daemonUrl, payload, {
+        bootstrapFn: this.bootstrapFn,
+        probe: this.probeFn,
+      });
     } catch (err) {
-      // Daemon never reported healthy — kill it so we don't leak the child
-      // process or pin daemonPort/devPort. The deterministic workdir is left
-      // in place; a retry will reuse it.
+      // Bootstrap or readiness wait failed — kill the daemon so we don't
+      // leak the child process or pin daemonPort/devPort. The deterministic
+      // workdir is left in place; a retry will reuse it.
       try {
         proc.kill("SIGKILL");
       } catch {
@@ -203,16 +213,6 @@ export class HostSandboxRunner implements SandboxRunner {
       await this.stateStore.put(id, RUNNER_KIND, { handle, state });
     }
     return this.toSandbox(rec);
-  }
-
-  private async waitForHealthy(daemonUrl: string): Promise<void> {
-    const deadline = Date.now() + HEALTH_PROBE_TIMEOUT_MS;
-    while (Date.now() < deadline) {
-      const health = await this.probeFn(daemonUrl);
-      if (health?.ready) return;
-      await new Promise((r) => setTimeout(r, HEALTH_PROBE_INTERVAL_MS));
-    }
-    throw new Error(`daemon at ${daemonUrl} never reported healthy`);
   }
 
   async exec(handle: string, input: ExecInput): Promise<ExecOutput> {
@@ -390,9 +390,10 @@ function isPidAlive(pid: number): boolean {
  * Pre-allocate a host-side TCP port. The daemon binds to it on startup.
  * Race window is non-zero — the kernel may hand the port to another process
  * between close() and the daemon's bind() — in which case the daemon fails
- * to come up, `waitForHealthy` times out, and `ensure()` rejects. There is
- * no automatic retry; the caller (e.g. VM_START) surfaces the error. In
- * practice this never fires on a developer machine.
+ * to come up, `bootstrapAndWaitReady` times out on `waitForDaemonHttp`, and
+ * `ensure()` rejects. There is no automatic retry; the caller (e.g.
+ * VM_START) surfaces the error. In practice this never fires on a
+ * developer machine.
  */
 function preallocatePort(): Promise<number> {
   return new Promise((resolve_, reject) => {
@@ -411,49 +412,23 @@ function preallocatePort(): Promise<number> {
   });
 }
 
-function buildDaemonEnv(args: {
+/**
+ * Boot env contract: only what `loadBootConfigFromEnv` reads. Tenant
+ * config (runtime, repo, packageManager, devPort, caller env) flows
+ * through `daemonBootstrap` instead.
+ */
+function buildDaemonBootEnv(args: {
   token: string;
   bootId: string;
   workdir: string;
   daemonPort: number;
-  devPort: number;
-  runtime: string;
-  packageManager: string | null;
-  repo: NonNullable<EnsureOptions["repo"]> | null;
-  extraEnv: Record<string, string> | undefined;
 }): Record<string, string> {
-  const repoLabel = args.repo
-    ? (args.repo.displayName ?? deriveRepoLabel(args.repo.cloneUrl))
-    : null;
   return {
     DAEMON_TOKEN: args.token,
     DAEMON_BOOT_ID: args.bootId,
     APP_ROOT: args.workdir,
     PROXY_PORT: String(args.daemonPort),
-    DEV_PORT: String(args.devPort),
-    RUNTIME: args.runtime,
-    ...(args.repo
-      ? {
-          CLONE_URL: args.repo.cloneUrl,
-          REPO_NAME: repoLabel ?? "",
-          BRANCH: args.repo.branch ?? "",
-          GIT_USER_NAME: args.repo.userName,
-          GIT_USER_EMAIL: args.repo.userEmail,
-        }
-      : {}),
-    ...(args.packageManager ? { PACKAGE_MANAGER: args.packageManager } : {}),
-    ...(args.extraEnv ?? {}),
   };
-}
-
-function deriveRepoLabel(cloneUrl: string): string {
-  try {
-    const u = new URL(cloneUrl);
-    const trimmed = u.pathname.replace(/^\/+/, "").replace(/\.git$/, "");
-    return trimmed || u.hostname;
-  } catch {
-    return cloneUrl;
-  }
 }
 
 async function defaultSpawn(args: {

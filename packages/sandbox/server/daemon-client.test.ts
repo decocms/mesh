@@ -433,7 +433,7 @@ describe("waitForDaemonHttp", () => {
         { status: 200, headers: { "content-type": "application/json" } },
       );
     });
-    await waitForDaemonHttp("http://d", 5_000);
+    await waitForDaemonHttp("http://d", { timeoutMs: 5_000 });
     expect(attempts).toBeGreaterThanOrEqual(2);
   });
 });

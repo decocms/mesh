@@ -90,10 +90,6 @@ export function getBootConfig(): BootConfig {
   return state.bootConfig;
 }
 
-export function peekBootConfig(): BootConfig | null {
-  return state.bootConfig;
-}
-
 export function setTenantConfig(t: TenantConfig): void {
   const wasNull = state.tenantConfig === null;
   state.tenantConfig = t;
@@ -108,13 +104,4 @@ export function clearTenantConfig(): void {
 
 export function peekTenantConfig(): TenantConfig | null {
   return state.tenantConfig;
-}
-
-export function peekConfig(): Config | null {
-  if (!state.bootConfig || !state.tenantConfig) return null;
-  return { ...state.bootConfig, ...state.tenantConfig };
-}
-
-export function getConfig(): Promise<Config> {
-  return state.configReady;
 }

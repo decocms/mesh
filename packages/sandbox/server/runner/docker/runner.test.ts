@@ -152,12 +152,37 @@ export function healthOkResponse(bootId = "test-boot-id"): Response {
       ready: true,
       bootId,
       setup: { running: false, done: true },
+      // phase=ready short-circuits waitForDaemonReady's polling loop.
+      phase: "ready",
     }),
     {
       status: 200,
       headers: { "Content-Type": "application/json" },
     },
   );
+}
+
+/**
+ * Successful bootstrap response. Mirrors the daemon's
+ * `POST /_decopilot_vm/bootstrap` 200 shape.
+ */
+export function bootstrapOkResponse(bootId = "test-boot-id"): Response {
+  return new Response(
+    JSON.stringify({ phase: "bootstrapping", bootId, hash: "h".repeat(64) }),
+    { status: 200, headers: { "Content-Type": "application/json" } },
+  );
+}
+
+/**
+ * Default fetch responder for the post-spawn handshake: any /health → ready,
+ * any /_decopilot_vm/bootstrap → 200 ack. Tests that need to inspect the
+ * bootstrap body or fail specific calls override.
+ */
+export function defaultDaemonResponder(call: FetchCall): Response {
+  if (call.input.includes("/_decopilot_vm/bootstrap")) {
+    return bootstrapOkResponse();
+  }
+  return healthOkResponse();
 }
 
 function installFetch(
@@ -197,7 +222,7 @@ describe("DockerSandboxRunner.ensure() — fresh provision", () => {
   it("runs container with hardening flags, reads ports, probes health, persists", async () => {
     const { exec, calls } = makeExec(defaultResponder);
     const store = makeStore();
-    installFetch(() => healthOkResponse());
+    installFetch(defaultDaemonResponder);
 
     const runner = new DockerSandboxRunner({
       image: "test-image:latest",
@@ -277,7 +302,7 @@ describe("DockerSandboxRunner.ensure() — fresh provision", () => {
   it("passes --name=<handle> to docker run so the handle is a valid container reference", async () => {
     const { exec, calls } = makeExec(defaultResponder);
     const store = makeStore();
-    installFetch(() => healthOkResponse());
+    installFetch(defaultDaemonResponder);
     const runner = new DockerSandboxRunner({
       image: "test-image:latest",
       exec,
@@ -327,7 +352,7 @@ describe("DockerSandboxRunner.ensure() — adopt by label", () => {
       return defaultResponder(args);
     });
     const store = makeStore();
-    installFetch(() => healthOkResponse());
+    installFetch(defaultDaemonResponder);
 
     const runner = new DockerSandboxRunner({
       image: "test-image:latest",
@@ -372,7 +397,7 @@ describe("DockerSandboxRunner.ensure() — --name collision recovery", () => {
       return defaultResponder(args);
     });
     const store = makeStore();
-    installFetch(() => healthOkResponse());
+    installFetch(defaultDaemonResponder);
 
     const runner = new DockerSandboxRunner({
       image: "test-image:latest",
@@ -402,7 +427,7 @@ describe("DockerSandboxRunner.ensure() — in-process dedupe", () => {
       }
       return defaultResponder(args);
     });
-    installFetch(() => healthOkResponse());
+    installFetch(defaultDaemonResponder);
 
     // Pass a non-default image so `ensureSandboxImage` short-circuits — otherwise
     // the runner spawns a real `docker build` (not honoring the injected exec)
@@ -446,7 +471,7 @@ describe("DockerSandboxRunner.ensure() — resume from persisted state", () => {
     });
     store.putCalls.length = 0; // reset so we only observe new puts
 
-    installFetch(() => healthOkResponse()); // /health ok
+    installFetch(defaultDaemonResponder); // /health ok
 
     const runner = new DockerSandboxRunner({ exec, stateStore: store });
     const sandbox = await runner.ensure(ID);
@@ -458,10 +483,31 @@ describe("DockerSandboxRunner.ensure() — resume from persisted state", () => {
   });
 });
 
-describe("DockerSandboxRunner.ensure() — env contract for unified daemon", () => {
-  it("plumbs repo + workload into container env so daemon owns clone/install/start", async () => {
+describe("DockerSandboxRunner.ensure() — bootstrap contract", () => {
+  /** Pull `-e KEY=VALUE` pairs from a `docker run` arg list. */
+  function envFromRunArgs(runArgs: string[]): Map<string, string> {
+    const envs = new Map<string, string>();
+    for (let i = 0; i < runArgs.length - 1; i++) {
+      if (runArgs[i] === "-e") {
+        const pair = runArgs[i + 1]!;
+        const eq = pair.indexOf("=");
+        envs.set(pair.slice(0, eq), pair.slice(eq + 1));
+      }
+    }
+    return envs;
+  }
+
+  /** Decode the base64-JSON body of the bootstrap POST. */
+  function decodeBootstrapBody(body: BodyInit | undefined): unknown {
+    if (typeof body !== "string") {
+      throw new Error("expected base64 string body");
+    }
+    return JSON.parse(Buffer.from(body, "base64").toString("utf-8"));
+  }
+
+  it("container env carries only BootConfig; tenant config flows via bootstrap POST", async () => {
     const { exec, calls } = makeExec(defaultResponder);
-    installFetch(() => healthOkResponse());
+    const { calls: fetchCalls } = installFetch(defaultDaemonResponder);
 
     const runner = new DockerSandboxRunner({
       image: "test-image:latest",
@@ -476,54 +522,59 @@ describe("DockerSandboxRunner.ensure() — env contract for unified daemon", () 
         displayName: "o/r",
       },
       workload: { runtime: "bun", packageManager: "bun", devPort: 3000 },
+      env: { CALLER_VAR: "caller" },
     });
 
-    const runCall = calls.find((c) => c.args[0] === "run");
-    expect(runCall).toBeDefined();
-    const runArgs = runCall!.args;
+    const runArgs = calls.find((c) => c.args[0] === "run")!.args;
+    const envs = envFromRunArgs(runArgs);
 
-    // Collect all -e KEY=VALUE pairs into a map for easier assertions.
-    const envs = new Map<string, string>();
-    for (let i = 0; i < runArgs.length - 1; i++) {
-      if (runArgs[i] === "-e") {
-        const pair = runArgs[i + 1]!;
-        const eq = pair.indexOf("=");
-        envs.set(pair.slice(0, eq), pair.slice(eq + 1));
-      }
-    }
-
-    // Daemon identity.
+    // BootConfig env: required for the daemon to bind :9000 and validate
+    // bearer tokens before bootstrap arrives.
     expect(envs.get("DAEMON_TOKEN")).toMatch(/^[0-9a-f]{48}$/);
-    expect(envs.get("DAEMON_BOOT_ID")).toMatch(
-      /^[0-9a-f-]{36}$/i, // uuid v4
-    );
-
-    // Ports + filesystem.
+    expect(envs.get("DAEMON_BOOT_ID")).toMatch(/^[0-9a-f-]{36}$/i);
     expect(envs.get("APP_ROOT")).toBe("/app");
     expect(envs.get("PROXY_PORT")).toBe("9000");
-    expect(envs.get("DEV_PORT")).toBe("3000");
 
-    // Runtime + package manager.
-    expect(envs.get("RUNTIME")).toBe("bun");
-    expect(envs.get("PACKAGE_MANAGER")).toBe("bun");
+    // Tenant config MUST NOT leak into env — it travels through the
+    // bootstrap payload now.
+    expect(envs.has("DEV_PORT")).toBe(false);
+    expect(envs.has("RUNTIME")).toBe(false);
+    expect(envs.has("PACKAGE_MANAGER")).toBe(false);
+    expect(envs.has("CLONE_URL")).toBe(false);
+    expect(envs.has("BRANCH")).toBe(false);
+    expect(envs.has("REPO_NAME")).toBe(false);
+    expect(envs.has("GIT_USER_NAME")).toBe(false);
+    expect(envs.has("GIT_USER_EMAIL")).toBe(false);
+    expect(envs.has("CALLER_VAR")).toBe(false);
 
-    // Clone + git identity (this is the load-bearing fix).
-    expect(envs.get("CLONE_URL")).toBe(
+    // Bootstrap POST happened with the tenant config we asked for.
+    const bootstrapCall = fetchCalls.find((c) =>
+      c.input.includes("/_decopilot_vm/bootstrap"),
+    );
+    expect(bootstrapCall).toBeDefined();
+    expect(bootstrapCall!.init.method).toBe("POST");
+    const payload = decodeBootstrapBody(
+      bootstrapCall!.init.body as BodyInit | undefined,
+    ) as Record<string, unknown>;
+    expect(payload.schemaVersion).toBe(1);
+    expect(payload.runtime).toBe("bun");
+    expect(payload.packageManager).toBe("bun");
+    expect(payload.devPort).toBe(3000);
+    expect(payload.cloneUrl).toBe(
       "https://x-access-token:TOKEN@github.com/o/r.git",
     );
-    expect(envs.get("BRANCH")).toBe("feat/abc-123");
-    expect(envs.get("REPO_NAME")).toBe("o/r");
-    expect(envs.get("GIT_USER_NAME")).toBe("Octo Cat");
-    expect(envs.get("GIT_USER_EMAIL")).toBe("octo@example.com");
-
-    // Dead names from before the unified-daemon refactor must not leak through.
-    expect(envs.has("WORKDIR")).toBe(false);
-    expect(envs.has("DAEMON_PORT")).toBe(false);
+    expect(payload.branch).toBe("feat/abc-123");
+    expect(payload.repoName).toBe("o/r");
+    expect(payload.gitUserName).toBe("Octo Cat");
+    expect(payload.gitUserEmail).toBe("octo@example.com");
+    expect(payload.appRoot).toBe("/app");
+    expect(payload.daemonToken).toBe(envs.get("DAEMON_TOKEN"));
+    expect(payload.env).toEqual({ CALLER_VAR: "caller" });
   });
 
-  it("omits repo + PACKAGE_MANAGER env when caller doesn't provide them", async () => {
+  it("omits repo + packageManager from bootstrap payload when caller doesn't provide them", async () => {
     const { exec, calls } = makeExec(defaultResponder);
-    installFetch(() => healthOkResponse());
+    const { calls: fetchCalls } = installFetch(defaultDaemonResponder);
 
     const runner = new DockerSandboxRunner({
       image: "test-image:latest",
@@ -531,26 +582,28 @@ describe("DockerSandboxRunner.ensure() — env contract for unified daemon", () 
     });
     await runner.ensure(ID);
 
-    const runCall = calls.find((c) => c.args[0] === "run")!;
-    const envPairs = runCall.args
-      .map((a, i) => (runCall.args[i - 1] === "-e" ? a : null))
-      .filter((v): v is string => v !== null);
-    const keys = envPairs.map((p) => p.slice(0, p.indexOf("=")));
+    // BootConfig env still required to start the daemon.
+    const runArgs = calls.find((c) => c.args[0] === "run")!.args;
+    const envs = envFromRunArgs(runArgs);
+    expect(envs.has("DAEMON_TOKEN")).toBe(true);
+    expect(envs.has("DAEMON_BOOT_ID")).toBe(true);
+    expect(envs.has("APP_ROOT")).toBe(true);
+    expect(envs.has("PROXY_PORT")).toBe(true);
 
-    expect(keys).not.toContain("CLONE_URL");
-    expect(keys).not.toContain("BRANCH");
-    expect(keys).not.toContain("GIT_USER_NAME");
-    expect(keys).not.toContain("GIT_USER_EMAIL");
-    expect(keys).not.toContain("REPO_NAME");
-    expect(keys).not.toContain("PACKAGE_MANAGER");
-
-    // Daemon still gets its minimum to boot.
-    expect(keys).toContain("DAEMON_TOKEN");
-    expect(keys).toContain("DAEMON_BOOT_ID");
-    expect(keys).toContain("APP_ROOT");
-    expect(keys).toContain("PROXY_PORT");
-    expect(keys).toContain("DEV_PORT");
-    expect(keys).toContain("RUNTIME");
+    const bootstrapCall = fetchCalls.find((c) =>
+      c.input.includes("/_decopilot_vm/bootstrap"),
+    )!;
+    const payload = decodeBootstrapBody(
+      bootstrapCall.init.body as BodyInit | undefined,
+    ) as Record<string, unknown>;
+    expect(payload.runtime).toBe("node");
+    expect(payload.cloneUrl).toBeUndefined();
+    expect(payload.branch).toBeUndefined();
+    expect(payload.gitUserName).toBeUndefined();
+    expect(payload.gitUserEmail).toBeUndefined();
+    expect(payload.repoName).toBeUndefined();
+    expect(payload.packageManager).toBeUndefined();
+    expect(payload.env).toBeUndefined();
   });
 });
 
@@ -615,11 +668,12 @@ describe("DockerSandboxRunner.delete()", () => {
     const store = makeStore();
 
     // /health ok for ensure, then direct container teardown (no /dev/stop hop).
-    const { calls: fetchCalls } = installFetch((call) =>
-      (call.input as string).endsWith("/health")
-        ? healthOkResponse()
-        : new Response("", { status: 204 }),
-    );
+    const { calls: fetchCalls } = installFetch((call) => {
+      if ((call.input as string).endsWith("/health")) return healthOkResponse();
+      if ((call.input as string).includes("/_decopilot_vm/bootstrap"))
+        return bootstrapOkResponse();
+      return new Response("", { status: 204 });
+    });
 
     const runner = new DockerSandboxRunner({
       image: "test-image:latest",
@@ -671,7 +725,7 @@ describe("DockerSandboxRunner.delete()", () => {
 describe("DockerSandboxRunner — sanity: preview URL & port resolvers", () => {
   it("composePreviewUrl uses pattern when workload provided; resolvers return ports", async () => {
     const { exec } = makeExec(defaultResponder);
-    installFetch(() => healthOkResponse());
+    installFetch(defaultDaemonResponder);
 
     const runner = new DockerSandboxRunner({
       image: "test-image:latest",

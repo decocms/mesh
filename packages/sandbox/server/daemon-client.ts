@@ -135,6 +135,12 @@ export async function probeDaemonHealth(
 }
 
 /**
+ * Optional probe override — lets unit tests stub the polling loop without
+ * mocking `fetch` globally. Production callers leave it default.
+ */
+export type DaemonProbeFn = (daemonUrl: string) => Promise<DaemonHealth | null>;
+
+/**
  * Polls /health until it responds with a valid shape. Does NOT inspect
  * `phase` — proves only that the daemon process is bound to its port.
  * Used between `waitForSandboxReady` and `daemonBootstrap` so mesh
@@ -145,14 +151,15 @@ export async function probeDaemonHealth(
  */
 export async function waitForDaemonHttp(
   daemonUrl: string,
-  timeoutMs?: number,
+  opts: { timeoutMs?: number; probe?: DaemonProbeFn } = {},
 ): Promise<void> {
+  const probe = opts.probe ?? probeDaemonHealth;
   const attempts =
-    timeoutMs !== undefined
-      ? Math.max(1, Math.ceil(timeoutMs / READY_INTERVAL_MS))
+    opts.timeoutMs !== undefined
+      ? Math.max(1, Math.ceil(opts.timeoutMs / READY_INTERVAL_MS))
       : HTTP_ATTEMPTS;
   for (let i = 0; i < attempts; i++) {
-    if ((await probeDaemonHealth(daemonUrl)) !== null) return;
+    if ((await probe(daemonUrl)) !== null) return;
     const jitter = (Math.random() * 2 - 1) * READY_JITTER_MS;
     await sleep(READY_INTERVAL_MS + jitter);
   }
@@ -168,9 +175,13 @@ export async function waitForDaemonHttp(
  * env-driven daemons). Throws on timeout, on terminal `failed` (caller
  * deletes the claim and recurses), and on persistent invalid shape.
  */
-export async function waitForDaemonReady(daemonUrl: string): Promise<void> {
+export async function waitForDaemonReady(
+  daemonUrl: string,
+  opts: { probe?: DaemonProbeFn } = {},
+): Promise<void> {
+  const probe = opts.probe ?? probeDaemonHealth;
   for (let i = 0; i < READY_ATTEMPTS; i++) {
-    const health = await probeDaemonHealth(daemonUrl);
+    const health = await probe(daemonUrl);
     if (health !== null) {
       if (health.phase === undefined || health.phase === "ready") return;
       if (health.phase === "failed") {

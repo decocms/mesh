@@ -30,18 +30,15 @@ export interface BootstrapFile {
   hash: string;
   payload: BootstrapPayload;
 }
-
-export const KNOWN_SCHEMA_VERSIONS: ReadonlySet<number> = new Set([1]);
-
-export const DEFAULT_BOOTSTRAP_DIR = "/home/sandbox/.daemon";
-export const BOOTSTRAP_FILENAME = "bootstrap.json";
-export const BOOTSTRAP_TMP_FILENAME = "bootstrap.json.tmp";
+const DEFAULT_BOOTSTRAP_DIR = "/home/sandbox/.daemon";
+const BOOTSTRAP_FILENAME = "bootstrap.json";
+const BOOTSTRAP_TMP_FILENAME = "bootstrap.json.tmp";
 
 export function bootstrapPath(dir: string = DEFAULT_BOOTSTRAP_DIR): string {
   return `${dir}/${BOOTSTRAP_FILENAME}`;
 }
 
-export function bootstrapTmpPath(dir: string = DEFAULT_BOOTSTRAP_DIR): string {
+function bootstrapTmpPath(dir: string = DEFAULT_BOOTSTRAP_DIR): string {
   return `${dir}/${BOOTSTRAP_TMP_FILENAME}`;
 }
 
@@ -85,55 +82,3 @@ export type ReadOutcome =
   | { kind: "absent" }
   | { kind: "valid"; file: BootstrapFile }
   | { kind: "invalid"; reason: string };
-
-export function readBootstrap(
-  dir: string = DEFAULT_BOOTSTRAP_DIR,
-): ReadOutcome {
-  try {
-    unlinkSync(bootstrapTmpPath(dir));
-  } catch {}
-
-  let raw: string;
-  try {
-    raw = readFileSync(bootstrapPath(dir), "utf-8");
-  } catch (e) {
-    const err = e as NodeJS.ErrnoException;
-    if (err.code === "ENOENT") return { kind: "absent" };
-    return { kind: "invalid", reason: `read failed: ${err.message}` };
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (e) {
-    return {
-      kind: "invalid",
-      reason: `parse failed: ${(e as Error).message}`,
-    };
-  }
-
-  if (!parsed || typeof parsed !== "object") {
-    return { kind: "invalid", reason: "not an object" };
-  }
-  const file = parsed as Partial<BootstrapFile>;
-  if (
-    typeof file.schemaVersion !== "number" ||
-    !KNOWN_SCHEMA_VERSIONS.has(file.schemaVersion)
-  ) {
-    return {
-      kind: "invalid",
-      reason: `unknown schemaVersion: ${String(file.schemaVersion)}`,
-    };
-  }
-  if (typeof file.hash !== "string" || !file.payload) {
-    return { kind: "invalid", reason: "missing hash or payload" };
-  }
-  const computed = hashPayload(file.payload);
-  if (computed !== file.hash) {
-    return {
-      kind: "invalid",
-      reason: `hash mismatch: stored=${file.hash} computed=${computed}`,
-    };
-  }
-  return { kind: "valid", file: file as BootstrapFile };
-}

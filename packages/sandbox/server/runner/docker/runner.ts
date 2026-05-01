@@ -13,7 +13,6 @@ import {
   daemonBash,
   probeDaemonHealth,
   proxyDaemonRequest,
-  waitForDaemonReady,
 } from "../../daemon-client";
 import {
   DEFAULT_WORKDIR,
@@ -26,6 +25,8 @@ import { ensureSandboxImage } from "../../image-build";
 import {
   Inflight,
   applyPreviewPattern,
+  bootstrapAndWaitReady,
+  buildBootstrapPayload,
   computeHandle,
   hashSandboxId,
   withSandboxLock,
@@ -288,34 +289,16 @@ export class DockerSandboxRunner implements SandboxRunner {
     const workdir = DEFAULT_WORKDIR;
     const image = opts.image ?? this.defaultImage;
     const devContainerPort = opts.workload?.devPort ?? DEFAULT_DEV_PORT;
-    const runtime = opts.workload?.runtime ?? "node";
-    const packageManager = opts.workload?.packageManager ?? null;
-    const repo = opts.repo ?? null;
-    const repoLabel = repo
-      ? (repo.displayName ?? deriveRepoLabel(repo.cloneUrl))
-      : null;
 
-    // Full env contract — daemon's orchestrator owns clone + install +
-    // dev-server start; no external bootstrap call needed. See
-    // `packages/sandbox/daemon/config.ts` for the reader.
+    // Container env carries only the BootConfig the daemon reads at
+    // startup (`packages/sandbox/daemon/config.ts:loadBootConfigFromEnv`).
+    // Tenant config — runtime, repo, packageManager, devPort, caller env —
+    // flows through `daemonBootstrap` after the container is up.
     const env: Record<string, string> = {
       DAEMON_TOKEN: token,
       DAEMON_BOOT_ID: daemonBootId,
       APP_ROOT: workdir,
       PROXY_PORT: String(DAEMON_PORT),
-      DEV_PORT: String(devContainerPort),
-      RUNTIME: runtime,
-      ...(repo
-        ? {
-            CLONE_URL: repo.cloneUrl,
-            REPO_NAME: repoLabel ?? "",
-            BRANCH: repo.branch ?? "",
-            GIT_USER_NAME: repo.userName,
-            GIT_USER_EMAIL: repo.userEmail,
-          }
-        : {}),
-      ...(packageManager ? { PACKAGE_MANAGER: packageManager } : {}),
-      ...(opts.env ?? {}),
     };
 
     // Shared singleton; awaits any background build kicked off by the CLI.
@@ -388,16 +371,24 @@ export class DockerSandboxRunner implements SandboxRunner {
     const daemonUrl = `http://127.0.0.1:${daemonPort}`;
     const devPort = await this.readPort(handle, devContainerPort);
     log("ports read", { daemonPort, devPort });
-    log("waitForDaemonReady start", { daemonUrl });
+    log("bootstrapAndWaitReady start", { daemonUrl });
     try {
-      await waitForDaemonReady(daemonUrl);
+      const payload = buildBootstrapPayload(opts, {
+        daemonToken: token,
+        workdir,
+        // Container-internal port — what the dev server inside the
+        // container binds to. Maps onto the host's `devPort` via Docker's
+        // `-p` publish.
+        devPort: devContainerPort,
+      });
+      await bootstrapAndWaitReady(daemonUrl, payload);
     } catch (err) {
-      log("waitForDaemonReady failed", {
+      log("bootstrapAndWaitReady failed", {
         err: err instanceof Error ? err.message : String(err),
       });
       await this.stopContainer(handle).catch((stopErr) =>
         console.warn(
-          `[${LOG_LABEL}] cleanup stop after waitForDaemonReady failure (${handle}) itself failed:`,
+          `[${LOG_LABEL}] cleanup stop after bootstrap failure (${handle}) itself failed:`,
           stopErr instanceof Error ? stopErr.message : String(stopErr),
         ),
       );
@@ -663,16 +654,5 @@ export class DockerSandboxRunner implements SandboxRunner {
       .trim();
     if (tail) parts.push(`logs:\n${tail}`);
     return parts.length ? ` (${parts.join(" ")})` : "";
-  }
-}
-
-/** Fallback for when callers don't provide `repo.displayName`. */
-function deriveRepoLabel(cloneUrl: string): string {
-  try {
-    const u = new URL(cloneUrl);
-    const trimmed = u.pathname.replace(/^\/+/, "").replace(/\.git$/, "");
-    return trimmed || u.hostname;
-  } catch {
-    return cloneUrl;
   }
 }

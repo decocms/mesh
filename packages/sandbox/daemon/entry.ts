@@ -12,8 +12,6 @@ import {
   makeEditHandler,
   makeGrepHandler,
   makeGlobHandler,
-  makeWriteFromUrlHandler,
-  makeUploadToUrlHandler,
 } from "./routes/fs";
 import { makeBashHandler } from "./routes/bash";
 import { makeExecHandler } from "./routes/exec";
@@ -31,11 +29,6 @@ import { startUpstreamProbe } from "./probe";
 import { BranchStatusMonitor } from "./git/branch-status";
 import { discoverDescendantListeningPorts } from "./process/port-discovery";
 import {
-  BOOTSTRAP_FILENAME,
-  readBootstrap,
-  type BootstrapPayload,
-} from "./persistence";
-import {
   bootstrapMutex,
   clearTenantConfig,
   getBootConfig,
@@ -45,10 +38,10 @@ import {
   setBootstrapHash,
   setLastError,
   setPhase,
-  setTenantConfig,
 } from "./state";
 import { makeBootstrapHandler } from "./bootstrap";
 import type { Config, TenantConfig } from "./types";
+import { bootstrapPath } from "./persistence";
 
 if (!process.env.DAEMON_BOOT_ID) {
   process.env.DAEMON_BOOT_ID = randomUUID();
@@ -184,7 +177,7 @@ function deactivateTenant(): void {
   clearTenantConfig();
   setBootstrapHash(null);
   try {
-    unlinkSync(join(BOOTSTRAP_DIR, BOOTSTRAP_FILENAME));
+    unlinkSync(bootstrapPath(BOOTSTRAP_DIR));
   } catch {}
 }
 

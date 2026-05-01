@@ -3,7 +3,20 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { HostSandboxRunner } from "./runner";
+import type { BootstrapPayload } from "../../daemon-client";
 import type { RunnerStateStore } from "../state-store";
+
+/**
+ * Stub `daemonBootstrap` for unit tests — production calls live in the
+ * e2e test, which exercises the real HTTP path against a spawned daemon.
+ */
+function fakeBootstrap() {
+  return mock(async (_url: string, _payload: BootstrapPayload) => ({
+    phase: "bootstrapping" as const,
+    bootId: "boot-from-daemon",
+    hash: "h".repeat(64),
+  }));
+}
 
 function makeStore(): RunnerStateStore {
   const byKey = new Map<string, unknown>();
@@ -55,8 +68,7 @@ describe("HostSandboxRunner.ensure provisioning", () => {
     await rm(homeDir, { recursive: true, force: true });
   });
 
-  it("spawns the daemon, probes /health, returns a Sandbox, and persists", async () => {
-    let probeCount = 0;
+  it("spawns the daemon, POSTs bootstrap, returns a Sandbox, and persists", async () => {
     const fakeSpawn = mock(
       async (_args: {
         workdir: string;
@@ -67,22 +79,24 @@ describe("HostSandboxRunner.ensure provisioning", () => {
         kill: () => true,
       }),
     );
-    const fakeProbe = mock(async (_url: string) => {
-      probeCount++;
-      // First probe returns null (not yet ready), second returns healthy.
-      if (probeCount === 1) return null;
-      return {
-        ready: true,
-        bootId: "boot-from-daemon",
-        setup: { running: false, done: true },
-      };
-    });
+    // Probe is consulted both during waitForDaemonHttp (initial HTTP-up wait)
+    // and waitForDaemonReady (post-bootstrap phase=ready wait). Always-ready
+    // is fine for a unit test — phase progression is covered by the daemon's
+    // own e2e test.
+    const fakeProbe = mock(async (_url: string) => ({
+      ready: true,
+      bootId: "boot-from-daemon",
+      setup: { running: false, done: true },
+      phase: "ready" as const,
+    }));
+    const bootstrap = fakeBootstrap();
 
     const runner = new HostSandboxRunner({
       homeDir,
       stateStore: makeStore(),
       _spawn: fakeSpawn,
       _probe: fakeProbe,
+      _bootstrap: bootstrap,
     });
 
     const sandbox = await runner.ensure(
@@ -94,6 +108,14 @@ describe("HostSandboxRunner.ensure provisioning", () => {
           userEmail: "u@x",
           branch: "main",
         },
+        workload: {
+          runtime: "node",
+          packageManager: "pnpm",
+          // Hint only — host runner pre-allocates its own dev port and
+          // overrides this in the bootstrap payload (see expectation below).
+          devPort: 4321,
+        },
+        env: { CALLER_VAR: "caller" },
       },
     );
 
@@ -101,21 +123,35 @@ describe("HostSandboxRunner.ensure provisioning", () => {
     expect(sandbox.workdir).toBe(join(homeDir, "sandboxes", sandbox.handle));
     expect(sandbox.previewUrl).toMatch(/^http:\/\/[a-z0-9-]+\.localhost:\d+\//);
     expect(fakeSpawn).toHaveBeenCalledTimes(1);
-    expect(probeCount).toBeGreaterThanOrEqual(2);
 
-    // Verify the env passed to spawn includes required values.
+    // Boot env: only the BootConfig fields. Tenant config is *not* in env.
     const spawnArgs = fakeSpawn.mock.calls[0][0];
     expect(spawnArgs.env.DAEMON_TOKEN).toMatch(/^[0-9a-f]{48}$/);
     expect(spawnArgs.env.DAEMON_BOOT_ID).toBeTruthy();
     expect(spawnArgs.env.APP_ROOT).toBe(sandbox.workdir);
-    expect(spawnArgs.env.CLONE_URL).toBe("https://example.com/x.git");
-    expect(spawnArgs.env.BRANCH).toBe("main");
     expect(spawnArgs.env.PROXY_PORT).toBe(String(spawnArgs.daemonPort));
-    expect(spawnArgs.env.DEV_PORT).toMatch(/^\d+$/);
-    expect(Number(spawnArgs.env.DEV_PORT)).toBeGreaterThan(0);
-    expect(Number(spawnArgs.env.DEV_PORT)).not.toBe(
-      Number(spawnArgs.daemonPort),
-    );
+    expect(spawnArgs.env.CLONE_URL).toBeUndefined();
+    expect(spawnArgs.env.BRANCH).toBeUndefined();
+    expect(spawnArgs.env.RUNTIME).toBeUndefined();
+    expect(spawnArgs.env.DEV_PORT).toBeUndefined();
+
+    // Bootstrap payload carries the tenant config the daemon used to read
+    // from env.
+    expect(bootstrap).toHaveBeenCalledTimes(1);
+    const [bootstrapUrl, bootstrapPayload] = bootstrap.mock.calls[0];
+    expect(bootstrapUrl).toBe(`http://127.0.0.1:${spawnArgs.daemonPort}`);
+    expect(bootstrapPayload.schemaVersion).toBe(1);
+    expect(bootstrapPayload.runtime).toBe("node");
+    expect(bootstrapPayload.cloneUrl).toBe("https://example.com/x.git");
+    expect(bootstrapPayload.branch).toBe("main");
+    expect(bootstrapPayload.packageManager).toBe("pnpm");
+    // Host runner allocates its own dev port; payload reflects that, not
+    // the caller's workload.devPort hint.
+    expect(typeof bootstrapPayload.devPort).toBe("number");
+    expect(bootstrapPayload.devPort).toBeGreaterThan(0);
+    expect(bootstrapPayload.appRoot).toBe(sandbox.workdir);
+    expect(bootstrapPayload.daemonToken).toBe(spawnArgs.env.DAEMON_TOKEN);
+    expect(bootstrapPayload.env).toEqual({ CALLER_VAR: "caller" });
   });
 
   it("returns the cached sandbox on a second ensure() call", async () => {
@@ -124,6 +160,7 @@ describe("HostSandboxRunner.ensure provisioning", () => {
       ready: true,
       bootId: "b",
       setup: { running: false, done: true },
+      phase: "ready" as const,
     }));
 
     const runner = new HostSandboxRunner({
@@ -131,6 +168,7 @@ describe("HostSandboxRunner.ensure provisioning", () => {
       stateStore: makeStore(),
       _spawn: fakeSpawn,
       _probe: fakeProbe,
+      _bootstrap: fakeBootstrap(),
       // Make pid 5000 always alive for the cache hit check.
       _isAlive: (pid) => pid === 5000,
     });
@@ -292,6 +330,7 @@ describe("HostSandboxRunner.delete", () => {
       ready: true,
       bootId: "boot",
       setup: { running: false, done: true },
+      phase: "ready" as const,
     }));
 
     const runner = new HostSandboxRunner({
@@ -299,6 +338,7 @@ describe("HostSandboxRunner.delete", () => {
       stateStore: store,
       _spawn: fakeSpawn,
       _probe: fakeProbe,
+      _bootstrap: fakeBootstrap(),
       _kill: (_pid, signal) => killed.push({ signal }),
       // Alive on the first check (entering grace loop), then dead. This
       // ensures the grace loop loops at least once and exits cleanly.
@@ -341,6 +381,7 @@ describe("HostSandboxRunner.delete", () => {
       ready: true,
       bootId: "b",
       setup: { running: false, done: true },
+      phase: "ready" as const,
     }));
 
     const runner = new HostSandboxRunner({
@@ -348,6 +389,7 @@ describe("HostSandboxRunner.delete", () => {
       stateStore: store,
       _spawn: fakeSpawn,
       _probe: fakeProbe,
+      _bootstrap: fakeBootstrap(),
       _kill: (_pid, signal) => killed.push(signal),
       // Always alive — daemon never dies after SIGTERM.
       _isAlive: () => true,
