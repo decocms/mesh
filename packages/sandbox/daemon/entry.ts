@@ -141,6 +141,14 @@ const globH = makeGlobHandler({
   appRoot: bootConfig.appRoot,
   dropPrivileges,
 });
+const writeFromUrlH = makeWriteFromUrlHandler({
+  appRoot: bootConfig.appRoot,
+  dropPrivileges,
+});
+const uploadToUrlH = makeUploadToUrlHandler({
+  appRoot: bootConfig.appRoot,
+  dropPrivileges,
+});
 const bashH = makeBashHandler({
   appRoot: bootConfig.appRoot,
   dropPrivileges,
@@ -328,6 +336,8 @@ Bun.serve<WsProxyData, never>({
       if (p === "/_decopilot_vm/edit") return editH(req);
       if (p === "/_decopilot_vm/grep") return grepH(req);
       if (p === "/_decopilot_vm/glob") return globH(req);
+      if (p === "/_decopilot_vm/write_from_url") return writeFromUrlH(req);
+      if (p === "/_decopilot_vm/upload_to_url") return uploadToUrlH(req);
       if (p === "/_decopilot_vm/bash") return bashH(req);
       if (p.startsWith("/_decopilot_vm/kill/")) return killH(req);
 
