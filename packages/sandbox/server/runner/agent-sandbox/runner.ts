@@ -721,23 +721,16 @@ export class AgentSandboxRunner implements SandboxRunner {
     if (ops) {
       const persisted = await ops.get(id, RUNNER_KIND);
       if (persisted) {
-        try {
-          const rec = await this.rehydrate(id, handle, persisted);
-          if (rec)
-            return this.finish(
-              rec,
-              ops,
-              /* persistNow */ true,
-              /* patchTtl */ true,
-              "resume",
-            );
-          await ops.delete(id, RUNNER_KIND);
-        } catch (err) {
-          if (!(err instanceof DaemonPhaseFailedError)) throw err;
-          // phase=failed is non-recoverable on this daemon. Tear down the
-          // claim + state-store row and fall through to provision.
-          await this.recoverFromFailedPhase(id, handle, ops);
-        }
+        const rec = await this.rehydrate(id, handle, persisted);
+        if (rec)
+          return this.finish(
+            rec,
+            ops,
+            /* persistNow */ true,
+            /* patchTtl */ true,
+            "resume",
+          );
+        await ops.delete(id, RUNNER_KIND);
       }
     }
     // 2. Cluster-side adopt: state store empty but a claim with our
@@ -768,14 +761,9 @@ export class AgentSandboxRunner implements SandboxRunner {
         try {
           adopted = await this.adopt(id, handle, existing);
         } catch (err) {
-          if (err instanceof DaemonPhaseFailedError) {
-            await this.recoverFromFailedPhase(id, handle, ops);
-            // Fall through to fresh provision (claim already torn down).
-          } else {
-            console.warn(
-              `[${LOG_LABEL}] adopt ${handle} failed, recreating: ${err instanceof Error ? err.message : String(err)}`,
-            );
-          }
+          console.warn(
+            `[${LOG_LABEL}] adopt ${handle} failed, recreating: ${err instanceof Error ? err.message : String(err)}`,
+          );
         }
         if (adopted)
           return this.finish(
@@ -814,46 +802,6 @@ export class AgentSandboxRunner implements SandboxRunner {
       /* patchTtl */ false,
       "fresh",
     );
-  }
-
-  /**
-   * Tear down a wedged sandbox after `/health.phase=failed`. Deletes the
-   * SandboxClaim, clears the state-store row, drops the in-memory cache.
-   * `ensureLocked` calls this and then falls through to `provision`,
-   * giving the user a fresh pod on the next attempt rather than an
-   * indefinitely-failed one waiting on operator idle-TTL.
-   */
-  private async recoverFromFailedPhase(
-    id: SandboxId,
-    handle: string,
-    ops: RunnerStateStoreOps | null,
-  ): Promise<void> {
-    console.warn(
-      `[${LOG_LABEL}] daemon phase=failed for ${handle}; deleting claim and clearing state-store row`,
-    );
-    const cached = this.records.get(handle);
-    if (cached) {
-      this.records.delete(handle);
-      this.closeForwarder(cached.daemonForward);
-    }
-    await deleteSandboxClaim(this.kubeConfig, this.namespace, handle).catch(
-      (err) => {
-        console.warn(
-          `[${LOG_LABEL}] failed-phase claim delete for ${handle}: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      },
-    );
-    await waitForSandboxClaimGone(
-      this.kubeConfig,
-      this.namespace,
-      handle,
-    ).catch((err) => {
-      console.warn(
-        `[${LOG_LABEL}] failed-phase claim drain for ${handle}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    });
-    await this.deleteHttpRouteIfManaged(handle).catch(() => {});
-    if (ops) await ops.delete(id, RUNNER_KIND).catch(() => {});
   }
 
   private async finish(
@@ -1212,9 +1160,9 @@ export class AgentSandboxRunner implements SandboxRunner {
    * and its `/health.phase === "ready"`. Returns null on any mismatch;
    * caller purges and falls through to adopt/provision.
    *
-   * Phase 2 decision matrix is applied via `driveDaemonToReady`. `failed`
-   * surfaces as `DaemonPhaseFailedError`, which the caller catches and
-   * recovers from by deleting the claim + clearing the row.
+   * The bootstrap-phase decision matrix is applied via `driveDaemonToReady`:
+   * `pending-bootstrap` → re-issue bootstrap from persisted state;
+   * `bootstrapping` → wait for ready; `ready` → no-op.
    */
   private async rehydrate(
     id: SandboxId,
@@ -1287,10 +1235,8 @@ export class AgentSandboxRunner implements SandboxRunner {
       );
       if (out.bootstrapHash) bootstrapHash = out.bootstrapHash;
     } catch (err) {
-      // Drop the forwarder before bubbling the error up so the caller
-      // doesn't leak a port-forward when it falls through to recreate.
+      // Drop the forwarder so we don't leak it on the recreate path.
       this.closeForwarder(live.daemonForward);
-      if (err instanceof DaemonPhaseFailedError) throw err;
       console.warn(
         `[${LOG_LABEL}] rehydrate ${handle} drive-to-ready failed: ${err instanceof Error ? err.message : String(err)}`,
       );
@@ -1336,10 +1282,6 @@ export class AgentSandboxRunner implements SandboxRunner {
       this.closeForwarder(live.daemonForward);
       return null;
     }
-    if (live.health.phase === "failed") {
-      this.closeForwarder(live.daemonForward);
-      throw new DaemonPhaseFailedError(live.daemonUrl);
-    }
     if (live.health.phase === "bootstrapping") {
       // Another mesh replica got there first and is mid-bootstrap. Wait
       // for it to finish before adopting.
@@ -1347,7 +1289,6 @@ export class AgentSandboxRunner implements SandboxRunner {
         await waitForDaemonReady(live.daemonUrl);
       } catch (err) {
         this.closeForwarder(live.daemonForward);
-        if (err instanceof DaemonPhaseFailedError) throw err;
         console.warn(
           `[${LOG_LABEL}] adopt ${handle} wait-for-ready failed: ${err instanceof Error ? err.message : String(err)}`,
         );
@@ -1425,8 +1366,10 @@ export class AgentSandboxRunner implements SandboxRunner {
    *   pending-bootstrap → re-issue bootstrap from persisted state
    *   bootstrapping     → wait for ready (no bootstrap call)
    *   ready             → no-op
-   *   failed            → throw — caller deletes the claim, clears the
-   *                       state-store row, and recurses into provision.
+   *
+   * Orchestrator failure (clone/install non-zero) resets the daemon to
+   * `pending-bootstrap` with `/health.lastError` set, so this method
+   * simply re-bootstraps in that case — no separate failure path.
    *
    * `claimNonce`, `token`, and `ensureOpts` must all be available on the
    * state-store row for `pending-bootstrap`. Missing any one is fatal —
@@ -1440,9 +1383,6 @@ export class AgentSandboxRunner implements SandboxRunner {
     // Phase absent: env-driven legacy daemon. Treat as ready — nothing to do.
     if (health.phase === undefined || health.phase === "ready") {
       return { bootstrapHash: null };
-    }
-    if (health.phase === "failed") {
-      throw new DaemonPhaseFailedError(daemonUrl);
     }
     if (health.phase === "pending-bootstrap") {
       const payload = rebootstrap();
@@ -1469,23 +1409,7 @@ export class AgentSandboxRunner implements SandboxRunner {
     if (!this.stateStore) return null;
     const persisted = await this.stateStore.getByHandle(RUNNER_KIND, handle);
     if (!persisted) return null;
-    let rec: K8sRecord | null;
-    try {
-      rec = await this.rehydrate(persisted.id, handle, persisted);
-    } catch (err) {
-      // Failed phase: caller path (exec/proxy) doesn't have an `ensureOpts`
-      // to recover with on its own — surface as "unknown handle" and let
-      // the caller's resurrection / VM_START flow recreate.
-      if (err instanceof DaemonPhaseFailedError) {
-        await this.recoverFromFailedPhase(
-          persisted.id,
-          handle,
-          this.stateStore,
-        );
-        return null;
-      }
-      throw err;
-    }
+    const rec = await this.rehydrate(persisted.id, handle, persisted);
     if (rec) this.records.set(handle, rec);
     return rec;
   }
@@ -1815,20 +1739,6 @@ export class AgentSandboxRunner implements SandboxRunner {
 }
 
 // ---- Helpers ----------------------------------------------------------------
-
-/**
- * Internal sentinel: the daemon's `/health.phase` reports `failed`. The
- * daemon never self-recovers; the only resolution is delete the
- * SandboxClaim, clear the state-store row, and recurse into provision.
- * `ensureLocked` catches this and drives the recovery; nothing outside
- * this file should see it.
- */
-class DaemonPhaseFailedError extends Error {
-  constructor(daemonUrl: string) {
-    super(`daemon at ${daemonUrl} reports phase=failed`);
-    this.name = "DaemonPhaseFailedError";
-  }
-}
 
 interface RunnerMetrics {
   active: UpDownCounter;

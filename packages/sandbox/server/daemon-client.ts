@@ -26,12 +26,14 @@ const HTTP_ATTEMPTS = READY_ATTEMPTS;
  * Daemon bootstrap phase. Mirrors the values the daemon emits on `/health`
  * post-Phase-1. Tests read it through this exported type so the union
  * stays canonical mesh-side.
+ *
+ * Orchestrator failure (clone/install non-zero, etc.) does NOT surface as
+ * a distinct phase: the daemon clears the bootstrap, returns to
+ * `pending-bootstrap`, and exposes the cause via `/health.lastError`.
+ * Mesh re-POSTs bootstrap (with the same or a corrected payload) to
+ * recover — no pod recreate required.
  */
-export type DaemonPhase =
-  | "pending-bootstrap"
-  | "bootstrapping"
-  | "ready"
-  | "failed";
+export type DaemonPhase = "pending-bootstrap" | "bootstrapping" | "ready";
 
 export interface DaemonHealth {
   ready: boolean;
@@ -69,11 +71,9 @@ export interface BootstrapResponse {
  * Mesh-side error type for non-2xx responses from `POST /_decopilot_vm/bootstrap`.
  * Callers branch on `status` to distinguish:
  *   - 400 (validation) — payload is malformed; abort and surface to the user.
- *   - 403 (nonce mismatch) — wrong daemon (pod recreate stamped a new nonce);
- *     drop the row and recurse to provision.
- *   - 409 (conflict / failed phase) — another writer already bootstrapped
- *     with a different payload OR the phase is `failed`. Body's `phase`
- *     field disambiguates; `failed` requires pod recreate.
+ *   - 409 (conflict) — another writer already bootstrapped with a different
+ *     payload (hash mismatch). The body carries the persisted `hash` so the
+ *     caller can reconcile or back off.
  */
 export class DaemonBootstrapError extends Error {
   constructor(
@@ -119,8 +119,7 @@ export async function probeDaemonHealth(
         typeof body.phase === "string" &&
         (body.phase === "pending-bootstrap" ||
           body.phase === "bootstrapping" ||
-          body.phase === "ready" ||
-          body.phase === "failed")
+          body.phase === "ready")
           ? body.phase
           : undefined;
       return { ...(body as DaemonHealth), phase };
@@ -169,8 +168,10 @@ export async function waitForDaemonHttp(
 
 /**
  * Polls /health until `phase === "ready"` (or absent — back-compat with
- * env-driven daemons). Throws on timeout, on terminal `failed` (caller
- * deletes the claim and recurses), and on persistent invalid shape.
+ * env-driven daemons). Throws on timeout. Orchestrator failure resets
+ * the daemon to `pending-bootstrap`, so this loop simply keeps polling
+ * until the next bootstrap attempt drives it forward; surfacing the
+ * cause is the caller's job (read `/health.lastError`).
  */
 export async function waitForDaemonReady(
   daemonUrl: string,
@@ -181,11 +182,6 @@ export async function waitForDaemonReady(
     const health = await probe(daemonUrl);
     if (health !== null) {
       if (health.phase === undefined || health.phase === "ready") return;
-      if (health.phase === "failed") {
-        throw new Error(
-          `sandbox daemon at ${daemonUrl} reports phase=failed; pod recreate required`,
-        );
-      }
       // pending-bootstrap or bootstrapping — keep polling.
     }
     const jitter = (Math.random() * 2 - 1) * READY_JITTER_MS;

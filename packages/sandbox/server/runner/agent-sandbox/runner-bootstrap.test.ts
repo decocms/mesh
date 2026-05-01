@@ -15,8 +15,8 @@
  *  - Partial-commit recovery: state-store row with tx1 fields but no
  *      `bootstrappedAt` triggers re-bootstrap on the next ensure().
  *  - Phase decision matrix: `pending-bootstrap` (re-bootstrap),
- *      `bootstrapping` (wait), `ready` (no-op), `failed` (delete +
- *      recurse).
+ *      `bootstrapping` (wait), `ready` (no-op). Orchestrator failure is
+ *      no longer a distinct phase — see `daemon/state.ts:Phase`.
  *  - Legacy adopt (claim exists, no state-store row) → null + recreate.
  *  - Two-replica race: deterministic claim name → loser falls into
  *      rehydrate, no second `createSandboxClaim` call.
@@ -90,7 +90,7 @@ interface ClaimShape {
 
 const fakeState: {
   claims: Map<string, ClaimEntry>;
-  daemonPhase: "pending-bootstrap" | "bootstrapping" | "ready" | "failed";
+  daemonPhase: "pending-bootstrap" | "bootstrapping" | "ready";
   bootstrapResponse: {
     phase: "ready" | "bootstrapping";
     bootId: string;
@@ -99,9 +99,6 @@ const fakeState: {
   bootstrapCalls: BootstrapPayload[];
   callCounts: { create: number; delete: number };
   lastClaim: ClaimShape | null;
-  // Hook fired right after a delete fakeState observes; tests use it to
-  // flip phases mid-flow without messing with timers.
-  onAfterDelete: ((handle: string) => void) | null;
 } = {
   claims: new Map(),
   daemonPhase: "ready",
@@ -109,7 +106,6 @@ const fakeState: {
   bootstrapCalls: [],
   callCounts: { create: 0, delete: 0 },
   lastClaim: null,
-  onAfterDelete: null,
 };
 
 function resetFakeState() {
@@ -123,7 +119,6 @@ function resetFakeState() {
   fakeState.bootstrapCalls.length = 0;
   fakeState.callCounts = { create: 0, delete: 0 };
   fakeState.lastClaim = null;
-  fakeState.onAfterDelete = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -215,7 +210,6 @@ function makeFetchRouter() {
         if (method === "DELETE") {
           fakeState.claims.delete(claimName);
           fakeState.callCounts.delete += 1;
-          fakeState.onAfterDelete?.(claimName);
           return jsonResp(200, {});
         }
         if (method === "PATCH") {
@@ -655,46 +649,6 @@ describe("rehydrate — phase decision matrix", () => {
     await runner.ensure(ID);
     expect(fakeState.bootstrapCalls).toHaveLength(0);
     expect(probeCount).toBeGreaterThanOrEqual(2);
-  });
-
-  it("phase=failed: deletes claim, clears row, recurses to provision", async () => {
-    const store = makeStore();
-    const handle = composeClaimName(ID, null);
-    await store.put(ID, "agent-sandbox", {
-      handle,
-      state: {
-        podName: handle,
-        token: "tok-old",
-        workdir: "/app",
-        ensureOpts: {},
-        claimNonce: "n".padEnd(64, "0"),
-      },
-    });
-    fakeState.claims.set(handle, {
-      resource: {
-        metadata: { name: handle },
-        status: { conditions: [{ type: "Ready", status: "True" }] },
-      },
-    });
-    fakeState.daemonPhase = "failed";
-    fakeState.onAfterDelete = () => {
-      // Once the recovery delete fires, flip the daemon to ready so the
-      // recursive provision sees a healthy daemon on probe.
-      fakeState.daemonPhase = "ready";
-    };
-    const runner = patchForwarder(
-      new AgentSandboxRunner({
-        kubeConfig: KC,
-        stateStore: store,
-        tokenGenerator: () => "tok-fresh",
-      }),
-    );
-    await runner.ensure(ID);
-    expect(fakeState.callCounts.delete).toBeGreaterThanOrEqual(1);
-    expect(fakeState.callCounts.create).toBeGreaterThanOrEqual(1);
-    const row = await store.get(ID, "agent-sandbox");
-    expect(row).not.toBeNull();
-    expect(row!.state.token).toBe("tok-fresh");
   });
 });
 

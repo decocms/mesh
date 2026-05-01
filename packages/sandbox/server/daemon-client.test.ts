@@ -376,13 +376,16 @@ describe("daemonBootstrap", () => {
     expect(resp).toEqual({ phase: "ready", bootId: "b1", hash: "h1" });
   });
 
-  it("throws DaemonBootstrapError on 400/403/409 with body parsed", async () => {
+  it("throws DaemonBootstrapError on 4xx with body parsed", async () => {
     installFetch(
       () =>
-        new Response(JSON.stringify({ phase: "failed", reason: "x" }), {
-          status: 409,
-          headers: { "content-type": "application/json" },
-        }),
+        new Response(
+          JSON.stringify({ phase: "ready", reason: "hash mismatch" }),
+          {
+            status: 409,
+            headers: { "content-type": "application/json" },
+          },
+        ),
     );
     let caught: unknown;
     try {
@@ -395,7 +398,7 @@ describe("daemonBootstrap", () => {
     }
     expect(caught).toBeInstanceOf(DaemonBootstrapError);
     expect((caught as DaemonBootstrapError).status).toBe(409);
-    expect((caught as DaemonBootstrapError).body?.phase).toBe("failed");
+    expect((caught as DaemonBootstrapError).body?.reason).toBe("hash mismatch");
   });
 
   it("throws on malformed success body", async () => {
