@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Logo } from "../atoms/Logo";
 import { Icon } from "../atoms/Icon";
-import { products, CURRENT_PRODUCT_ID, type Product } from "../../config/products";
+import {
+  products,
+  CURRENT_PRODUCT_ID,
+  type Product,
+} from "../../config/products";
 
 interface ProductSwitcherProps {
   /** Which product is "this site". Defaults to decocms. */
@@ -96,7 +100,11 @@ interface ProductMenuItemProps {
   onSelect: () => void;
 }
 
-function ProductMenuItem({ product, isCurrent, onSelect }: ProductMenuItemProps) {
+function ProductMenuItem({
+  product,
+  isCurrent,
+  onSelect,
+}: ProductMenuItemProps) {
   const sharedClasses = `flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
     isCurrent ? "bg-primary/5" : "hover:bg-muted"
   }`;
@@ -129,7 +137,11 @@ function ProductMenuItem({ product, isCurrent, onSelect }: ProductMenuItemProps)
 
   if (isCurrent || !product.href) {
     return (
-      <div role="menuitem" aria-current={isCurrent ? "true" : undefined} className={sharedClasses}>
+      <div
+        role="menuitem"
+        aria-current={isCurrent ? "true" : undefined}
+        className={sharedClasses}
+      >
         {body}
       </div>
     );
