@@ -42,7 +42,8 @@ RUN pip3 install --break-system-packages --no-cache-dir \
       python-pptx python-docx openpyxl pypdf Pillow
 
 ENV LANG=en_US.UTF-8 \
-    LC_ALL=en_US.UTF-8
+    LC_ALL=en_US.UTF-8 \
+    COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
 # Non-root sandbox user. The bun image comes with a 'bun' user (UID 1000),
 # but we drop privileges further by replacing it with a 'sandbox' user.

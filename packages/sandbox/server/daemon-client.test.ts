@@ -1,8 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import {
+  canonicalizeBootstrapPayload,
   daemonBash,
+  daemonBootstrap,
+  DaemonBootstrapError,
   probeDaemonHealth,
   proxyDaemonRequest,
+  waitForDaemonHttp,
 } from "./daemon-client";
 
 type FetchCall = {
@@ -302,5 +306,158 @@ describe("proxyDaemonRequest", () => {
       body: null,
     });
     expect(calls[0]!.input).toBe("http://daemon:9000/already/abs");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2 additions: bootstrap, waitForDaemonHttp, phase-aware /health.
+// ---------------------------------------------------------------------------
+
+describe("probeDaemonHealth — phase round-trip", () => {
+  it("surfaces phase when present", async () => {
+    installFetch(
+      () =>
+        new Response(
+          JSON.stringify({
+            ready: false,
+            bootId: "b1",
+            setup: { running: true, done: false },
+            phase: "bootstrapping",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    );
+    const result = await probeDaemonHealth("http://daemon:9000");
+    expect(result?.phase).toBe("bootstrapping");
+  });
+
+  it("ignores unknown phase strings", async () => {
+    installFetch(
+      () =>
+        new Response(
+          JSON.stringify({
+            ready: true,
+            bootId: "b1",
+            setup: { running: false, done: true },
+            phase: "garbage",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    );
+    const result = await probeDaemonHealth("http://daemon:9000");
+    expect(result?.phase).toBeUndefined();
+  });
+});
+
+describe("daemonBootstrap", () => {
+  it("POSTs to /_decopilot_vm/bootstrap with the base64-encoded JSON payload, no Authorization", async () => {
+    const { calls } = installFetch(
+      () =>
+        new Response(
+          JSON.stringify({ phase: "ready", bootId: "b1", hash: "h1" }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    );
+    const resp = await daemonBootstrap("http://daemon:9000", {
+      schemaVersion: 1,
+      claimNonce: "nonce",
+      daemonToken: "tok-32-chars-or-more-padded-out-x",
+      runtime: "node",
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.input).toBe("http://daemon:9000/_decopilot_vm/bootstrap");
+    expect(calls[0]!.init.method).toBe("POST");
+    const headers = new Headers(calls[0]!.init.headers as HeadersInit);
+    expect(headers.get("authorization")).toBeNull();
+    expect(headers.get("content-type")).toBe("application/json");
+    const b64Body = String(calls[0]!.init.body);
+    const rawBody = Buffer.from(b64Body, "base64").toString("utf-8");
+    const body = JSON.parse(rawBody);
+    expect(body.schemaVersion).toBe(1);
+    expect(body.claimNonce).toBe("nonce");
+    expect(resp).toEqual({ phase: "ready", bootId: "b1", hash: "h1" });
+  });
+
+  it("throws DaemonBootstrapError on 400/403/409 with body parsed", async () => {
+    installFetch(
+      () =>
+        new Response(JSON.stringify({ phase: "failed", reason: "x" }), {
+          status: 409,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+    let caught: unknown;
+    try {
+      await daemonBootstrap("http://d", {
+        schemaVersion: 1,
+        claimNonce: "n",
+        daemonToken: "t",
+        runtime: "node",
+      });
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(DaemonBootstrapError);
+    expect((caught as DaemonBootstrapError).status).toBe(409);
+    expect((caught as DaemonBootstrapError).body?.phase).toBe("failed");
+  });
+
+  it("throws on malformed success body", async () => {
+    installFetch(() => new Response("garbage", { status: 200 }));
+    await expect(
+      daemonBootstrap("http://d", {
+        schemaVersion: 1,
+        claimNonce: "n",
+        daemonToken: "t",
+        runtime: "node",
+      }),
+    ).rejects.toBeInstanceOf(DaemonBootstrapError);
+  });
+});
+
+describe("waitForDaemonHttp", () => {
+  it("returns once /health responds with valid shape, regardless of phase", async () => {
+    let attempts = 0;
+    installFetch(() => {
+      attempts += 1;
+      if (attempts < 2) {
+        return new Response("nope", { status: 503 });
+      }
+      return new Response(
+        JSON.stringify({
+          ready: false,
+          bootId: "b1",
+          setup: { running: false, done: false },
+          phase: "pending-bootstrap",
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+    await waitForDaemonHttp("http://d", 5_000);
+    expect(attempts).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("canonicalizeBootstrapPayload", () => {
+  it("stable ordering — same payload, shuffled keys, identical bytes", () => {
+    const a = canonicalizeBootstrapPayload({
+      b: 2,
+      a: 1,
+      env: { Z: "z", A: "a" },
+    });
+    const b = canonicalizeBootstrapPayload({
+      a: 1,
+      env: { A: "a", Z: "z" },
+      b: 2,
+    });
+    expect(a).toBe(b);
+  });
+
+  it("drops undefined keys", () => {
+    const out = canonicalizeBootstrapPayload({
+      a: 1,
+      b: undefined,
+    });
+    expect(out).toBe('{"a":1}');
   });
 });

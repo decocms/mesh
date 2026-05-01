@@ -23,7 +23,7 @@
  * the namespace is the secrecy boundary.
  */
 
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import * as net from "node:net";
 import { PassThrough } from "node:stream";
 import {
@@ -38,9 +38,13 @@ import type {
   UpDownCounter,
 } from "@opentelemetry/api";
 import {
+  type BootstrapPayload,
+  type DaemonHealth,
   daemonBash,
+  daemonBootstrap,
   probeDaemonHealth,
   proxyDaemonRequest,
+  waitForDaemonHttp,
   waitForDaemonReady,
 } from "../../daemon-client";
 import {
@@ -101,6 +105,18 @@ const DEFAULT_WORKDIR = "/app";
 
 // 32 bytes matches Docker's generation so audit logs don't vary by runner.
 const DAEMON_TOKEN_BYTES = 32;
+// Same shape for the per-claim nonce. 32 bytes = 64 hex chars; comfortably
+// above the daemon's ≥32-char minimum.
+const CLAIM_NONCE_BYTES = 32;
+
+/**
+ * Annotation key the operator's downward API exposes as `CLAIM_NONCE` env
+ * inside the sandbox container. Phase 1 of SPEC-daemon-bootstrap.md
+ * documents the contract; verified against agent-sandbox v0.4.2 in
+ * VERIFY-v042.md (`decocms.io` is not a restricted prefix; annotations
+ * survive warm-pool claim).
+ */
+const CLAIM_NONCE_ANNOTATION = "decocms.io/claim-nonce";
 
 /**
  * Env keys mesh owns and a caller's `opts.env` MUST NOT shadow. DAEMON_TOKEN
@@ -226,6 +242,20 @@ interface K8sRecord {
    * that case so the caller's normal VM_START flow can repopulate them.
    */
   ensureOpts: EnsureOptions | null;
+  /**
+   * Per-claim nonce stamped on `metadata.annotations["decocms.io/claim-nonce"]`
+   * and validated by the daemon on bootstrap. Survives across daemon
+   * restarts in the same pod. Null only when the record was synthesized
+   * from a legacy claim (adopt path); rehydrate fails closed in that case
+   * and falls through to recreate.
+   */
+  claimNonce: string | null;
+  /**
+   * sha256 of the canonicalized bootstrap payload mesh sent. Tx 2 in the
+   * provision sequence (after the daemon's 200) writes this; null between
+   * tx 1 and tx 2.
+   */
+  bootstrapHash: string | null;
 }
 
 interface PersistedK8sState {
@@ -243,6 +273,15 @@ interface PersistedK8sState {
    * VM_START reprovision flow then runs with full opts).
    */
   ensureOpts?: EnsureOptions;
+  /**
+   * Phase 2 fields — see `K8sRecord.claimNonce` above. All optional for
+   * back-compat with rows written before Phase 2; rehydrate fails closed
+   * (returns null) when missing on a row that was *expected* to have
+   * them, falling through to recreate.
+   */
+  claimNonce?: string;
+  bootstrappedAt?: string;
+  bootstrapHash?: string;
   [k: string]: unknown;
 }
 
@@ -682,16 +721,23 @@ export class AgentSandboxRunner implements SandboxRunner {
     if (ops) {
       const persisted = await ops.get(id, RUNNER_KIND);
       if (persisted) {
-        const rec = await this.rehydrate(id, handle, persisted);
-        if (rec)
-          return this.finish(
-            rec,
-            ops,
-            /* persistNow */ false,
-            /* patchTtl */ true,
-            "resume",
-          );
-        await ops.delete(id, RUNNER_KIND);
+        try {
+          const rec = await this.rehydrate(id, handle, persisted);
+          if (rec)
+            return this.finish(
+              rec,
+              ops,
+              /* persistNow */ true,
+              /* patchTtl */ true,
+              "resume",
+            );
+          await ops.delete(id, RUNNER_KIND);
+        } catch (err) {
+          if (!(err instanceof DaemonPhaseFailedError)) throw err;
+          // phase=failed is non-recoverable on this daemon. Tear down the
+          // claim + state-store row and fall through to provision.
+          await this.recoverFromFailedPhase(id, handle, ops);
+        }
       }
     }
     // 2. Cluster-side adopt: state store empty but a claim with our
@@ -718,12 +764,19 @@ export class AgentSandboxRunner implements SandboxRunner {
           );
         });
       } else {
-        const adopted = await this.adopt(id, handle, existing).catch((err) => {
-          console.warn(
-            `[${LOG_LABEL}] adopt ${handle} failed, recreating: ${err instanceof Error ? err.message : String(err)}`,
-          );
-          return null;
-        });
+        let adopted: K8sRecord | null = null;
+        try {
+          adopted = await this.adopt(id, handle, existing);
+        } catch (err) {
+          if (err instanceof DaemonPhaseFailedError) {
+            await this.recoverFromFailedPhase(id, handle, ops);
+            // Fall through to fresh provision (claim already torn down).
+          } else {
+            console.warn(
+              `[${LOG_LABEL}] adopt ${handle} failed, recreating: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
+        }
         if (adopted)
           return this.finish(
             adopted,
@@ -749,15 +802,58 @@ export class AgentSandboxRunner implements SandboxRunner {
         });
       }
     }
-    // 3. Fresh provision.
-    const fresh = await this.provision(id, handle, opts);
+    // 3. Fresh provision. Persistence is interleaved with the bootstrap
+    //    call (tx 1: token+ensureOpts+claimNonce before bootstrap; tx 2:
+    //    bootstrappedAt+bootstrapHash after the daemon's 200) so a crash
+    //    between the two leaves a row recoverable on the next ensure.
+    const fresh = await this.provision(id, handle, opts, ops);
     return this.finish(
       fresh,
       ops,
-      /* persistNow */ true,
+      /* persistNow */ false,
       /* patchTtl */ false,
       "fresh",
     );
+  }
+
+  /**
+   * Tear down a wedged sandbox after `/health.phase=failed`. Deletes the
+   * SandboxClaim, clears the state-store row, drops the in-memory cache.
+   * `ensureLocked` calls this and then falls through to `provision`,
+   * giving the user a fresh pod on the next attempt rather than an
+   * indefinitely-failed one waiting on operator idle-TTL.
+   */
+  private async recoverFromFailedPhase(
+    id: SandboxId,
+    handle: string,
+    ops: RunnerStateStoreOps | null,
+  ): Promise<void> {
+    console.warn(
+      `[${LOG_LABEL}] daemon phase=failed for ${handle}; deleting claim and clearing state-store row`,
+    );
+    const cached = this.records.get(handle);
+    if (cached) {
+      this.records.delete(handle);
+      this.closeForwarder(cached.daemonForward);
+    }
+    await deleteSandboxClaim(this.kubeConfig, this.namespace, handle).catch(
+      (err) => {
+        console.warn(
+          `[${LOG_LABEL}] failed-phase claim delete for ${handle}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      },
+    );
+    await waitForSandboxClaimGone(
+      this.kubeConfig,
+      this.namespace,
+      handle,
+    ).catch((err) => {
+      console.warn(
+        `[${LOG_LABEL}] failed-phase claim drain for ${handle}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    });
+    await this.deleteHttpRouteIfManaged(handle).catch(() => {});
+    if (ops) await ops.delete(id, RUNNER_KIND).catch(() => {});
   }
 
   private async finish(
@@ -796,20 +892,16 @@ export class AgentSandboxRunner implements SandboxRunner {
   }
 
   /**
-   * Compose the env block the daemon's orchestrator reads to clone, install,
-   * and start the dev server. Mirrors the docker runner's contract; reader is
-   * `packages/sandbox/daemon/config.ts`.
-   *
-   * Caller-supplied `opts.env` is layered first so the bootstrap keys defined
-   * here (and listed in RESERVED_ENV_KEYS) always win — an intercepted
-   * DAEMON_TOKEN would compromise the sandbox; an intercepted DEV_PORT would
-   * just break the boot. We warn — not throw — to match the docker runner's
-   * permissive shape.
+   * Strip caller-supplied `opts.env` of mesh-owned keys. Phase 2 stops
+   * shipping these via `spec.env`, but `RESERVED_ENV_KEYS` is still the
+   * contract surface for the bootstrap payload's `env` field — caller
+   * env must not silently shadow `DAEMON_TOKEN`/`CLONE_URL`/etc.
+   * Phase 3 deletes both `RESERVED_ENV_KEYS` and this helper once the
+   * env-driven path is gone.
    */
-  private buildEnvMap(
+  private filterCallerEnv(
     opts: EnsureOptions,
-    boot: { token: string; daemonBootId: string; workdir: string },
-  ): Record<string, string> {
+  ): Record<string, string> | undefined {
     const callerEnv: Record<string, string> = {};
     const dropped: string[] = [];
     for (const [k, v] of Object.entries(opts.env ?? {})) {
@@ -821,41 +913,56 @@ export class AgentSandboxRunner implements SandboxRunner {
         `[${LOG_LABEL}] opts.env keys overlap reserved bootstrap names and were dropped: ${dropped.join(",")}`,
       );
     }
+    return Object.keys(callerEnv).length > 0 ? callerEnv : undefined;
+  }
 
+  /**
+   * Compose the bootstrap payload the daemon consumes via
+   * `POST /_decopilot_vm/bootstrap`. Replaces the env-injection path:
+   * mesh stamps `schemaVersion` and the per-claim `claimNonce`, the
+   * daemon validates both before persisting.
+   */
+  private buildBootstrapPayload(
+    opts: EnsureOptions,
+    boot: {
+      token: string;
+      claimNonce: string;
+      workdir: string;
+    },
+  ): BootstrapPayload {
     const repo = opts.repo;
     const repoLabel = repo
       ? (repo.displayName ?? deriveRepoLabel(repo.cloneUrl))
       : null;
-
+    const callerEnv = this.filterCallerEnv(opts);
     return {
-      ...callerEnv,
-      DAEMON_TOKEN: boot.token,
-      DAEMON_BOOT_ID: boot.daemonBootId,
-      APP_ROOT: boot.workdir,
-      PROXY_PORT: String(DAEMON_CONTAINER_PORT),
-      DEV_PORT: String(opts.workload?.devPort ?? DEFAULT_DEV_PORT),
-      RUNTIME: opts.workload?.runtime ?? "node",
+      schemaVersion: 1,
+      claimNonce: boot.claimNonce,
+      daemonToken: boot.token,
+      runtime: opts.workload?.runtime ?? "node",
       ...(repo
         ? {
-            CLONE_URL: repo.cloneUrl,
-            REPO_NAME: repoLabel ?? "",
-            BRANCH: repo.branch ?? "",
-            GIT_USER_NAME: repo.userName,
-            GIT_USER_EMAIL: repo.userEmail,
+            cloneUrl: repo.cloneUrl,
+            repoName: repoLabel ?? "",
+            branch: repo.branch ?? "",
+            gitUserName: repo.userName,
+            gitUserEmail: repo.userEmail,
           }
         : {}),
       ...(opts.workload?.packageManager
-        ? { PACKAGE_MANAGER: opts.workload.packageManager }
+        ? { packageManager: opts.workload.packageManager }
         : {}),
+      devPort: opts.workload?.devPort ?? DEFAULT_DEV_PORT,
+      appRoot: boot.workdir,
+      ...(callerEnv ? { env: callerEnv } : {}),
     };
   }
 
   private buildClaim(
     handle: string,
     opts: EnsureOptions,
-    boot: { token: string; daemonBootId: string; workdir: string },
+    boot: { claimNonce: string },
   ): SandboxClaim {
-    const envMap = this.buildEnvMap(opts, boot);
     return {
       apiVersion: `${K8S_CONSTANTS.CLAIM_API_GROUP}/${K8S_CONSTANTS.CLAIM_API_VERSION}`,
       kind: "SandboxClaim",
@@ -874,27 +981,24 @@ export class AgentSandboxRunner implements SandboxRunner {
       },
       spec: {
         sandboxTemplateRef: { name: this.sandboxTemplateName },
-        // additionalPodMetadata.labels is the operator's pod-label propagation
-        // hook (CRD field, not a generic patch). Tenant labels here flow to
-        // the pod and become joinable in cAdvisor/kubelet metrics. `role`
-        // distinguishes claimed pods from warm-pool pods (template sets
-        // role=sandbox-pod by default).
+        // additionalPodMetadata propagates labels (metric attribution) +
+        // annotations (claim nonce, downward API) from the claim onto the
+        // spawned/claimed pod. Annotations survive warm-pool claim — the
+        // operator's "no custom env on warm pods" check is env-only;
+        // verified against agent-sandbox v0.4.2 (VERIFY-v042.md).
         additionalPodMetadata: {
           labels: buildTenantLabels(opts.tenant, {
             [LABEL_KEYS.role]: "claimed",
             [LABEL_KEYS.sandboxHandle]: handle,
             ...(this.envName ? { [LABEL_KEYS.env]: this.envName } : {}),
           }),
+          annotations: {
+            [CLAIM_NONCE_ANNOTATION]: boot.claimNonce,
+          },
         },
-        // `valueFrom.secretKeyRef` isn't supported on SandboxClaim env; RBAC
-        // on the namespace is the secrecy boundary. Warm-pool off because the
-        // operator rejects custom env on warm-pooled claims. Sorted by name
-        // so `kubectl diff` / claim audit entries don't churn across runs
-        // that pass the same env in different insertion orders.
-        env: Object.entries(envMap)
-          .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-          .map(([name, value]) => ({ name, value })),
-        warmpool: "none",
+        // `spec.env` intentionally empty after Phase 2: tenant config
+        // flows through `daemonBootstrap`, not env injection. Warm pool
+        // is no longer forced off — the CRD default applies.
         lifecycle: {
           shutdownPolicy: "Delete",
           shutdownTime: this.computeShutdownTime(),
@@ -907,16 +1011,13 @@ export class AgentSandboxRunner implements SandboxRunner {
     id: SandboxId,
     handle: string,
     opts: EnsureOptions,
+    ops: RunnerStateStoreOps | null,
   ): Promise<K8sRecord> {
     const token = this.tokenGenerator();
-    const daemonBootId = randomUUID();
+    const claimNonce = randomBytes(CLAIM_NONCE_BYTES).toString("hex");
     const workdir = DEFAULT_WORKDIR;
 
-    const claim = this.buildClaim(handle, opts, {
-      token,
-      daemonBootId,
-      workdir,
-    });
+    const claim = this.buildClaim(handle, opts, { claimNonce });
     try {
       await createSandboxClaim(this.kubeConfig, this.namespace, claim);
     } catch (err) {
@@ -935,6 +1036,25 @@ export class AgentSandboxRunner implements SandboxRunner {
         throw err;
       }
     }
+
+    // Tx 1: persist {token, ensureOpts, claimNonce} ASAP after the claim
+    // exists. If mesh dies between here and the bootstrap call, the next
+    // ensure() reads this row, sees `bootstrappedAt` null, and re-issues
+    // the bootstrap rather than re-creating the claim.
+    const persistedEnsureOpts = stripEnsureOpts(opts);
+    const tenantOnRecord = opts.tenant ?? null;
+    if (ops) {
+      await this.persistTx1(ops, id, handle, {
+        podName: handle,
+        token,
+        workdir,
+        workload: opts.workload ?? null,
+        tenant: tenantOnRecord,
+        ensureOpts: persistedEnsureOpts ?? undefined,
+        claimNonce,
+      });
+    }
+
     const { podName } = await waitForSandboxReady(
       this.kubeConfig,
       this.namespace,
@@ -965,7 +1085,19 @@ export class AgentSandboxRunner implements SandboxRunner {
       handle,
     );
     const daemonUrl = `http://127.0.0.1:${daemonForward.localPort}`;
+
+    let bootstrapped: { bootId: string; hash: string };
     try {
+      // Wait for the daemon's HTTP server, not its phase. Phase=ready can
+      // only be reached after we POST the bootstrap payload.
+      await waitForDaemonHttp(daemonUrl);
+      const payload = this.buildBootstrapPayload(opts, {
+        token,
+        claimNonce,
+        workdir,
+      });
+      const resp = await daemonBootstrap(daemonUrl, payload);
+      bootstrapped = { bootId: resp.bootId, hash: resp.hash };
       await waitForDaemonReady(daemonUrl);
     } catch (err) {
       this.closeForwarder(daemonForward);
@@ -973,10 +1105,14 @@ export class AgentSandboxRunner implements SandboxRunner {
       await deleteSandboxClaim(this.kubeConfig, this.namespace, handle).catch(
         () => {},
       );
+      // Drop the half-written state-store row: nothing useful to recover
+      // when the bootstrap path itself failed (vs the mesh process dying
+      // between tx 1 and tx 2, where the row IS recoverable).
+      if (ops) await ops.delete(id, RUNNER_KIND).catch(() => {});
       throw err;
     }
 
-    return {
+    const rec: K8sRecord = {
       id,
       handle,
       podName,
@@ -985,10 +1121,20 @@ export class AgentSandboxRunner implements SandboxRunner {
       daemonUrl,
       daemonForward,
       workload: opts.workload ?? null,
-      daemonBootId,
-      tenant: opts.tenant ?? null,
-      ensureOpts: stripEnsureOpts(opts),
+      daemonBootId: bootstrapped.bootId,
+      tenant: tenantOnRecord,
+      ensureOpts: persistedEnsureOpts,
+      claimNonce,
+      bootstrapHash: bootstrapped.hash,
     };
+
+    // Tx 2: bootstrap completed, mark the row ready. Single-statement
+    // upsert (no read-modify-write) per the concurrency rules.
+    if (ops) {
+      await this.persistTx2(ops, rec, new Date().toISOString());
+    }
+
+    return rec;
   }
 
   /**
@@ -1075,9 +1221,13 @@ export class AgentSandboxRunner implements SandboxRunner {
 
   /**
    * Reconstruct a record from persisted state. After this returns, the record
-   * is ready for any of the six methods — the daemon port-forward is open and
-   * its `/health` has been re-probed. Returns null on any mismatch; caller
-   * purges and falls through to adopt/provision.
+   * is ready for any of the six methods — the daemon port-forward is open
+   * and its `/health.phase === "ready"`. Returns null on any mismatch;
+   * caller purges and falls through to adopt/provision.
+   *
+   * Phase 2 decision matrix is applied via `driveDaemonToReady`. `failed`
+   * surfaces as `DaemonPhaseFailedError`, which the caller catches and
+   * recovers from by deleting the claim + clearing the row.
    */
   private async rehydrate(
     id: SandboxId,
@@ -1092,7 +1242,29 @@ export class AgentSandboxRunner implements SandboxRunner {
       this.namespace,
       handle,
     ).catch(() => undefined);
-    if (!claim || !isSandboxReady(claim)) return null;
+    if (!claim) return null;
+
+    // Partial-commit recovery: row has tx1 fields (ensureOpts + claimNonce)
+    // but no bootstrappedAt. Wait for the claim to reach Ready instead of
+    // bailing — the next ensure() shouldn't have to recreate a healthy
+    // claim just because mesh died before `waitForSandboxReady` returned.
+    const isRecoverableInProgress =
+      !!state.ensureOpts &&
+      !!state.claimNonce &&
+      !state.bootstrappedAt &&
+      !isSandboxReady(claim);
+    if (isRecoverableInProgress) {
+      try {
+        await waitForSandboxReady(this.kubeConfig, this.namespace, handle);
+      } catch (err) {
+        console.warn(
+          `[${LOG_LABEL}] partial-commit recovery: waitForSandboxReady ${handle} failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        return null;
+      }
+    } else if (!isSandboxReady(claim)) {
+      return null;
+    }
 
     // Pod name may have changed (operator recreated the pod). Trust the claim
     // annotation over the persisted value.
@@ -1103,10 +1275,43 @@ export class AgentSandboxRunner implements SandboxRunner {
 
     // Pod bounced but the daemon's orchestrator handles re-bootstrap itself
     // on boot (resume-on-restart). Just refresh our copy of bootId.
-    if (state.daemonBootId && state.daemonBootId !== live.bootId) {
+    if (state.daemonBootId && state.daemonBootId !== live.health.bootId) {
       console.warn(
-        `[${LOG_LABEL}] daemon restart detected (handle=${handle}): stored bootId=${state.daemonBootId} live bootId=${live.bootId}`,
+        `[${LOG_LABEL}] daemon restart detected (handle=${handle}): stored bootId=${state.daemonBootId} live bootId=${live.health.bootId}`,
       );
+    }
+
+    let bootstrapHash = state.bootstrapHash ?? null;
+    try {
+      const out = await this.driveDaemonToReady(
+        live.daemonUrl,
+        live.health,
+        () => {
+          if (
+            !state.token ||
+            !state.ensureOpts ||
+            !state.claimNonce ||
+            !state.workdir
+          ) {
+            return null;
+          }
+          return this.buildBootstrapPayload(state.ensureOpts, {
+            token: state.token,
+            claimNonce: state.claimNonce,
+            workdir: state.workdir,
+          });
+        },
+      );
+      if (out.bootstrapHash) bootstrapHash = out.bootstrapHash;
+    } catch (err) {
+      // Drop the forwarder before bubbling the error up so the caller
+      // doesn't leak a port-forward when it falls through to recreate.
+      this.closeForwarder(live.daemonForward);
+      if (err instanceof DaemonPhaseFailedError) throw err;
+      console.warn(
+        `[${LOG_LABEL}] rehydrate ${handle} drive-to-ready failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return null;
     }
 
     return {
@@ -1118,25 +1323,54 @@ export class AgentSandboxRunner implements SandboxRunner {
       daemonUrl: live.daemonUrl,
       daemonForward: live.daemonForward,
       workload: state.workload ?? null,
-      daemonBootId: live.bootId,
+      daemonBootId: live.health.bootId,
       tenant: state.tenant ?? null,
       ensureOpts: state.ensureOpts ?? null,
+      claimNonce: state.claimNonce ?? null,
+      bootstrapHash,
     };
   }
 
   private async adopt(
-    id: SandboxId,
+    _id: SandboxId,
     handle: string,
     claim: SandboxResource,
   ): Promise<K8sRecord | null> {
     if (!isSandboxReady(claim)) return null;
     const podName = readPodName(claim);
     if (!podName) return null;
-    const token = readClaimDaemonToken(claim);
-    if (!token) return null;
 
     const live = await this.openAndProbeDaemon(podName, handle);
     if (!live) return null;
+
+    // Phase 2: token is no longer in `spec.env`. Adopt of a legacy claim
+    // provisioned before bootstrap (no state-store row to source the
+    // token from) cannot recover; bail and let the caller recreate.
+    // Phase 1 daemons surface phase=ready when bootstrapped via env;
+    // phase=pending-bootstrap on a legacy claim with no row to bootstrap
+    // from is the same dead end.
+    if (live.health.phase === "pending-bootstrap") {
+      this.closeForwarder(live.daemonForward);
+      return null;
+    }
+    if (live.health.phase === "failed") {
+      this.closeForwarder(live.daemonForward);
+      throw new DaemonPhaseFailedError(live.daemonUrl);
+    }
+    if (live.health.phase === "bootstrapping") {
+      // Another mesh replica got there first and is mid-bootstrap. Wait
+      // for it to finish before adopting.
+      try {
+        await waitForDaemonReady(live.daemonUrl);
+      } catch (err) {
+        this.closeForwarder(live.daemonForward);
+        if (err instanceof DaemonPhaseFailedError) throw err;
+        console.warn(
+          `[${LOG_LABEL}] adopt ${handle} wait-for-ready failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        return null;
+      }
+    }
 
     const tenant = readClaimTenant(claim);
     // Backfill the Service port + HTTPRoute for legacy claims provisioned
@@ -1161,35 +1395,20 @@ export class AgentSandboxRunner implements SandboxRunner {
       });
     }
 
-    return {
-      id,
-      handle,
-      podName,
-      token,
-      workdir: DEFAULT_WORKDIR,
-      daemonUrl: live.daemonUrl,
-      daemonForward: live.daemonForward,
-      workload: null,
-      daemonBootId: live.bootId,
-      // Recovered from claim labels written at provision time. Null if the
-      // claim pre-dates tenant labelling (back-compat with already-running
-      // sandboxes when this code rolls out).
-      tenant,
-      // Adopt happens when the state-store is empty but a claim with our
-      // deterministic name still exists in the cluster (e.g. mesh restart
-      // without state-store, or state-store wipe). The original opts aren't
-      // recoverable from the claim alone, so resurrection on this record
-      // can't autonomously re-provision; falls back to the caller's
-      // VM_START path.
-      ensureOpts: null,
-    };
+    // Adopt of a Phase-2 ready daemon: we don't have the token (no env),
+    // and the state-store row is empty. Rather than fabricate a record
+    // we can't authenticate exec/proxy with, return null and let the
+    // caller's `ensureLocked` delete the claim and recreate. This is the
+    // legacy-claim back-compat dead end called out in the spec.
+    this.closeForwarder(live.daemonForward);
+    return null;
   }
 
   /**
    * Open the daemon port-forward and probe `/health`. Closes the forwarder
    * and returns null on any failure so the caller can fall through to
-   * recreate. Both `rehydrate` and `adopt` share this shape — the only
-   * difference is whether the bootId match is checked.
+   * recreate. Returns the parsed health record so `rehydrate`/`adopt`
+   * can apply the phase decision matrix.
    */
   private async openAndProbeDaemon(
     podName: string,
@@ -1197,7 +1416,7 @@ export class AgentSandboxRunner implements SandboxRunner {
   ): Promise<{
     daemonForward: PortForwarder;
     daemonUrl: string;
-    bootId: string;
+    health: DaemonHealth;
   } | null> {
     const daemonForward = await this.openForwarder(
       podName,
@@ -1213,7 +1432,50 @@ export class AgentSandboxRunner implements SandboxRunner {
       this.closeForwarder(daemonForward);
       return null;
     }
-    return { daemonForward, daemonUrl, bootId: health.bootId };
+    return { daemonForward, daemonUrl, health };
+  }
+
+  /**
+   * Drive the daemon to `phase=ready` from whatever phase `/health` last
+   * reported. Implements the rehydrate/adopt decision matrix:
+   *
+   *   pending-bootstrap → re-issue bootstrap from persisted state
+   *   bootstrapping     → wait for ready (no bootstrap call)
+   *   ready             → no-op
+   *   failed            → throw — caller deletes the claim, clears the
+   *                       state-store row, and recurses into provision.
+   *
+   * `claimNonce`, `token`, and `ensureOpts` must all be available on the
+   * state-store row for `pending-bootstrap`. Missing any one is fatal —
+   * caller falls through to recreate.
+   */
+  private async driveDaemonToReady(
+    daemonUrl: string,
+    health: DaemonHealth,
+    rebootstrap: () => BootstrapPayload | null,
+  ): Promise<{ bootstrapHash: string | null }> {
+    // Phase absent: env-driven legacy daemon. Treat as ready — nothing to do.
+    if (health.phase === undefined || health.phase === "ready") {
+      return { bootstrapHash: null };
+    }
+    if (health.phase === "failed") {
+      throw new DaemonPhaseFailedError(daemonUrl);
+    }
+    if (health.phase === "pending-bootstrap") {
+      const payload = rebootstrap();
+      if (!payload) {
+        throw new SandboxError(
+          "rehydrate: cannot re-bootstrap — persisted token/ensureOpts/claimNonce missing",
+        );
+      }
+      const resp = await daemonBootstrap(daemonUrl, payload);
+      await waitForDaemonReady(daemonUrl);
+      return { bootstrapHash: resp.hash };
+    }
+    // bootstrapping: an in-flight bootstrap (from another mesh replica or
+    // the daemon's own resume-on-restart path) is running. Wait for ready.
+    await waitForDaemonReady(daemonUrl);
+    return { bootstrapHash: null };
   }
 
   // ---- Handle resolution (post-restart) -------------------------------------
@@ -1224,7 +1486,23 @@ export class AgentSandboxRunner implements SandboxRunner {
     if (!this.stateStore) return null;
     const persisted = await this.stateStore.getByHandle(RUNNER_KIND, handle);
     if (!persisted) return null;
-    const rec = await this.rehydrate(persisted.id, handle, persisted);
+    let rec: K8sRecord | null;
+    try {
+      rec = await this.rehydrate(persisted.id, handle, persisted);
+    } catch (err) {
+      // Failed phase: caller path (exec/proxy) doesn't have an `ensureOpts`
+      // to recover with on its own — surface as "unknown handle" and let
+      // the caller's resurrection / VM_START flow recreate.
+      if (err instanceof DaemonPhaseFailedError) {
+        await this.recoverFromFailedPhase(
+          persisted.id,
+          handle,
+          this.stateStore,
+        );
+        return null;
+      }
+      throw err;
+    }
     if (rec) this.records.set(handle, rec);
     return rec;
   }
@@ -1339,6 +1617,65 @@ export class AgentSandboxRunner implements SandboxRunner {
       daemonBootId: rec.daemonBootId,
       tenant: rec.tenant,
       ...(rec.ensureOpts ? { ensureOpts: rec.ensureOpts } : {}),
+      ...(rec.claimNonce ? { claimNonce: rec.claimNonce } : {}),
+      ...(rec.bootstrapHash ? { bootstrapHash: rec.bootstrapHash } : {}),
+    };
+    await ops.put(rec.id, RUNNER_KIND, { handle: rec.handle, state });
+  }
+
+  /**
+   * Tx 1 of the provision sequence: persist the inputs needed to re-issue
+   * a bootstrap on partial-commit recovery. Single upsert; the row's
+   * `bootstrappedAt` and `bootstrapHash` columns stay null until tx 2.
+   */
+  private async persistTx1(
+    ops: RunnerStateStoreOps,
+    id: SandboxId,
+    handle: string,
+    fields: {
+      podName: string;
+      token: string;
+      workdir: string;
+      workload: Workload | null;
+      tenant: RunnerTenant | null;
+      ensureOpts?: EnsureOptions;
+      claimNonce: string;
+    },
+  ): Promise<void> {
+    const state: PersistedK8sState = {
+      podName: fields.podName,
+      token: fields.token,
+      workdir: fields.workdir,
+      workload: fields.workload,
+      tenant: fields.tenant,
+      ...(fields.ensureOpts ? { ensureOpts: fields.ensureOpts } : {}),
+      claimNonce: fields.claimNonce,
+    };
+    await ops.put(id, RUNNER_KIND, { handle, state });
+  }
+
+  /**
+   * Tx 2 of the provision sequence: stamp `bootstrappedAt` + `bootstrapHash`
+   * after the daemon's 200. Single upsert (the row's prior fields are
+   * carried through). After this returns, `rehydrate` sees a fully-
+   * provisioned row and skips the partial-commit recovery branch.
+   */
+  private async persistTx2(
+    ops: RunnerStateStoreOps,
+    rec: K8sRecord,
+    bootstrappedAt: string,
+  ): Promise<void> {
+    const state: PersistedK8sState = {
+      podName: rec.podName,
+      token: rec.token,
+      workdir: rec.workdir,
+      workload: rec.workload,
+      daemonBootId: rec.daemonBootId,
+      tenant: rec.tenant,
+      ...(rec.ensureOpts ? { ensureOpts: rec.ensureOpts } : {}),
+      ...(rec.claimNonce ? { claimNonce: rec.claimNonce } : {}),
+      bootstrappedAt,
+      ...(rec.bootstrapHash ? { bootstrapHash: rec.bootstrapHash } : {}),
     };
     await ops.put(rec.id, RUNNER_KIND, { handle: rec.handle, state });
   }
@@ -1496,6 +1833,20 @@ export class AgentSandboxRunner implements SandboxRunner {
 
 // ---- Helpers ----------------------------------------------------------------
 
+/**
+ * Internal sentinel: the daemon's `/health.phase` reports `failed`. The
+ * daemon never self-recovers; the only resolution is delete the
+ * SandboxClaim, clear the state-store row, and recurse into provision.
+ * `ensureLocked` catches this and drives the recovery; nothing outside
+ * this file should see it.
+ */
+class DaemonPhaseFailedError extends Error {
+  constructor(daemonUrl: string) {
+    super(`daemon at ${daemonUrl} reports phase=failed`);
+    this.name = "DaemonPhaseFailedError";
+  }
+}
+
 interface RunnerMetrics {
   active: UpDownCounter;
   ensureOutcome: Counter;
@@ -1534,15 +1885,6 @@ function isSandboxReady(resource: SandboxResource): boolean {
       (c) => c.type === "Ready" && c.status === "True",
     ),
   );
-}
-
-function readClaimDaemonToken(claim: SandboxResource): string | null {
-  const env = claim.spec?.env;
-  if (!env) return null;
-  for (const entry of env) {
-    if (entry.name === "DAEMON_TOKEN" && entry.value) return entry.value;
-  }
-  return null;
 }
 
 function readPodName(resource: SandboxResource): string | null {

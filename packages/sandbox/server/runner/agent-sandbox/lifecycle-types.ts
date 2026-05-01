@@ -22,7 +22,7 @@ export type ClaimPhase =
       kind: "waiting-for-capacity";
       since: number;
       message?: string;
-      /** Karpenter-emitted nodeclaim name when a node is being provisioned. */
+      /** Karpenter-emitted nodeclaim name when a node is being provisioning. */
       nodeClaim?: string;
     }
   | { kind: "pulling-image"; since: number }

@@ -21,7 +21,7 @@ export function autoStartDev(params: {
   if (!pmConfig) return null;
   const starter = WELL_KNOWN_STARTERS.find((s) => scripts.includes(s));
   if (!starter) return null;
-  const cmd = `${config.pathPrefix}cd ${config.appRoot} && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=${config.devPort} ${pmConfig.runPrefix} ${starter}`;
+  const cmd = `${config.pathPrefix}cd ${config.appRoot} && export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=${config.devPort} ${pmConfig.runPrefix} ${starter}`;
   pm.run(starter, cmd, `$ ${pmConfig.runPrefix} ${starter}`);
   return starter;
 }
