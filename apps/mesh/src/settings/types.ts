@@ -35,9 +35,6 @@ export interface Settings {
   // Config files
   configPath: string;
 
-  // Transport
-  unsafeAllowStdioTransport: boolean;
-
   // AI Gateway
   aiGatewayEnabled: boolean;
   aiGatewayUrl: string;

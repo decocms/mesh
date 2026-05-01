@@ -149,15 +149,6 @@ function getConfigSections(e: Settings): ConfigSection[] {
       entries: [{ key: "CONFIG_PATH", value: e.configPath }],
     },
     {
-      title: "Transport",
-      entries: [
-        {
-          key: "UNSAFE_ALLOW_STDIO_TRANSPORT",
-          value: e.unsafeAllowStdioTransport,
-        },
-      ],
-    },
-    {
       title: "AI Gateway",
       entries: [
         { key: "DECO_AI_GATEWAY_ENABLED", value: e.aiGatewayEnabled },

@@ -78,9 +78,6 @@ export function resolveConfig(
     // Config files
     configPath: envVars.CONFIG_PATH || "./config.json",
 
-    // Transport
-    unsafeAllowStdioTransport: toBool(envVars.UNSAFE_ALLOW_STDIO_TRANSPORT),
-
     // AI Gateway
     aiGatewayEnabled: toBool(envVars.DECO_AI_GATEWAY_ENABLED),
     aiGatewayUrl:

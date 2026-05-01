@@ -48,9 +48,6 @@ export function buildChildEnv(
       Object.entries(process.env).filter(([k]) => k.startsWith("AUTH_")),
     ),
 
-    // Transport
-    UNSAFE_ALLOW_STDIO_TRANSPORT: String(settings.unsafeAllowStdioTransport),
-
     // AI Gateway
     DECO_AI_GATEWAY_ENABLED: String(settings.aiGatewayEnabled),
     DECO_AI_GATEWAY_URL: settings.aiGatewayUrl,
