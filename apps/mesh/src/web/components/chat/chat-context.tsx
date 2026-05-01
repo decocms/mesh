@@ -712,6 +712,9 @@ export function ChatContextProvider({
     transportRef.current = new DefaultChatTransport<UIMessage<Metadata>>({
       api: `/api/${org.slug}/decopilot/stream`,
       credentials: "include",
+      // mesh resolves the active org from x-org-id, not session state — see
+      // shell-layout.tsx and core/context-factory.ts (auth_query_membership_from_header).
+      headers: { "x-org-id": org.id },
       prepareReconnectToStreamRequest: ({ id }) => ({
         api: `/api/${org.slug}/decopilot/attach/${id}`,
       }),
@@ -1162,6 +1165,7 @@ export function ActiveTaskProvider({
       const res = await fetch(`/api/${org.slug}/decopilot/cancel/${taskId}`, {
         method: "POST",
         credentials: "include",
+        headers: { "x-org-id": org.id },
       });
       // 404 means the thread was never persisted (optimistic-only) — nothing to cancel
       if (res.status === 404) return;

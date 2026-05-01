@@ -57,8 +57,8 @@ export type AuthConfig = {
         enabled: false;
       };
   /**
-   * Whether STDIO connections are allowed.
-   * Disabled by default in production unless UNSAFE_ALLOW_STDIO_TRANSPORT=true
+   * Whether STDIO connections are allowed. Only true in local mode, since
+   * STDIO transports spawn arbitrary local commands.
    */
   stdioEnabled: boolean;
   /**
@@ -76,13 +76,8 @@ export function buildAuthConfig(): AuthConfig {
     icon: KNOWN_OAUTH_PROVIDERS[name as OAuthProvider].icon,
   }));
 
-  // STDIO is enabled in local mode, in non-production environments,
-  // or when explicitly allowed via UNSAFE_ALLOW_STDIO_TRANSPORT
-  const settings = getSettings();
-  const stdioEnabled =
-    settings.localMode ||
-    settings.nodeEnv !== "production" ||
-    settings.unsafeAllowStdioTransport;
+  // STDIO is only available in local mode — see outbound/index.ts STDIO case.
+  const stdioEnabled = getSettings().localMode;
 
   return {
     emailAndPassword: {

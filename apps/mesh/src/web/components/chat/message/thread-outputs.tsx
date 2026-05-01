@@ -13,6 +13,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Download01 } from "@untitledui/icons";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import { KEYS } from "../../../lib/query-keys";
 
 interface ThreadOutput {
@@ -27,11 +28,16 @@ interface ThreadOutputsResponse {
   objects: ThreadOutput[];
 }
 
-async function fetchThreadOutputs(threadId: string): Promise<ThreadOutput[]> {
+async function fetchThreadOutputs(
+  threadId: string,
+  orgId: string,
+): Promise<ThreadOutput[]> {
   const res = await fetch(
     `/api/threads/${encodeURIComponent(threadId)}/outputs`,
     {
       credentials: "include",
+      // mesh resolves the active org from x-org-id; without it the route 400s.
+      headers: { "x-org-id": orgId },
     },
   );
   if (!res.ok) {
@@ -48,9 +54,10 @@ function formatSize(bytes: number): string {
 }
 
 export function ThreadOutputs({ threadId }: { threadId: string }) {
+  const { org } = useProjectContext();
   const { data: outputs } = useQuery({
     queryKey: KEYS.threadOutputs(threadId),
-    queryFn: () => fetchThreadOutputs(threadId),
+    queryFn: () => fetchThreadOutputs(threadId, org.id),
     // Stale immediately so refetch on invalidation is fresh.
     staleTime: 0,
   });

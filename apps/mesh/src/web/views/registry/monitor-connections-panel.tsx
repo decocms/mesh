@@ -211,7 +211,7 @@ function ConnectionRow({
     const res = await fetch("/mcp/self", {
       method: "POST",
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-org-id": org.id },
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
