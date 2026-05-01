@@ -25,8 +25,6 @@ const cases: Case[] = [
     name: "minimal bootstrap payload",
     payload: {
       schemaVersion: 1,
-      claimNonce: "n".repeat(32),
-      daemonToken: "t".repeat(32),
       runtime: "node",
     },
   },
@@ -34,17 +32,13 @@ const cases: Case[] = [
     name: "shuffled top-level keys",
     payload: {
       runtime: "bun",
-      daemonToken: "t".repeat(32),
       schemaVersion: 1,
-      claimNonce: "n".repeat(32),
     },
   },
   {
     name: "env map with shuffled keys",
     payload: {
       schemaVersion: 1,
-      claimNonce: "n",
-      daemonToken: "t".repeat(32),
       runtime: "node",
       env: { Z_LAST: "z", A_FIRST: "a", M_MID: "m" },
     },
@@ -53,8 +47,6 @@ const cases: Case[] = [
     name: "all optional fields present",
     payload: {
       schemaVersion: 1,
-      claimNonce: "n",
-      daemonToken: "t".repeat(32),
       runtime: "deno",
       cloneUrl: "https://example.com/repo.git",
       repoName: "repo",
@@ -63,7 +55,6 @@ const cases: Case[] = [
       gitUserEmail: "bot@example.com",
       packageManager: "pnpm",
       devPort: 3000,
-      appRoot: "/app",
       env: { FOO: "bar" },
     },
   },
@@ -71,8 +62,6 @@ const cases: Case[] = [
     name: "optional fields absent",
     payload: {
       schemaVersion: 1,
-      claimNonce: "n",
-      daemonToken: "t".repeat(32),
       runtime: "node",
     },
   },
@@ -80,8 +69,6 @@ const cases: Case[] = [
     name: "explicit undefined fields drop out",
     payload: {
       schemaVersion: 1,
-      claimNonce: "n",
-      daemonToken: "t".repeat(32),
       runtime: "node",
       branch: undefined,
       gitUserName: undefined,
@@ -92,8 +79,6 @@ const cases: Case[] = [
     name: "empty arrays preserved",
     payload: {
       schemaVersion: 1,
-      claimNonce: "n",
-      daemonToken: "t".repeat(32),
       runtime: "node",
       tags: [],
     },
@@ -102,8 +87,6 @@ const cases: Case[] = [
     name: "nested objects sort recursively",
     payload: {
       schemaVersion: 1,
-      claimNonce: "n",
-      daemonToken: "t".repeat(32),
       runtime: "node",
       meta: { z: { c: 3, a: 1, b: 2 }, a: 1 },
     },
@@ -112,8 +95,6 @@ const cases: Case[] = [
     name: "kitchen-sink — mirrors bootstrap.e2e.test.ts basicPayload + extras",
     payload: {
       schemaVersion: 1,
-      claimNonce: "n".repeat(32),
-      daemonToken: "t".repeat(32),
       runtime: "node",
       cloneUrl: "https://github.com/decocms/example.git",
       repoName: "example",
@@ -122,7 +103,6 @@ const cases: Case[] = [
       gitUserEmail: "bot@deco.cx",
       packageManager: "bun",
       devPort: 3000,
-      appRoot: "/app",
       env: {
         NODE_ENV: "production",
         API_KEY: "secret",

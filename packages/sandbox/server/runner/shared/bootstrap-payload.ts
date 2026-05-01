@@ -14,7 +14,6 @@
  * helpers with extra retry/recovery logic and stays inline.
  */
 
-import { randomUUID } from "node:crypto";
 import {
   type BootstrapPayload,
   type DaemonProbeFn,
@@ -26,26 +25,17 @@ import type { EnsureOptions } from "../types";
 
 /**
  * Inputs the runner must supply that aren't carried on `EnsureOptions`.
- * `daemonToken` is what mesh stamped into the daemon's env at spawn — the
- * payload field is currently inert (the daemon reads its token from env)
- * but is included for forward-compat with agent-sandbox.
+ * The daemon's bearer token, app root, and proxy port are delivered via
+ * spawn-time env (`loadBootConfigFromEnv`); they don't appear here.
  */
 export interface BootstrapInputs {
-  /** Mesh-side per-claim nonce; opaque to the daemon today. */
-  claimNonce?: string;
-  /** Bearer token the daemon validates from env. */
-  daemonToken: string;
-  /** Path the daemon treats as the project root. */
-  workdir: string;
   /** Dev-server port hint; the daemon's port-discovery may override. */
   devPort: number;
 }
 
 /**
  * Compose the bootstrap payload from `EnsureOptions` + per-runner inputs.
- * Mirrors the agent-sandbox builder — keep them in sync until the dead
- * fields (`claimNonce`, `daemonToken`, `appRoot`) are removed from the
- * shared `BootstrapPayload` type.
+ * Tenant-config only — token/appRoot/proxyPort travel via the daemon's env.
  */
 export function buildBootstrapPayload(
   opts: EnsureOptions,
@@ -58,8 +48,6 @@ export function buildBootstrapPayload(
   const runtime = opts.workload?.runtime ?? "node";
   return {
     schemaVersion: 1,
-    claimNonce: inputs.claimNonce ?? randomUUID(),
-    daemonToken: inputs.daemonToken,
     runtime,
     ...(repo
       ? {
@@ -74,7 +62,6 @@ export function buildBootstrapPayload(
       ? { packageManager: opts.workload.packageManager }
       : {}),
     devPort: inputs.devPort,
-    appRoot: inputs.workdir,
     ...(opts.env && Object.keys(opts.env).length > 0 ? { env: opts.env } : {}),
   };
 }

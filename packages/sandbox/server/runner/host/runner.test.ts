@@ -149,9 +149,11 @@ describe("HostSandboxRunner.ensure provisioning", () => {
     // the caller's workload.devPort hint.
     expect(typeof bootstrapPayload.devPort).toBe("number");
     expect(bootstrapPayload.devPort).toBeGreaterThan(0);
-    expect(bootstrapPayload.appRoot).toBe(sandbox.workdir);
-    expect(bootstrapPayload.daemonToken).toBe(spawnArgs.env.DAEMON_TOKEN);
     expect(bootstrapPayload.env).toEqual({ CALLER_VAR: "caller" });
+    // Token + appRoot stay on the daemon's spawn env, not in the body.
+    const wireBody = bootstrapPayload as unknown as Record<string, unknown>;
+    expect(wireBody.daemonToken).toBeUndefined();
+    expect(wireBody.appRoot).toBeUndefined();
   });
 
   it("returns the cached sandbox on a second ensure() call", async () => {

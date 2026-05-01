@@ -360,8 +360,6 @@ describe("daemonBootstrap", () => {
     );
     const resp = await daemonBootstrap("http://daemon:9000", {
       schemaVersion: 1,
-      claimNonce: "nonce",
-      daemonToken: "tok-32-chars-or-more-padded-out-x",
       runtime: "node",
     });
     expect(calls).toHaveLength(1);
@@ -374,7 +372,7 @@ describe("daemonBootstrap", () => {
     const rawBody = Buffer.from(b64Body, "base64").toString("utf-8");
     const body = JSON.parse(rawBody);
     expect(body.schemaVersion).toBe(1);
-    expect(body.claimNonce).toBe("nonce");
+    expect(body.runtime).toBe("node");
     expect(resp).toEqual({ phase: "ready", bootId: "b1", hash: "h1" });
   });
 
@@ -390,8 +388,6 @@ describe("daemonBootstrap", () => {
     try {
       await daemonBootstrap("http://d", {
         schemaVersion: 1,
-        claimNonce: "n",
-        daemonToken: "t",
         runtime: "node",
       });
     } catch (e) {
@@ -407,8 +403,6 @@ describe("daemonBootstrap", () => {
     await expect(
       daemonBootstrap("http://d", {
         schemaVersion: 1,
-        claimNonce: "n",
-        daemonToken: "t",
         runtime: "node",
       }),
     ).rejects.toBeInstanceOf(DaemonBootstrapError);

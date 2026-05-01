@@ -48,8 +48,6 @@ export interface DaemonHealth {
 
 export interface BootstrapPayload {
   schemaVersion: 1;
-  claimNonce: string;
-  daemonToken: string;
   runtime: "node" | "bun" | "deno";
   cloneUrl?: string;
   repoName?: string;
@@ -58,7 +56,6 @@ export interface BootstrapPayload {
   gitUserEmail?: string;
   packageManager?: "npm" | "pnpm" | "yarn" | "bun" | "deno";
   devPort?: number;
-  appRoot?: string;
   env?: Record<string, string>;
 }
 

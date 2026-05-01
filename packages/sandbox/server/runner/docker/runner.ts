@@ -374,8 +374,6 @@ export class DockerSandboxRunner implements SandboxRunner {
     log("bootstrapAndWaitReady start", { daemonUrl });
     try {
       const payload = buildBootstrapPayload(opts, {
-        daemonToken: token,
-        workdir,
         // Container-internal port — what the dev server inside the
         // container binds to. Maps onto the host's `devPort` via Docker's
         // `-p` publish.

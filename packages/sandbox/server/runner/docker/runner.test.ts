@@ -567,9 +567,10 @@ describe("DockerSandboxRunner.ensure() — bootstrap contract", () => {
     expect(payload.repoName).toBe("o/r");
     expect(payload.gitUserName).toBe("Octo Cat");
     expect(payload.gitUserEmail).toBe("octo@example.com");
-    expect(payload.appRoot).toBe("/app");
-    expect(payload.daemonToken).toBe(envs.get("DAEMON_TOKEN"));
     expect(payload.env).toEqual({ CALLER_VAR: "caller" });
+    // Token + appRoot stay on the container's env, not in the body.
+    expect(payload.daemonToken).toBeUndefined();
+    expect(payload.appRoot).toBeUndefined();
   });
 
   it("omits repo + packageManager from bootstrap payload when caller doesn't provide them", async () => {

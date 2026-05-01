@@ -66,6 +66,10 @@ apps/benchmark/data
 /plans
 .cursor/plans
 
+# Local design notes / verification scratchpads (kept on disk, not in PRs)
+packages/sandbox/SPEC-*.md
+packages/sandbox/VERIFY-*.md
+
 # Local demo/prototype directories
 studio-demo/
 

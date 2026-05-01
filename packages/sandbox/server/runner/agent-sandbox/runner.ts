@@ -918,18 +918,12 @@ export class AgentSandboxRunner implements SandboxRunner {
 
   /**
    * Compose the bootstrap payload the daemon consumes via
-   * `POST /_decopilot_vm/bootstrap`. Replaces the env-injection path:
-   * mesh stamps `schemaVersion` and the per-claim `claimNonce`, the
-   * daemon validates both before persisting.
+   * `POST /_decopilot_vm/bootstrap`. Tenant-config only — token/appRoot
+   * travel through the daemon's env (`SandboxClaim.spec.env` until Phase 2
+   * cuts that over). The per-claim nonce stays mesh-side: it lives on the
+   * K8s claim annotation + state-store row, not in the bootstrap body.
    */
-  private buildBootstrapPayload(
-    opts: EnsureOptions,
-    boot: {
-      token: string;
-      claimNonce: string;
-      workdir: string;
-    },
-  ): BootstrapPayload {
+  private buildBootstrapPayload(opts: EnsureOptions): BootstrapPayload {
     const repo = opts.repo;
     const repoLabel = repo
       ? (repo.displayName ?? deriveRepoLabel(repo.cloneUrl))
@@ -937,8 +931,6 @@ export class AgentSandboxRunner implements SandboxRunner {
     const callerEnv = this.filterCallerEnv(opts);
     return {
       schemaVersion: 1,
-      claimNonce: boot.claimNonce,
-      daemonToken: boot.token,
       runtime: opts.workload?.runtime ?? "node",
       ...(repo
         ? {
@@ -953,7 +945,6 @@ export class AgentSandboxRunner implements SandboxRunner {
         ? { packageManager: opts.workload.packageManager }
         : {}),
       devPort: opts.workload?.devPort ?? DEFAULT_DEV_PORT,
-      appRoot: boot.workdir,
       ...(callerEnv ? { env: callerEnv } : {}),
     };
   }
@@ -1091,11 +1082,7 @@ export class AgentSandboxRunner implements SandboxRunner {
       // Wait for the daemon's HTTP server, not its phase. Phase=ready can
       // only be reached after we POST the bootstrap payload.
       await waitForDaemonHttp(daemonUrl);
-      const payload = this.buildBootstrapPayload(opts, {
-        token,
-        claimNonce,
-        workdir,
-      });
+      const payload = this.buildBootstrapPayload(opts);
       const resp = await daemonBootstrap(daemonUrl, payload);
       bootstrapped = { bootId: resp.bootId, hash: resp.hash };
       await waitForDaemonReady(daemonUrl);
@@ -1295,11 +1282,7 @@ export class AgentSandboxRunner implements SandboxRunner {
           ) {
             return null;
           }
-          return this.buildBootstrapPayload(state.ensureOpts, {
-            token: state.token,
-            claimNonce: state.claimNonce,
-            workdir: state.workdir,
-          });
+          return this.buildBootstrapPayload(state.ensureOpts);
         },
       );
       if (out.bootstrapHash) bootstrapHash = out.bootstrapHash;

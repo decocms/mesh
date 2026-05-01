@@ -9,8 +9,8 @@
  * Coverage:
  *  - `buildClaim`: empty `spec.env`, `decocms.io/claim-nonce` annotation
  *      populated, no `warmpool` field.
- *  - `buildBootstrapPayload`: schemaVersion=1, claimNonce matches the
- *      one stamped on the claim, every input field surfaces.
+ *  - `buildBootstrapPayload`: schemaVersion=1, every tenant-config input
+ *      field surfaces (token + nonce stay mesh-side, not in the body).
  *  - tx1 + tx2 interleaved persistence (single-statement upserts).
  *  - Partial-commit recovery: state-store row with tx1 fields but no
  *      `bootstrappedAt` triggers re-bootstrap on the next ensure().
@@ -23,7 +23,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { AgentSandboxRunner, composeClaimName } from "./runner";
+import { AgentSandboxRunner } from "./runner";
+import { computeHandle as composeClaimName } from "../shared";
 import { K8S_CONSTANTS } from "./constants";
 import type { KubeConfig } from "@kubernetes/client-node";
 import type {
@@ -56,8 +57,6 @@ interface SandboxResourceShape {
 
 interface BootstrapPayload {
   schemaVersion: 1;
-  claimNonce: string;
-  daemonToken: string;
   runtime: string;
   cloneUrl?: string;
   repoName?: string;
@@ -66,7 +65,6 @@ interface BootstrapPayload {
   gitUserEmail?: string;
   packageManager?: string;
   devPort?: number;
-  appRoot?: string;
   env?: Record<string, string>;
 }
 
@@ -406,7 +404,7 @@ describe("buildClaim — Phase 2 shape", () => {
 });
 
 describe("buildBootstrapPayload — round-trip", () => {
-  it("schemaVersion=1, claimNonce echoed, every field surfaces", async () => {
+  it("schemaVersion=1, tenant-config fields surface, no token/nonce in body", async () => {
     const store = makeStore();
     const runner = patchForwarder(
       new AgentSandboxRunner({
@@ -429,7 +427,6 @@ describe("buildBootstrapPayload — round-trip", () => {
     expect(fakeState.bootstrapCalls).toHaveLength(1);
     const payload = fakeState.bootstrapCalls[0]!;
     expect(payload.schemaVersion).toBe(1);
-    expect(payload.daemonToken).toBe("tok-fixed");
     expect(payload.runtime).toBe("bun");
     expect(payload.packageManager).toBe("bun");
     expect(payload.devPort).toBe(5173);
@@ -438,14 +435,26 @@ describe("buildBootstrapPayload — round-trip", () => {
     expect(payload.branch).toBe("feature/x");
     expect(payload.gitUserName).toBe("Alice");
     expect(payload.gitUserEmail).toBe("alice@example.com");
-    expect(payload.appRoot).toBe("/app");
     expect(payload.env).toEqual({ FOO: "bar" });
+    // Token + nonce must never leak into the bootstrap body — the daemon
+    // reads its token from env, and the nonce lives on the K8s claim
+    // annotation + state-store row.
+    expect(
+      (payload as unknown as Record<string, unknown>).daemonToken,
+    ).toBeUndefined();
+    expect(
+      (payload as unknown as Record<string, unknown>).claimNonce,
+    ).toBeUndefined();
+    expect(
+      (payload as unknown as Record<string, unknown>).appRoot,
+    ).toBeUndefined();
+    // The nonce still lives on the claim metadata.
     const lastClaim = fakeState.lastClaim!;
-    expect(payload.claimNonce).toBe(
+    expect(
       lastClaim.spec.additionalPodMetadata!.annotations![
         "decocms.io/claim-nonce"
       ],
-    );
+    ).toMatch(/^[0-9a-f]{64}$/);
   });
 });
 
@@ -515,9 +524,13 @@ describe("provision — persistence", () => {
     }) as unknown as typeof globalThis.fetch;
     await runner.ensure(ID);
     expect(fakeState.bootstrapCalls).toHaveLength(1);
-    expect(fakeState.bootstrapCalls[0]!.claimNonce).toBe(stagedNonce);
-    expect(fakeState.bootstrapCalls[0]!.daemonToken).toBe("tok-stable");
+    // No claim was recreated — the row's nonce/token are reused mesh-side
+    // (state-store row kept its `claimNonce`/`token`; both are absent from
+    // the bootstrap body itself).
     expect(fakeState.callCounts.create).toBe(0);
+    const persisted = await store.getByHandle("agent-sandbox", handle);
+    expect(persisted?.state.claimNonce).toBe(stagedNonce);
+    expect(persisted?.state.token).toBe("tok-stable");
   });
 });
 
@@ -597,9 +610,11 @@ describe("rehydrate — phase decision matrix", () => {
     );
     await runner.ensure(ID);
     expect(fakeState.bootstrapCalls).toHaveLength(1);
-    expect(fakeState.bootstrapCalls[0]!.claimNonce).toBe(nonce);
-    expect(fakeState.bootstrapCalls[0]!.daemonToken).toBe("tok-rehydrate");
     expect(fakeState.bootstrapCalls[0]!.cloneUrl).toBe("https://x.test/r.git");
+    // Token + nonce reused from the persisted row, not stamped into the body.
+    const persisted = await store.getByHandle("agent-sandbox", handle);
+    expect(persisted?.state.claimNonce).toBe(nonce);
+    expect(persisted?.state.token).toBe("tok-rehydrate");
   });
 
   it("phase=bootstrapping: waits for ready, no bootstrap call", async () => {

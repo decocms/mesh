@@ -168,11 +168,7 @@ export class HostSandboxRunner implements SandboxRunner {
 
     const proc = await this.spawnFn({ workdir, env, daemonPort });
     try {
-      const payload = buildBootstrapPayload(opts, {
-        daemonToken: token,
-        workdir,
-        devPort,
-      });
+      const payload = buildBootstrapPayload(opts, { devPort });
       await bootstrapAndWaitReady(daemonUrl, payload, {
         bootstrapFn: this.bootstrapFn,
         probe: this.probeFn,
