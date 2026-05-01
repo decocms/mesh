@@ -1,7 +1,12 @@
 import { IFRAME_BOOTSTRAP_SCRIPT } from "../shared";
 
 export const MAX_SSE_CLIENTS = 10;
-export const REPLAY_BYTES = 4096;
+// Per-source ring buffer cap. Real install logs (clone + npm/bun install on a
+// nontrivial repo) are easily 50–200 KB; with the prior 4 KB cap, late SSE
+// joiners only saw the last few package-manager lines. 256 KB covers a
+// typical setup pass while keeping worst-case memory bounded (~1 MB across
+// the 3–4 sources in flight at once).
+export const REPLAY_BYTES = 256 * 1024;
 export const DECO_UID = 1000;
 export const DECO_GID = 1000;
 export const FAST_PROBE_MS = 3000;

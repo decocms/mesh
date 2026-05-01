@@ -20,13 +20,32 @@ import { meter } from "@/observability";
 import type { Database as DatabaseSchema } from "@/storage/types";
 import { KyselySandboxRunnerStateStore } from "@/storage/sandbox-runner-state";
 
-const runners: Partial<Record<RunnerKind, SandboxRunner>> = {};
+// Stashed on globalThis so they survive Bun's `--hot` reload. The local
+// sandbox ingress is a long-lived `net.Server` registered at the top of
+// `apps/mesh/src/index.ts`; it isn't torn down when the entry point
+// re-evaluates, and its closure captures `getSharedRunnerIfInit` from
+// whichever instance of this module was active at boot. Without the
+// global anchor, post-reload requests to `<handle>.localhost:7070` would
+// look up runners in a stale module's empty map → 503 "Sandbox Runner
+// Not Initialized". Symbol.for keeps the same key across module instances.
+const RUNNERS_KEY = Symbol.for("decocms.sandbox.lifecycle.runners");
+const INFLIGHT_KEY = Symbol.for("decocms.sandbox.lifecycle.inflight");
+type LifecycleGlobal = {
+  [RUNNERS_KEY]?: Partial<Record<RunnerKind, SandboxRunner>>;
+  [INFLIGHT_KEY]?: Partial<Record<RunnerKind, Promise<SandboxRunner>>>;
+};
+const lifecycleGlobal = globalThis as unknown as LifecycleGlobal;
+
+const runners: Partial<Record<RunnerKind, SandboxRunner>> = (lifecycleGlobal[
+  RUNNERS_KEY
+] ??= {});
 // In-flight instantiate() promises, memoized per kind. Two concurrent
 // callers on a cold mesh would otherwise both miss the resolved-runner
 // cache and both call instantiate(); memoizing the promise (and only
 // promoting to `runners` once it resolves) collapses them to a single
 // build. Cleared on failure so a retry can take a fresh swing.
-const inflight: Partial<Record<RunnerKind, Promise<SandboxRunner>>> = {};
+const inflight: Partial<Record<RunnerKind, Promise<SandboxRunner>>> =
+  (lifecycleGlobal[INFLIGHT_KEY] ??= {});
 
 function resolveOnce(
   kind: RunnerKind,
@@ -208,50 +227,24 @@ export function asDockerRunner(
   return runner instanceof DockerSandboxRunner ? runner : null;
 }
 
-/**
- * Optional capability: agent-sandbox runner exposes a phase stream for the
- * pre-Ready window. Other runners don't (Docker/Freestyle have no equivalent
- * black hole — Docker is local-fast, Freestyle's setup is end-to-end).
- *
- * Duck-check rather than `instanceof AgentSandboxRunner` so we don't have to
- * statically import the K8s-laden module just for type narrowing.
- */
-export interface SupportsLifecycleWatch {
-  readonly kind: RunnerKind;
-  watchClaimLifecycle(
-    handle: string,
-    signal?: AbortSignal,
-  ): AsyncGenerator<unknown, void, unknown>;
-}
-
-export function asLifecycleWatchable(
-  runner: SandboxRunner | null,
-): SupportsLifecycleWatch | null {
-  if (!runner) return null;
-  if (runner.kind !== "agent-sandbox") return null;
-  if (
-    typeof (runner as Partial<SupportsLifecycleWatch>).watchClaimLifecycle !==
-    "function"
-  ) {
-    return null;
-  }
-  return runner as unknown as SupportsLifecycleWatch;
-}
-
 // ---------------------------------------------------------------------------
 // Shared lifecycle subscriptions (multi-tab dedup)
 //
 // Each browser tab opening `/api/vm-events` for the same `(orgId, virtualMcpId,
 // branch, callerUserId)` produces the same `claimName` — so without dedup,
-// every tab would open its own set of K8s watches (Pod / Sandbox CR / Events
-// = 3 long-lived API streams per tab). Real users keep 2–3 tabs of the same
-// project open while iterating.
+// every tab opening on agent-sandbox would open its own set of K8s watches
+// (Pod / Sandbox CR / Events = 3 long-lived API streams per tab). Real users
+// keep 2–3 tabs of the same project open while iterating.
 //
 // `subscribeLifecycle` collapses those onto a single source generator per
 // claim, ref-counted by listener. Last unsubscribe aborts the source and
 // removes the cache entry. New subscribers get the most recent phase replayed
 // synchronously so they don't appear stuck on `claiming` while waiting for
 // the next watch event.
+//
+// For host/docker/freestyle the source generator yields a single `ready` and
+// returns; the dedup machinery still works (each subscriber gets the phase
+// replayed) at near-zero cost.
 // ---------------------------------------------------------------------------
 
 interface SharedLifecycleEntry {
@@ -265,7 +258,20 @@ interface SharedLifecycleEntry {
   abort: AbortController;
 }
 
-const sharedLifecycles = new Map<string, SharedLifecycleEntry>();
+// Same `--hot` reload concern as `runners`/`inflight` above: an in-flight
+// lifecycle subscription must not be orphaned when the module re-evaluates,
+// or two SSE clients on the same claim would each open their own watch.
+const SHARED_LIFECYCLES_KEY = Symbol.for(
+  "decocms.sandbox.lifecycle.shared-lifecycles",
+);
+const sharedLifecyclesGlobal = globalThis as unknown as {
+  [SHARED_LIFECYCLES_KEY]?: Map<string, SharedLifecycleEntry>;
+};
+const sharedLifecycles: Map<string, SharedLifecycleEntry> =
+  (sharedLifecyclesGlobal[SHARED_LIFECYCLES_KEY] ??= new Map<
+    string,
+    SharedLifecycleEntry
+  >());
 
 export interface LifecycleHandle {
   unsubscribe(): void;
@@ -282,7 +288,7 @@ export interface LifecycleHandle {
  * observed (whichever comes first).
  */
 export function subscribeLifecycle(
-  watchable: SupportsLifecycleWatch,
+  runner: SandboxRunner,
   claimName: string,
   onPhase: (phase: ClaimPhase) => void,
 ): LifecycleHandle {
@@ -324,7 +330,7 @@ export function subscribeLifecycle(
   };
   sharedLifecycles.set(claimName, newEntry);
 
-  void pumpLifecycleSource(watchable, claimName, newEntry);
+  void pumpLifecycleSource(runner, claimName, newEntry);
 
   return makeUnsubscribeHandle(claimName, newEntry, onPhase);
 }
@@ -356,18 +362,17 @@ function makeUnsubscribeHandle(
 }
 
 async function pumpLifecycleSource(
-  watchable: SupportsLifecycleWatch,
+  runner: SandboxRunner,
   claimName: string,
   entry: SharedLifecycleEntry,
 ): Promise<void> {
   let sourceError: unknown = null;
   try {
-    for await (const phaseUntyped of watchable.watchClaimLifecycle(
+    for await (const phase of runner.watchClaimLifecycle(
       claimName,
       entry.abort.signal,
     )) {
       if (entry.abort.signal.aborted) break;
-      const phase = phaseUntyped as ClaimPhase;
       entry.lastPhase = phase;
       const isTerminal = phase.kind === "ready" || phase.kind === "failed";
       if (isTerminal) entry.terminated = true;

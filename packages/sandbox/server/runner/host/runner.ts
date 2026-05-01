@@ -33,10 +33,11 @@ import type {
   SandboxId,
   SandboxRunner,
 } from "../types";
+import type { ClaimPhase } from "../lifecycle-types";
 
 const RUNNER_KIND = "host" as const;
-const HEALTH_PROBE_TIMEOUT_MS = 30_000;
-const HEALTH_PROBE_INTERVAL_MS = 250;
+const READY_TIMEOUT_MS = 30_000;
+const READY_INTERVAL_MS = 250;
 const STOP_GRACE_MS = 2_000;
 
 type DaemonProcess = {
@@ -161,11 +162,11 @@ export class HostSandboxRunner implements SandboxRunner {
 
     const proc = await this.spawnFn({ workdir, env, daemonPort });
     try {
-      await this.waitForHealthy(daemonUrl);
+      await this.waitForDaemon(daemonUrl);
     } catch (err) {
-      // Daemon never reported healthy — kill it so we don't leak the child
-      // process or pin daemonPort/devPort. The deterministic workdir is left
-      // in place; a retry will reuse it.
+      // Daemon never came up — kill it so we don't leak the child process
+      // or pin daemonPort/devPort. The deterministic workdir is left in
+      // place; a retry will reuse it.
       try {
         proc.kill("SIGKILL");
       } catch {
@@ -200,12 +201,26 @@ export class HostSandboxRunner implements SandboxRunner {
     return this.toSandbox(rec);
   }
 
-  private async waitForHealthy(daemonUrl: string): Promise<void> {
-    const deadline = Date.now() + HEALTH_PROBE_TIMEOUT_MS;
+  /**
+   * Match docker's `waitForDaemonReady` semantics: return as soon as `/health`
+   * responds with a valid shape, even if `health.ready === false`. The prior
+   * code waited for `ready === true`, which only flips after the daemon's
+   * upstream probe finds the user's dev server listening — i.e. clone +
+   * install + autoStartDev all complete. That gating blocked VM_START until
+   * the dev server was up, kept the SSE proxy from connecting in the
+   * meantime, and made the frontend look frozen for the entire setup window
+   * before flushing a flood of replayed logs. Dev-server-ready is still
+   * observable via the daemon's `status` SSE events.
+   *
+   * Inlined (vs. calling `waitForDaemonReady` directly) so `_probe` test
+   * seam still drives the loop.
+   */
+  private async waitForDaemon(daemonUrl: string): Promise<void> {
+    const deadline = Date.now() + READY_TIMEOUT_MS;
     while (Date.now() < deadline) {
       const health = await this.probeFn(daemonUrl);
-      if (health?.ready) return;
-      await new Promise((r) => setTimeout(r, HEALTH_PROBE_INTERVAL_MS));
+      if (health) return;
+      await new Promise((r) => setTimeout(r, READY_INTERVAL_MS));
     }
     throw new Error(`daemon at ${daemonUrl} never reported healthy`);
   }
@@ -254,9 +269,26 @@ export class HostSandboxRunner implements SandboxRunner {
   }
 
   async alive(handle: string): Promise<boolean> {
-    const rec = this.records.get(handle);
+    // Use getRecord (which rehydrates from the state-store on cold mesh
+    // boot) so the answer is honest regardless of in-memory cache state.
+    // Without this, a fresh mesh process with a still-running daemon would
+    // report alive=false and the SSE's stale-handle probe would emit a
+    // spurious `gone` event before VM_START got a chance to rehydrate.
+    const rec = await this.getRecord(handle);
     if (!rec) return false;
     return this.isAliveFn(rec.pid);
+  }
+
+  // No pre-Ready window worth surfacing: VM_START's `runner.ensure` blocks
+  // until the daemon's HTTP server is up (typically <1s on host). Yield a
+  // single `ready` and let the caller proceed straight to the daemon SSE.
+  // Generator returns immediately even if `signal` aborts later — there's
+  // nothing to clean up on the host side.
+  async *watchClaimLifecycle(
+    _handle: string,
+    _signal?: AbortSignal,
+  ): AsyncGenerator<ClaimPhase, void, unknown> {
+    yield { kind: "ready" };
   }
 
   async getPreviewUrl(handle: string): Promise<string | null> {
@@ -385,7 +417,7 @@ function isPidAlive(pid: number): boolean {
  * Pre-allocate a host-side TCP port. The daemon binds to it on startup.
  * Race window is non-zero — the kernel may hand the port to another process
  * between close() and the daemon's bind() — in which case the daemon fails
- * to come up, `waitForHealthy` times out, and `ensure()` rejects. There is
+ * to come up, `waitForDaemon` times out, and `ensure()` rejects. There is
  * no automatic retry; the caller (e.g. VM_START) surfaces the error. In
  * practice this never fires on a developer machine.
  */

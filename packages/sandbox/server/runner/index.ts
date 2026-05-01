@@ -20,6 +20,7 @@ export type {
   SandboxRunner,
   Workload,
 } from "./types";
+export type { ClaimFailureReason, ClaimPhase } from "./lifecycle-types";
 export { sandboxIdKey } from "./types";
 export { DockerSandboxRunner } from "./docker";
 export type { DockerExec, DockerRunnerOptions, ExecResult } from "./docker";

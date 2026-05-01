@@ -1,13 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { DockerSandboxRunner } from "@decocms/sandbox/runner";
-import type { ClaimPhase } from "@decocms/sandbox/runner/agent-sandbox";
+import {
+  DockerSandboxRunner,
+  type ClaimPhase,
+  type SandboxRunner,
+} from "@decocms/sandbox/runner";
 import type { MeshContext } from "@/core/mesh-context";
 import {
   __resetSharedLifecyclesForTesting,
   asDockerRunner,
   getRunnerByKind,
   subscribeLifecycle,
-  type SupportsLifecycleWatch,
 } from "./lifecycle";
 
 // Minimal MeshContext stub — lifecycle only reads ctx.db, and only to hand
@@ -72,7 +74,7 @@ describe("getRunnerByKind caching", () => {
 // ---------------------------------------------------------------------------
 
 interface FakeWatchableHandle {
-  watchable: SupportsLifecycleWatch;
+  runner: SandboxRunner;
   /** How many times the source generator has been started. */
   starts: () => number;
   /** Push a phase to the active source generator. */
@@ -82,8 +84,9 @@ interface FakeWatchableHandle {
 }
 
 /**
- * Synthesize a `SupportsLifecycleWatch` whose `watchClaimLifecycle` is an
- * async generator we can drive frame-by-frame from the test. Tracks how many
+ * Synthesize a `SandboxRunner` whose `watchClaimLifecycle` is an async
+ * generator we can drive frame-by-frame from the test. The other interface
+ * methods are no-ops; only the watcher is exercised here. Tracks how many
  * times the generator has been instantiated (so we can prove dedup).
  */
 function makeFakeWatchable(): FakeWatchableHandle {
@@ -115,11 +118,24 @@ function makeFakeWatchable(): FakeWatchableHandle {
     }
   }
 
+  const runner: SandboxRunner = {
+    kind: "agent-sandbox",
+    ensure: async () => ({ handle: "h", workdir: "/app", previewUrl: null }),
+    exec: async () => ({
+      stdout: "",
+      stderr: "",
+      exitCode: 0,
+      timedOut: false,
+    }),
+    delete: async () => {},
+    alive: async () => true,
+    getPreviewUrl: async () => null,
+    proxyDaemonRequest: async () => new Response(null, { status: 204 }),
+    watchClaimLifecycle: gen,
+  };
+
   return {
-    watchable: {
-      kind: "agent-sandbox",
-      watchClaimLifecycle: gen,
-    } as unknown as SupportsLifecycleWatch,
+    runner,
     starts: () => starts,
     emit: async (phase: ClaimPhase) => {
       pushNext?.(phase);
@@ -141,12 +157,8 @@ describe("subscribeLifecycle", () => {
     const seenA: ClaimPhase[] = [];
     const seenB: ClaimPhase[] = [];
 
-    const a = subscribeLifecycle(fake.watchable, "claim-x", (p) =>
-      seenA.push(p),
-    );
-    const b = subscribeLifecycle(fake.watchable, "claim-x", (p) =>
-      seenB.push(p),
-    );
+    const a = subscribeLifecycle(fake.runner, "claim-x", (p) => seenA.push(p));
+    const b = subscribeLifecycle(fake.runner, "claim-x", (p) => seenB.push(p));
 
     expect(fake.starts()).toBe(1); // dedup: one source for two listeners
 
@@ -163,16 +175,12 @@ describe("subscribeLifecycle", () => {
   it("replays the most recent phase to a late joiner", async () => {
     const fake = makeFakeWatchable();
     const seenA: ClaimPhase[] = [];
-    const a = subscribeLifecycle(fake.watchable, "claim-y", (p) =>
-      seenA.push(p),
-    );
+    const a = subscribeLifecycle(fake.runner, "claim-y", (p) => seenA.push(p));
     await fake.emit({ kind: "claiming", since: 1 });
     await fake.emit({ kind: "pulling-image", since: 1 });
 
     const seenB: ClaimPhase[] = [];
-    const b = subscribeLifecycle(fake.watchable, "claim-y", (p) =>
-      seenB.push(p),
-    );
+    const b = subscribeLifecycle(fake.runner, "claim-y", (p) => seenB.push(p));
 
     // Late joiner immediately gets the cached `pulling-image`.
     expect(seenB.map((p) => p.kind)).toEqual(["pulling-image"]);
@@ -184,7 +192,7 @@ describe("subscribeLifecycle", () => {
 
   it("aborts the source when the last listener unsubscribes", async () => {
     const fake = makeFakeWatchable();
-    const a = subscribeLifecycle(fake.watchable, "claim-z", () => {});
+    const a = subscribeLifecycle(fake.runner, "claim-z", () => {});
     await fake.emit({ kind: "claiming", since: 1 });
     expect(fake.endedSignal().aborted).toBe(false);
 
@@ -197,7 +205,7 @@ describe("subscribeLifecycle", () => {
 
   it("rebuilds the source after a terminal phase clears the entry", async () => {
     const fake = makeFakeWatchable();
-    const a = subscribeLifecycle(fake.watchable, "claim-t", () => {});
+    const a = subscribeLifecycle(fake.runner, "claim-t", () => {});
     await fake.emit({ kind: "ready" });
     expect(fake.starts()).toBe(1);
 
@@ -206,7 +214,7 @@ describe("subscribeLifecycle", () => {
     // Drain microtasks to let the generator's finally run.
     await Promise.resolve();
     await Promise.resolve();
-    const b = subscribeLifecycle(fake.watchable, "claim-t", () => {});
+    const b = subscribeLifecycle(fake.runner, "claim-t", () => {});
     expect(fake.starts()).toBe(2);
 
     a.unsubscribe();
