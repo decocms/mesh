@@ -100,6 +100,38 @@ describe("derivePhase", () => {
     expect(phase.kind).toBe("starting-container");
   });
 
+  it("emits starting-container on ContainerCreating even without a Pulled event (cached image)", () => {
+    // Real karpenter case: image is already on the node so kubelet skips
+    // straight from ContainerCreating to running, and the `Pulled` event
+    // either lags the container-status update or arrives as "image already
+    // present on machine" without a prior `Pulling`. Either way the user
+    // wants to see `starting-container`, not stay pinned at the prior phase.
+    const state = baseState();
+    state.pod.scheduled = true;
+    state.pod.containerWaitingReason = "ContainerCreating";
+    const phase = derivePhase(state, TIMEOUT_MS, fixedNow());
+    expect(phase.kind).toBe("starting-container");
+  });
+
+  it("emits starting-container on PodInitializing", () => {
+    const state = baseState();
+    state.pod.scheduled = true;
+    state.pod.containerWaitingReason = "PodInitializing";
+    const phase = derivePhase(state, TIMEOUT_MS, fixedNow());
+    expect(phase.kind).toBe("starting-container");
+  });
+
+  it("emits starting-container after schedule even before kubelet reports a containerStatus", () => {
+    // Brief window between PodScheduled=True and the first containerStatus
+    // tick. Without this branch we'd fall through to `claiming` and the
+    // generator's monotonic floor would pin us at the prior
+    // `waiting-for-capacity` for the entire ContainerCreating window.
+    const state = baseState();
+    state.pod.scheduled = true;
+    const phase = derivePhase(state, TIMEOUT_MS, fixedNow());
+    expect(phase.kind).toBe("starting-container");
+  });
+
   it("emits warming-daemon when container is running but not yet ready", () => {
     const state = baseState();
     state.pod.scheduled = true;

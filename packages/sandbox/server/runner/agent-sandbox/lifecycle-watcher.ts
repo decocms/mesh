@@ -360,14 +360,30 @@ export function derivePhase(
     return { kind: "warming-daemon", since: startedAt };
   }
 
-  // 5. starting-container: image pulled, container being created.
-  if (containerWaitingReason === "ContainerCreating" && events.hasPulled) {
-    return { kind: "starting-container", since: startedAt };
-  }
-
-  // 6. pulling-image: a Pulling event has fired but Pulled hasn't yet.
+  // 5. pulling-image: a Pulling event has fired but Pulled hasn't yet.
+  // Checked before `starting-container` because it's the more specific signal
+  // during the ContainerCreating window — if we know an image pull is in
+  // flight, the user wants to see that, not the generic "starting" phase.
   if (events.hasPulling && !events.hasPulled) {
     return { kind: "pulling-image", since: startedAt };
+  }
+
+  // 6. starting-container: pod has been scheduled and we're past pulling but
+  // the container isn't running yet. Covers three real-cluster sub-states the
+  // user-facing UI shouldn't need to distinguish:
+  //   - `ContainerCreating` waiting reason (with or without a `Pulled` event;
+  //     the event can lag the container-status update, or be absent entirely
+  //     when the image is already cached on a fresh node).
+  //   - `PodInitializing` waiting reason (init containers / volume mounts).
+  //   - Pod scheduled but kubelet hasn't reported any containerStatus yet —
+  //     a brief gap that would otherwise fall through to `claiming` and get
+  //     pinned by the monotonic floor at the prior `waiting-for-capacity`.
+  if (
+    containerWaitingReason === "ContainerCreating" ||
+    containerWaitingReason === "PodInitializing" ||
+    (pod.scheduled && !pod.containerRunning)
+  ) {
+    return { kind: "starting-container", since: startedAt };
   }
 
   // 7. waiting-for-capacity: PodScheduled=False with reason Unschedulable,
