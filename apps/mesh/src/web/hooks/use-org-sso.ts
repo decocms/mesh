@@ -18,7 +18,9 @@ export function useOrgSsoStatus(orgId: string | undefined) {
   return useQuery({
     queryKey: KEYS.orgSsoStatus(orgId ?? ""),
     queryFn: async (): Promise<SsoStatusResponse> => {
-      const response = await fetch("/api/org-sso/status");
+      const response = await fetch("/api/org-sso/status", {
+        headers: { "x-org-id": orgId! },
+      });
       if (!response.ok) throw new Error("Failed to check SSO status");
       return response.json();
     },
@@ -30,7 +32,9 @@ export function useOrgSsoConfig(orgId: string | undefined) {
   return useQuery({
     queryKey: KEYS.orgSsoConfig(orgId ?? ""),
     queryFn: async (): Promise<SsoConfigResponse> => {
-      const response = await fetch("/api/org-sso/config");
+      const response = await fetch("/api/org-sso/config", {
+        headers: { "x-org-id": orgId! },
+      });
       if (!response.ok) throw new Error("Failed to fetch SSO config");
       return response.json();
     },
@@ -53,7 +57,7 @@ export function useSaveOrgSsoConfig(orgId: string) {
     }) => {
       const response = await fetch("/api/org-sso/config", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-org-id": orgId },
         body: JSON.stringify(data),
       });
       if (!response.ok) {
@@ -76,6 +80,7 @@ export function useDeleteOrgSsoConfig(orgId: string) {
     mutationFn: async () => {
       const response = await fetch("/api/org-sso/config", {
         method: "DELETE",
+        headers: { "x-org-id": orgId },
       });
       if (!response.ok) throw new Error("Failed to delete SSO config");
       return response.json();
@@ -94,7 +99,7 @@ export function useToggleSsoEnforcement(orgId: string) {
     mutationFn: async (enforced: boolean) => {
       const response = await fetch("/api/org-sso/config/enforce", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-org-id": orgId },
         body: JSON.stringify({ enforced }),
       });
       if (!response.ok) throw new Error("Failed to toggle SSO enforcement");
