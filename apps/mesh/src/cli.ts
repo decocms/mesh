@@ -219,9 +219,6 @@ if (command === "dev") {
       startVibe(decoHome);
     }
 
-    const { kickoffSandboxImageBuild } = await import("./cli/sandbox-image");
-    void kickoffSandboxImageBuild({ noTui: true });
-
     const { startDevServer } = await import("./cli/commands/dev");
     const result = await startDevServer(devOptions);
     const code = await result.process.exited;
@@ -245,9 +242,6 @@ if (command === "dev") {
       setVibe(true);
       startVibe(decoHome);
     }
-
-    const { kickoffSandboxImageBuild } = await import("./cli/sandbox-image");
-    void kickoffSandboxImageBuild({ noTui: false });
 
     const result = await startDevServer(devOptions);
     const code = await result.process.exited;
@@ -295,9 +289,6 @@ if (noTui) {
     startVibe(decoHome);
   }
 
-  const { kickoffSandboxImageBuild } = await import("./cli/sandbox-image");
-  void kickoffSandboxImageBuild({ noTui: true });
-
   const { startServer } = await import("./cli/commands/serve");
   await startServer({ ...serveOptions, noTui: true });
 } else {
@@ -326,9 +317,6 @@ if (noTui) {
     setVibe(true);
     startVibe(decoHome);
   }
-
-  const { kickoffSandboxImageBuild } = await import("./cli/sandbox-image");
-  void kickoffSandboxImageBuild({ noTui: false });
 
   await startServer(serveOptions);
 }

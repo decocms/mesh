@@ -9,6 +9,7 @@
  */
 
 import { getSettings } from "../settings";
+import { usesLocalObjectStorage } from "../tools/connection/dev-assets";
 import { DECO_STORE_URL, isDecoHostedMcp } from "@/core/deco-constants";
 import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 import { PrometheusSerializer } from "@opentelemetry/exporter-prometheus";
@@ -450,12 +451,11 @@ export async function createApp(options: CreateAppOptions = {}) {
   // Middleware
   // ============================================================================
 
-  // Server-Timing middleware
+  // Server-Timing middleware — opt in per-request via `cookie debug=1`
   app.use(
     "*",
     timing({
-      enabled: (c) =>
-        getSettings().nodeEnv !== "production" || getCookie(c, "debug") === "1",
+      enabled: (c) => getCookie(c, "debug") === "1",
     }),
   );
 
@@ -1324,8 +1324,10 @@ export async function createApp(options: CreateAppOptions = {}) {
   app.use("/mcp/virtual-mcp/:virtualMcpId?", mcpAuth);
   app.use("/mcp/self", mcpAuth);
 
-  // Dev-only routes (local file storage MCP for testing object-storage plugin)
-  if (getSettings().nodeEnv !== "production") {
+  // Local file storage MCP routes — mounted whenever DevObjectStorage is the
+  // active object-storage backend (i.e. no S3 configured). Required so the
+  // dev-assets pseudo-connection can satisfy the OBJECT_STORAGE binding.
+  if (usesLocalObjectStorage()) {
     // Using require() for synchronous loading to ensure routes are registered
     // before any requests come in. Static imports in dev-only.ts allow knip tracking.
     // eslint-disable-next-line @typescript-eslint/no-require-imports

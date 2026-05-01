@@ -37,7 +37,6 @@ export function buildChildEnv(
     ENCRYPTION_KEY: settings.encryptionKey,
     MESH_JWT_SECRET: settings.meshJwtSecret,
     DECOCMS_LOCAL_MODE: String(settings.localMode),
-    DECOCMS_ALLOW_LOCAL_PROD: String(settings.allowLocalProd),
     DISABLE_RATE_LIMIT: String(settings.disableRateLimit),
     STUDIO_PROVISION_SECRET_KEY: settings.studioProvisionSecretKey,
 

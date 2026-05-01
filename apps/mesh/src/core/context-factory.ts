@@ -1068,15 +1068,15 @@ export async function createMeshContextFactory(
       config.modelListCache,
     );
 
-    // Create org-scoped object storage if S3 is configured and org is available.
-    // In development without S3, fall back to DevObjectStorage (local filesystem).
+    // Create org-scoped object storage. Use S3 when configured, otherwise fall
+    // back to DevObjectStorage (local filesystem) so the OBJECT_STORAGE binding
+    // still resolves on self-host setups without S3.
     const s3Service = getObjectStorageS3Service();
-    const objectStorage =
-      s3Service && organization
+    const objectStorage = !organization
+      ? null
+      : s3Service
         ? createBoundObjectStorage(s3Service, organization.id)
-        : getSettings().nodeEnv === "development" && organization
-          ? new DevObjectStorage(organization.id, baseUrl)
-          : null;
+        : new DevObjectStorage(organization.id, baseUrl);
 
     const ctx: MeshContext = {
       timings,

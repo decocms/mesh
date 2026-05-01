@@ -78,9 +78,9 @@ for this, you can remove them — they're no longer needed.
 - `FREESTYLE_API_KEY` — required for the Freestyle runner.
 - `STUDIO_SANDBOX_IMAGE` — override the Docker runner image
   (default `studio-sandbox:local`, built from `image/Dockerfile`).
-- `SANDBOX_INGRESS_PORT` (default `7070`) — local Docker ingress bind port.
+- `SANDBOX_INGRESS_PORT` (default `7070`) — local ingress bind port for the
+  host/docker runners. Set to `0` to skip binding entirely (use this if a
+  real reverse proxy fronts `*.localhost` traffic instead).
 - `SANDBOX_ROOT_URL` — production template for the pod URL. Either a bare
   base (`https://sandboxes.example.com` → handle becomes leading subdomain)
   or a `{handle}` template (`https://{handle}.sandboxes.example.com`).
-- `MESH_LOCAL_SANDBOX_INGRESS=1` — force the local forwarder on even when
-  `NODE_ENV=production` (single-tenant self-hosted setups).

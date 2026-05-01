@@ -51,13 +51,12 @@ export async function createOutboundClient(
 
   switch (connection.connection_type) {
     case "STDIO": {
-      // Block STDIO connections in production unless explicitly allowed
-      if (
-        getSettings().nodeEnv === "production" &&
-        !getSettings().unsafeAllowStdioTransport
-      ) {
+      // Block STDIO connections unless explicitly allowed — STDIO transports
+      // run arbitrary local commands and can't be safely exposed to multi-tenant
+      // mesh deployments. Single-tenant self-host opts in via the env var.
+      if (!getSettings().unsafeAllowStdioTransport) {
         throw new Error(
-          "STDIO connections are disabled in production. Set UNSAFE_ALLOW_STDIO_TRANSPORT=true to enable.",
+          "STDIO connections are disabled. Set UNSAFE_ALLOW_STDIO_TRANSPORT=true to enable.",
         );
       }
 

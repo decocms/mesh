@@ -68,7 +68,6 @@ export function resolveConfig(
     encryptionKey: envVars.ENCRYPTION_KEY || "",
     meshJwtSecret: envVars.MESH_JWT_SECRET,
     localMode,
-    allowLocalProd: localMode || toBool(envVars.DECOCMS_ALLOW_LOCAL_PROD),
     disableRateLimit: toBool(envVars.DISABLE_RATE_LIMIT),
     studioProvisionSecretKey: envVars.STUDIO_PROVISION_SECRET_KEY,
 
