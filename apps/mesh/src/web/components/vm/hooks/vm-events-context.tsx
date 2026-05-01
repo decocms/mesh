@@ -29,6 +29,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useProjectContext } from "@decocms/mesh-sdk";
 
 import type {
   ClaimFailureReason,
@@ -139,6 +140,7 @@ export function VmEventsProvider({
   branch: string | null;
   children: ReactNode;
 }) {
+  const { org } = useProjectContext();
   const [phase, setPhase] = useState<ClaimPhase | null>(null);
   const [status, setStatus] = useState<VmStatus>({
     ready: false,
@@ -180,9 +182,13 @@ export function VmEventsProvider({
 
     if (!virtualMcpId || !branch) return;
 
+    // EventSource can't set custom headers, so x-org-id rides as a query
+    // param. authenticateRequest reads it as a fallback when the header is
+    // absent.
     const sseUrl =
       `/api/vm-events?virtualMcpId=${encodeURIComponent(virtualMcpId)}` +
-      `&branch=${encodeURIComponent(branch)}`;
+      `&branch=${encodeURIComponent(branch)}` +
+      `&x-org-id=${encodeURIComponent(org.id)}`;
 
     let disposed = false;
     let reconnectAttempt = 0;
@@ -353,7 +359,7 @@ export function VmEventsProvider({
       if (reconnectTimer) clearTimeout(reconnectTimer);
       clearSuspendTimer();
     };
-  }, [virtualMcpId, branch]);
+  }, [virtualMcpId, branch, org.id]);
 
   const value: VmEventsValue = {
     phase,

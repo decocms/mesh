@@ -90,6 +90,7 @@ export function useAutoInstallGitHub(opts: {
       const authStatus = await isConnectionAuthenticated({
         url: mcpProxyUrl.href,
         token: null,
+        orgId: org.id,
       });
 
       if (authStatus.supportsOAuth && !authStatus.isAuthenticated) {
@@ -118,7 +119,10 @@ export function useAutoInstallGitHub(opts: {
           try {
             const response = await fetch(`/api/connections/${id}/oauth-token`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                "x-org-id": org.id,
+              },
               credentials: "include",
               body: JSON.stringify({
                 accessToken: tokenInfo.accessToken,

@@ -1247,6 +1247,7 @@ function VirtualMcpDetailViewWithData({
     const authStatus = await isConnectionAuthenticated({
       url: mcpProxyUrl.href,
       token: null,
+      orgId: org.id,
     });
     if (authStatus.supportsOAuth && !authStatus.isAuthenticated) {
       await handleAuthenticate(connectionId);
@@ -1315,6 +1316,7 @@ function VirtualMcpDetailViewWithData({
       const authStatus = await isConnectionAuthenticated({
         url: mcpProxyUrl.href,
         token: null,
+        orgId: org.id,
       });
       if (authStatus.supportsOAuth && !authStatus.isAuthenticated) {
         const email = await handleAuthenticate(newId);
@@ -1360,7 +1362,10 @@ function VirtualMcpDetailViewWithData({
           `/api/connections/${connectionId}/oauth-token`,
           {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              "x-org-id": org.id,
+            },
             credentials: "include",
             body: JSON.stringify({
               accessToken: tokenInfo.accessToken,

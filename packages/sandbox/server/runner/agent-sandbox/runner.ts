@@ -81,7 +81,7 @@ import {
   SandboxError,
 } from "./constants";
 import { watchClaimLifecycle } from "./lifecycle-watcher";
-import type { ClaimPhase } from "./lifecycle-types";
+import type { ClaimPhase } from "../lifecycle-types";
 
 const RUNNER_KIND = "agent-sandbox" as const;
 const LOG_LABEL = "AgentSandboxRunner";

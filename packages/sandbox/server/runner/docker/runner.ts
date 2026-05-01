@@ -41,6 +41,7 @@ import type {
   SandboxRunner,
   Workload,
 } from "../types";
+import type { ClaimPhase } from "../lifecycle-types";
 
 const RUNNER_KIND = "docker" as const;
 const LABEL_ROOT = "studio-sandbox";
@@ -181,6 +182,18 @@ export class DockerSandboxRunner implements SandboxRunner {
       });
     }
     return proxyDaemonRequest(rec.daemonUrl, rec.token, path, init);
+  }
+
+  // No pre-Ready window worth surfacing: VM_START's `runner.ensure` blocks on
+  // `waitForDaemonReady`, which returns once the container's daemon `/health`
+  // is reachable — typically <1s after `docker run` returns. Yield a single
+  // `ready` so the unified vm-events route can proceed straight to the
+  // daemon SSE.
+  async *watchClaimLifecycle(
+    _handle: string,
+    _signal?: AbortSignal,
+  ): AsyncGenerator<ClaimPhase, void, unknown> {
+    yield { kind: "ready" };
   }
 
   // ---- Docker-only surface --------------------------------------------------

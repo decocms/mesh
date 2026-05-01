@@ -117,7 +117,9 @@ const ingressEligible =
 
 if (ingressEligible) {
   const { startLocalSandboxIngress } = await import("@decocms/sandbox/runner");
-  const { getSharedRunnerIfInit } = await import("./sandbox/lifecycle");
+  const { getSharedRunnerIfInit, getOrInitSharedRunner } = await import(
+    "./sandbox/lifecycle"
+  );
 
   // Boot sweep (best-effort). Shutdown cleanup can't cover crashes —
   // SIGTERM races with the parent killing postgres — so the boot sweep is
@@ -148,6 +150,12 @@ if (ingressEligible) {
         resolveDaemonPort(handle: string): Promise<number | null>;
       };
     }, ingressPort);
+
+    // Construct the runner up-front. The first preview-iframe request
+    // typically arrives on a page reload with a warm vmMap, before either
+    // VM_START or `/api/vm-events` has touched the runner — without this
+    // eager init the ingress would 503 with "Sandbox Runner Not Initialized".
+    await getOrInitSharedRunner();
   }
 }
 

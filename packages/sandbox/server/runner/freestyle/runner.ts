@@ -30,6 +30,7 @@ import {
   type SandboxRunner,
   type Workload,
 } from "../types";
+import type { ClaimPhase } from "../lifecycle-types";
 // Inlined as a string at build time. Path lookup via import.meta.url breaks
 // once the server is bundled into apps/mesh/dist/server/server.js because
 // `../../../` then resolves outside the published package. The text-import
@@ -240,6 +241,17 @@ export class FreestyleSandboxRunner implements SandboxRunner {
   async getPreviewUrl(handle: string): Promise<string | null> {
     const rec = await this.getRecord(handle);
     return rec ? `https://${rec.previewDomain}` : null;
+  }
+
+  // Freestyle's setup is end-to-end inside `runner.ensure` (clone, install,
+  // dev start all happen before the SDK call returns). No pre-Ready window
+  // mesh could surface; yield a single `ready` and let the caller proceed
+  // straight to the daemon SSE.
+  async *watchClaimLifecycle(
+    _handle: string,
+    _signal?: AbortSignal,
+  ): AsyncGenerator<ClaimPhase, void, unknown> {
+    yield { kind: "ready" };
   }
 
   /**

@@ -3,6 +3,8 @@
  * features (local-ingress ports, Docker volumes) live on concrete classes.
  */
 
+import type { ClaimPhase } from "./lifecycle-types";
+
 export interface SandboxId {
   userId: string;
   /** Opaque routing key; compose via `composeSandboxRef()`. */
@@ -109,6 +111,26 @@ export interface SandboxRunner {
     path: string,
     init: ProxyRequestInit,
   ): Promise<Response>;
+
+  /**
+   * Stream of phase transitions for the pre-Ready lifecycle. Used by mesh's
+   * unified `/api/vm-events` SSE so the UI can show meaningful progress
+   * between VM_START and the daemon SSE coming online.
+   *
+   * agent-sandbox is the interesting case: K8s scheduling, image pulls, and
+   * node provisioning can each take many seconds, and surfacing them
+   * granularly turns a black hole into a progress bar. The other runners
+   * have no equivalent black hole — once VM_START's `runner.ensure` returns,
+   * the daemon's HTTP server is already up — so they yield a single `ready`
+   * phase and end the stream immediately.
+   *
+   * Generator closes on a terminal phase (`ready` / `failed`) or on
+   * `signal.abort()`.
+   */
+  watchClaimLifecycle(
+    handle: string,
+    signal?: AbortSignal,
+  ): AsyncGenerator<ClaimPhase, void, unknown>;
 }
 
 export function sandboxIdKey(id: SandboxId): string {

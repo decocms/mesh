@@ -10,8 +10,9 @@
  * absent — the daemon runs in the user's trust boundary.
  */
 
-import { randomBytes, randomUUID } from "node:crypto";
-import { mkdir, rm } from "node:fs/promises";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -32,16 +33,11 @@ import type {
   SandboxId,
   SandboxRunner,
 } from "../types";
+import type { ClaimPhase } from "../lifecycle-types";
 
 const RUNNER_KIND = "host" as const;
-const HEALTH_PROBE_TIMEOUT_MS = 30_000;
-// Resolve daemon entry path relative to this file so it works regardless of
-// the process cwd (e.g. when mesh is started from apps/mesh/ via
-// `bun run --cwd=apps/mesh dev:server`).
-const DAEMON_ENTRY = resolve(
-  fileURLToPath(new URL("../../../daemon/entry.ts", import.meta.url)),
-);
-const HEALTH_PROBE_INTERVAL_MS = 250;
+const READY_TIMEOUT_MS = 30_000;
+const READY_INTERVAL_MS = 250;
 const STOP_GRACE_MS = 2_000;
 
 type DaemonProcess = {
@@ -112,7 +108,7 @@ export class HostSandboxRunner implements SandboxRunner {
     this.homeDir = opts.homeDir;
     this.stateStore = opts.stateStore ?? null;
     this.previewUrlPattern = opts.previewUrlPattern ?? null;
-    this.spawnFn = opts._spawn ?? defaultSpawn;
+    this.spawnFn = opts._spawn ?? createDefaultSpawn(this.homeDir);
     this.probeFn = opts._probe ?? probeDaemonHealth;
     this.killFn = opts._kill ?? ((pid, sig) => process.kill(pid, sig));
     this.isAliveFn = opts._isAlive ?? isPidAlive;
@@ -166,11 +162,11 @@ export class HostSandboxRunner implements SandboxRunner {
 
     const proc = await this.spawnFn({ workdir, env, daemonPort });
     try {
-      await this.waitForHealthy(daemonUrl);
+      await this.waitForDaemon(daemonUrl);
     } catch (err) {
-      // Daemon never reported healthy — kill it so we don't leak the child
-      // process or pin daemonPort/devPort. The deterministic workdir is left
-      // in place; a retry will reuse it.
+      // Daemon never came up — kill it so we don't leak the child process
+      // or pin daemonPort/devPort. The deterministic workdir is left in
+      // place; a retry will reuse it.
       try {
         proc.kill("SIGKILL");
       } catch {
@@ -205,12 +201,26 @@ export class HostSandboxRunner implements SandboxRunner {
     return this.toSandbox(rec);
   }
 
-  private async waitForHealthy(daemonUrl: string): Promise<void> {
-    const deadline = Date.now() + HEALTH_PROBE_TIMEOUT_MS;
+  /**
+   * Match docker's `waitForDaemonReady` semantics: return as soon as `/health`
+   * responds with a valid shape, even if `health.ready === false`. The prior
+   * code waited for `ready === true`, which only flips after the daemon's
+   * upstream probe finds the user's dev server listening — i.e. clone +
+   * install + autoStartDev all complete. That gating blocked VM_START until
+   * the dev server was up, kept the SSE proxy from connecting in the
+   * meantime, and made the frontend look frozen for the entire setup window
+   * before flushing a flood of replayed logs. Dev-server-ready is still
+   * observable via the daemon's `status` SSE events.
+   *
+   * Inlined (vs. calling `waitForDaemonReady` directly) so `_probe` test
+   * seam still drives the loop.
+   */
+  private async waitForDaemon(daemonUrl: string): Promise<void> {
+    const deadline = Date.now() + READY_TIMEOUT_MS;
     while (Date.now() < deadline) {
       const health = await this.probeFn(daemonUrl);
-      if (health?.ready) return;
-      await new Promise((r) => setTimeout(r, HEALTH_PROBE_INTERVAL_MS));
+      if (health) return;
+      await new Promise((r) => setTimeout(r, READY_INTERVAL_MS));
     }
     throw new Error(`daemon at ${daemonUrl} never reported healthy`);
   }
@@ -259,9 +269,26 @@ export class HostSandboxRunner implements SandboxRunner {
   }
 
   async alive(handle: string): Promise<boolean> {
-    const rec = this.records.get(handle);
+    // Use getRecord (which rehydrates from the state-store on cold mesh
+    // boot) so the answer is honest regardless of in-memory cache state.
+    // Without this, a fresh mesh process with a still-running daemon would
+    // report alive=false and the SSE's stale-handle probe would emit a
+    // spurious `gone` event before VM_START got a chance to rehydrate.
+    const rec = await this.getRecord(handle);
     if (!rec) return false;
     return this.isAliveFn(rec.pid);
+  }
+
+  // No pre-Ready window worth surfacing: VM_START's `runner.ensure` blocks
+  // until the daemon's HTTP server is up (typically <1s on host). Yield a
+  // single `ready` and let the caller proceed straight to the daemon SSE.
+  // Generator returns immediately even if `signal` aborts later — there's
+  // nothing to clean up on the host side.
+  async *watchClaimLifecycle(
+    _handle: string,
+    _signal?: AbortSignal,
+  ): AsyncGenerator<ClaimPhase, void, unknown> {
+    yield { kind: "ready" };
   }
 
   async getPreviewUrl(handle: string): Promise<string | null> {
@@ -390,7 +417,7 @@ function isPidAlive(pid: number): boolean {
  * Pre-allocate a host-side TCP port. The daemon binds to it on startup.
  * Race window is non-zero — the kernel may hand the port to another process
  * between close() and the daemon's bind() — in which case the daemon fails
- * to come up, `waitForHealthy` times out, and `ensure()` rejects. There is
+ * to come up, `waitForDaemon` times out, and `ensure()` rejects. There is
  * no automatic retry; the caller (e.g. VM_START) surfaces the error. In
  * practice this never fires on a developer machine.
  */
@@ -456,25 +483,99 @@ function deriveRepoLabel(cloneUrl: string): string {
   }
 }
 
-async function defaultSpawn(args: {
-  workdir: string;
-  env: Record<string, string>;
-  daemonPort: number;
-}): Promise<DaemonProcess> {
-  const proc = Bun.spawn({
-    cmd: ["bun", "run", DAEMON_ENTRY],
-    // cwd is intentionally inherited from the parent — daemon resolves
-    // its own paths relative to the entry file.
-    env: { ...process.env, ...args.env },
-    stdout: "inherit",
-    stderr: "inherit",
-    stdin: "ignore",
-  });
-  return {
-    pid: proc.pid,
-    kill: (sig) => {
-      proc.kill(sig as NodeJS.Signals | number | undefined);
-      return true;
-    },
+// ---- Daemon executable resolution ------------------------------------------
+//
+// In dev (source tree present), spawn `bun run <daemon/entry.ts>` so the
+// daemon code reloads on file change without a build step.
+//
+// In production (`bunx decocms@latest`), `runner.ts` has been inlined into
+// `dist/server/server.js`, so the source TS path resolves to the
+// nonexistent `<bunx-cache>/node_modules/daemon/entry.ts`. Materialize the
+// embedded bundle (loaded lazily from `daemon-asset.ts`) into
+// `${homeDir}/.deco/cache/sandbox-daemon-<hash>.js` and spawn that.
+//
+// `node-pty` is a runtime dep of the daemon. Its install location lives
+// inside the parent's `node_modules` tree, but the materialized bundle
+// sits in DATA_DIR — bun won't find `node-pty` by walking up from there.
+// Resolve the parent's node_modules dir at the call site and pass it via
+// `NODE_PATH` so the spawned daemon can `import "node-pty"`.
+
+function resolveSourceDaemonPath(): string {
+  return resolve(
+    fileURLToPath(new URL("../../../daemon/entry.ts", import.meta.url)),
+  );
+}
+
+function resolveNodePtyNodeModulesDir(): string {
+  // node-pty is a peer of the parent process (decocms ships it as a direct
+  // dep; in dev it lives in packages/sandbox/node_modules). We resolve from
+  // this module's location and walk back to the enclosing node_modules
+  // root.
+  const ptyEntry = Bun.resolveSync("node-pty", import.meta.dir);
+  const marker = "/node_modules/";
+  const idx = ptyEntry.lastIndexOf(marker);
+  if (idx < 0) {
+    throw new Error(
+      `[HostSandboxRunner] could not derive node_modules path from node-pty resolution: ${ptyEntry}`,
+    );
+  }
+  return ptyEntry.slice(0, idx + marker.length - 1);
+}
+
+async function materializeDaemonBundle(homeDir: string): Promise<string> {
+  // Lazy-imported so tests using the `_spawn` test seam don't trigger the
+  // text-import resolution (which would require `daemon/dist/daemon.js` to
+  // exist on disk before the bundle has been built).
+  const { DAEMON_BUNDLE } = await import("./daemon-asset");
+  const hash = createHash("sha256")
+    .update(DAEMON_BUNDLE)
+    .digest("hex")
+    .slice(0, 16);
+  const cacheDir = join(homeDir, ".deco", "cache");
+  const cachePath = join(cacheDir, `sandbox-daemon-${hash}.js`);
+  if (existsSync(cachePath)) return cachePath;
+  await mkdir(cacheDir, { recursive: true });
+  // Write atomically — concurrent spawns racing to materialize the same
+  // hashed file are tolerated because `rename` is atomic on POSIX.
+  const tmpPath = `${cachePath}.${process.pid}.tmp`;
+  await writeFile(tmpPath, DAEMON_BUNDLE);
+  await rename(tmpPath, cachePath);
+  return cachePath;
+}
+
+async function resolveDaemonExec(homeDir: string): Promise<string> {
+  const sourceTs = resolveSourceDaemonPath();
+  if (existsSync(sourceTs)) return sourceTs;
+  return materializeDaemonBundle(homeDir);
+}
+
+function createDefaultSpawn(homeDir: string): SpawnFn {
+  return async (args) => {
+    const daemonExec = await resolveDaemonExec(homeDir);
+    const ptyNodeModulesDir = resolveNodePtyNodeModulesDir();
+    const existingNodePath = process.env.NODE_PATH;
+    const nodePath = existingNodePath
+      ? `${ptyNodeModulesDir}:${existingNodePath}`
+      : ptyNodeModulesDir;
+    const proc = Bun.spawn({
+      cmd: ["bun", "run", daemonExec],
+      // cwd is intentionally inherited from the parent — daemon resolves
+      // its own paths relative to the entry file.
+      env: {
+        ...process.env,
+        NODE_PATH: nodePath,
+        ...args.env,
+      },
+      stdout: "inherit",
+      stderr: "inherit",
+      stdin: "ignore",
+    });
+    return {
+      pid: proc.pid,
+      kill: (sig) => {
+        proc.kill(sig as NodeJS.Signals | number | undefined);
+        return true;
+      },
+    };
   };
 }

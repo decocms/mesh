@@ -29,6 +29,10 @@ const mockEnsure = mock(
 const mockFreestyleDelete = mock(async (_handle: string) => {});
 const mockDockerDelete = mock(async (_handle: string) => {});
 
+async function* readyOnly() {
+  yield { kind: "ready" as const };
+}
+
 const mockRunner: SandboxRunner = {
   kind: "freestyle",
   ensure: (id, opts) => mockEnsure(id, opts),
@@ -37,6 +41,7 @@ const mockRunner: SandboxRunner = {
   alive: async () => true,
   getPreviewUrl: async () => "https://stub.preview/",
   proxyDaemonRequest: async () => new Response(null, { status: 204 }),
+  watchClaimLifecycle: () => readyOnly(),
 };
 
 const mockDockerRunner: SandboxRunner = {
@@ -47,6 +52,7 @@ const mockDockerRunner: SandboxRunner = {
   alive: async () => true,
   getPreviewUrl: async () => "https://stub.preview/",
   proxyDaemonRequest: async () => new Response(null, { status: 204 }),
+  watchClaimLifecycle: () => readyOnly(),
 };
 
 mock.module("../../sandbox/lifecycle", () => ({

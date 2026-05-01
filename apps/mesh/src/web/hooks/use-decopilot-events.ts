@@ -26,9 +26,11 @@ import { createSSESubscription } from "./create-sse-subscription";
 // ============================================================================
 
 const decopilotSSE = createSSESubscription({
+  // EventSource can't set headers, so x-org-id rides as a query param;
+  // authenticateRequest reads it as a fallback when the header is absent.
   buildUrl: (orgId) => {
     const typesParam = ALL_DECOPILOT_EVENT_TYPES.join(",");
-    return `/org/${orgId}/watch?types=${typesParam}`;
+    return `/org/${orgId}/watch?types=${typesParam}&x-org-id=${encodeURIComponent(orgId)}`;
   },
   eventTypes: [...ALL_DECOPILOT_EVENT_TYPES],
 });
