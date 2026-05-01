@@ -329,8 +329,10 @@ function makeStore(): RunnerStateStore & {
 
 // ---------------------------------------------------------------------------
 // Stub the kubeconfig + port-forward path. The runner only uses kc to thread
-// through to kubeFetch (which we intercept). openForwarder is replaced on
-// the instance so we don't need a real WebSocket tunnel.
+// through to kubeFetch (which we intercept). The K8sPortForwarder field on
+// the runner is replaced wholesale with a fake so we don't open real TCP
+// listeners (and so we don't need a live apiserver to satisfy the
+// underlying `@kubernetes/client-node` PortForward).
 // ---------------------------------------------------------------------------
 
 const KC: KubeConfig = {
@@ -346,15 +348,19 @@ let nextPort = 41000;
 function patchForwarder<T extends InstanceType<typeof AgentSandboxRunner>>(
   runner: T,
 ): T {
-  const r = runner;
-  (r as any).openForwarder = async () => ({
-    server: {
-      close: (cb?: () => void) => cb?.(),
-      address: () => ({ port: nextPort }),
-    },
-    localPort: nextPort++,
-  });
-  (r as any).closeForwarder = () => {};
+  // Cast is required because portForwarder is a private field; the fake
+  // satisfies the duck-typed shape the runner uses (`open` returns a
+  // PortForwarder; `close` is invoked with that same shape).
+  (runner as any).portForwarder = {
+    open: async () => ({
+      server: {
+        close: (cb?: () => void) => cb?.(),
+        address: () => ({ port: nextPort }),
+      },
+      localPort: nextPort++,
+    }),
+    close: () => {},
+  };
   return runner;
 }
 

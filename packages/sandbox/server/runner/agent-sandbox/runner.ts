@@ -23,13 +23,10 @@
  * the namespace is the secrecy boundary.
  */
 
-import { createHash, randomBytes } from "node:crypto";
-import * as net from "node:net";
-import { PassThrough } from "node:stream";
+import { randomBytes } from "node:crypto";
 import {
   type KubeConfig,
   KubeConfig as KubeConfigClass,
-  PortForward,
 } from "@kubernetes/client-node";
 import type {
   Counter,
@@ -87,6 +84,7 @@ import {
 } from "./constants";
 import { watchClaimLifecycle } from "./lifecycle-watcher";
 import type { ClaimPhase } from "./lifecycle-types";
+import { K8sPortForwarder, type PortForwarder } from "./port-forward";
 
 const RUNNER_KIND = "agent-sandbox" as const;
 const LOG_LABEL = "AgentSandboxRunner";
@@ -163,28 +161,6 @@ const PREVIEW_STRIP_RESPONSE_HEADERS = [
   "content-encoding",
   "content-length",
 ];
-
-// Deterministic local-port range for port-forward listeners. Same
-// (handle, containerPort) pair → same host port across mesh restarts, so
-// `previewUrl` cached in the thread's vmMap stays valid when the mesh
-// process recycles. Birthday-collision probability stays <1% up to ~140
-// concurrent forwarders. EADDRINUSE walks the range forward until bind.
-const PORT_RANGE_START = 40000;
-const PORT_RANGE_SIZE = 10000;
-const PORT_WALK_LIMIT = 256;
-
-// Structural type for the WebSocket returned by PortForward.portForward — we
-// only need close/on to manage lifecycle; a direct `isomorphic-ws` dep for
-// one type isn't worth it.
-interface ForwardWebSocket {
-  close: () => void;
-  on: (event: "close" | "error", handler: () => void) => void;
-}
-
-interface PortForwarder {
-  server: net.Server;
-  localPort: number;
-}
 
 interface RunnerTenant {
   orgId: string;
@@ -334,7 +310,7 @@ export class AgentSandboxRunner implements SandboxRunner {
   private readonly stateStore: RunnerStateStore | null;
   private readonly previewUrlPattern: string | null;
   private readonly kubeConfig: KubeConfig;
-  private readonly portForward: PortForward;
+  private readonly portForwarder: K8sPortForwarder;
   private readonly namespace: string;
   private readonly sandboxTemplateName: string;
   private readonly envName: string | null;
@@ -359,8 +335,13 @@ export class AgentSandboxRunner implements SandboxRunner {
     this.stateStore = opts.stateStore ?? null;
     this.previewUrlPattern = opts.previewUrlPattern ?? null;
     this.kubeConfig = opts.kubeConfig ?? loadDefaultKubeConfig();
-    this.portForward = new PortForward(this.kubeConfig);
     this.namespace = opts.namespace ?? DEFAULT_NAMESPACE;
+    this.portForwarder = new K8sPortForwarder({
+      kubeConfig: this.kubeConfig,
+      namespace: this.namespace,
+      logLabel: LOG_LABEL,
+      onInvalidate: (handle) => this.invalidateRecord(handle),
+    });
     this.sandboxTemplateName =
       opts.sandboxTemplateName ?? DEFAULT_TEMPLATE_NAME;
     this.envName = normalizeEnvName(opts.envName);
@@ -401,7 +382,7 @@ export class AgentSandboxRunner implements SandboxRunner {
     const rec = await this.getRecord(handle);
     this.records.delete(handle);
     if (rec) {
-      this.closeForwarder(rec.daemonForward);
+      this.portForwarder.close(rec.daemonForward);
       // Decrement only when we actually held the record — getRecord can be
       // null after restart-without-state-store, in which case the gauge
       // was never incremented for this handle in this process.
@@ -957,7 +938,7 @@ export class AgentSandboxRunner implements SandboxRunner {
       throw err;
     }
 
-    const daemonForward = await this.openForwarder(
+    const daemonForward = await this.portForwarder.open(
       podName,
       DAEMON_CONTAINER_PORT,
       handle,
@@ -974,7 +955,7 @@ export class AgentSandboxRunner implements SandboxRunner {
       bootstrapped = { bootId: resp.bootId, hash: resp.hash };
       await waitForDaemonReady(daemonUrl);
     } catch (err) {
-      this.closeForwarder(daemonForward);
+      this.portForwarder.close(daemonForward);
       await this.deleteHttpRouteIfManaged(handle).catch(() => {});
       await deleteSandboxClaim(this.kubeConfig, this.namespace, handle).catch(
         () => {},
@@ -1175,7 +1156,7 @@ export class AgentSandboxRunner implements SandboxRunner {
       if (out.bootstrapHash) bootstrapHash = out.bootstrapHash;
     } catch (err) {
       // Drop the forwarder so we don't leak it on the recreate path.
-      this.closeForwarder(live.daemonForward);
+      this.portForwarder.close(live.daemonForward);
       console.warn(
         `[${LOG_LABEL}] rehydrate ${handle} drive-to-ready failed: ${err instanceof Error ? err.message : String(err)}`,
       );
@@ -1218,7 +1199,7 @@ export class AgentSandboxRunner implements SandboxRunner {
     // phase=pending-bootstrap on a legacy claim with no row to bootstrap
     // from is the same dead end.
     if (live.health.phase === "pending-bootstrap") {
-      this.closeForwarder(live.daemonForward);
+      this.portForwarder.close(live.daemonForward);
       return null;
     }
     if (live.health.phase === "bootstrapping") {
@@ -1227,7 +1208,7 @@ export class AgentSandboxRunner implements SandboxRunner {
       try {
         await waitForDaemonReady(live.daemonUrl);
       } catch (err) {
-        this.closeForwarder(live.daemonForward);
+        this.portForwarder.close(live.daemonForward);
         console.warn(
           `[${LOG_LABEL}] adopt ${handle} wait-for-ready failed: ${err instanceof Error ? err.message : String(err)}`,
         );
@@ -1263,7 +1244,7 @@ export class AgentSandboxRunner implements SandboxRunner {
     // we can't authenticate exec/proxy with, return null and let the
     // caller's `ensureLocked` delete the claim and recreate. This is the
     // legacy-claim back-compat dead end called out in the spec.
-    this.closeForwarder(live.daemonForward);
+    this.portForwarder.close(live.daemonForward);
     return null;
   }
 
@@ -1281,18 +1262,16 @@ export class AgentSandboxRunner implements SandboxRunner {
     daemonUrl: string;
     health: DaemonHealth;
   } | null> {
-    const daemonForward = await this.openForwarder(
-      podName,
-      DAEMON_CONTAINER_PORT,
-      handle,
-    ).catch(() => null);
+    const daemonForward = await this.portForwarder
+      .open(podName, DAEMON_CONTAINER_PORT, handle)
+      .catch(() => null);
     if (!daemonForward) return null;
     const daemonUrl = `http://127.0.0.1:${daemonForward.localPort}`;
     // probeDaemonHealth returns null when /health is unreachable OR lacks a
     // bootId (older daemon shape). Either way, purge + re-provision.
     const health = await probeDaemonHealth(daemonUrl);
     if (!health) {
-      this.closeForwarder(daemonForward);
+      this.portForwarder.close(daemonForward);
       return null;
     }
     return { daemonForward, daemonUrl, health };
@@ -1399,7 +1378,7 @@ export class AgentSandboxRunner implements SandboxRunner {
     const rec = this.records.get(handle);
     if (!rec) return;
     this.records.delete(handle);
-    this.closeForwarder(rec.daemonForward);
+    this.portForwarder.close(rec.daemonForward);
   }
 
   // ---- Metric helpers -------------------------------------------------------
@@ -1532,146 +1511,11 @@ export class AgentSandboxRunner implements SandboxRunner {
     return new Date(Date.now() + this.idleTtlMs).toISOString();
   }
 
-  // ---- Port-forwarding ------------------------------------------------------
-
-  /**
-   * Opens a 127.0.0.1 TCP listener whose connections tunnel to
-   * `podName:containerPort` via the apiserver. Each TCP connection spawns a
-   * fresh WebSocket — matches `kubectl port-forward`'s semantics. Lifecycle
-   * is mutual: client socket close → close the k8s WS; WS close → destroy
-   * the client socket.
-   */
-  private openForwarder(
-    podName: string,
-    containerPort: number,
-    // `handle` is passed separately so the deterministic port survives pod
-    // recreation (operator-driven): vmMap's cached previewUrl stays valid.
-    handle: string = podName,
-  ): Promise<PortForwarder> {
-    const startPort = deterministicLocalPort(handle, containerPort);
-    return new Promise((resolve, reject) => {
-      const tryBind = (port: number, attempt: number) => {
-        const server = net.createServer((socket) =>
-          this.handleForwardedConnection(
-            socket,
-            podName,
-            containerPort,
-            handle,
-          ),
-        );
-        server.once("error", (err: NodeJS.ErrnoException) => {
-          if (err.code === "EADDRINUSE" && attempt < PORT_WALK_LIMIT) {
-            // Release the failed listener before walking forward — listen()
-            // failure leaves the Server object holding the connection handler
-            // closure; closing makes the leak trivially visible to GC.
-            try {
-              server.close();
-            } catch {}
-            const next =
-              PORT_RANGE_START +
-              ((port - PORT_RANGE_START + 1) % PORT_RANGE_SIZE);
-            tryBind(next, attempt + 1);
-            return;
-          }
-          reject(err);
-        });
-        server.listen(port, "127.0.0.1", () => {
-          const address = server.address();
-          if (!address || typeof address === "string") {
-            server.close();
-            reject(new Error("port-forward listener failed to bind"));
-            return;
-          }
-          resolve({ server, localPort: address.port });
-        });
-      };
-      tryBind(startPort, 0);
-    });
-  }
-
-  private handleForwardedConnection(
-    socket: net.Socket,
-    podName: string,
-    containerPort: number,
-    handle: string,
-  ): void {
-    // Inbound bytes pipe through a PassThrough rather than the socket
-    // directly: `portForward` attaches its 'data' listener only after the
-    // WebSocket opens (async); on Bun, bytes arriving in that window are
-    // dropped. Piping synchronously into a PassThrough buffers those bytes
-    // until the library drains it.
-    const inbound = new PassThrough();
-    let ws: ForwardWebSocket | null = null;
-    let closed = false;
-
-    const cleanup = () => {
-      if (closed) return;
-      closed = true;
-      inbound.destroy();
-      if (ws) {
-        try {
-          ws.close();
-        } catch {}
-      }
-      if (!socket.destroyed) socket.destroy();
-    };
-
-    socket.pipe(inbound);
-    socket.on("error", cleanup);
-    socket.on("close", cleanup);
-
-    this.portForward
-      .portForward(
-        this.namespace,
-        podName,
-        [containerPort],
-        socket,
-        null,
-        inbound,
-      )
-      .then((res) => {
-        // retryCount=0 (default) → raw WebSocket; retryCount>0 → factory fn.
-        const opened = typeof res === "function" ? res() : res;
-        if (!opened) {
-          cleanup();
-          return;
-        }
-        ws = opened as ForwardWebSocket;
-        ws.on("close", cleanup);
-        ws.on("error", () => {
-          this.invalidateRecord(handle);
-          cleanup();
-        });
-        if (closed) {
-          try {
-            ws.close();
-          } catch {}
-        }
-      })
-      .catch((err: unknown) => {
-        console.warn(
-          `[${LOG_LABEL}] port-forward to ${podName}:${containerPort} failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
-        this.invalidateRecord(handle);
-        cleanup();
-      });
-  }
-
-  private closeForwarder(forwarder: PortForwarder): void {
-    forwarder.server.close((err) => {
-      if (err) {
-        console.warn(
-          `[${LOG_LABEL}] port-forward close on :${forwarder.localPort} errored: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    });
-  }
-
   close(): void {
     if (this.closed) return;
     this.closed = true;
     for (const rec of this.records.values()) {
-      this.closeForwarder(rec.daemonForward);
+      this.portForwarder.close(rec.daemonForward);
     }
     this.records.clear();
   }
@@ -1725,13 +1569,6 @@ function readPodName(resource: SandboxResource): string | null {
     resource.metadata?.name ??
     null
   );
-}
-
-function deterministicLocalPort(handle: string, containerPort: number): number {
-  const hash = createHash("sha256")
-    .update(`${handle}:${containerPort}`)
-    .digest();
-  return PORT_RANGE_START + (hash.readUInt32BE(0) % PORT_RANGE_SIZE);
 }
 
 // CORS headers on synthesized preview-proxy responses. The studio iframe
