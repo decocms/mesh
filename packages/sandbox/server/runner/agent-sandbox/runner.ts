@@ -50,6 +50,7 @@ import {
 import {
   Inflight,
   applyPreviewPattern,
+  buildBootstrapPayload,
   computeHandle as composeBranchHandle,
   withSandboxLock,
 } from "../shared";
@@ -117,26 +118,6 @@ const CLAIM_NONCE_BYTES = 32;
  * survive warm-pool claim).
  */
 const CLAIM_NONCE_ANNOTATION = "decocms.io/claim-nonce";
-
-/**
- * Env keys mesh owns and a caller's `opts.env` MUST NOT shadow. DAEMON_TOKEN
- * is the secrecy boundary; the rest configure the daemon's bootstrap and
- * silently overriding any of them would break clone/install/dev-server start.
- */
-const RESERVED_ENV_KEYS = new Set([
-  "DAEMON_TOKEN",
-  "DAEMON_BOOT_ID",
-  "APP_ROOT",
-  "PROXY_PORT",
-  "DEV_PORT",
-  "RUNTIME",
-  "CLONE_URL",
-  "REPO_NAME",
-  "BRANCH",
-  "GIT_USER_NAME",
-  "GIT_USER_EMAIL",
-  "PACKAGE_MANAGER",
-]);
 
 const DEFAULT_IDLE_TTL_MS = 15 * 60 * 1000;
 
@@ -840,61 +821,19 @@ export class AgentSandboxRunner implements SandboxRunner {
   }
 
   /**
-   * Strip caller-supplied `opts.env` of mesh-owned keys. Phase 2 stops
-   * shipping these via `spec.env`, but `RESERVED_ENV_KEYS` is still the
-   * contract surface for the bootstrap payload's `env` field — caller
-   * env must not silently shadow `DAEMON_TOKEN`/`CLONE_URL`/etc.
-   * Phase 3 deletes both `RESERVED_ENV_KEYS` and this helper once the
-   * env-driven path is gone.
-   */
-  private filterCallerEnv(
-    opts: EnsureOptions,
-  ): Record<string, string> | undefined {
-    const callerEnv: Record<string, string> = {};
-    const dropped: string[] = [];
-    for (const [k, v] of Object.entries(opts.env ?? {})) {
-      if (RESERVED_ENV_KEYS.has(k)) dropped.push(k);
-      else callerEnv[k] = v;
-    }
-    if (dropped.length > 0) {
-      console.warn(
-        `[${LOG_LABEL}] opts.env keys overlap reserved bootstrap names and were dropped: ${dropped.join(",")}`,
-      );
-    }
-    return Object.keys(callerEnv).length > 0 ? callerEnv : undefined;
-  }
-
-  /**
    * Compose the bootstrap payload the daemon consumes via
-   * `POST /_decopilot_vm/bootstrap`. Tenant-config only — token/appRoot
-   * travel through the daemon's env (`SandboxClaim.spec.env` until Phase 2
-   * cuts that over). The per-claim nonce stays mesh-side: it lives on the
-   * K8s claim annotation + state-store row, not in the bootstrap body.
+   * `POST /_decopilot_vm/bootstrap`. Tenant-config only — token, bootId
+   * and appRoot travel through the daemon's startup env. The per-claim
+   * nonce stays mesh-side: it lives on the K8s claim annotation + the
+   * state-store row, not in the bootstrap body.
+   *
+   * Delegates to the shared helper so docker/host/agent-sandbox emit
+   * byte-identical payloads (proven by `canonicalize-parity.test.ts`).
    */
   private buildBootstrapPayload(opts: EnsureOptions): BootstrapPayload {
-    const repo = opts.repo;
-    const repoLabel = repo
-      ? (repo.displayName ?? deriveRepoLabel(repo.cloneUrl))
-      : null;
-    const callerEnv = this.filterCallerEnv(opts);
-    return {
-      schemaVersion: 1,
-      runtime: opts.workload?.runtime ?? "node",
-      ...(repo
-        ? {
-            cloneUrl: repo.cloneUrl,
-            repoName: repoLabel ?? "",
-            branch: repo.branch ?? "",
-            gitUserName: repo.userName,
-            gitUserEmail: repo.userEmail,
-          }
-        : {}),
-      ...(opts.workload?.packageManager
-        ? { packageManager: opts.workload.packageManager }
-        : {}),
+    return buildBootstrapPayload(opts, {
       devPort: opts.workload?.devPort ?? DEFAULT_DEV_PORT,
-      ...(callerEnv ? { env: callerEnv } : {}),
-    };
+    });
   }
 
   private buildClaim(
@@ -1929,16 +1868,5 @@ function previewHostnameForHandle(
     return new URL(applyPreviewPattern(pattern, handle)).hostname || null;
   } catch {
     return null;
-  }
-}
-
-/** Fallback for when callers don't provide `repo.displayName`. */
-function deriveRepoLabel(cloneUrl: string): string {
-  try {
-    const u = new URL(cloneUrl);
-    const trimmed = u.pathname.replace(/^\/+/, "").replace(/\.git$/, "");
-    return trimmed || u.hostname;
-  } catch {
-    return cloneUrl;
   }
 }
