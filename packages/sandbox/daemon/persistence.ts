@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import {
   closeSync,
   fsyncSync,
@@ -10,53 +9,26 @@ import {
   writeSync,
 } from "node:fs";
 import { dirname } from "node:path";
-import { canonicalize } from "./canonicalize";
+import { TenantConfig } from "./types";
 
-export interface BootstrapPayload {
-  schemaVersion: 1;
-  runtime: "node" | "bun" | "deno";
-  cloneUrl?: string;
-  repoName?: string;
-  branch?: string;
-  gitUserName?: string;
-  gitUserEmail?: string;
-  packageManager?: "npm" | "pnpm" | "yarn" | "bun" | "deno";
-  devPort?: number;
-  env?: Record<string, string>;
-}
-
-export interface BootstrapFile {
-  schemaVersion: 1;
-  hash: string;
-  payload: BootstrapPayload;
-}
-
-export const KNOWN_SCHEMA_VERSIONS: ReadonlySet<number> = new Set([1]);
-
-export const DEFAULT_BOOTSTRAP_DIR = "/home/sandbox/.daemon";
+const DEFAULT_BOOTSTRAP_DIR = "/home/sandbox/.daemon";
+const BOOTSTRAP_TMP_FILENAME = "bootstrap.json.tmp";
 export const BOOTSTRAP_FILENAME = "bootstrap.json";
-export const BOOTSTRAP_TMP_FILENAME = "bootstrap.json.tmp";
 
-export function bootstrapPath(dir: string = DEFAULT_BOOTSTRAP_DIR): string {
+function bootstrapPath(dir: string = DEFAULT_BOOTSTRAP_DIR): string {
   return `${dir}/${BOOTSTRAP_FILENAME}`;
 }
 
-export function bootstrapTmpPath(dir: string = DEFAULT_BOOTSTRAP_DIR): string {
+function bootstrapTmpPath(dir: string = DEFAULT_BOOTSTRAP_DIR): string {
   return `${dir}/${BOOTSTRAP_TMP_FILENAME}`;
 }
 
-export function hashPayload(payload: BootstrapPayload): string {
-  return createHash("sha256").update(canonicalize(payload)).digest("hex");
-}
-
 export function writeBootstrap(
-  payload: BootstrapPayload,
+  config: TenantConfig,
   dir: string = DEFAULT_BOOTSTRAP_DIR,
-): { hash: string } {
+): void {
   mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const hash = hashPayload(payload);
-  const file: BootstrapFile = { schemaVersion: 1, hash, payload };
-  const bytes = Buffer.from(JSON.stringify(file), "utf-8");
+  const bytes = Buffer.from(JSON.stringify(config), "utf-8");
   const tmp = bootstrapTmpPath(dir);
   const final = bootstrapPath(dir);
 
@@ -76,14 +48,14 @@ export function writeBootstrap(
     } finally {
       closeSync(dirFd);
     }
-  } catch {}
-
-  return { hash };
+  } catch {
+    throw new Error(`persistence failed: ${JSON.stringify(config)}`);
+  }
 }
 
 export type ReadOutcome =
   | { kind: "absent" }
-  | { kind: "valid"; file: BootstrapFile }
+  | { kind: "valid"; config: TenantConfig }
   | { kind: "invalid"; reason: string };
 
 export function readBootstrap(
@@ -115,25 +87,18 @@ export function readBootstrap(
   if (!parsed || typeof parsed !== "object") {
     return { kind: "invalid", reason: "not an object" };
   }
-  const file = parsed as Partial<BootstrapFile>;
+  const config = parsed as Partial<TenantConfig>;
   if (
-    typeof file.schemaVersion !== "number" ||
-    !KNOWN_SCHEMA_VERSIONS.has(file.schemaVersion)
+    typeof config.git !== "object" ||
+    typeof config.application !== "object"
   ) {
     return {
       kind: "invalid",
-      reason: `unknown schemaVersion: ${String(file.schemaVersion)}`,
+      reason: `invalid config: ${JSON.stringify(config)}`,
     };
   }
-  if (typeof file.hash !== "string" || !file.payload) {
-    return { kind: "invalid", reason: "missing hash or payload" };
+  if (typeof config.git !== "object" || !config.application) {
+    return { kind: "invalid", reason: "invalid config" };
   }
-  const computed = hashPayload(file.payload);
-  if (computed !== file.hash) {
-    return {
-      kind: "invalid",
-      reason: `hash mismatch: stored=${file.hash} computed=${computed}`,
-    };
-  }
-  return { kind: "valid", file: file as BootstrapFile };
+  return { kind: "valid", config: config as TenantConfig };
 }

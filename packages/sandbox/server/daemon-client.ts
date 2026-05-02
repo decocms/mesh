@@ -4,14 +4,22 @@
  * POST bodies are base64-encoded JSON — the daemon decodes on its side.
  */
 
+import { TenantConfig } from "../daemon/types";
 import { sleep } from "../shared";
 import type { ExecInput, ExecOutput } from "./runner/types";
 
 const DEFAULT_EXEC_TIMEOUT_MS = 60_000;
 const HEALTH_PROBE_TIMEOUT_MS = 500;
+const BOOTSTRAP_TIMEOUT_MS = 10_000;
 const READY_ATTEMPTS = 25;
 const READY_INTERVAL_MS = 200;
 const READY_JITTER_MS = 50; // ±50ms around READY_INTERVAL_MS
+
+export interface BootstrapResponse {
+  phase: string;
+  bootId: string;
+  hash: string;
+}
 
 export interface DaemonHealth {
   ready: boolean;
@@ -63,6 +71,38 @@ export async function waitForDaemonReady(daemonUrl: string): Promise<void> {
       (READY_ATTEMPTS * READY_INTERVAL_MS) / 1000
     }s`,
   );
+}
+
+export interface ConfigUpdateResponse {
+  phase: string;
+  bootId: string;
+  applied: "devport-only" | "rerun";
+}
+
+// `/bootstrap` is unauthenticated: NetworkPolicy is the trust boundary on the
+// daemon's port (see daemon/bootstrap.ts). Body is base64-encoded JSON like
+// every other `/_decopilot_vm/*` route. 200 = accepted (or idempotent re-POST
+// with matching hash); 409 = a different bootstrap is already pinned, surfaced
+// as an Error so the runner fails loudly instead of running with stale tenant.
+export async function postBootstrap(
+  daemonUrl: string,
+  payload: TenantConfig,
+): Promise<BootstrapResponse> {
+  const rawBody = JSON.stringify(payload);
+  const b64Body = Buffer.from(rawBody, "utf-8").toString("base64");
+  const res = await fetch(`${daemonUrl}/_decopilot_vm/bootstrap`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: b64Body,
+    signal: AbortSignal.timeout(BOOTSTRAP_TIMEOUT_MS),
+  });
+  const body = await res.text();
+  if (!res.ok) {
+    throw new Error(
+      `sandbox daemon /_decopilot_vm/bootstrap returned ${res.status}: ${body}`,
+    );
+  }
+  return JSON.parse(body) as BootstrapResponse;
 }
 
 export async function daemonBash(

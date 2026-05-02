@@ -11,8 +11,8 @@ export interface CloneDeps {
 /** Resolves to exit code (0 on success). Emits chunks via `onChunk`. */
 export function spawnClone(deps: CloneDeps): Promise<number> {
   const { config } = deps;
-  const cmd = `git -c safe.directory='*' clone --depth 1 ${config.cloneUrl} ${config.appRoot}`;
-  const label = `$ git clone --depth 1 ${config.repoName} ${config.appRoot}`;
+  const cmd = `git -c safe.directory='*' clone --depth 1 ${config.git?.repository?.cloneUrl} ${config.appRoot}`;
+  const label = `$ git clone --depth 1 ${config.git?.repository?.repoName} ${config.appRoot}`;
   deps.onChunk("setup", `${label}\r\n`);
 
   return new Promise((resolve) => {

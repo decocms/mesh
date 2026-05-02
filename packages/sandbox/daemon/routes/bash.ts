@@ -26,6 +26,11 @@ export function makeBashHandler(deps: BashDeps) {
       cwd: deps.appRoot,
       stdio: ["ignore", "pipe", "pipe"],
       env: deps.env,
+      // Own pgid so we can SIGKILL the whole subtree. Without this, a
+      // backgrounded child (`bun server.ts ... &`) outlives bash and leaks:
+      // macOS bash 3.2 also wedges in wait4() waiting on it, so the only
+      // way to recover is to signal the group, not just the shell.
+      detached: true,
     };
 
     if (deps.dropPrivileges) {
@@ -34,6 +39,7 @@ export function makeBashHandler(deps: BashDeps) {
     }
 
     const child = spawn("bash", ["-c", body.command], opts);
+    const pgid = child.pid;
 
     let stdout = "";
     let stderr = "";
@@ -47,21 +53,32 @@ export function makeBashHandler(deps: BashDeps) {
       stderr += c.toString("utf-8");
     });
 
+    const killGroup = (signal: NodeJS.Signals) => {
+      if (pgid === undefined) return;
+      try {
+        process.kill(-pgid, signal);
+      } catch {
+        /* group already gone */
+      }
+    };
+
     const timer = setTimeout(() => {
       killed = true;
-      try {
-        child.kill("SIGKILL");
-      } catch {}
+      killGroup("SIGKILL");
     }, timeout);
 
     const exitCode: number = await new Promise((resolve) => {
       child.on("close", (code) => {
         clearTimeout(timer);
+        // Even on clean exit, reap any survivors of the backgrounded-job
+        // case so a `&` child can't outlive the request.
+        killGroup("SIGKILL");
         resolve(killed ? -1 : (code ?? 1));
       });
 
       child.on("error", (err) => {
         clearTimeout(timer);
+        killGroup("SIGKILL");
         stderr += (stderr ? "\n" : "") + `spawn error: ${err.message}`;
         resolve(-1);
       });

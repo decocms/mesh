@@ -1,5 +1,8 @@
 export type PackageManager = "npm" | "pnpm" | "yarn" | "bun" | "deno";
-export type Runtime = "node" | "bun" | "deno";
+export interface Runtime {
+  name: "node" | "bun" | "deno";
+  pathPrefix: string;
+}
 
 export interface BootConfig {
   readonly daemonToken: string;
@@ -9,17 +12,39 @@ export interface BootConfig {
   readonly dropPrivileges: boolean;
 }
 
+interface GitIdentity {
+  userName: string;
+  userEmail: string;
+}
+interface GitConfig {
+  repository: GitRepository;
+  identity: GitIdentity | undefined;
+}
+interface GitRepository {
+  cloneUrl: string;
+  branch?: string;
+  repoName?: string;
+}
+
+interface Application {
+  packageManager: PackageManagerConfig;
+  developmentServer: DevelopmentServer;
+  runtime: Runtime;
+}
+
+interface DevelopmentServer {
+  port?: number;
+  running: boolean;
+}
+
+export interface PackageManagerConfig {
+  name: PackageManager;
+  path: string | undefined;
+}
+
 export interface TenantConfig {
-  readonly cloneUrl: string | null;
-  readonly repoName: string | null;
-  readonly branch: string | null;
-  readonly gitUserName: string | null;
-  readonly gitUserEmail: string | null;
-  readonly packageManager: PackageManager | null;
-  readonly devPort: number;
-  readonly runtime: Runtime;
-  readonly pathPrefix: string;
-  readonly env: Readonly<Record<string, string>>;
+  readonly git: GitConfig | undefined;
+  readonly application: Application | undefined;
 }
 
 export type Config = BootConfig & TenantConfig;

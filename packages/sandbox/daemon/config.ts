@@ -13,7 +13,7 @@ const PACKAGE_MANAGERS: readonly PackageManager[] = [
   "bun",
   "deno",
 ];
-const RUNTIMES: readonly Runtime[] = ["node", "bun", "deno"];
+const RUNTIMES: readonly Runtime["name"][] = ["node", "bun", "deno"];
 
 export function loadBootConfigFromEnv(
   env: Record<string, string | undefined>,
@@ -63,13 +63,13 @@ export function tryLoadTenantConfigFromEnv(
   // POST /_decopilot_vm/bootstrap.
   if (!cloneUrl && !runtimeRaw && !devPortRaw && !pmRaw) return null;
 
-  const runtime = (runtimeRaw ?? "node") as Runtime;
+  const runtime = (runtimeRaw ?? "node") as Runtime["name"];
   if (!RUNTIMES.includes(runtime)) {
     throw new Error(`RUNTIME invalid: ${runtimeRaw}`);
   }
 
-  const repoName = env.REPO_NAME ?? null;
-  const branch = env.BRANCH ?? null;
+  const repoName = env.REPO_NAME;
+  const branch = env.BRANCH;
   const gitUserName = env.GIT_USER_NAME ?? null;
   const gitUserEmail = env.GIT_USER_EMAIL ?? null;
 
@@ -85,9 +85,24 @@ export function tryLoadTenantConfigFromEnv(
       throw new Error("GIT_USER_EMAIL is required when CLONE_URL is set");
   }
 
-  const pm = env.PACKAGE_MANAGER ?? null;
-  if (pm !== null && !PACKAGE_MANAGERS.includes(pm as PackageManager)) {
-    throw new Error(`PACKAGE_MANAGER invalid: ${pm}`);
+  const pmName = (env.PACKAGE_MANAGER ?? null) as PackageManager | null;
+  const pmPath = env.PACKAGE_MANAGER_PATH;
+  const packageManager = pmName
+    ? {
+        name: pmName,
+        path: pmPath,
+      }
+    : undefined;
+  if (pmName && !PACKAGE_MANAGERS.includes(pmName as PackageManager)) {
+    throw new Error(`PACKAGE_MANAGER invalid: ${pmName}`);
+  }
+
+  if (!packageManager) {
+    throw new Error("PACKAGE_MANAGER is required");
+  }
+
+  if (!packageManager.name) {
+    throw new Error("PACKAGE_MANAGER name is required");
   }
 
   const devPort = parseInt(env.DEV_PORT ?? "3000", 10);
@@ -96,22 +111,45 @@ export function tryLoadTenantConfigFromEnv(
   }
 
   const pathPrefix =
-    runtime === "bun"
+    runtime === ("bun" as Runtime["name"])
       ? "export PATH=/opt/bun/bin:$PATH && "
-      : runtime === "deno"
+      : runtime === ("deno" as Runtime["name"])
         ? "export PATH=/opt/deno/bin:$PATH && "
         : "";
+  const identity =
+    gitUserName && gitUserEmail
+      ? {
+          userName: gitUserName,
+          userEmail: gitUserEmail,
+        }
+      : undefined;
+  const repository = cloneUrl
+    ? {
+        cloneUrl,
+        repoName,
+        branch,
+      }
+    : undefined;
 
+  const git =
+    repository && identity
+      ? {
+          repository,
+          identity,
+        }
+      : undefined;
   return Object.freeze({
-    cloneUrl,
-    repoName,
-    branch,
-    gitUserName,
-    gitUserEmail,
-    packageManager: (pm ?? null) as PackageManager | null,
-    devPort,
-    runtime,
-    pathPrefix,
-    env: Object.freeze({}),
+    git,
+    application: {
+      packageManager,
+      developmentServer: {
+        port: devPort,
+        running: false,
+      },
+      runtime: {
+        name: runtime,
+        pathPrefix,
+      },
+    },
   });
 }

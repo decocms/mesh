@@ -108,6 +108,7 @@ async function daemonRequest(
   handle: string,
   path: string,
   body: Record<string, unknown>,
+  method: "POST" | "PUT" = "POST",
 ): Promise<unknown> {
   let res: Response;
   try {
@@ -115,7 +116,7 @@ async function daemonRequest(
       "base64",
     );
     res = await runner.proxyDaemonRequest(handle, path, {
-      method: "POST",
+      method,
       headers: new Headers({ "content-type": "application/json" }),
       body: b64Body,
     });
@@ -173,9 +174,13 @@ export function createVmTools(params: VmToolsParams) {
     threadId,
   } = params;
   const approvalFor = (mutating: boolean) => (mutating ? needsApproval : false);
-  const call = async (daemonPath: string, input: Record<string, unknown>) => {
+  const call = async (
+    daemonPath: string,
+    input: Record<string, unknown>,
+    method: "POST" | "PUT" = "POST",
+  ) => {
     const handle = await ensureHandle();
-    return daemonRequest(runner, handle, daemonPath, input);
+    return daemonRequest(runner, handle, daemonPath, input, method);
   };
 
   const read = tool({

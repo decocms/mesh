@@ -2,11 +2,12 @@ import type { Config } from "../types";
 import { git } from "./git";
 
 export function configureGitIdentity(config: Config): void {
-  if (!config.gitUserName || !config.gitUserEmail) return;
-  git(["config", "user.name", config.gitUserName], {
+  if (!config.git?.identity?.userName || !config.git?.identity?.userEmail)
+    return;
+  git(["config", "user.name", config.git?.identity?.userName], {
     cwd: config.appRoot,
   });
-  git(["config", "user.email", config.gitUserEmail], {
+  git(["config", "user.email", config.git?.identity?.userEmail], {
     cwd: config.appRoot,
   });
 }

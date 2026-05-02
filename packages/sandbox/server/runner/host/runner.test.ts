@@ -55,7 +55,7 @@ describe("HostSandboxRunner.ensure provisioning", () => {
     await rm(homeDir, { recursive: true, force: true });
   });
 
-  it("spawns the daemon, probes /health, returns a Sandbox, and persists", async () => {
+  it("spawns the daemon, probes /health, POSTs bootstrap, returns a Sandbox, and persists", async () => {
     let probeCount = 0;
     const fakeSpawn = mock(
       async (_args: {
@@ -77,12 +77,18 @@ describe("HostSandboxRunner.ensure provisioning", () => {
         setup: { running: false, done: true },
       };
     });
+    const fakePostBootstrap = mock(async (_url: string, _payload: unknown) => ({
+      phase: "bootstrapping",
+      bootId: "boot-from-daemon",
+      hash: "deadbeef",
+    }));
 
     const runner = new HostSandboxRunner({
       homeDir,
       stateStore: makeStore(),
       _spawn: fakeSpawn,
       _probe: fakeProbe,
+      _postBootstrap: fakePostBootstrap,
     });
 
     const sandbox = await runner.ensure(
@@ -103,19 +109,70 @@ describe("HostSandboxRunner.ensure provisioning", () => {
     expect(fakeSpawn).toHaveBeenCalledTimes(1);
     expect(probeCount).toBeGreaterThanOrEqual(2);
 
-    // Verify the env passed to spawn includes required values.
+    // Daemon env carries only the bootstrap-independent pieces; tenant
+    // material (runtime, repo, identity) moved to the bootstrap POST.
     const spawnArgs = fakeSpawn.mock.calls[0][0];
     expect(spawnArgs.env.DAEMON_TOKEN).toMatch(/^[0-9a-f]{48}$/);
     expect(spawnArgs.env.DAEMON_BOOT_ID).toBeTruthy();
     expect(spawnArgs.env.APP_ROOT).toBe(sandbox.workdir);
-    expect(spawnArgs.env.CLONE_URL).toBe("https://example.com/x.git");
-    expect(spawnArgs.env.BRANCH).toBe("main");
     expect(spawnArgs.env.PROXY_PORT).toBe(String(spawnArgs.daemonPort));
-    expect(spawnArgs.env.DEV_PORT).toMatch(/^\d+$/);
-    expect(Number(spawnArgs.env.DEV_PORT)).toBeGreaterThan(0);
-    expect(Number(spawnArgs.env.DEV_PORT)).not.toBe(
+    expect(spawnArgs.env.DAEMON_BOOTSTRAP_DIR).toBe(
+      join(homeDir, "bootstraps", sandbox.handle),
+    );
+    // Crucial: bootstrap dir must NOT be inside the workdir, or
+    // persistence.writeBootstrap's mkdir would pre-create the appRoot and
+    // break `git clone` with "destination already exists and is not empty".
+    expect(spawnArgs.env.DAEMON_BOOTSTRAP_DIR.startsWith(sandbox.workdir)).toBe(
+      false,
+    );
+    expect(spawnArgs.env.CLONE_URL).toBeUndefined();
+    expect(spawnArgs.env.BRANCH).toBeUndefined();
+    expect(spawnArgs.env.DEV_PORT).toBeUndefined();
+    expect(spawnArgs.env.RUNTIME).toBeUndefined();
+    // PORT is the host-runner's port-collision escape hatch: a pre-allocated
+    // free port that the daemon and its descendants inherit, so frameworks
+    // that respect process.env.PORT bind there instead of 3000.
+    expect(spawnArgs.env.PORT).toMatch(/^\d+$/);
+    expect(Number(spawnArgs.env.PORT)).toBeGreaterThan(0);
+    expect(Number(spawnArgs.env.PORT)).not.toBe(Number(spawnArgs.daemonPort));
+    // SANDBOX_INGRESS_PORT covers the nested mesh-in-mesh case: an inner
+    // mesh would otherwise hardcode 7070 and collide with the outer's
+    // ingress. Each sandbox gets its own free ingress port.
+    expect(spawnArgs.env.SANDBOX_INGRESS_PORT).toMatch(/^\d+$/);
+    expect(Number(spawnArgs.env.SANDBOX_INGRESS_PORT)).toBeGreaterThan(0);
+    expect(Number(spawnArgs.env.SANDBOX_INGRESS_PORT)).not.toBe(
       Number(spawnArgs.daemonPort),
     );
+    expect(spawnArgs.env.SANDBOX_INGRESS_PORT).not.toBe(spawnArgs.env.PORT);
+
+    // Bootstrap was POSTed once with the tenant payload. cloneUrl/branch are
+    // carried so the daemon clones the repo before install + autostart.
+    // devPort is NOT carried; the probe discovers whatever port the dev
+    // server binds to.
+    expect(fakePostBootstrap).toHaveBeenCalledTimes(1);
+    const [bootstrapUrl, bootstrapPayload] = fakePostBootstrap.mock
+      .calls[0] as [
+      string,
+      {
+        schemaVersion: number;
+        runtime?: string;
+        gitUserName?: string;
+        gitUserEmail?: string;
+        cloneUrl?: string;
+        repoName?: string;
+        branch?: string;
+        devPort?: number;
+      },
+    ];
+    expect(bootstrapUrl).toBe(`http://127.0.0.1:${spawnArgs.daemonPort}`);
+    expect(bootstrapPayload.schemaVersion).toBe(1);
+    expect(bootstrapPayload.runtime).toBe("bun");
+    expect(bootstrapPayload.cloneUrl).toBe("https://example.com/x.git");
+    expect(bootstrapPayload.repoName).toBe("x");
+    expect(bootstrapPayload.branch).toBe("main");
+    expect(bootstrapPayload.gitUserName).toBe("u");
+    expect(bootstrapPayload.gitUserEmail).toBe("u@x");
+    expect(bootstrapPayload.devPort).toBeUndefined();
   });
 
   it("returns the cached sandbox on a second ensure() call", async () => {
@@ -125,12 +182,18 @@ describe("HostSandboxRunner.ensure provisioning", () => {
       bootId: "b",
       setup: { running: false, done: true },
     }));
+    const fakePostBootstrap = mock(async () => ({
+      phase: "bootstrapping",
+      bootId: "b",
+      hash: "h",
+    }));
 
     const runner = new HostSandboxRunner({
       homeDir,
       stateStore: makeStore(),
       _spawn: fakeSpawn,
       _probe: fakeProbe,
+      _postBootstrap: fakePostBootstrap,
       // Make pid 5000 always alive for the cache hit check.
       _isAlive: (pid) => pid === 5000,
     });
@@ -293,12 +356,18 @@ describe("HostSandboxRunner.delete", () => {
       bootId: "boot",
       setup: { running: false, done: true },
     }));
+    const fakePostBootstrap = mock(async () => ({
+      phase: "bootstrapping",
+      bootId: "boot",
+      hash: "h",
+    }));
 
     const runner = new HostSandboxRunner({
       homeDir,
       stateStore: store,
       _spawn: fakeSpawn,
       _probe: fakeProbe,
+      _postBootstrap: fakePostBootstrap,
       _kill: (_pid, signal) => killed.push({ signal }),
       // Alive on the first check (entering grace loop), then dead. This
       // ensures the grace loop loops at least once and exits cleanly.
@@ -342,12 +411,18 @@ describe("HostSandboxRunner.delete", () => {
       bootId: "b",
       setup: { running: false, done: true },
     }));
+    const fakePostBootstrap = mock(async () => ({
+      phase: "bootstrapping",
+      bootId: "b",
+      hash: "h",
+    }));
 
     const runner = new HostSandboxRunner({
       homeDir,
       stateStore: store,
       _spawn: fakeSpawn,
       _probe: fakeProbe,
+      _postBootstrap: fakePostBootstrap,
       _kill: (_pid, signal) => killed.push(signal),
       // Always alive — daemon never dies after SIGTERM.
       _isAlive: () => true,

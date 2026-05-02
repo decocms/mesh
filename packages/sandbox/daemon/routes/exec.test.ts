@@ -19,6 +19,10 @@ const cfg: Config = {
   daemonToken: "x".repeat(32),
   daemonBootId: "b",
   proxyPort: 9000,
+  dropPrivileges: false,
+  env: {},
+  commands: {},
+  primary: null,
 };
 
 function req(name: string): Request {
@@ -37,7 +41,7 @@ describe("exec handler", () => {
       processManager: pm,
     });
     const h = makeExecHandler({
-      config: cfg,
+      getConfig: () => cfg,
       processManager: pm,
       orchestrator: orch,
       setupState: orch.state,
@@ -56,7 +60,7 @@ describe("exec handler", () => {
       processManager: pm,
     });
     const h = makeExecHandler({
-      config: cfg,
+      getConfig: () => cfg,
       processManager: pm,
       orchestrator: orch,
       setupState: orch.state,

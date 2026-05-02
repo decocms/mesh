@@ -2,8 +2,10 @@
  * Host sandbox runner — local dev / single-tenant self-host.
  *
  * Spawns the same Bun-based daemon as Docker but as a host child process,
- * with a per-branch full git clone in `${homeDir}/sandboxes/<handle>/`. The
- * local ingress (`startLocalSandboxIngress`) routes
+ * with the workdir at `${homeDir}/sandboxes/<handle>/`. When `opts.repo` is
+ * set, the daemon clones cloneUrl@branch into that workdir during setup;
+ * otherwise the workdir stays empty and the daemon skips clone/install/
+ * autostart. The local ingress (`startLocalSandboxIngress`) routes
  * `<handle>.localhost:7070` to the daemon's host-side TCP port.
  *
  * Hardening (read-only rootfs, dropped caps, memory limits) is intentionally
@@ -14,14 +16,15 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  postBootstrap,
   probeDaemonHealth,
   proxyDaemonRequest,
   daemonBash,
 } from "../../daemon-client";
-import type { DaemonHealth } from "../../daemon-client";
+import type { BootstrapResponse, DaemonHealth } from "../../daemon-client";
 import { applyPreviewPattern, computeHandle } from "../shared";
 import type { RunnerStateStore } from "../state-store";
 import type {
@@ -34,6 +37,10 @@ import type {
   SandboxRunner,
 } from "../types";
 import type { ClaimPhase } from "../lifecycle-types";
+import type {
+  PackageManagerConfig,
+  TenantConfig,
+} from "packages/sandbox/daemon/types";
 
 const RUNNER_KIND = "host" as const;
 const READY_TIMEOUT_MS = 30_000;
@@ -50,6 +57,10 @@ type SpawnFn = (args: {
   daemonPort: number;
 }) => Promise<DaemonProcess>;
 type HealthProbeFn = (daemonUrl: string) => Promise<DaemonHealth | null>;
+type PostBootstrapFn = (
+  daemonUrl: string,
+  payload: TenantConfig,
+) => Promise<BootstrapResponse>;
 type KillFn = (pid: number, signal: NodeJS.Signals) => void;
 type IsAliveFn = (pid: number) => boolean;
 
@@ -63,6 +74,8 @@ export interface HostRunnerOptions {
   _spawn?: SpawnFn;
   /** @internal test seam */
   _probe?: HealthProbeFn;
+  /** @internal test seam */
+  _postBootstrap?: PostBootstrapFn;
   /** @internal test seam */
   _kill?: KillFn;
   /** @internal test seam */
@@ -98,6 +111,7 @@ export class HostSandboxRunner implements SandboxRunner {
   private readonly previewUrlPattern: string | null;
   private readonly spawnFn: SpawnFn;
   private readonly probeFn: HealthProbeFn;
+  private readonly postBootstrapFn: PostBootstrapFn;
   private readonly killFn: KillFn;
   private readonly isAliveFn: IsAliveFn;
 
@@ -110,6 +124,7 @@ export class HostSandboxRunner implements SandboxRunner {
     this.previewUrlPattern = opts.previewUrlPattern ?? null;
     this.spawnFn = opts._spawn ?? createDefaultSpawn(this.homeDir);
     this.probeFn = opts._probe ?? probeDaemonHealth;
+    this.postBootstrapFn = opts._postBootstrap ?? postBootstrap;
     this.killFn = opts._kill ?? ((pid, sig) => process.kill(pid, sig));
     this.isAliveFn = opts._isAlive ?? isPidAlive;
   }
@@ -140,33 +155,52 @@ export class HostSandboxRunner implements SandboxRunner {
 
     // 3. Fresh provision.
     const workdir = this.workdirFor(handle);
-    await mkdir(dirname(workdir), { recursive: true });
+    // Create the workdir itself, not just its parent: the daemon's bash
+    // handler spawns with `cwd: appRoot`, and posix_spawn fails with ENOENT
+    // when the cwd doesn't exist. For repo-linked sandboxes the orchestrator
+    // would still create it during clone (clone tolerates an existing empty
+    // dir), but repo-less sandboxes would otherwise leave appRoot missing
+    // and every bash call would fail with `posix_spawn 'bash'`.
+    await mkdir(workdir, { recursive: true });
 
     const token = randomBytes(24).toString("hex");
     const bootId = randomUUID();
     const daemonPort = await preallocatePort();
     const daemonUrl = `http://127.0.0.1:${daemonPort}`;
     const devPort = await preallocatePort();
+    const ingressPort = await preallocatePort();
 
+    const bootstrapDir = this.bootstrapDirFor(handle);
     const env = buildDaemonEnv({
       token,
       bootId,
       workdir,
+      bootstrapDir,
       daemonPort,
       devPort,
-      runtime: opts.workload?.runtime ?? "node",
-      packageManager: opts.workload?.packageManager ?? null,
-      repo: opts.repo ?? null,
+      ingressPort,
       extraEnv: opts.env,
+    });
+    const bootstrapPayload = buildBootstrapPayload({
+      runtime: opts.workload?.runtime ?? "bun",
+      packageManager: opts.workload?.packageManager
+        ? {
+            name: opts.workload.packageManager,
+            path: undefined,
+          }
+        : null,
+      repo: opts.repo ?? null,
+      devPort: opts.workload?.devPort,
     });
 
     const proc = await this.spawnFn({ workdir, env, daemonPort });
     try {
       await this.waitForDaemon(daemonUrl);
+      await this.postBootstrapFn(daemonUrl, bootstrapPayload);
     } catch (err) {
-      // Daemon never came up — kill it so we don't leak the child process
-      // or pin daemonPort/devPort. The deterministic workdir is left in
-      // place; a retry will reuse it.
+      // Daemon never came up (or rejected the bootstrap) — kill it so we don't
+      // leak the child process or pin daemonPort. The deterministic workdir is
+      // left in place; a retry will reuse it.
       try {
         proc.kill("SIGKILL");
       } catch {
@@ -260,6 +294,15 @@ export class HostSandboxRunner implements SandboxRunner {
           err instanceof Error ? err.message : String(err),
         ),
       );
+      await rm(this.bootstrapDirFor(handle), {
+        recursive: true,
+        force: true,
+      }).catch((err) =>
+        console.warn(
+          `[HostSandboxRunner] rm bootstrapDir(${handle}) failed:`,
+          err instanceof Error ? err.message : String(err),
+        ),
+      );
     }
 
     if (this.stateStore) {
@@ -333,6 +376,13 @@ export class HostSandboxRunner implements SandboxRunner {
 
   private workdirFor(handle: string): string {
     return join(this.homeDir, "sandboxes", handle);
+  }
+
+  // Sibling of the workdir, deliberately outside it: persistence.writeBootstrap
+  // pre-creates this directory, and a pre-created appRoot would make git clone
+  // fail with "already exists and is not an empty directory".
+  private bootstrapDirFor(handle: string): string {
+    return join(this.homeDir, "bootstraps", handle);
   }
 
   private composePreviewUrl(rec: HostRecord): string {
@@ -442,34 +492,83 @@ function buildDaemonEnv(args: {
   token: string;
   bootId: string;
   workdir: string;
+  bootstrapDir: string;
   daemonPort: number;
   devPort: number;
-  runtime: string;
-  packageManager: string | null;
-  repo: NonNullable<EnsureOptions["repo"]> | null;
+  ingressPort: number;
   extraEnv: Record<string, string> | undefined;
 }): Record<string, string> {
-  const repoLabel = args.repo
-    ? (args.repo.displayName ?? deriveRepoLabel(args.repo.cloneUrl))
-    : null;
   return {
     DAEMON_TOKEN: args.token,
     DAEMON_BOOT_ID: args.bootId,
     APP_ROOT: args.workdir,
     PROXY_PORT: String(args.daemonPort),
-    DEV_PORT: String(args.devPort),
-    RUNTIME: args.runtime,
+    DAEMON_BOOTSTRAP_DIR: args.bootstrapDir,
+    // Inherited by every child the daemon spawns. extraEnv is spread last
+    // so the caller can override (rare — passing PORT/SANDBOX_INGRESS_PORT/
+    // VITE_PORT through opts.env defeats the collision-avoidance, but the
+    // escape hatch stays).
+    PORT: String(args.devPort),
+    SANDBOX_INGRESS_PORT: String(args.ingressPort),
+    ...(args.extraEnv ?? {}),
+  };
+}
+
+function buildBootstrapPayload(args: {
+  runtime: "node" | "bun" | "deno";
+  packageManager: PackageManagerConfig | null;
+  devPort?: number;
+  repo: NonNullable<EnsureOptions["repo"]> | null;
+}): TenantConfig {
+  const repo = args.repo ?? null;
+  const git = repo
+    ? {
+        repository: {
+          cloneUrl: repo.cloneUrl,
+          repoName: repo.displayName ?? deriveRepoLabel(repo.cloneUrl),
+          ...(repo.branch ? { branch: repo.branch } : {}),
+        },
+        identity: {
+          userName: repo.userName,
+          userEmail: repo.userEmail,
+        },
+      }
+    : undefined;
+  const packageManager = args.packageManager
+    ? {
+        name: args.packageManager.name,
+        path: args.packageManager.path,
+      }
+    : undefined;
+  const getApplication = () => {
+    if (!packageManager) return undefined;
+    return {
+      packageManager,
+      developmentServer: {
+        port: args.devPort,
+        running: false,
+      },
+      runtime: {
+        name: args.runtime,
+        pathPrefix: "",
+      },
+    };
+  };
+  const application = getApplication();
+
+  return {
+    application,
+    git,
     ...(args.repo
       ? {
-          CLONE_URL: args.repo.cloneUrl,
-          REPO_NAME: repoLabel ?? "",
-          BRANCH: args.repo.branch ?? "",
-          GIT_USER_NAME: args.repo.userName,
-          GIT_USER_EMAIL: args.repo.userEmail,
+          cloneUrl: args.repo.cloneUrl,
+          repoName:
+            args.repo.displayName ?? deriveRepoLabel(args.repo.cloneUrl),
+          ...(args.repo.branch ? { branch: args.repo.branch } : {}),
+          gitUserName: args.repo.userName,
+          gitUserEmail: args.repo.userEmail,
         }
       : {}),
-    ...(args.packageManager ? { PACKAGE_MANAGER: args.packageManager } : {}),
-    ...(args.extraEnv ?? {}),
   };
 }
 

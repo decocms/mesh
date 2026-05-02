@@ -5,7 +5,7 @@ import type { Config } from "../types";
 import { jsonResponse } from "./body-parser";
 
 export interface ExecDeps {
-  config: Config;
+  getConfig: () => Config;
   processManager: ProcessManager;
   orchestrator: SetupOrchestrator;
   setupState: SetupState;
@@ -15,8 +15,14 @@ export interface ExecDeps {
 export function makeExecHandler(deps: ExecDeps) {
   return async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
-    const name = url.pathname.slice("/_decopilot_vm/exec/".length);
-    if (!name) return jsonResponse({ error: "missing script name" }, 400);
+    const rawName = url.pathname.slice("/_decopilot_vm/exec/".length);
+    if (!rawName) return jsonResponse({ error: "missing script name" }, 400);
+    let name: string;
+    try {
+      name = decodeURIComponent(rawName);
+    } catch {
+      return jsonResponse({ error: "invalid script name" }, 400);
+    }
     if (name === "setup") {
       if (deps.setupState.running) {
         return jsonResponse({ error: "setup already running" }, 409);
@@ -25,13 +31,26 @@ export function makeExecHandler(deps: ExecDeps) {
       void deps.orchestrator.run();
       return jsonResponse({ ok: true });
     }
-    if (!deps.config.packageManager || !deps.setupState.done) {
+    if (!deps.setupState.done) {
       return jsonResponse({ error: "setup not complete" }, 400);
     }
-    const pmConfig = PACKAGE_MANAGER_DAEMON_CONFIG[deps.config.packageManager];
+    const config = deps.getConfig();
+    const portEnv =
+      config.application?.developmentServer?.port !== undefined
+        ? `PORT=${config.application?.developmentServer?.port} `
+        : "";
+    const envPrefix = `HOST=0.0.0.0 HOSTNAME=0.0.0.0 ${portEnv}`;
+    if (!config.application?.packageManager) {
+      return jsonResponse(
+        { error: `command "${name}" not in commands and no packageManager` },
+        400,
+      );
+    }
+    const pmConfig =
+      PACKAGE_MANAGER_DAEMON_CONFIG[config.application?.packageManager?.name];
     if (!pmConfig)
       return jsonResponse({ error: "unknown package manager" }, 400);
-    const cmd = `${deps.config.pathPrefix}cd ${deps.config.appRoot} && HOST=0.0.0.0 HOSTNAME=0.0.0.0 PORT=${deps.config.devPort} ${pmConfig.runPrefix} ${name}`;
+    const cmd = `${config.application?.runtime?.pathPrefix}cd ${config.appRoot} && ${envPrefix}${pmConfig.runPrefix} ${name}`;
     deps.processManager.run(name, cmd, `$ ${pmConfig.runPrefix} ${name}`);
     return jsonResponse({ ok: true });
   };

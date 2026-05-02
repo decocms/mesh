@@ -76,16 +76,6 @@ type ViewStatus =
 
 const WELL_KNOWN_STARTERS = ["dev", "start"];
 
-/**
- * Browser talks to the daemon directly via previewUrl (same host that serves
- * the iframe). Trailing slash stripped because callers append `/_decopilot_vm/...`.
- * The daemon serves this surface unauthenticated.
- */
-function resolveDaemonBaseUrl(entry: VmMapEntry | undefined): string | null {
-  if (!entry?.previewUrl) return null;
-  return entry.previewUrl.replace(/\/$/, "");
-}
-
 export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const { org } = useProjectContext();
   const inset = useInsetContext();
@@ -256,14 +246,17 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   };
 
   const handleExec = async (scriptName: string) => {
-    if (execInFlight || !vmData) return;
+    if (execInFlight || !vmData || !virtualMcpId || !currentBranch) return;
     setExecInFlight(true);
     try {
-      const base = resolveDaemonBaseUrl(existingVm);
-      if (!base) throw new Error("No VM");
-      const res = await fetch(`${base}/_decopilot_vm/exec/${scriptName}`, {
-        method: "POST",
-      });
+      const qs = new URLSearchParams({
+        virtualMcpId,
+        branch: currentBranch,
+      }).toString();
+      const res = await fetch(
+        `/api/vm-exec/exec/${encodeURIComponent(scriptName)}?${qs}`,
+        { method: "POST", headers: { "x-org-id": org.id } },
+      );
       if (!res.ok) throw new Error(`Exec failed: ${res.statusText}`);
       setKilledProcesses((prev) => {
         const next = new Set(prev);
@@ -276,14 +269,17 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   };
 
   const handleKill = async (scriptName: string) => {
-    if (execInFlight || !vmData) return;
+    if (execInFlight || !vmData || !virtualMcpId || !currentBranch) return;
     setExecInFlight(true);
     try {
-      const base = resolveDaemonBaseUrl(existingVm);
-      if (!base) throw new Error("No VM");
-      const res = await fetch(`${base}/_decopilot_vm/kill/${scriptName}`, {
-        method: "POST",
-      });
+      const qs = new URLSearchParams({
+        virtualMcpId,
+        branch: currentBranch,
+      }).toString();
+      const res = await fetch(
+        `/api/vm-exec/kill/${encodeURIComponent(scriptName)}?${qs}`,
+        { method: "POST", headers: { "x-org-id": org.id } },
+      );
       if (!res.ok) throw new Error(`Kill failed: ${res.statusText}`);
       setKilledProcesses((prev) => new Set(prev).add(scriptName));
     } finally {
@@ -365,10 +361,6 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
 
   const githubRepo = useActiveGithubRepo();
 
-  if (!githubRepo) {
-    return null;
-  }
-
   const runtime = (
     inset?.entity?.metadata as
       | { runtime?: { selected: string | null; port?: string | null } | null }
@@ -405,32 +397,35 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     }
   };
 
-  // State 2: Repo connected, VM stopped — show config + Start
+  // VM stopped — show config + Start. Repo card only renders when one is connected;
+  // the daemon supports a blank-clone bootstrap so the rest of the panel still works.
   if (status === "idle" || status === "stopping") {
     const isStopping = status === "stopping";
     return (
       <div className="flex flex-col items-center justify-center w-full h-full p-6">
         <div className="flex flex-col gap-4 w-full max-w-xs">
-          <a
-            href={`https://github.com/${githubRepo.owner}/${githubRepo.name}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors"
-          >
-            <GitHubIcon size={24} />
-            <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-              <span className="text-sm font-medium truncate">
-                {githubRepo.owner}/{githubRepo.name}
-              </span>
-              <span className="text-xs text-muted-foreground truncate">
-                github.com/{githubRepo.owner}/{githubRepo.name}
-              </span>
-            </div>
-            <LinkExternal01
-              size={14}
-              className="text-muted-foreground shrink-0"
-            />
-          </a>
+          {githubRepo && (
+            <a
+              href={`https://github.com/${githubRepo.owner}/${githubRepo.name}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors"
+            >
+              <GitHubIcon size={24} />
+              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                <span className="text-sm font-medium truncate">
+                  {githubRepo.owner}/{githubRepo.name}
+                </span>
+                <span className="text-xs text-muted-foreground truncate">
+                  github.com/{githubRepo.owner}/{githubRepo.name}
+                </span>
+              </div>
+              <LinkExternal01
+                size={14}
+                className="text-muted-foreground shrink-0"
+              />
+            </a>
+          )}
 
           <div className="flex flex-wrap items-end justify-between gap-2 w-full">
             <div className="flex flex-col gap-1">

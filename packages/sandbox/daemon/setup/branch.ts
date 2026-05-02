@@ -11,7 +11,8 @@ export function resolveBranch(deps: ResolveBranchDeps): void {
   const rawSync = deps.gitSync ?? defaultGitSync;
   const gitSync = (args: string[], opts: GitSyncOpts) =>
     rawSync(["-c", "safe.directory=*", ...args], opts);
-  const { appRoot, branch } = deps.config;
+  const { appRoot, git } = deps.config;
+  const branch = git?.repository?.branch;
   if (!branch) return;
 
   let branchOnRemote = false;

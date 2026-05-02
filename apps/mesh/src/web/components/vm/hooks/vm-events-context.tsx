@@ -41,6 +41,8 @@ export type { ClaimFailureReason, ClaimPhase };
 export interface VmStatus {
   ready: boolean;
   htmlSupport: boolean;
+  /** Currently active dev port (pinned `devPort` if responding, otherwise highest-scored discovered). */
+  port: number | null;
 }
 
 export interface BranchStatus {
@@ -82,7 +84,7 @@ export interface VmEventsValue {
 
 const DEFAULT_VALUE: VmEventsValue = {
   phase: null,
-  status: { ready: false, htmlSupport: false },
+  status: { ready: false, htmlSupport: false, port: null },
   suspended: false,
   notFound: false,
   scripts: [],
@@ -145,6 +147,7 @@ export function VmEventsProvider({
   const [status, setStatus] = useState<VmStatus>({
     ready: false,
     htmlSupport: false,
+    port: null,
   });
   const [suspended, setSuspended] = useState(false);
   const [notFound, setNotFound] = useState(false);
@@ -172,7 +175,7 @@ export function VmEventsProvider({
   useEffect(() => {
     // Reset on key change so stale data doesn't linger across branches.
     setPhase(null);
-    setStatus({ ready: false, htmlSupport: false });
+    setStatus({ ready: false, htmlSupport: false, port: null });
     setSuspended(false);
     setNotFound(false);
     setScripts([]);
@@ -248,7 +251,7 @@ export function VmEventsProvider({
       // vmEntry exists; the empty "Start Server" state when it doesn't.
       setNotFound(true);
       setPhase(null);
-      setStatus({ ready: false, htmlSupport: false });
+      setStatus({ ready: false, htmlSupport: false, port: null });
       setScripts([]);
       setActiveProcesses([]);
       setBranchStatus(null);
@@ -276,6 +279,7 @@ export function VmEventsProvider({
           setStatus({
             ready: Boolean(data.ready),
             htmlSupport: Boolean(data.htmlSupport),
+            port: typeof data.port === "number" ? data.port : null,
           });
         } else if (e.type === "scripts") {
           setScripts(data.scripts ?? []);

@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { loadBootConfigFromEnv, tryLoadTenantConfigFromEnv } from "./config";
-import { tenantConfigFromBootstrap } from "./bootstrap-config";
 import { REPLAY_BYTES } from "./constants";
 import { Broadcaster } from "./events/broadcast";
 import { ProcessManager } from "./process/run-process";
@@ -31,29 +30,30 @@ import { bumpActivity } from "./activity";
 import { startUpstreamProbe } from "./probe";
 import { BranchStatusMonitor } from "./git/branch-status";
 import { discoverDescendantListeningPorts } from "./process/port-discovery";
-import {
-  BOOTSTRAP_FILENAME,
-  readBootstrap,
-  type BootstrapPayload,
-} from "./persistence";
+import { BOOTSTRAP_FILENAME, readBootstrap } from "./persistence";
 import {
   bootstrapMutex,
   clearTenantConfig,
   getBootConfig,
-  getPhase,
-  peekTenantConfig,
   setBootConfig,
-  setBootstrapHash,
-  setLastError,
-  setPhase,
   setTenantConfig,
 } from "./state";
-import { makeBootstrapHandler } from "./bootstrap";
+import {
+  makeConfigReadHandler,
+  makeConfigUpdateHandler,
+} from "./routes/config";
 import type { Config, TenantConfig } from "./types";
 
 if (!process.env.DAEMON_BOOT_ID) {
   process.env.DAEMON_BOOT_ID = randomUUID();
 }
+
+// Corepack walks UP from cwd to find the closest `packageManager` field and
+// rejects mismatched invocations. On host runners the daemon's workdir lives
+// under the user's home, so an unrelated ancestor (e.g. `~/package.json`) can
+// hijack `yarn`/`npm` calls in the cloned repo. Setting STRICT=0 lets corepack
+// run whichever PM the daemon picked, regardless of what an ancestor declared.
+process.env.COREPACK_ENABLE_STRICT = "0";
 
 const BOOTSTRAP_DIR =
   process.env.DAEMON_BOOTSTRAP_DIR ?? "/home/sandbox/.daemon";
@@ -101,7 +101,7 @@ broadcaster.broadcastEvent = (event: string, data: unknown) => {
 };
 
 const excludeFromDiscovery = new Set<number>([PROXY_PORT]);
-const getDiscoveredPorts = (): number[] => {
+const getDiscoveredPorts = () => {
   const rootPids = processManager.allPids();
   if (rootPids.length === 0) return [];
   return discoverDescendantListeningPorts({
@@ -113,13 +113,14 @@ const getDiscoveredPorts = (): number[] => {
 const lastStatus = startUpstreamProbe({
   upstreamHost: "localhost",
   getDiscoveredPorts,
-  getFallbackPort: () => activeConfig?.devPort ?? 3000,
+  getPinnedPort: () =>
+    activeConfig?.application?.developmentServer?.port ?? null,
+  getCommandName: (pid) => processManager.nameByPid(pid),
   onChange: (s) =>
     broadcaster.broadcastEvent("status", { type: "status", ...s }),
 });
 
-const getDevPort = (): number =>
-  lastStatus.port ?? activeConfig?.devPort ?? 3000;
+const getDevPort = (): number | null => lastStatus.port;
 
 const readH = makeReadHandler({
   appRoot: bootConfig.appRoot,
@@ -165,10 +166,14 @@ function activateTenant(tenant: TenantConfig): void {
     dropPrivileges,
     onTerminal: (outcome, reason) => {
       void bootstrapMutex.run(() => {
-        if (outcome === "ready") {
-          setPhase("ready");
-        } else if (outcome === "failed") {
+        if (outcome === "failed") {
           handleOrchestratorFailure(reason ?? "orchestrator failed");
+        }
+        if (outcome === "ready") {
+          broadcaster.broadcastEvent("status", {
+            type: "status",
+            status: "ready",
+          });
         }
       });
     },
@@ -177,7 +182,7 @@ function activateTenant(tenant: TenantConfig): void {
   branchStatus = new BranchStatusMonitor(config, broadcaster);
   tenantHandlers = {
     execH: makeExecHandler({
-      config,
+      getConfig: () => activeConfig as Config,
       processManager,
       orchestrator: orch,
       setupState: orch.state,
@@ -191,7 +196,6 @@ function deactivateTenant(): void {
   activeConfig = null;
   tenantHandlers = null;
   clearTenantConfig();
-  setBootstrapHash(null);
   try {
     unlinkSync(join(BOOTSTRAP_DIR, BOOTSTRAP_FILENAME));
   } catch {}
@@ -202,9 +206,7 @@ function deactivateTenant(): void {
 // pending-bootstrap so mesh can re-POST a corrected payload without a
 // pod-recreate roundtrip. lastError is surfaced on /health for diagnostics.
 function handleOrchestratorFailure(reason: string): void {
-  setLastError(reason);
   deactivateTenant();
-  setPhase("pending-bootstrap");
   broadcaster.broadcastChunk(
     "setup",
     `\r\n[daemon] orchestrator failed (${reason}); awaiting new bootstrap\r\n`,
@@ -227,7 +229,6 @@ const healthH = makeHealthHandler({
   getReady: () => lastStatus.ready,
   getSetup: () =>
     orchestrator ? { ...orchestrator.state } : { running: false, done: false },
-  getPhase: () => getPhase(),
 });
 const eventsH = makeEventsHandler({
   broadcaster,
@@ -240,18 +241,20 @@ const idleH = makeIdleHandler();
 const proxyH = makeProxyHandler({ broadcaster, getDevPort });
 const wsProxy = makeWsUpgrader(getDevPort, { onClientMessage: bumpActivity });
 
-const bootstrapH = makeBootstrapHandler({
+const configReadH = makeConfigReadHandler({ daemonBootId: DAEMON_BOOT_ID });
+
+const configH = makeConfigUpdateHandler({
   daemonBootId: DAEMON_BOOT_ID,
   storageDir: BOOTSTRAP_DIR,
-  onAccepted: () => {
-    const tenant = peekTenantConfig();
-    if (!tenant) return;
-    activateTenant(tenant);
-    if (process.env.DAEMON_NO_AUTOSTART !== "1") {
-      queueMicrotask(() => {
-        void runBootSetup();
-      });
+  onApplied: (kind, tenant) => {
+    if (kind === "devport-only") {
+      activeConfig = { ...getBootConfig(), ...tenant };
+      return;
     }
+    for (const name of processManager.activeNames()) {
+      processManager.kill(name);
+    }
+    activateTenant(tenant);
   },
 });
 
@@ -262,33 +265,23 @@ function hydrate(): void {
   } catch (e) {
     // env tenant data is malformed (e.g., bad RUNTIME). Don't crash —
     // mesh can still POST a valid bootstrap. Surface via lastError.
-    setLastError(`env tenant config invalid: ${(e as Error).message}`);
+    console.error(
+      `[daemon] env tenant config invalid: ${(e as Error).message}`,
+    );
   }
   if (envTenant) {
     setTenantConfig(envTenant);
     activateTenant(envTenant);
-    setPhase("bootstrapping");
     return;
   }
 
   const outcome = readBootstrap(BOOTSTRAP_DIR);
   if (outcome.kind === "valid") {
-    const payload = outcome.file.payload as BootstrapPayload;
-    const tenant = tenantConfigFromBootstrap(payload);
-    setBootstrapHash(outcome.file.hash);
-    setTenantConfig(tenant);
-    activateTenant(tenant);
-    setPhase("bootstrapping");
+    const config = outcome.config;
+    setTenantConfig(config);
+    activateTenant(config);
     return;
   }
-  if (outcome.kind === "invalid") {
-    console.error(`[daemon] bootstrap.json invalid: ${outcome.reason}`);
-    setLastError(`bootstrap.json invalid: ${outcome.reason}`);
-    try {
-      unlinkSync(join(BOOTSTRAP_DIR, BOOTSTRAP_FILENAME));
-    } catch {}
-  }
-  setPhase("pending-bootstrap");
 }
 
 hydrate();
@@ -321,8 +314,11 @@ Bun.serve<WsProxyData, never>({
     if (req.method === "GET" && p === "/_decopilot_vm/scripts")
       return scriptsHandler();
 
-    if (req.method === "POST" && p === "/_decopilot_vm/bootstrap") {
-      return bootstrapH(req);
+    if (p === "/_decopilot_vm/config") {
+      const denied = requireToken(req, bootConfig.daemonToken);
+      if (denied) return denied;
+      if (req.method === "GET") return configReadH();
+      if (req.method === "PUT") return configH(req);
     }
 
     if (req.method === "POST" && p.startsWith("/_decopilot_vm/")) {
@@ -345,10 +341,7 @@ Bun.serve<WsProxyData, never>({
       // bootstrap (or env-driven hydrate) sets a tenant, exec is gated.
       if (p.startsWith("/_decopilot_vm/exec/")) {
         if (!tenantHandlers) {
-          return jsonResponse(
-            { error: "tenant not configured", phase: getPhase() },
-            503,
-          );
+          return jsonResponse({ error: "tenant not configured" }, 503);
         }
         return tenantHandlers.execH(req);
       }
@@ -359,7 +352,7 @@ Bun.serve<WsProxyData, never>({
         status: 204,
         headers: {
           "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "GET, POST",
+          "Access-Control-Allow-Methods": "GET, POST, PUT",
           "Access-Control-Allow-Headers":
             "Content-Type, Accept, Cache-Control, Authorization",
         },
@@ -378,16 +371,3 @@ Bun.serve<WsProxyData, never>({
     close: wsProxy.close,
   },
 });
-
-async function runBootSetup() {
-  if (!orchestrator || !branchStatus) return;
-  await orchestrator.run();
-  branchStatus.emit();
-  branchStatus.watch();
-}
-
-if (process.env.DAEMON_NO_AUTOSTART !== "1") {
-  if (getPhase() === "ready" || getPhase() === "bootstrapping") {
-    void runBootSetup();
-  }
-}

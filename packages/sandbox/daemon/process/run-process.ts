@@ -25,6 +25,16 @@ export class ProcessManager {
     return out;
   }
 
+  /** Tracked process name for a given pid, or null when not tracked.
+   * Used by the upstream probe to attribute a discovered port to the
+   * command that opened it (e.g. "dev" listening on 5173). */
+  nameByPid(pid: number): string | null {
+    for (const [name, child] of this.children) {
+      if (child.pid === pid) return name;
+    }
+    return null;
+  }
+
   run(source: string, cmd: string, label: string): PtyHandle {
     const existing = this.children.get(source);
     if (existing) {

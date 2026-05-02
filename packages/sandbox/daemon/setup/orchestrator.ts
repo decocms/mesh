@@ -6,8 +6,8 @@ import type { Config } from "../types";
 import { isResume } from "./resume";
 import { spawnClone } from "./clone";
 import { configureGitIdentity } from "./identity";
-import { resolveBranch } from "./branch";
 import { spawnInstall } from "./install";
+import { resolveBranch } from "./branch";
 
 export interface SetupState {
   running: boolean;
@@ -50,39 +50,49 @@ export class SetupOrchestrator {
     };
 
     try {
-      if (!isResume(config.appRoot) && config.cloneUrl) {
-        const code = await spawnClone({ config, onChunk, dropPrivileges });
-        if (code !== 0) {
+      configureGitIdentity(config);
+    } catch (e) {
+      broadcaster.broadcastChunk(
+        "setup",
+        `\r\nWarning: git identity setup failed: ${(e as Error).message}\r\n`,
+      );
+    }
+
+    try {
+      const notResume = !isResume(config.appRoot);
+      const cloneUrl = config.git?.repository?.cloneUrl;
+      try {
+        if (notResume && cloneUrl) {
+          const code = await spawnClone({ config, onChunk, dropPrivileges });
+          if (code !== 0) {
+            broadcaster.broadcastChunk(
+              "setup",
+              `\r\nClone failed with exit code ${code}\r\n`,
+            );
+            return finishFailed(`clone exit ${code}`);
+          }
+        } else if (isResume(config.appRoot)) {
           broadcaster.broadcastChunk(
             "setup",
-            `\r\nClone failed with exit code ${code}\r\n`,
+            `$ (resuming setup; ${config.appRoot} already cloned)\r\n`,
           );
-          return finishFailed(`clone exit ${code}`);
         }
-      } else if (isResume(config.appRoot)) {
+      } catch (e) {
+        const message = (e as Error).message;
         broadcaster.broadcastChunk(
           "setup",
-          `$ (resuming setup; ${config.appRoot} already cloned)\r\n`,
+          `\r\nBranch resolution error: ${message}\r\n`,
         );
+        return finishFailed(message);
       }
 
-      if (config.cloneUrl) {
-        try {
-          configureGitIdentity(config);
-        } catch (e) {
-          broadcaster.broadcastChunk(
-            "setup",
-            `\r\nWarning: git identity setup failed: ${(e as Error).message}\r\n`,
-          );
-        }
-        try {
-          resolveBranch({ config });
-        } catch (e) {
-          broadcaster.broadcastChunk(
-            "setup",
-            `\r\nWarning: branch resolution failed: ${(e as Error).message}\r\n`,
-          );
-        }
+      try {
+        resolveBranch({ config });
+      } catch (e) {
+        broadcaster.broadcastChunk(
+          "setup",
+          `\r\nWarning: branch resolution failed: ${(e as Error).message}\r\n`,
+        );
       }
 
       const installPromise = spawnInstall({
@@ -101,7 +111,10 @@ export class SetupOrchestrator {
         }
       }
 
-      const scripts = discoverScripts(config.appRoot, config.packageManager);
+      const scripts = discoverScripts(
+        config.appRoot,
+        config.application?.packageManager?.name ?? null,
+      );
       broadcaster.broadcastEvent("scripts", { type: "scripts", scripts });
       autoStartDev({ config, scripts, pm: processManager });
 
@@ -110,11 +123,9 @@ export class SetupOrchestrator {
       onTerminal?.("ready");
       return true;
     } catch (e) {
-      broadcaster.broadcastChunk(
-        "setup",
-        `\r\nSetup error: ${(e as Error).message}\r\n`,
-      );
-      return finishFailed((e as Error).message);
+      const message = (e as Error).message;
+      broadcaster.broadcastChunk("setup", `\r\nSetup error: ${message}\r\n`);
+      return finishFailed(message);
     }
   }
 }

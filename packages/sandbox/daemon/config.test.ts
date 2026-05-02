@@ -46,12 +46,16 @@ describe("tryLoadTenantConfigFromEnv", () => {
 
   it("derives pathPrefix from runtime=bun", () => {
     const cfg = tryLoadTenantConfigFromEnv({ RUNTIME: "bun" });
-    expect(cfg?.pathPrefix).toBe("export PATH=/opt/bun/bin:$PATH && ");
+    expect(cfg?.application?.runtime?.pathPrefix).toBe(
+      "export PATH=/opt/bun/bin:$PATH && ",
+    );
   });
 
   it("derives pathPrefix from runtime=deno", () => {
     const cfg = tryLoadTenantConfigFromEnv({ RUNTIME: "deno" });
-    expect(cfg?.pathPrefix).toBe("export PATH=/opt/deno/bin:$PATH && ");
+    expect(cfg?.application?.runtime?.pathPrefix).toBe(
+      "export PATH=/opt/deno/bin:$PATH && ",
+    );
   });
 
   it("rejects invalid BRANCH names", () => {
@@ -92,11 +96,15 @@ describe("tryLoadTenantConfigFromEnv", () => {
       DEV_PORT: "4321",
       RUNTIME: "bun",
     });
-    expect(cfg?.cloneUrl).toBe("https://x@github.com/org/repo.git");
-    expect(cfg?.repoName).toBe("org/repo");
-    expect(cfg?.branch).toBe("deco/happy-panda");
-    expect(cfg?.packageManager).toBe("pnpm");
-    expect(cfg?.devPort).toBe(4321);
-    expect(cfg?.pathPrefix).toBe("export PATH=/opt/bun/bin:$PATH && ");
+    expect(cfg?.git?.repository?.cloneUrl).toBe(
+      "https://x@github.com/org/repo.git",
+    );
+    expect(cfg?.git?.repository?.repoName).toBe("org/repo");
+    expect(cfg?.git?.repository?.branch).toBe("deco/happy-panda");
+    expect(cfg?.application?.packageManager?.name).toBe("pnpm");
+    expect(cfg?.application?.developmentServer?.port).toBe(4321);
+    expect(cfg?.application?.runtime?.pathPrefix).toBe(
+      "export PATH=/opt/bun/bin:$PATH && ",
+    );
   });
 });

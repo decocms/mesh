@@ -85,10 +85,7 @@ export const VM_START = defineTool({
       ctx,
     );
 
-    const githubRepo = (metadata as GithubRepoMeta).githubRepo;
-    if (!githubRepo) {
-      throw new Error("No GitHub repo connected");
-    }
+    const githubRepo = (metadata as GithubRepoMeta).githubRepo ?? null;
 
     const runnerKind = resolveRunnerKindFromEnv();
     await reapStaleRunner(ctx, existing, runnerKind);

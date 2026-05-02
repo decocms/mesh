@@ -1,7 +1,4 @@
 import type { BootConfig, Config, TenantConfig } from "./types";
-
-export type Phase = "pending-bootstrap" | "bootstrapping" | "ready";
-
 class Mutex {
   private chain: Promise<void> = Promise.resolve();
 
@@ -29,11 +26,8 @@ class Mutex {
 export const bootstrapMutex = new Mutex();
 
 interface State {
-  phase: Phase;
   bootConfig: BootConfig | null;
   tenantConfig: TenantConfig | null;
-  bootstrapHash: string | null;
-  lastError: string | null;
   configReady: Promise<Config>;
   resolveConfig: (c: Config) => void;
 }
@@ -43,38 +37,11 @@ const configReady = new Promise<Config>((resolve) => {
   resolveConfig = resolve;
 });
 const state: State = {
-  phase: "pending-bootstrap",
   bootConfig: null,
   tenantConfig: null,
-  bootstrapHash: null,
-  lastError: null,
   configReady,
   resolveConfig,
 };
-
-export function getPhase(): Phase {
-  return state.phase;
-}
-
-export function setPhase(p: Phase): void {
-  state.phase = p;
-}
-
-export function getBootstrapHash(): string | null {
-  return state.bootstrapHash;
-}
-
-export function setBootstrapHash(h: string | null): void {
-  state.bootstrapHash = h;
-}
-
-export function getLastError(): string | null {
-  return state.lastError;
-}
-
-export function setLastError(msg: string | null): void {
-  state.lastError = msg;
-}
 
 export function setBootConfig(c: BootConfig): void {
   state.bootConfig = c;
@@ -87,10 +54,6 @@ export function getBootConfig(): BootConfig {
   if (!state.bootConfig) {
     throw new Error("bootConfig not initialized");
   }
-  return state.bootConfig;
-}
-
-export function peekBootConfig(): BootConfig | null {
   return state.bootConfig;
 }
 
@@ -108,13 +71,4 @@ export function clearTenantConfig(): void {
 
 export function peekTenantConfig(): TenantConfig | null {
   return state.tenantConfig;
-}
-
-export function peekConfig(): Config | null {
-  if (!state.bootConfig || !state.tenantConfig) return null;
-  return { ...state.bootConfig, ...state.tenantConfig };
-}
-
-export function getConfig(): Promise<Config> {
-  return state.configReady;
 }
