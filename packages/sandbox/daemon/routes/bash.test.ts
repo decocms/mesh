@@ -30,7 +30,7 @@ describe("bash", () => {
       ttlMs: 60_000,
       reapIntervalMs: 60_000,
     });
-    h = makeBashHandler({ appRoot, jobManager });
+    h = makeBashHandler({ repoDir: appRoot, jobManager });
   });
 
   afterEach(() => {

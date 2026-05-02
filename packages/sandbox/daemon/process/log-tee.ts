@@ -1,4 +1,11 @@
-import { closeSync, fsyncSync, mkdirSync, openSync, writeSync } from "node:fs";
+import {
+  closeSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  statSync,
+  writeSync,
+} from "node:fs";
 import { dirname } from "node:path";
 
 /**
@@ -86,6 +93,13 @@ export class LogTee {
     if (this.fd !== null) return true;
     try {
       mkdirSync(dirname(this.path), { recursive: true, mode: 0o700 });
+      // Seed from existing file size so the cap applies across runs that
+      // append to the same path (named-script tees rerun without clearing).
+      try {
+        this.written = statSync(this.path).size;
+      } catch {
+        /* file doesn't exist yet */
+      }
       this.fd = openSync(this.path, "a", 0o600);
       return true;
     } catch {

@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn as nodeSpawn } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { existsSync, readdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { LogTee } from "./log-tee";
 import { spawnPty } from "./pty-spawn";
@@ -9,6 +9,7 @@ const RING_BUFFER_BYTES = 256 * 1024;
 const LOG_MAX_BYTES = 10 * 1024 * 1024;
 const DEFAULT_REAP_INTERVAL_MS = 60 * 1000;
 const DEFAULT_TTL_MS = 15 * 60 * 1000;
+const JOB_FILE_PREFIX = "job";
 
 export type JobStatus = "running" | "exited" | "failed" | "killed" | "timeout";
 
@@ -22,6 +23,13 @@ export interface JobSpec {
   timeoutMs?: number;
   /** Display label for SSE / log header. */
   label?: string;
+  /**
+   * Named-script tee. When set, output writes to `<logsDir>/app/<logName>`
+   * (stable filename, overwritten across runs of the same name). When
+   * unset, output writes to `<logsDir>/<jobId>` where jobId is `job<N>`
+   * (sequential within the daemon lifetime, purged on startup).
+   */
+  logName?: string;
 }
 
 interface OutputChunk {
@@ -58,8 +66,13 @@ interface JobInternal {
   pgid: number | undefined;
   stdout: RingBuffer;
   stderr: RingBuffer;
-  stdoutTee: LogTee;
-  stderrTee: LogTee;
+  /**
+   * Single combined tee at `<logsDir>/<id>`. Header line ("$ <command>")
+   * is written first, then stdout + stderr chunks interleave in arrival
+   * order. Capped at 10MB; cleaned up when the job is reaped.
+   */
+  tee: LogTee;
+  logPath: string;
   subscribers: Set<(c: OutputChunk) => void>;
   finishedPromise: Promise<JobResult>;
   resolveFinished: (r: JobResult) => void;
@@ -89,9 +102,14 @@ export class JobManager {
   private readonly jobs = new Map<string, JobInternal>();
   private readonly reaper: ReturnType<typeof setInterval>;
   private readonly ttlMs: number;
+  private idCounter = 0;
 
   constructor(private readonly deps: JobManagerDeps) {
     this.ttlMs = deps.ttlMs ?? DEFAULT_TTL_MS;
+    // Stale `job*` files from previous daemon lifetimes are unreachable
+    // (in-memory state is gone; IDs restart from 1). Drop them so the
+    // workspace doesn't accumulate orphaned tees.
+    this.purgeStaleLogs();
     this.reaper = setInterval(
       () => this.reap(),
       deps.reapIntervalMs ?? DEFAULT_REAP_INTERVAL_MS,
@@ -100,7 +118,7 @@ export class JobManager {
   }
 
   spawn(spec: JobSpec): JobSummary {
-    const id = randomUUID();
+    const id = `${JOB_FILE_PREFIX}${++this.idCounter}`;
     const job = this.create(id, spec);
     this.jobs.set(id, job);
     this.deps.onChange?.();
@@ -122,11 +140,7 @@ export class JobManager {
     return {
       stdout: stdout.data,
       stderr: stderr.data,
-      truncated:
-        stdout.truncated ||
-        stderr.truncated ||
-        j.stdoutTee.isTruncated() ||
-        j.stderrTee.isTruncated(),
+      truncated: stdout.truncated || stderr.truncated || j.tee.isTruncated(),
     };
   }
 
@@ -180,8 +194,8 @@ export class JobManager {
     if (!j) return false;
     if (j.status === "running") return false;
     this.jobs.delete(id);
-    j.stdoutTee.close();
-    j.stderrTee.close();
+    j.tee.close();
+    this.unlink(j.logPath);
     return true;
   }
 
@@ -189,8 +203,7 @@ export class JobManager {
     clearInterval(this.reaper);
     for (const j of this.jobs.values()) {
       if (j.status === "running") j.kill("SIGKILL");
-      j.stdoutTee.close();
-      j.stderrTee.close();
+      j.tee.close();
     }
     this.jobs.clear();
   }
@@ -201,18 +214,48 @@ export class JobManager {
       if (j.status === "running" || j.finishedAt === null) continue;
       if (now - j.finishedAt > this.ttlMs) {
         this.jobs.delete(id);
-        j.stdoutTee.close();
-        j.stderrTee.close();
+        j.tee.close();
+        this.unlink(j.logPath);
       }
+    }
+  }
+
+  private purgeStaleLogs(): void {
+    let entries: string[];
+    try {
+      entries = readdirSync(this.deps.logsDir);
+    } catch {
+      return;
+    }
+    for (const name of entries) {
+      if (!name.startsWith(JOB_FILE_PREFIX)) continue;
+      this.unlink(join(this.deps.logsDir, name));
+    }
+  }
+
+  private unlink(path: string): void {
+    try {
+      unlinkSync(path);
+    } catch {
+      /* file already gone or never opened */
     }
   }
 
   private create(id: string, spec: JobSpec): JobInternal {
     const stdout = new RingBuffer(RING_BUFFER_BYTES);
     const stderr = new RingBuffer(RING_BUFFER_BYTES);
-    const jobDir = join(this.deps.logsDir, id);
-    const stdoutTee = new LogTee(join(jobDir, "stdout.log"), LOG_MAX_BYTES);
-    const stderrTee = new LogTee(join(jobDir, "stderr.log"), LOG_MAX_BYTES);
+    const logPath = spec.logName
+      ? join(this.deps.logsDir, "app", spec.logName)
+      : join(this.deps.logsDir, id);
+    const tee = new LogTee(logPath, LOG_MAX_BYTES);
+    const header = spec.label ?? `$ ${spec.command}`;
+    // Named-script tees keep history across runs; mark each invocation
+    // with a dated event line so the boundary between runs is obvious.
+    tee.write(
+      existsSync(logPath)
+        ? `\r\n=== ${new Date().toISOString()} ${header} ===\r\n`
+        : `${header}\r\n`,
+    );
     const subscribers = new Set<(c: OutputChunk) => void>();
 
     let resolveFinished!: (r: JobResult) => void;
@@ -232,8 +275,8 @@ export class JobManager {
       pgid: undefined,
       stdout,
       stderr,
-      stdoutTee,
-      stderrTee,
+      tee,
+      logPath,
       subscribers,
       finishedPromise,
       resolveFinished,
@@ -260,7 +303,7 @@ export class JobManager {
     } catch (e) {
       const msg = `spawn error: ${(e as Error).message}\n`;
       job.stderr.append(msg);
-      job.stderrTee.write(msg);
+      job.tee.write(msg);
       this.fanOut(job, { stream: "stderr", data: msg });
       // Defer finalize so callers awaiting `finished` see the same shape
       // as a normal exit; spawn() returning synchronously must observe a
@@ -275,7 +318,7 @@ export class JobManager {
 
     child.onData((data) => {
       job.stdout.append(data);
-      job.stdoutTee.write(data);
+      job.tee.write(data);
       this.fanOut(job, { stream: "stdout", data });
     });
 
@@ -328,13 +371,13 @@ export class JobManager {
     child.stdout?.on("data", (chunk: Buffer) => {
       const data = chunk.toString("utf-8");
       job.stdout.append(data);
-      job.stdoutTee.write(data);
+      job.tee.write(data);
       this.fanOut(job, { stream: "stdout", data });
     });
     child.stderr?.on("data", (chunk: Buffer) => {
       const data = chunk.toString("utf-8");
       job.stderr.append(data);
-      job.stderrTee.write(data);
+      job.tee.write(data);
       this.fanOut(job, { stream: "stderr", data });
     });
 
@@ -359,7 +402,7 @@ export class JobManager {
       if (job.timer) clearTimeout(job.timer);
       const msg = `spawn error: ${err.message}\n`;
       job.stderr.append(msg);
-      job.stderrTee.write(msg);
+      job.tee.write(msg);
       this.fanOut(job, { stream: "stderr", data: msg });
       this.finalize(job, { exitCode: -1, timedOut: false });
     });
@@ -379,8 +422,7 @@ export class JobManager {
     job.status = status;
     job.exitCode = result.exitCode;
     job.finishedAt = Date.now();
-    job.stdoutTee.close();
-    job.stderrTee.close();
+    job.tee.close();
     job.resolveFinished({
       exitCode: result.exitCode,
       status,
@@ -409,6 +451,6 @@ function summarize(j: JobInternal): JobSummary {
     startedAt: j.startedAt,
     finishedAt: j.finishedAt,
     timedOut: j.timedOut,
-    truncated: j.stdoutTee.isTruncated() || j.stderrTee.isTruncated(),
+    truncated: j.tee.isTruncated(),
   };
 }

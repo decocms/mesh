@@ -8,7 +8,8 @@ import { jsonResponse, parseBase64JsonBody } from "./body-parser";
 export type ExecMode = "await" | "background";
 
 export interface ExecDeps {
-  appRoot: string;
+  /** Default cwd when no packageManager.path is set. Typically `<appRoot>/app`. */
+  repoDir: string;
   store: TenantConfigStore;
   jobManager: JobManager;
   /**
@@ -57,7 +58,7 @@ export function makeExecHandler(deps: ExecDeps) {
       return jsonResponse({ error: `unknown package manager: ${pmName}` }, 500);
     }
 
-    const cwd = config.application?.packageManager?.path ?? deps.appRoot;
+    const cwd = config.application?.packageManager?.path ?? deps.repoDir;
     const scripts = discoverScripts(cwd, pmName);
     if (!scripts.includes(name)) {
       return jsonResponse(
@@ -104,6 +105,9 @@ export function makeExecHandler(deps: ExecDeps) {
       mode: "pty",
       timeoutMs: body.timeoutMs,
       label,
+      // Named tee: <logsDir>/app/<scriptName> stays stable across runs
+      // so the LLM can `cat tmp/app/build` etc. without chasing job IDs.
+      logName: name,
     });
 
     // Mirror job output onto the global SSE log stream under the script

@@ -7,7 +7,8 @@ const MAX_TIMEOUT_MS = 15 * 60 * 1000;
 export type BashMode = "await" | "background";
 
 export interface BashDeps {
-  appRoot: string;
+  /** Default cwd for unscoped commands. Typically `<appRoot>/app` (the repo). */
+  repoDir: string;
   jobManager: JobManager;
   env?: Record<string, string>;
 }
@@ -45,7 +46,7 @@ export function makeBashHandler(deps: BashDeps) {
 
     const job = deps.jobManager.spawn({
       command: body.command,
-      cwd: body.cwd ?? deps.appRoot,
+      cwd: body.cwd ?? deps.repoDir,
       env,
       mode: "pipe",
       timeoutMs: timeout,

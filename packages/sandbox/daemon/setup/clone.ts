@@ -16,8 +16,8 @@ export function spawnClone(deps: CloneDeps): Promise<number> {
   if (!cloneUrl) {
     return Promise.resolve(1);
   }
-  const cmd = `git -c safe.directory='*' clone --depth 1 ${cloneUrl} ${config.appRoot}`;
-  const label = `$ git clone --depth 1 ${repoLabel} ${config.appRoot}`;
+  const cmd = `git -c safe.directory='*' clone --depth 1 ${cloneUrl} ${config.repoDir}`;
+  const label = `$ git clone --depth 1 ${repoLabel} ${config.repoDir}`;
   deps.onChunk("setup", `${label}\r\n`);
 
   return new Promise((resolve) => {

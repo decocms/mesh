@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { DECO_GID, DECO_UID } from "../constants";
 import type { Broadcaster } from "../events/broadcast";
@@ -31,7 +32,7 @@ export interface ApplicationStartSpec {
 
 export interface ApplicationServiceDeps {
   broadcaster: Broadcaster;
-  /** ~/.daemon/logs/app/. */
+  /** `<appRoot>/tmp/`. App tee writes to `<logsDir>/app/<spec.source>`. */
   logsDir: string;
   dropPrivileges?: boolean;
   /**
@@ -66,7 +67,6 @@ export class ApplicationService {
 
   private child: PtyHandle | null = null;
   private currentTee: LogTee | null = null;
-  private currentLaunchId: string | null = null;
   private stopResolvers: Array<() => void> = [];
   // Set by stop()/killImmediate() so onExit can distinguish an intentional
   // teardown (no onFailure callback, status → idle) from a real crash
@@ -106,11 +106,19 @@ export class ApplicationService {
       this.killImmediate();
     }
 
-    this.currentLaunchId = `${Date.now()}`;
-    const logPath = join(this.deps.logsDir, `${this.currentLaunchId}.log`);
+    // Per-script tee at `<logsDir>/app/<source>` (e.g. `tmp/app/dev`).
+    // History accumulates across launches; each (re)start writes a dated
+    // event line so the boundary between runs is visible.
+    const logPath = join(this.deps.logsDir, "app", spec.source);
+    const isRerun = existsSync(logPath);
     this.currentTee = new LogTee(
       logPath,
       this.deps.logMaxBytes ?? DEFAULT_LOG_MAX_BYTES,
+    );
+    this.currentTee.write(
+      isRerun
+        ? `\r\n=== ${new Date().toISOString()} ${spec.label} ===\r\n`
+        : `${spec.label}\r\n`,
     );
 
     this.deps.broadcaster.broadcastChunk(spec.source, `${spec.label}\r\n`);

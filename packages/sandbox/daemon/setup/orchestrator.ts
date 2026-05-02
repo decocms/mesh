@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import type { ApplicationService } from "../app/application-service";
 import type { TenantConfigStore } from "../config-store";
@@ -11,6 +11,7 @@ import type { Broadcaster } from "../events/broadcast";
 import { gitSync } from "../git/git-sync";
 import type { InstallState } from "../install/install-state";
 import { InstallState as InstallStateClass } from "../install/install-state";
+import { LogTee } from "../process/log-tee";
 import { discoverScripts } from "../process/script-discovery";
 import type { Config } from "../types";
 import { spawnClone } from "./clone";
@@ -18,12 +19,16 @@ import { configureGitIdentity } from "./identity";
 import { spawnInstall } from "./install";
 import { isResume } from "./resume";
 
+const INSTALL_LOG_MAX_BYTES = 10 * 1024 * 1024;
+
 export interface SetupOrchestratorDeps {
-  bootConfig: { appRoot: string };
+  bootConfig: { appRoot: string; repoDir: string };
   store: TenantConfigStore;
   appService: ApplicationService;
   broadcaster: Broadcaster;
   installState: InstallState;
+  /** Workspace tmp dir; install tee lives at `<logsDir>/app/install`. */
+  logsDir: string;
 }
 
 /**
@@ -132,6 +137,7 @@ export class SetupOrchestrator {
       daemonBootId: "",
       proxyPort: 0,
       appRoot: this.deps.bootConfig.appRoot,
+      repoDir: this.deps.bootConfig.repoDir,
     }) as Config;
   }
 
@@ -151,7 +157,7 @@ export class SetupOrchestrator {
     }
 
     const cloneUrl = config.git?.repository?.cloneUrl;
-    if (cloneUrl && !isResume(config.appRoot)) {
+    if (cloneUrl && !isResume(config.repoDir)) {
       const code = await spawnClone({
         config,
         onChunk: (_src, data) => this.chunk(data),
@@ -161,7 +167,7 @@ export class SetupOrchestrator {
         return;
       }
     } else if (cloneUrl) {
-      this.chunk(`$ (resuming setup; ${config.appRoot} already cloned)\r\n`);
+      this.chunk(`$ (resuming setup; ${config.repoDir} already cloned)\r\n`);
     }
 
     if (config.git?.repository?.branch) {
@@ -271,7 +277,7 @@ export class SetupOrchestrator {
     if (desired !== undefined) env.PORT = String(desired);
     this.deps.appService.start({
       command: command.cmd,
-      cwd: config.appRoot,
+      cwd: config.repoDir,
       env,
       label: command.label,
       source: command.source,
@@ -285,12 +291,12 @@ export class SetupOrchestrator {
     if (!pm) return null;
     const pmConf = PACKAGE_MANAGER_DAEMON_CONFIG[pm];
     if (!pmConf) return null;
-    const scripts = discoverScripts(config.appRoot, pm);
+    const scripts = discoverScripts(config.repoDir, pm);
     const starter = WELL_KNOWN_STARTERS.find((s) => scripts.includes(s));
     if (!starter) return null;
     const prefix = config.runtimePathPrefix;
     return {
-      cmd: `${prefix}cd ${config.appRoot} && ${pmConf.runPrefix} ${starter}`,
+      cmd: `${prefix}cd ${config.repoDir} && ${pmConf.runPrefix} ${starter}`,
       label: `$ ${pmConf.runPrefix} ${starter}`,
       // UI tab key — matches scripts list entries the UI renders against.
       source: starter,
@@ -302,15 +308,27 @@ export class SetupOrchestrator {
     if (!config) return false;
     if (!config.application?.packageManager?.name) return false;
     this.deps.appService.setStatus("installing");
+    const installLogPath = join(this.deps.logsDir, "app", "install");
+    try {
+      unlinkSync(installLogPath);
+    } catch {
+      /* not present */
+    }
+    const installTee = new LogTee(installLogPath, INSTALL_LOG_MAX_BYTES);
     const installPromise = spawnInstall({
       config,
-      onChunk: (_src, data) => this.chunk(data),
+      onChunk: (_src, data) => {
+        this.chunk(data);
+        installTee.write(data);
+      },
     });
     if (!installPromise) {
+      installTee.close();
       this.deps.appService.setStatus("idle");
       return false;
     }
     const code = await installPromise;
+    installTee.close();
     if (code !== 0) {
       this.chunk(`\r\nInstall failed with exit code ${code}\r\n`);
       this.deps.appService.setStatus("failed", `install exit ${code}`);
@@ -328,7 +346,7 @@ export class SetupOrchestrator {
     this.deps.appService.setStatus("idle");
 
     // Broadcast discovered scripts so SSE consumers can populate dropdowns.
-    const cwd = config.application?.packageManager?.path ?? config.appRoot;
+    const cwd = config.application?.packageManager?.path ?? config.repoDir;
     const scripts = discoverScripts(
       cwd,
       config.application?.packageManager?.name ?? null,
@@ -341,22 +359,22 @@ export class SetupOrchestrator {
   }
 
   private refreshBranchHead(): void {
-    const appRoot = this.deps.bootConfig.appRoot;
-    if (!appRoot) return;
-    if (!existsSync(join(appRoot, ".git"))) {
+    const repoDir = this.deps.bootConfig.repoDir;
+    if (!repoDir) return;
+    if (!existsSync(join(repoDir, ".git"))) {
       this.currentBranchHead = undefined;
       return;
     }
     try {
-      this.currentBranchHead = gitSync(["rev-parse", "HEAD"], { cwd: appRoot });
+      this.currentBranchHead = gitSync(["rev-parse", "HEAD"], { cwd: repoDir });
     } catch {
       this.currentBranchHead = undefined;
     }
   }
 
   private async checkoutBranch(branch: string): Promise<void> {
-    const appRoot = this.deps.bootConfig.appRoot;
-    if (!appRoot) return;
+    const repoDir = this.deps.bootConfig.repoDir;
+    if (!repoDir) return;
     let onRemote = false;
     try {
       gitSync(
@@ -367,25 +385,25 @@ export class SetupOrchestrator {
           "origin",
           `+refs/heads/${branch}:refs/remotes/origin/${branch}`,
         ],
-        { cwd: appRoot },
+        { cwd: repoDir },
       );
       gitSync(
         ["-c", "safe.directory=*", "fetch", "origin", `${branch}:${branch}`],
-        { cwd: appRoot },
+        { cwd: repoDir },
       );
       onRemote = true;
     } catch {
       /* not on remote — fall through to local create */
     }
     if (onRemote) {
-      gitSync(["-c", "safe.directory=*", "checkout", branch], { cwd: appRoot });
+      gitSync(["-c", "safe.directory=*", "checkout", branch], { cwd: repoDir });
       return;
     }
     try {
-      gitSync(["-c", "safe.directory=*", "checkout", branch], { cwd: appRoot });
+      gitSync(["-c", "safe.directory=*", "checkout", branch], { cwd: repoDir });
     } catch {
       gitSync(["-c", "safe.directory=*", "checkout", "-b", branch], {
-        cwd: appRoot,
+        cwd: repoDir,
       });
     }
   }

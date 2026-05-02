@@ -153,12 +153,10 @@ export class HostSandboxRunner implements SandboxRunner {
 
     // 3. Fresh provision.
     const workdir = this.workdirFor(handle);
-    // Create the workdir itself, not just its parent: the daemon's bash
-    // handler spawns with `cwd: appRoot`, and posix_spawn fails with ENOENT
-    // when the cwd doesn't exist. For repo-linked sandboxes the orchestrator
-    // would still create it during clone (clone tolerates an existing empty
-    // dir), but repo-less sandboxes would otherwise leave appRoot missing
-    // and every bash call would fail with `posix_spawn 'bash'`.
+    // Pre-create the workspace root so the daemon (and bash routes) have
+    // a valid cwd before clone runs. The daemon clones into `<workdir>/app`,
+    // not `<workdir>` itself, so a pre-created workspace dir doesn't trip
+    // git's "destination already exists" check.
     await mkdir(workdir, { recursive: true });
 
     const token = randomBytes(24).toString("hex");
@@ -168,12 +166,10 @@ export class HostSandboxRunner implements SandboxRunner {
     const devPort = await preallocatePort();
     const ingressPort = await preallocatePort();
 
-    const configDir = this.configDirFor(handle);
     const env = buildDaemonEnv({
       token,
       bootId,
       workdir,
-      configDir,
       daemonPort,
       devPort,
       ingressPort,
@@ -294,15 +290,6 @@ export class HostSandboxRunner implements SandboxRunner {
           err instanceof Error ? err.message : String(err),
         ),
       );
-      await rm(this.configDirFor(handle), {
-        recursive: true,
-        force: true,
-      }).catch((err) =>
-        console.warn(
-          `[HostSandboxRunner] rm configDir(${handle}) failed:`,
-          err instanceof Error ? err.message : String(err),
-        ),
-      );
     }
 
     if (this.stateStore) {
@@ -376,13 +363,6 @@ export class HostSandboxRunner implements SandboxRunner {
 
   private workdirFor(handle: string): string {
     return join(this.homeDir, "sandboxes", handle);
-  }
-
-  // Sibling of the workdir, deliberately outside it: persistence.writeConfig
-  // pre-creates this directory, and a pre-created appRoot would make git clone
-  // fail with "already exists and is not an empty directory".
-  private configDirFor(handle: string): string {
-    return join(this.homeDir, ".daemon", handle);
   }
 
   private composePreviewUrl(rec: HostRecord): string {
@@ -492,7 +472,6 @@ function buildDaemonEnv(args: {
   token: string;
   bootId: string;
   workdir: string;
-  configDir: string;
   daemonPort: number;
   devPort: number;
   ingressPort: number;
@@ -503,7 +482,6 @@ function buildDaemonEnv(args: {
     DAEMON_BOOT_ID: args.bootId,
     APP_ROOT: args.workdir,
     PROXY_PORT: String(args.daemonPort),
-    DAEMON_CONFIG_DIR: args.configDir,
     // Inherited by every child the daemon spawns. extraEnv is spread last
     // so the caller can override (rare — passing PORT/SANDBOX_INGRESS_PORT/
     // VITE_PORT through opts.env defeats the collision-avoidance, but the

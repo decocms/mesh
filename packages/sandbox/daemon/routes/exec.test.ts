@@ -44,7 +44,12 @@ describe("exec handler", () => {
   });
 
   it("rejects 409 when no application is configured", async () => {
-    const h = makeExecHandler({ appRoot, store, jobManager, broadcaster });
+    const h = makeExecHandler({
+      repoDir: appRoot,
+      store,
+      jobManager,
+      broadcaster,
+    });
     const res = await h(req("dev"));
     expect(res.status).toBe(409);
   });
@@ -62,7 +67,12 @@ describe("exec handler", () => {
         proxy: {},
       },
     });
-    const h = makeExecHandler({ appRoot, store, jobManager, broadcaster });
+    const h = makeExecHandler({
+      repoDir: appRoot,
+      store,
+      jobManager,
+      broadcaster,
+    });
     const res = await h(req("dev"));
     expect(res.status).toBe(404);
   });
@@ -80,7 +90,12 @@ describe("exec handler", () => {
         proxy: {},
       },
     });
-    const h = makeExecHandler({ appRoot, store, jobManager, broadcaster });
+    const h = makeExecHandler({
+      repoDir: appRoot,
+      store,
+      jobManager,
+      broadcaster,
+    });
     const res = await h(req("test"));
     expect(res.status).toBe(200);
     const body = (await res.json()) as { jobId: string };

@@ -10,7 +10,14 @@ export interface DerivedRuntime {
 export interface BootConfig {
   readonly daemonToken: string;
   readonly daemonBootId: string;
+  /**
+   * Workspace root. Contains `app/` (the cloned repo), `daemon/` (config
+   * + persistence), and `tmp/` (log tees). fs/bash routes are clamped here
+   * so the LLM can read/mutate everything inside the workspace.
+   */
   readonly appRoot: string;
+  /** `<appRoot>/app` — cwd for git, install, dev script, scripts. */
+  readonly repoDir: string;
   readonly proxyPort: number;
   readonly dropPrivileges: boolean;
 }

@@ -59,20 +59,25 @@ if (!process.env.DAEMON_BOOT_ID) {
 // run whichever PM the daemon picked, regardless of what an ancestor declared.
 process.env.COREPACK_ENABLE_STRICT = "0";
 
-const CONFIG_DIR = process.env.DAEMON_CONFIG_DIR ?? "/home/sandbox/.daemon";
-const LOGS_DIR = join(CONFIG_DIR, "logs");
+const APP_ROOT = process.env.APP_ROOT ?? "/";
 const bootConfig = {
   daemonToken: process.env.DAEMON_TOKEN ?? "",
   daemonBootId: process.env.DAEMON_BOOT_ID ?? "",
-  appRoot: process.env.APP_ROOT ?? "/",
+  appRoot: APP_ROOT,
+  repoDir: join(APP_ROOT, "app"),
   proxyPort: parseInt(process.env.PROXY_PORT ?? "9000", 10),
 };
+// Workspace layout: <appRoot>/config.json (tenant config), <appRoot>/app
+// (repo), <appRoot>/tmp/{app,jobN} (log tees). Everything inside appRoot
+// is reachable by fs/bash routes (clamped to appRoot via safePath).
+const CONFIG_DIR = process.env.DAEMON_CONFIG_DIR ?? APP_ROOT;
+const TMP_DIR = join(APP_ROOT, "tmp");
 
 const broadcaster = new Broadcaster(REPLAY_BYTES);
 const store = new TenantConfigStore({ storageDir: CONFIG_DIR });
 const installState = new InstallState();
 const jobManager = new JobManager({
-  logsDir: join(LOGS_DIR, "jobs"),
+  logsDir: TMP_DIR,
   onChange: () => {
     broadcaster.broadcastEvent("jobs", {
       type: "jobs",
@@ -88,7 +93,7 @@ function getActiveJobs() {
 }
 const appService = new ApplicationService({
   broadcaster,
-  logsDir: join(LOGS_DIR, "app"),
+  logsDir: TMP_DIR,
   onFailure: (reason, exitCode) => {
     // Sticky failure — flip intent to paused so we don't auto-retry.
     void store.apply({
@@ -102,11 +107,12 @@ const appService = new ApplicationService({
 });
 
 const orchestrator = new SetupOrchestrator({
-  bootConfig: { appRoot: bootConfig.appRoot },
+  bootConfig: { appRoot: bootConfig.appRoot, repoDir: bootConfig.repoDir },
   store,
   appService,
   broadcaster,
   installState,
+  logsDir: TMP_DIR,
 });
 
 let branchStatus: BranchStatusMonitor | null = null;
@@ -141,6 +147,7 @@ function refreshBranchStatusMonitor(): void {
     daemonBootId: bootConfig.daemonBootId,
     proxyPort: bootConfig.proxyPort,
     appRoot: bootConfig.appRoot,
+    repoDir: bootConfig.repoDir,
     dropPrivileges: false,
   };
   branchStatus = new BranchStatusMonitor(config, broadcaster);
@@ -188,21 +195,22 @@ const lastStatus = startUpstreamProbe({
 });
 
 const getDevPort = (): number | null => lastStatus.port;
-const appRoot = process.env.APP_ROOT ?? "/";
-const readH = makeReadHandler({ appRoot });
-const writeH = makeWriteHandler({ appRoot });
-const editH = makeEditHandler({ appRoot });
-const grepH = makeGrepHandler({ appRoot });
-const globH = makeGlobHandler({ appRoot });
-const writeFromUrlH = makeWriteFromUrlHandler({ appRoot });
-const uploadToUrlH = makeUploadToUrlHandler({ appRoot });
+const { appRoot, repoDir } = bootConfig;
+const fsDeps = { appRoot, repoDir };
+const readH = makeReadHandler(fsDeps);
+const writeH = makeWriteHandler(fsDeps);
+const editH = makeEditHandler(fsDeps);
+const grepH = makeGrepHandler(fsDeps);
+const globH = makeGlobHandler(fsDeps);
+const writeFromUrlH = makeWriteFromUrlHandler(fsDeps);
+const uploadToUrlH = makeUploadToUrlHandler(fsDeps);
 
 const bashH = makeBashHandler({
-  appRoot,
+  repoDir,
   jobManager,
 });
 const execH = makeExecHandler({
-  appRoot,
+  repoDir,
   store,
   jobManager,
   broadcaster,
@@ -219,7 +227,7 @@ const scriptsHandler = makeScriptsHandler(() => {
   if (discoveredScripts) return discoveredScripts;
   const enriched = store.read();
   const pm = enriched?.application?.packageManager?.name ?? null;
-  const cwd = enriched?.application?.packageManager?.path ?? appRoot;
+  const cwd = enriched?.application?.packageManager?.path ?? repoDir;
   if (!pm) return [];
   return discoverScripts(cwd, pm);
 });
@@ -275,7 +283,7 @@ function hydrate(): void {
   // Decide whether this is a fresh first-bootstrap or a resume of an
   // existing clone+install.
   const transitionKind: "resume" | "first-bootstrap" = isResume(
-    bootConfig.appRoot,
+    bootConfig.repoDir,
   )
     ? "resume"
     : "first-bootstrap";

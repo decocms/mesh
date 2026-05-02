@@ -117,12 +117,8 @@ describe("HostSandboxRunner.ensure provisioning", () => {
     expect(spawnArgs.env.DAEMON_BOOT_ID).toBeTruthy();
     expect(spawnArgs.env.APP_ROOT).toBe(sandbox.workdir);
     expect(spawnArgs.env.PROXY_PORT).toBe(String(spawnArgs.daemonPort));
-    expect(spawnArgs.env.DAEMON_CONFIG_DIR).toBe(
-      join(homeDir, ".daemon", sandbox.handle),
-    );
-    expect(spawnArgs.env.DAEMON_CONFIG_DIR.startsWith(sandbox.workdir)).toBe(
-      false,
-    );
+    // Config now lives at <workdir>/config.json; no separate DAEMON_CONFIG_DIR.
+    expect(spawnArgs.env.DAEMON_CONFIG_DIR).toBeUndefined();
     expect(spawnArgs.env.CLONE_URL).toBeUndefined();
     expect(spawnArgs.env.BRANCH).toBeUndefined();
     expect(spawnArgs.env.RUNTIME).toBeUndefined();

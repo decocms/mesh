@@ -21,7 +21,7 @@ export function spawnInstall(deps: InstallDeps): Promise<number> | null {
   const pmConfig = PACKAGE_MANAGER_DAEMON_CONFIG[pm];
   if (!pmConfig) return null;
   const installRoot =
-    config.application?.packageManager?.path ?? config.appRoot;
+    config.application?.packageManager?.path ?? config.repoDir;
   const hasManifest = pmConfig.manifests.some((file) =>
     existsSync(join(installRoot, file)),
   );
