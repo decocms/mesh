@@ -1,89 +1,81 @@
-import { spawn } from "node:child_process";
-import { DECO_UID, DECO_GID } from "../constants";
-import { parseBase64JsonBody, jsonResponse } from "./body-parser";
+import type { JobManager } from "../process/job-manager";
+import { jsonResponse, parseBase64JsonBody } from "./body-parser";
+
+const DEFAULT_TIMEOUT_MS = 30_000;
+const MAX_TIMEOUT_MS = 15 * 60 * 1000;
+
+export type BashMode = "await" | "background";
 
 export interface BashDeps {
   appRoot: string;
-  dropPrivileges?: boolean;
-  env?: NodeJS.ProcessEnv;
+  jobManager: JobManager;
+  env?: Record<string, string>;
 }
 
+interface BashBody {
+  command?: string;
+  timeout?: number;
+  cwd?: string;
+  env?: Record<string, string>;
+  mode?: BashMode;
+}
+
+/**
+ * Modes:
+ *   - "await" (default): runs to completion and returns the full
+ *     stdout/stderr/exitCode body. This is the legacy bash behavior.
+ *   - "background": returns the jobId immediately. Caller can poll
+ *     /_decopilot_vm/jobs/:id, stream output, or kill via the jobs API.
+ */
 export function makeBashHandler(deps: BashDeps) {
   return async (req: Request): Promise<Response> => {
-    let body: { command?: string; timeout?: number };
+    let body: BashBody;
     try {
-      body = (await parseBase64JsonBody(req)) as typeof body;
+      body = (await parseBase64JsonBody(req)) as BashBody;
     } catch (e) {
       return jsonResponse({ error: (e as Error).message }, 400);
     }
-
     if (!body.command || typeof body.command !== "string") {
       return jsonResponse({ error: "command is required" }, 400);
     }
 
-    const timeout = Math.min(body.timeout ?? 30000, 120000);
-    const opts: Parameters<typeof spawn>[2] = {
-      cwd: deps.appRoot,
-      stdio: ["ignore", "pipe", "pipe"],
-      env: deps.env,
-      // Own pgid so we can SIGKILL the whole subtree. Without this, a
-      // backgrounded child (`bun server.ts ... &`) outlives bash and leaks:
-      // macOS bash 3.2 also wedges in wait4() waiting on it, so the only
-      // way to recover is to signal the group, not just the shell.
-      detached: true,
-    };
+    const mode: BashMode = body.mode === "background" ? "background" : "await";
+    const timeout = clampTimeout(body.timeout, mode);
+    const env = body.env ? { ...(deps.env ?? {}), ...body.env } : deps.env;
 
-    if (deps.dropPrivileges) {
-      (opts as { uid: number; gid: number }).uid = DECO_UID;
-      (opts as { uid: number; gid: number }).gid = DECO_GID;
+    const job = deps.jobManager.spawn({
+      command: body.command,
+      cwd: body.cwd ?? deps.appRoot,
+      env,
+      mode: "pipe",
+      timeoutMs: timeout,
+      label: `$ ${body.command}`,
+    });
+
+    if (mode === "background") {
+      return jsonResponse({ jobId: job.id, status: job.status });
     }
 
-    const child = spawn("bash", ["-c", body.command], opts);
-    const pgid = child.pid;
-
-    let stdout = "";
-    let stderr = "";
-    let killed = false;
-
-    child.stdout?.on("data", (c: Buffer) => {
-      stdout += c.toString("utf-8");
+    const finished = await deps.jobManager.finished(job.id);
+    if (!finished) {
+      return jsonResponse({ error: "job vanished before completion" }, 500);
+    }
+    const result = await finished;
+    const out = deps.jobManager.output(job.id);
+    return jsonResponse({
+      stdout: out?.stdout ?? "",
+      stderr: out?.stderr ?? "",
+      exitCode: result.timedOut ? -1 : result.exitCode,
+      timedOut: result.timedOut,
+      truncated: out?.truncated ?? false,
     });
-
-    child.stderr?.on("data", (c: Buffer) => {
-      stderr += c.toString("utf-8");
-    });
-
-    const killGroup = (signal: NodeJS.Signals) => {
-      if (pgid === undefined) return;
-      try {
-        process.kill(-pgid, signal);
-      } catch {
-        /* group already gone */
-      }
-    };
-
-    const timer = setTimeout(() => {
-      killed = true;
-      killGroup("SIGKILL");
-    }, timeout);
-
-    const exitCode: number = await new Promise((resolve) => {
-      child.on("close", (code) => {
-        clearTimeout(timer);
-        // Even on clean exit, reap any survivors of the backgrounded-job
-        // case so a `&` child can't outlive the request.
-        killGroup("SIGKILL");
-        resolve(killed ? -1 : (code ?? 1));
-      });
-
-      child.on("error", (err) => {
-        clearTimeout(timer);
-        killGroup("SIGKILL");
-        stderr += (stderr ? "\n" : "") + `spawn error: ${err.message}`;
-        resolve(-1);
-      });
-    });
-
-    return jsonResponse({ stdout, stderr, exitCode });
   };
+}
+
+function clampTimeout(raw: number | undefined, mode: BashMode): number {
+  const fallback = DEFAULT_TIMEOUT_MS;
+  const requested = typeof raw === "number" && raw > 0 ? raw : fallback;
+  // Background jobs may run longer; cap at 15 min (matches JobManager TTL).
+  const ceiling = mode === "background" ? MAX_TIMEOUT_MS : 120_000;
+  return Math.min(requested, ceiling);
 }

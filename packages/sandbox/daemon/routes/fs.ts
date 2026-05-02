@@ -3,7 +3,6 @@ import path from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { spawn } from "node:child_process";
-import { DECO_UID, DECO_GID } from "../constants";
 import { safePath } from "../paths";
 import { parseBase64JsonBody, jsonResponse } from "./body-parser";
 
@@ -17,17 +16,12 @@ const TRANSFER_DEADLINE_MS = 5 * 60_000;
 
 export interface FsDeps {
   appRoot: string;
-  /** If true, spawn rg with uid:gid=1000. Falsey in tests. */
-  dropPrivileges?: boolean;
 }
 
 function spawnOpts(
-  deps: FsDeps,
   extra: Record<string, unknown> = {},
 ): Record<string, unknown> {
-  return deps.dropPrivileges
-    ? { uid: DECO_UID, gid: DECO_GID, ...extra }
-    : { ...extra };
+  return { ...extra };
 }
 
 /** Cap on bytes returned for image responses. ~5MB matches Anthropic's
@@ -272,7 +266,7 @@ export function makeGrepHandler(deps: FsDeps) {
     const child = spawn(
       "rg",
       args,
-      spawnOpts(deps, {
+      spawnOpts({
         cwd: deps.appRoot,
         stdio: ["ignore", "pipe", "pipe"],
       }) as Parameters<typeof spawn>[2],
@@ -526,7 +520,7 @@ export function makeGlobHandler(deps: FsDeps) {
     const child = spawn(
       "rg",
       ["--files", "--glob", body.pattern, searchPath],
-      spawnOpts(deps, {
+      spawnOpts({
         cwd: deps.appRoot,
         stdio: ["ignore", "pipe", "pipe"],
       }) as Parameters<typeof spawn>[2],

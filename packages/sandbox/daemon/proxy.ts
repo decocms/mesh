@@ -6,7 +6,7 @@ export interface ProxyDeps {
   getDevPort: () => number | null;
 }
 
-const NO_UPSTREAM_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>No dev server</title><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#fafafa;color:#555}div{text-align:center;max-width:420px;padding:24px}h3{margin:0 0 8px}p{margin:0;font-size:14px;color:#999;line-height:1.5}code{background:#eee;padding:2px 6px;border-radius:4px;font-size:13px;color:#333}</style></head><body><div><h3>No dev server running</h3><p>Start one in this sandbox (e.g. <code>bun run dev</code>) and the preview will appear here automatically.</p></div></body></html>`;
+const NO_UPSTREAM_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>No dev server</title><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#fafafa;color:#555}div{text-align:center;max-width:420px;padding:24px}h3{margin:0 0 8px}p{margin:0;font-size:14px;color:#999;line-height:1.5}code{background:#eee;padding:2px 6px;border-radius:4px;font-size:13px;color:#333}</style></head><body><div><h3>No dev server running</h3><p>Start one in this sandbox (e.g. <code>bun run dev</code>) and the preview will appear here automatically.</p></div><script>setTimeout(function(){window.location.reload()},2000)</script></body></html>`;
 
 export function makeProxyHandler({ broadcaster, getDevPort }: ProxyDeps) {
   function log(...args: string[]) {

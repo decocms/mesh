@@ -9,28 +9,33 @@ import {
   writeSync,
 } from "node:fs";
 import { dirname } from "node:path";
-import { TenantConfig } from "./types";
+import type { TenantConfig } from "./types";
 
-const DEFAULT_BOOTSTRAP_DIR = "/home/sandbox/.daemon";
-const BOOTSTRAP_TMP_FILENAME = "bootstrap.json.tmp";
-export const BOOTSTRAP_FILENAME = "bootstrap.json";
+const DEFAULT_CONFIG_DIR = "/home/sandbox/.daemon";
+const CONFIG_TMP_FILENAME = "config.json.tmp";
+export const CONFIG_FILENAME = "config.json";
 
-function bootstrapPath(dir: string = DEFAULT_BOOTSTRAP_DIR): string {
-  return `${dir}/${BOOTSTRAP_FILENAME}`;
+function configPath(dir: string = DEFAULT_CONFIG_DIR): string {
+  return `${dir}/${CONFIG_FILENAME}`;
 }
 
-function bootstrapTmpPath(dir: string = DEFAULT_BOOTSTRAP_DIR): string {
-  return `${dir}/${BOOTSTRAP_TMP_FILENAME}`;
+function configTmpPath(dir: string = DEFAULT_CONFIG_DIR): string {
+  return `${dir}/${CONFIG_TMP_FILENAME}`;
 }
 
-export function writeBootstrap(
+/**
+ * Writes the merged user-intent TenantConfig atomically (tmp + rename +
+ * fsync of the directory). Derived fields (runtime pathPrefix, etc.) are
+ * NOT persisted — they're recomputed on read.
+ */
+export function writeConfig(
   config: TenantConfig,
-  dir: string = DEFAULT_BOOTSTRAP_DIR,
+  dir: string = DEFAULT_CONFIG_DIR,
 ): void {
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   const bytes = Buffer.from(JSON.stringify(config), "utf-8");
-  const tmp = bootstrapTmpPath(dir);
-  const final = bootstrapPath(dir);
+  const tmp = configTmpPath(dir);
+  const final = configPath(dir);
 
   const fd = openSync(tmp, "w", 0o600);
   try {
@@ -58,16 +63,16 @@ export type ReadOutcome =
   | { kind: "valid"; config: TenantConfig }
   | { kind: "invalid"; reason: string };
 
-export function readBootstrap(
-  dir: string = DEFAULT_BOOTSTRAP_DIR,
-): ReadOutcome {
+export function readConfig(dir: string = DEFAULT_CONFIG_DIR): ReadOutcome {
   try {
-    unlinkSync(bootstrapTmpPath(dir));
-  } catch {}
+    unlinkSync(configTmpPath(dir));
+  } catch {
+    /* tmp file did not exist; nothing to clean up */
+  }
 
   let raw: string;
   try {
-    raw = readFileSync(bootstrapPath(dir), "utf-8");
+    raw = readFileSync(configPath(dir), "utf-8");
   } catch (e) {
     const err = e as NodeJS.ErrnoException;
     if (err.code === "ENOENT") return { kind: "absent" };
@@ -87,18 +92,5 @@ export function readBootstrap(
   if (!parsed || typeof parsed !== "object") {
     return { kind: "invalid", reason: "not an object" };
   }
-  const config = parsed as Partial<TenantConfig>;
-  if (
-    typeof config.git !== "object" ||
-    typeof config.application !== "object"
-  ) {
-    return {
-      kind: "invalid",
-      reason: `invalid config: ${JSON.stringify(config)}`,
-    };
-  }
-  if (typeof config.git !== "object" || !config.application) {
-    return { kind: "invalid", reason: "invalid config" };
-  }
-  return { kind: "valid", config: config as TenantConfig };
+  return { kind: "valid", config: parsed as TenantConfig };
 }

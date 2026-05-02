@@ -1,57 +1,40 @@
-import { jsonResponse, parseBase64JsonBody } from "./body-parser";
-import { bootstrapMutex, peekTenantConfig, setTenantConfig } from "../state";
-import { writeBootstrap } from "../persistence";
-import { validateMutableFields } from "../validate";
+import type { TenantConfigStore } from "../config-store";
+import type { ApplyResult } from "../config-store/types";
 import type { TenantConfig } from "../types";
+import { jsonResponse, parseBase64JsonBody } from "./body-parser";
 
-export type ConfigChangeKind = "devport-only" | "rerun";
-
-export interface ConfigUpdateDeps {
+export interface ConfigDeps {
   daemonBootId: string;
-  storageDir?: string;
-  onApplied: (kind: ConfigChangeKind, tenant: TenantConfig) => void;
-}
-
-export interface ConfigReadDeps {
-  daemonBootId: string;
+  store: TenantConfigStore;
 }
 
 /**
- * GET /_decopilot_vm/config — current tenantConfig. `env` values are masked
- * (only keys are returned) so the response can be displayed in UI without
- * leaking secrets the user PUT into the daemon. PUT round-trips them by
- * key+value as usual.
+ * GET /_decopilot_vm/config — current TenantConfig (in-memory snapshot,
+ * which mirrors disk after every successful apply). Returns 404 when no
+ * tenant config has been set yet.
  */
-export function makeConfigReadHandler(deps: ConfigReadDeps) {
+export function makeConfigReadHandler(deps: ConfigDeps) {
   return async (): Promise<Response> => {
-    const tenant = peekTenantConfig();
+    const tenant = deps.store.read();
     if (!tenant) {
       return jsonResponse(
-        { error: "no bootstrap; POST /_decopilot_vm/bootstrap first" },
+        { error: "no tenant config; POST /_decopilot_vm/config first" },
         404,
       );
     }
     return jsonResponse({
       bootId: deps.daemonBootId,
-      config: tenant,
+      config: stripDerived(tenant),
     });
   };
 }
 
 /**
- * PUT /_decopilot_vm/config — patch mutable fields on an already-bootstrapped
- * daemon. Identity (cloneUrl, gitUserName, gitUserEmail) is rejected if it
- * differs from the pinned values; everything else is replaceable.
- *
- * Field-level patch semantics:
- *   - field absent → leave existing
- *   - field present (incl. null where the type allows) → set
- *
- * Re-orchestration is triggered when any field that affects clone/install/
- * autostart changes. devPort/env-only patches just rewire state and let the
- * probe pick up the new pin on its next tick.
+ * POST /_decopilot_vm/config — set initial tenant config. PUT/POST share
+ * the same handler shape: both deep-merge into current. POST is the
+ * conventional first-set; PUT is the conventional patch.
  */
-export function makeConfigUpdateHandler(deps: ConfigUpdateDeps) {
+export function makeConfigUpdateHandler(deps: ConfigDeps) {
   return async (req: Request): Promise<Response> => {
     let raw: unknown;
     try {
@@ -63,58 +46,35 @@ export function makeConfigUpdateHandler(deps: ConfigUpdateDeps) {
       return jsonResponse({ error: "payload must be an object" }, 400);
     }
     const patch = raw as Partial<TenantConfig>;
-    const v = validateMutableFields(patch);
-    if (v.kind === "invalid") {
-      return jsonResponse({ error: v.reason }, 400);
-    }
-
-    return bootstrapMutex.run(() => {
-      const current = peekTenantConfig();
-      if (!current) {
-        return jsonResponse(
-          { error: "no bootstrap; POST /_decopilot_vm/bootstrap first" },
-          409,
-        );
-      }
-
-      // Identity is the bootstrap's pinned half — reject any non-matching value.
-      // (Omitted fields stay as-is.)
-      const identityConflict = checkIdentityConflict(current, patch);
-      if (identityConflict) {
-        return jsonResponse(
-          { error: identityConflict, reason: "identity-conflict" },
-          409,
-        );
-      }
-
-      try {
-        const unsafeMerge = { ...current, ...patch } as TenantConfig; // should do this in a safe way
-        writeBootstrap(unsafeMerge, deps.storageDir);
-      } catch (e) {
-        return jsonResponse(
-          { error: `persistence failed: ${(e as Error).message}` },
-          500,
-        );
-      }
-
-      setTenantConfig(patch as TenantConfig);
-
-      return jsonResponse({
-        bootId: deps.daemonBootId,
-      });
-    });
+    const result = await deps.store.apply(patch);
+    return makeApplyResponse(deps.daemonBootId, result);
   };
 }
 
-function checkIdentityConflict(
-  current: TenantConfig,
-  patch: Partial<TenantConfig>,
-): string | null {
-  if (
-    patch.git?.repository?.cloneUrl !== undefined &&
-    patch.git?.repository?.cloneUrl !== current.git?.repository?.cloneUrl
-  ) {
-    return "cloneUrl is immutable once set";
+function makeApplyResponse(bootId: string, result: ApplyResult): Response {
+  if (result.kind === "rejected") {
+    const status = inferStatus(result.reason);
+    return jsonResponse({ error: result.reason }, status);
   }
-  return null;
+  return jsonResponse({
+    bootId,
+    transition: result.transition.kind,
+    config: result.after,
+  });
+}
+
+function inferStatus(reason: string): number {
+  if (reason.includes("immutable")) return 409;
+  if (reason.startsWith("persistence failed")) return 500;
+  return 400;
+}
+
+function stripDerived(
+  enriched: ReturnType<TenantConfigStore["read"]>,
+): TenantConfig | null {
+  if (!enriched) return null;
+  return {
+    git: enriched.git,
+    application: enriched.application,
+  };
 }

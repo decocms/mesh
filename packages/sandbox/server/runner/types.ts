@@ -28,8 +28,12 @@ export interface Sandbox {
 export interface Workload {
   runtime: "node" | "bun" | "deno";
   packageManager: "npm" | "pnpm" | "yarn" | "bun" | "deno";
-  /** Container-internal dev port. */
-  devPort: number;
+  /**
+   * User-pinned dev port. Omit when the user hasn't chosen one — runners
+   * pick a free port (host runner: avoids collisions across co-tenant
+   * sandboxes; container runners: fall back to their own default).
+   */
+  devPort?: number;
 }
 
 export interface EnsureOptions {

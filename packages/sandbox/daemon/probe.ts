@@ -163,19 +163,29 @@ export function startUpstreamProbe(deps: ProbeDeps): ProbeState {
     }));
 
     if (pinned !== null) {
-      // Pinned: surface ONLY the pinned port. Gated on its HEAD response —
-      // a stale pin (caller pointed at a port that's no longer listening)
-      // collapses to "no upstream" rather than silently falling back to
-      // discovery (which would surprise callers who expected the pin to win).
+      // Pinned: prefer the pinned port when responding. If the pin is stale
+      // (e.g., dev process restarted and bound a different port), fall back
+      // to the highest-scored discovered port so the proxy self-heals across
+      // pause/resume — entry.ts's writeback then updates the pin.
       const pinnedResult = probedAll.find((r) => r.port === pinned);
       if (pinnedResult && pinnedResult.responded) {
         state.port = pinnedResult.port;
         state.ready = pinnedResult.ready;
         state.htmlSupport = pinnedResult.htmlSupport;
       } else {
-        state.port = null;
-        state.ready = false;
-        state.htmlSupport = false;
+        const responded = probedAll.filter(
+          (r) => r.responded && r.port !== pinned,
+        );
+        const best = responded.sort((a, b) => b.score - a.score)[0];
+        if (best) {
+          state.port = best.port;
+          state.ready = best.ready;
+          state.htmlSupport = best.htmlSupport;
+        } else {
+          state.port = null;
+          state.ready = false;
+          state.htmlSupport = false;
+        }
       }
     } else if (probedAll.length > 0) {
       const responded = probedAll.filter((r) => r.responded);

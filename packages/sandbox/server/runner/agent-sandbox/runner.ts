@@ -795,17 +795,6 @@ export class AgentSandboxRunner implements SandboxRunner {
     return this.toSandbox(rec);
   }
 
-  /**
-   * Compose the env block the daemon's orchestrator reads to clone, install,
-   * and start the dev server. Mirrors the docker runner's contract; reader is
-   * `packages/sandbox/daemon/config.ts`.
-   *
-   * Caller-supplied `opts.env` is layered first so the bootstrap keys defined
-   * here (and listed in RESERVED_ENV_KEYS) always win — an intercepted
-   * DAEMON_TOKEN would compromise the sandbox; an intercepted DEV_PORT would
-   * just break the boot. We warn — not throw — to match the docker runner's
-   * permissive shape.
-   */
   private buildEnvMap(
     opts: EnsureOptions,
     boot: { token: string; daemonBootId: string; workdir: string },
@@ -847,6 +836,9 @@ export class AgentSandboxRunner implements SandboxRunner {
       ...(opts.workload?.packageManager
         ? { PACKAGE_MANAGER: opts.workload.packageManager }
         : {}),
+      // Auto-start when a workload is set; tool sandboxes (no workload)
+      // leave INTENT unset, which the daemon reads as "paused".
+      ...(opts.workload?.packageManager ? { INTENT: "running" } : {}),
     };
   }
 

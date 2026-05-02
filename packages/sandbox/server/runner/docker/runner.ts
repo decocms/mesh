@@ -308,9 +308,6 @@ export class DockerSandboxRunner implements SandboxRunner {
       ? (repo.displayName ?? deriveRepoLabel(repo.cloneUrl))
       : null;
 
-    // Full env contract — daemon's orchestrator owns clone + install +
-    // dev-server start; no external bootstrap call needed. See
-    // `packages/sandbox/daemon/config.ts` for the reader.
     const env: Record<string, string> = {
       DAEMON_TOKEN: token,
       DAEMON_BOOT_ID: daemonBootId,
@@ -318,6 +315,10 @@ export class DockerSandboxRunner implements SandboxRunner {
       PROXY_PORT: String(DAEMON_PORT),
       DEV_PORT: String(devContainerPort),
       RUNTIME: runtime,
+      // Docker env-injection path: tell the daemon to auto-start when a
+      // workload is provided. Tool sandboxes (no workload) leave INTENT
+      // unset, which the daemon reads as "paused".
+      ...(packageManager ? { INTENT: "running" } : {}),
       ...(repo
         ? {
             CLONE_URL: repo.cloneUrl,

@@ -19,12 +19,12 @@ import { createServer } from "node:net";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  postBootstrap,
+  postConfig,
   probeDaemonHealth,
   proxyDaemonRequest,
   daemonBash,
 } from "../../daemon-client";
-import type { BootstrapResponse, DaemonHealth } from "../../daemon-client";
+import type { ConfigResponse, DaemonHealth } from "../../daemon-client";
 import { applyPreviewPattern, computeHandle } from "../shared";
 import type { RunnerStateStore } from "../state-store";
 import type {
@@ -37,7 +37,7 @@ import type {
   SandboxRunner,
 } from "../types";
 import type { ClaimPhase } from "../lifecycle-types";
-import type { TenantConfig, PackageManagerConfig } from "../../../daemon/types";
+import type { PackageManagerConfig, TenantConfig } from "../../../daemon/types";
 
 const RUNNER_KIND = "host" as const;
 const READY_TIMEOUT_MS = 30_000;
@@ -54,10 +54,11 @@ type SpawnFn = (args: {
   daemonPort: number;
 }) => Promise<DaemonProcess>;
 type HealthProbeFn = (daemonUrl: string) => Promise<DaemonHealth | null>;
-type PostBootstrapFn = (
+type PostConfigFn = (
   daemonUrl: string,
-  payload: TenantConfig,
-) => Promise<BootstrapResponse>;
+  token: string,
+  payload: Partial<TenantConfig>,
+) => Promise<ConfigResponse>;
 type KillFn = (pid: number, signal: NodeJS.Signals) => void;
 type IsAliveFn = (pid: number) => boolean;
 
@@ -72,7 +73,7 @@ export interface HostRunnerOptions {
   /** @internal test seam */
   _probe?: HealthProbeFn;
   /** @internal test seam */
-  _postBootstrap?: PostBootstrapFn;
+  _postConfig?: PostConfigFn;
   /** @internal test seam */
   _kill?: KillFn;
   /** @internal test seam */
@@ -108,7 +109,7 @@ export class HostSandboxRunner implements SandboxRunner {
   private readonly previewUrlPattern: string | null;
   private readonly spawnFn: SpawnFn;
   private readonly probeFn: HealthProbeFn;
-  private readonly postBootstrapFn: PostBootstrapFn;
+  private readonly postConfigFn: PostConfigFn;
   private readonly killFn: KillFn;
   private readonly isAliveFn: IsAliveFn;
 
@@ -121,7 +122,7 @@ export class HostSandboxRunner implements SandboxRunner {
     this.previewUrlPattern = opts.previewUrlPattern ?? null;
     this.spawnFn = opts._spawn ?? createDefaultSpawn(this.homeDir);
     this.probeFn = opts._probe ?? probeDaemonHealth;
-    this.postBootstrapFn = opts._postBootstrap ?? postBootstrap;
+    this.postConfigFn = opts._postConfig ?? postConfig;
     this.killFn = opts._kill ?? ((pid, sig) => process.kill(pid, sig));
     this.isAliveFn = opts._isAlive ?? isPidAlive;
   }
@@ -167,18 +168,18 @@ export class HostSandboxRunner implements SandboxRunner {
     const devPort = await preallocatePort();
     const ingressPort = await preallocatePort();
 
-    const bootstrapDir = this.bootstrapDirFor(handle);
+    const configDir = this.configDirFor(handle);
     const env = buildDaemonEnv({
       token,
       bootId,
       workdir,
-      bootstrapDir,
+      configDir,
       daemonPort,
       devPort,
       ingressPort,
       extraEnv: opts.env,
     });
-    const bootstrapPayload = buildBootstrapPayload({
+    const configPayload = buildConfigPayload({
       runtime: opts.workload?.runtime ?? "bun",
       packageManager: opts.workload?.packageManager
         ? {
@@ -187,13 +188,15 @@ export class HostSandboxRunner implements SandboxRunner {
           }
         : null,
       repo: opts.repo ?? null,
-      devPort: opts.workload?.devPort,
+      devPort: opts.workload?.devPort ?? devPort,
     });
 
     const proc = await this.spawnFn({ workdir, env, daemonPort });
     try {
       await this.waitForDaemon(daemonUrl);
-      await this.postBootstrapFn(daemonUrl, bootstrapPayload);
+      if (configPayload) {
+        await this.postConfigFn(daemonUrl, token, configPayload);
+      }
     } catch (err) {
       // Daemon never came up (or rejected the bootstrap) — kill it so we don't
       // leak the child process or pin daemonPort. The deterministic workdir is
@@ -291,12 +294,12 @@ export class HostSandboxRunner implements SandboxRunner {
           err instanceof Error ? err.message : String(err),
         ),
       );
-      await rm(this.bootstrapDirFor(handle), {
+      await rm(this.configDirFor(handle), {
         recursive: true,
         force: true,
       }).catch((err) =>
         console.warn(
-          `[HostSandboxRunner] rm bootstrapDir(${handle}) failed:`,
+          `[HostSandboxRunner] rm configDir(${handle}) failed:`,
           err instanceof Error ? err.message : String(err),
         ),
       );
@@ -375,11 +378,11 @@ export class HostSandboxRunner implements SandboxRunner {
     return join(this.homeDir, "sandboxes", handle);
   }
 
-  // Sibling of the workdir, deliberately outside it: persistence.writeBootstrap
+  // Sibling of the workdir, deliberately outside it: persistence.writeConfig
   // pre-creates this directory, and a pre-created appRoot would make git clone
   // fail with "already exists and is not an empty directory".
-  private bootstrapDirFor(handle: string): string {
-    return join(this.homeDir, "bootstraps", handle);
+  private configDirFor(handle: string): string {
+    return join(this.homeDir, ".daemon", handle);
   }
 
   private composePreviewUrl(rec: HostRecord): string {
@@ -489,7 +492,7 @@ function buildDaemonEnv(args: {
   token: string;
   bootId: string;
   workdir: string;
-  bootstrapDir: string;
+  configDir: string;
   daemonPort: number;
   devPort: number;
   ingressPort: number;
@@ -500,7 +503,7 @@ function buildDaemonEnv(args: {
     DAEMON_BOOT_ID: args.bootId,
     APP_ROOT: args.workdir,
     PROXY_PORT: String(args.daemonPort),
-    DAEMON_BOOTSTRAP_DIR: args.bootstrapDir,
+    DAEMON_CONFIG_DIR: args.configDir,
     // Inherited by every child the daemon spawns. extraEnv is spread last
     // so the caller can override (rare — passing PORT/SANDBOX_INGRESS_PORT/
     // VITE_PORT through opts.env defeats the collision-avoidance, but the
@@ -511,13 +514,13 @@ function buildDaemonEnv(args: {
   };
 }
 
-function buildBootstrapPayload(args: {
+function buildConfigPayload(args: {
   runtime: "node" | "bun" | "deno";
   packageManager: PackageManagerConfig | null;
   devPort?: number;
   repo: NonNullable<EnsureOptions["repo"]> | null;
-}): TenantConfig {
-  const repo = args.repo ?? null;
+}): Partial<TenantConfig> | null {
+  const repo = args.repo;
   const git = repo
     ? {
         repository: {
@@ -531,41 +534,31 @@ function buildBootstrapPayload(args: {
         },
       }
     : undefined;
+
   const packageManager = args.packageManager
     ? {
         name: args.packageManager.name,
-        path: args.packageManager.path,
+        ...(args.packageManager.path ? { path: args.packageManager.path } : {}),
       }
     : undefined;
-  const getApplication = () => {
-    if (!packageManager) return undefined;
-    return {
-      packageManager,
-      developmentServer: {
-        port: args.devPort,
-        running: false,
-      },
-      runtime: {
-        name: args.runtime,
-        pathPrefix: "",
-      },
-    };
-  };
-  const application = getApplication();
 
+  // Intent defaults to "running" when a packageManager is provided —
+  // matches the previous host runner's auto-start behavior so the dev
+  // server fires up after install completes.
+  const application = packageManager
+    ? {
+        packageManager,
+        runtime: args.runtime,
+        intent: "running" as const,
+        ...(args.devPort !== undefined ? { desiredPort: args.devPort } : {}),
+        proxy: {},
+      }
+    : undefined;
+
+  if (!git && !application) return null;
   return {
-    application,
-    git,
-    ...(args.repo
-      ? {
-          cloneUrl: args.repo.cloneUrl,
-          repoName:
-            args.repo.displayName ?? deriveRepoLabel(args.repo.cloneUrl),
-          ...(args.repo.branch ? { branch: args.repo.branch } : {}),
-          gitUserName: args.repo.userName,
-          gitUserEmail: args.repo.userEmail,
-        }
-      : {}),
+    ...(git ? { git } : {}),
+    ...(application ? { application } : {}),
   };
 }
 

@@ -1,11 +1,27 @@
 import { randomUUID } from "node:crypto";
-import { unlinkSync } from "node:fs";
+import { existsSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
-import { loadBootConfigFromEnv, tryLoadTenantConfigFromEnv } from "./config";
+import { ApplicationService } from "./app/application-service";
+import { bumpActivity } from "./activity";
+import { requireToken } from "./auth";
+import { TenantConfigStore } from "./config-store";
 import { REPLAY_BYTES } from "./constants";
 import { Broadcaster } from "./events/broadcast";
-import { ProcessManager } from "./process/run-process";
-import { SetupOrchestrator } from "./setup/orchestrator";
+import { BranchStatusMonitor } from "./git/branch-status";
+import { InstallState } from "./install/install-state";
+import { CONFIG_FILENAME, readConfig } from "./persistence";
+import { discoverDescendantListeningPorts } from "./process/port-discovery";
+import { JobManager } from "./process/job-manager";
+import { startUpstreamProbe } from "./probe";
+import { makeProxyHandler } from "./proxy";
+import { jsonResponse } from "./routes/body-parser";
+import { makeBashHandler } from "./routes/bash";
+import {
+  makeConfigReadHandler,
+  makeConfigUpdateHandler,
+} from "./routes/config";
+import { makeEventsHandler } from "./routes/events-stream";
+import { makeExecHandler } from "./routes/exec";
 import {
   makeReadHandler,
   makeWriteHandler,
@@ -15,34 +31,22 @@ import {
   makeWriteFromUrlHandler,
   makeUploadToUrlHandler,
 } from "./routes/fs";
-import { makeBashHandler } from "./routes/bash";
-import { makeExecHandler } from "./routes/exec";
-import { makeKillHandler } from "./routes/kill";
-import { makeScriptsHandler } from "./routes/scripts";
 import { makeHealthHandler } from "./routes/health";
-import { makeEventsHandler } from "./routes/events-stream";
 import { makeIdleHandler } from "./routes/idle";
-import { makeProxyHandler } from "./proxy";
+import {
+  makeJobsDeleteHandler,
+  makeJobsGetHandler,
+  makeJobsKillAllHandler,
+  makeJobsKillHandler,
+  makeJobsListHandler,
+  makeJobsStreamHandler,
+} from "./routes/jobs";
+import { makeScriptsHandler } from "./routes/scripts";
+import { discoverScripts } from "./process/script-discovery";
+import { SetupOrchestrator } from "./setup/orchestrator";
+import { isResume } from "./setup/resume";
+import type { TenantConfig } from "./types";
 import { makeWsUpgrader, type WsProxyData } from "./ws-proxy";
-import { jsonResponse } from "./routes/body-parser";
-import { requireToken } from "./auth";
-import { bumpActivity } from "./activity";
-import { startUpstreamProbe } from "./probe";
-import { BranchStatusMonitor } from "./git/branch-status";
-import { discoverDescendantListeningPorts } from "./process/port-discovery";
-import { BOOTSTRAP_FILENAME, readBootstrap } from "./persistence";
-import {
-  bootstrapMutex,
-  clearTenantConfig,
-  getBootConfig,
-  setBootConfig,
-  setTenantConfig,
-} from "./state";
-import {
-  makeConfigReadHandler,
-  makeConfigUpdateHandler,
-} from "./routes/config";
-import type { Config, TenantConfig } from "./types";
 
 if (!process.env.DAEMON_BOOT_ID) {
   process.env.DAEMON_BOOT_ID = randomUUID();
@@ -55,42 +59,59 @@ if (!process.env.DAEMON_BOOT_ID) {
 // run whichever PM the daemon picked, regardless of what an ancestor declared.
 process.env.COREPACK_ENABLE_STRICT = "0";
 
-const BOOTSTRAP_DIR =
-  process.env.DAEMON_BOOTSTRAP_DIR ?? "/home/sandbox/.daemon";
-
-// Boot config is required: token + bootId + appRoot. Without DAEMON_TOKEN
-// we have no auth boundary, so the daemon refuses to start. This is the
-// only fatal config check; everything else (tenant repo, runtime) is
-// optional and can arrive later via bootstrap.
-const bootConfig = (() => {
-  try {
-    return loadBootConfigFromEnv(process.env);
-  } catch (e) {
-    console.error(`[daemon] boot config invalid: ${(e as Error).message}`);
-    process.exit(1);
-  }
-})();
-setBootConfig(bootConfig);
-
-const DAEMON_BOOT_ID = bootConfig.daemonBootId;
-const PROXY_PORT = bootConfig.proxyPort;
-const dropPrivileges = bootConfig.dropPrivileges;
+const CONFIG_DIR = process.env.DAEMON_CONFIG_DIR ?? "/home/sandbox/.daemon";
+const LOGS_DIR = join(CONFIG_DIR, "logs");
+const bootConfig = {
+  daemonToken: process.env.DAEMON_TOKEN ?? "",
+  daemonBootId: process.env.DAEMON_BOOT_ID ?? "",
+  appRoot: process.env.APP_ROOT ?? "/",
+  proxyPort: parseInt(process.env.PROXY_PORT ?? "9000", 10),
+};
 
 const broadcaster = new Broadcaster(REPLAY_BYTES);
-const processManager = new ProcessManager({
-  broadcaster,
-  dropPrivileges,
-  env: process.env,
+const store = new TenantConfigStore({ storageDir: CONFIG_DIR });
+const installState = new InstallState();
+const jobManager = new JobManager({
+  logsDir: join(LOGS_DIR, "jobs"),
+  onChange: () => {
+    broadcaster.broadcastEvent("jobs", {
+      type: "jobs",
+      active: getActiveJobs(),
+    });
+  },
 });
 
-let orchestrator: SetupOrchestrator | null = null;
-let branchStatus: BranchStatusMonitor | null = null;
-let activeConfig: Config | null = null;
-let tenantHandlers: {
-  execH: ReturnType<typeof makeExecHandler>;
-} | null = null;
+function getActiveJobs() {
+  return jobManager
+    .list({ status: ["running"] })
+    .map((j) => ({ id: j.id, command: j.command }));
+}
+const appService = new ApplicationService({
+  broadcaster,
+  logsDir: join(LOGS_DIR, "app"),
+  onFailure: (reason, exitCode) => {
+    // Sticky failure — flip intent to paused so we don't auto-retry.
+    void store.apply({
+      application: { intent: "paused" },
+    } as Partial<TenantConfig>);
+    broadcaster.broadcastChunk(
+      "daemon",
+      `\r\n[daemon] dev script failed (exit ${exitCode}): ${reason}; intent → paused\r\n`,
+    );
+  },
+});
 
+const orchestrator = new SetupOrchestrator({
+  bootConfig: { appRoot: bootConfig.appRoot },
+  store,
+  appService,
+  broadcaster,
+  installState,
+});
+
+let branchStatus: BranchStatusMonitor | null = null;
 let discoveredScripts: string[] | null = null;
+let lastWrittenProxyPort: number | undefined;
 
 const origEvent = broadcaster.broadcastEvent.bind(broadcaster);
 broadcaster.broadcastEvent = (event: string, data: unknown) => {
@@ -100,12 +121,39 @@ broadcaster.broadcastEvent = (event: string, data: unknown) => {
   origEvent(event, data);
 };
 
-const excludeFromDiscovery = new Set<number>([PROXY_PORT]);
+store.subscribe((event) => {
+  orchestrator.handle(event.transition);
+  if (event.transition.kind === "first-bootstrap") {
+    refreshBranchStatusMonitor();
+  }
+});
+
+function refreshBranchStatusMonitor(): void {
+  const enriched = store.read();
+  if (!enriched) {
+    branchStatus = null;
+    return;
+  }
+  // BranchStatusMonitor expects the legacy Config shape; pass a thin proxy.
+  const config = {
+    ...enriched,
+    daemonToken: bootConfig.daemonToken,
+    daemonBootId: bootConfig.daemonBootId,
+    proxyPort: bootConfig.proxyPort,
+    appRoot: bootConfig.appRoot,
+    dropPrivileges: false,
+  };
+  branchStatus = new BranchStatusMonitor(config, broadcaster);
+}
+
+const excludeFromDiscovery = new Set<number>([bootConfig.proxyPort]);
 const getDiscoveredPorts = () => {
-  const rootPids = processManager.allPids();
-  if (rootPids.length === 0) return [];
+  const pids: number[] = [];
+  const appPid = appService.pid();
+  if (appPid !== undefined) pids.push(appPid);
+  if (pids.length === 0) return [];
   return discoverDescendantListeningPorts({
-    rootPids,
+    rootPids: pids,
     excludePorts: excludeFromDiscovery,
   });
 };
@@ -113,181 +161,136 @@ const getDiscoveredPorts = () => {
 const lastStatus = startUpstreamProbe({
   upstreamHost: "localhost",
   getDiscoveredPorts,
-  getPinnedPort: () =>
-    activeConfig?.application?.developmentServer?.port ?? null,
-  getCommandName: (pid) => processManager.nameByPid(pid),
-  onChange: (s) =>
-    broadcaster.broadcastEvent("status", { type: "status", ...s }),
+  getPinnedPort: () => store.read()?.application?.proxy?.targetPort ?? null,
+  getCommandName: (pid) => {
+    if (pid === appService.pid()) return "dev";
+    return null;
+  },
+  onChange: (s) => {
+    broadcaster.broadcastEvent("status", { type: "status", ...s });
+    if (s.ready && s.port !== null) {
+      appService.markUp();
+    }
+    // Probe writeback: when discovery resolves a port owned by the app
+    // service, persist it as proxy.targetPort so tenants see what we're
+    // forwarding to. Dedupe to avoid spamming `apply()` every tick.
+    if (
+      s.port !== null &&
+      s.port !== lastWrittenProxyPort &&
+      appService.pid() !== undefined
+    ) {
+      lastWrittenProxyPort = s.port;
+      void store.apply({
+        application: { proxy: { targetPort: s.port } },
+      } as Partial<TenantConfig>);
+    }
+  },
 });
 
 const getDevPort = (): number | null => lastStatus.port;
+const appRoot = process.env.APP_ROOT ?? "/";
+const readH = makeReadHandler({ appRoot });
+const writeH = makeWriteHandler({ appRoot });
+const editH = makeEditHandler({ appRoot });
+const grepH = makeGrepHandler({ appRoot });
+const globH = makeGlobHandler({ appRoot });
+const writeFromUrlH = makeWriteFromUrlHandler({ appRoot });
+const uploadToUrlH = makeUploadToUrlHandler({ appRoot });
 
-const readH = makeReadHandler({
-  appRoot: bootConfig.appRoot,
-  dropPrivileges,
-});
-const writeH = makeWriteHandler({
-  appRoot: bootConfig.appRoot,
-  dropPrivileges,
-});
-const editH = makeEditHandler({
-  appRoot: bootConfig.appRoot,
-  dropPrivileges,
-});
-const grepH = makeGrepHandler({
-  appRoot: bootConfig.appRoot,
-  dropPrivileges,
-});
-const globH = makeGlobHandler({
-  appRoot: bootConfig.appRoot,
-  dropPrivileges,
-});
-const writeFromUrlH = makeWriteFromUrlHandler({
-  appRoot: bootConfig.appRoot,
-  dropPrivileges,
-});
-const uploadToUrlH = makeUploadToUrlHandler({
-  appRoot: bootConfig.appRoot,
-  dropPrivileges,
-});
 const bashH = makeBashHandler({
-  appRoot: bootConfig.appRoot,
-  dropPrivileges,
+  appRoot,
+  jobManager,
 });
-const killH = makeKillHandler(processManager);
+const execH = makeExecHandler({
+  appRoot,
+  store,
+  jobManager,
+  broadcaster,
+});
 
-function activateTenant(tenant: TenantConfig): void {
-  const config: Config = { ...getBootConfig(), ...tenant };
-  activeConfig = config;
-  const orch = new SetupOrchestrator({
-    config,
-    broadcaster,
-    processManager,
-    dropPrivileges,
-    onTerminal: (outcome, reason) => {
-      void bootstrapMutex.run(() => {
-        if (outcome === "failed") {
-          handleOrchestratorFailure(reason ?? "orchestrator failed");
-        }
-        if (outcome === "ready") {
-          broadcaster.broadcastEvent("status", {
-            type: "status",
-            status: "ready",
-          });
-        }
-      });
-    },
-  });
-  orchestrator = orch;
-  branchStatus = new BranchStatusMonitor(config, broadcaster);
-  tenantHandlers = {
-    execH: makeExecHandler({
-      getConfig: () => activeConfig as Config,
-      processManager,
-      orchestrator: orch,
-      setupState: orch.state,
-    }),
-  };
-}
+const jobsListH = makeJobsListHandler({ jobManager });
+const jobsGetH = makeJobsGetHandler({ jobManager });
+const jobsKillH = makeJobsKillHandler({ jobManager });
+const jobsKillAllH = makeJobsKillAllHandler({ jobManager });
+const jobsDeleteH = makeJobsDeleteHandler({ jobManager });
+const jobsStreamH = makeJobsStreamHandler({ jobManager });
 
-function deactivateTenant(): void {
-  orchestrator = null;
-  branchStatus = null;
-  activeConfig = null;
-  tenantHandlers = null;
-  clearTenantConfig();
-  try {
-    unlinkSync(join(BOOTSTRAP_DIR, BOOTSTRAP_FILENAME));
-  } catch {}
-}
-
-// Caller MUST hold bootstrapMutex. Drops orchestrator state, deletes
-// bootstrap.json, broadcasts the failure reason, and sets phase back to
-// pending-bootstrap so mesh can re-POST a corrected payload without a
-// pod-recreate roundtrip. lastError is surfaced on /health for diagnostics.
-function handleOrchestratorFailure(reason: string): void {
-  deactivateTenant();
-  broadcaster.broadcastChunk(
-    "setup",
-    `\r\n[daemon] orchestrator failed (${reason}); awaiting new bootstrap\r\n`,
-  );
-}
-
-const scriptsHandler = makeScriptsHandler(() => discoveredScripts ?? []);
-
-// Intercept the `scripts` event so SSE replay can serve the latest list on
-// connect. The orchestrator broadcasts this once setup completes.
-broadcaster.broadcastEvent = (event: string, data: unknown) => {
-  if (event === "scripts") {
-    discoveredScripts = (data as { scripts?: string[] }).scripts ?? [];
-  }
-  origEvent(event, data);
-};
+const scriptsHandler = makeScriptsHandler(() => {
+  if (discoveredScripts) return discoveredScripts;
+  const enriched = store.read();
+  const pm = enriched?.application?.packageManager?.name ?? null;
+  const cwd = enriched?.application?.packageManager?.path ?? appRoot;
+  if (!pm) return [];
+  return discoverScripts(cwd, pm);
+});
 
 const healthH = makeHealthHandler({
-  config: { daemonBootId: DAEMON_BOOT_ID },
+  config: { daemonBootId: process.env.DAEMON_BOOT_ID ?? "" },
   getReady: () => lastStatus.ready,
-  getSetup: () =>
-    orchestrator ? { ...orchestrator.state } : { running: false, done: false },
+  getApp: () => appService.snapshot(),
+  getOrchestrator: () => ({
+    running: orchestrator.isRunning(),
+    pending: orchestrator.pendingCount(),
+  }),
+  getConfigured: () => store.read() !== null,
 });
+
 const eventsH = makeEventsHandler({
   broadcaster,
   getLastStatus: () => lastStatus,
   getDiscoveredScripts: () => discoveredScripts,
-  getActiveProcesses: () => processManager.activeNames(),
+  getActiveJobs,
+  getAppStatus: () => appService.snapshot(),
   getLastBranchStatus: () => (branchStatus ? branchStatus.getLast() : null),
 });
+
 const idleH = makeIdleHandler();
 const proxyH = makeProxyHandler({ broadcaster, getDevPort });
 const wsProxy = makeWsUpgrader(getDevPort, { onClientMessage: bumpActivity });
 
-const configReadH = makeConfigReadHandler({ daemonBootId: DAEMON_BOOT_ID });
-
-const configH = makeConfigUpdateHandler({
-  daemonBootId: DAEMON_BOOT_ID,
-  storageDir: BOOTSTRAP_DIR,
-  onApplied: (kind, tenant) => {
-    if (kind === "devport-only") {
-      activeConfig = { ...getBootConfig(), ...tenant };
-      return;
-    }
-    for (const name of processManager.activeNames()) {
-      processManager.kill(name);
-    }
-    activateTenant(tenant);
-  },
+const configReadH = makeConfigReadHandler({
+  daemonBootId: process.env.DAEMON_BOOT_ID ?? "",
+  store,
+});
+const configUpdateH = makeConfigUpdateHandler({
+  daemonBootId: process.env.DAEMON_BOOT_ID ?? "",
+  store,
 });
 
 function hydrate(): void {
   let envTenant: TenantConfig | null = null;
-  try {
-    envTenant = tryLoadTenantConfigFromEnv(process.env);
-  } catch (e) {
-    // env tenant data is malformed (e.g., bad RUNTIME). Don't crash —
-    // mesh can still POST a valid bootstrap. Surface via lastError.
-    console.error(
-      `[daemon] env tenant config invalid: ${(e as Error).message}`,
-    );
-  }
-  if (envTenant) {
-    setTenantConfig(envTenant);
-    activateTenant(envTenant);
-    return;
+
+  const diskOutcome = readConfig(CONFIG_DIR);
+  let initial: TenantConfig | null = null;
+  if (diskOutcome.kind === "valid") {
+    initial = diskOutcome.config;
+  } else if (envTenant) {
+    initial = envTenant;
   }
 
-  const outcome = readBootstrap(BOOTSTRAP_DIR);
-  if (outcome.kind === "valid") {
-    const config = outcome.config;
-    setTenantConfig(config);
-    activateTenant(config);
-    return;
+  if (!initial) return;
+
+  store.hydrate(initial);
+  refreshBranchStatusMonitor();
+  // Decide whether this is a fresh first-bootstrap or a resume of an
+  // existing clone+install.
+  const transitionKind: "resume" | "first-bootstrap" = isResume(
+    bootConfig.appRoot,
+  )
+    ? "resume"
+    : "first-bootstrap";
+  orchestrator.handle({ kind: transitionKind, config: initial });
+
+  // Persist disk if we hydrated from env so subsequent reads come from disk.
+  if (diskOutcome.kind !== "valid") {
+    void store.apply(initial);
   }
 }
 
 hydrate();
 
 Bun.serve<WsProxyData, never>({
-  port: PROXY_PORT,
+  port: bootConfig.proxyPort,
   hostname: "0.0.0.0",
   idleTimeout: 0,
   async fetch(req, server) {
@@ -318,15 +321,37 @@ Bun.serve<WsProxyData, never>({
       const denied = requireToken(req, bootConfig.daemonToken);
       if (denied) return denied;
       if (req.method === "GET") return configReadH();
-      if (req.method === "PUT") return configH(req);
+      if (req.method === "PUT" || req.method === "POST")
+        return configUpdateH(req);
+    }
+
+    if (p.startsWith("/_decopilot_vm/jobs")) {
+      const denied = requireToken(req, bootConfig.daemonToken);
+      if (denied) return denied;
+      if (req.method === "GET" && p === "/_decopilot_vm/jobs")
+        return jobsListH(req);
+      if (req.method === "POST" && p === "/_decopilot_vm/jobs/kill-all")
+        return jobsKillAllH();
+      if (
+        req.method === "GET" &&
+        /^\/_decopilot_vm\/jobs\/[^/]+\/stream$/.test(p)
+      )
+        return jobsStreamH(req);
+      if (
+        req.method === "POST" &&
+        /^\/_decopilot_vm\/jobs\/[^/]+\/kill$/.test(p)
+      )
+        return jobsKillH(req);
+      if (req.method === "DELETE" && /^\/_decopilot_vm\/jobs\/[^/]+$/.test(p))
+        return jobsDeleteH(req);
+      if (req.method === "GET" && /^\/_decopilot_vm\/jobs\/[^/]+$/.test(p))
+        return jobsGetH(req);
     }
 
     if (req.method === "POST" && p.startsWith("/_decopilot_vm/")) {
       const denied = requireToken(req, bootConfig.daemonToken);
       if (denied) return denied;
 
-      // Boot-time handlers: usable from `pending-bootstrap` onward. Bash,
-      // file ops, kill, and grep don't need orchestrator state.
       if (p === "/_decopilot_vm/read") return readH(req);
       if (p === "/_decopilot_vm/write") return writeH(req);
       if (p === "/_decopilot_vm/edit") return editH(req);
@@ -335,16 +360,7 @@ Bun.serve<WsProxyData, never>({
       if (p === "/_decopilot_vm/write_from_url") return writeFromUrlH(req);
       if (p === "/_decopilot_vm/upload_to_url") return uploadToUrlH(req);
       if (p === "/_decopilot_vm/bash") return bashH(req);
-      if (p.startsWith("/_decopilot_vm/kill/")) return killH(req);
-
-      // Tenant-dependent handlers: need a configured orchestrator. Until
-      // bootstrap (or env-driven hydrate) sets a tenant, exec is gated.
-      if (p.startsWith("/_decopilot_vm/exec/")) {
-        if (!tenantHandlers) {
-          return jsonResponse({ error: "tenant not configured" }, 503);
-        }
-        return tenantHandlers.execH(req);
-      }
+      if (p.startsWith("/_decopilot_vm/exec/")) return execH(req);
     }
 
     if (req.method === "OPTIONS" && p.startsWith("/_decopilot_vm/")) {
@@ -352,7 +368,7 @@ Bun.serve<WsProxyData, never>({
         status: 204,
         headers: {
           "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "GET, POST, PUT",
+          "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE",
           "Access-Control-Allow-Headers":
             "Content-Type, Accept, Cache-Control, Authorization",
         },
@@ -370,4 +386,20 @@ Bun.serve<WsProxyData, never>({
     message: wsProxy.message,
     close: wsProxy.close,
   },
+});
+
+// Stale tmp file housekeeping: persistence.readConfig handles this on the
+// read path; on a clean shutdown there's nothing to do here.
+process.on("SIGTERM", () => {
+  jobManager.shutdown();
+  appService.shutdown();
+  try {
+    if (existsSync(join(CONFIG_DIR, CONFIG_FILENAME))) {
+      // Leave config.json in place — it's the persistent record. Just exit.
+    }
+    unlinkSync(join(CONFIG_DIR, "config.json.tmp"));
+  } catch {
+    /* ignore */
+  }
+  process.exit(0);
 });

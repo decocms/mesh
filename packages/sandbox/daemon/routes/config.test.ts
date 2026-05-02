@@ -2,170 +2,162 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { clearTenantConfig, setBootConfig, setTenantConfig } from "../state";
-import { makeConfigUpdateHandler, type ConfigChangeKind } from "./config";
+import { TenantConfigStore } from "../config-store";
+import { makeConfigReadHandler, makeConfigUpdateHandler } from "./config";
 import type { TenantConfig } from "../types";
 
 const BOOT_ID = "boot-cfg-test";
 
-function buildReq(body: object): Request {
+function buildReq(method: "PUT" | "POST", body: object): Request {
   const b64 = Buffer.from(JSON.stringify(body), "utf-8").toString("base64");
-  return new Request("http://x/_decopilot_vm/config", {
-    method: "PUT",
-    body: b64,
-  });
+  return new Request("http://x/_decopilot_vm/config", { method, body: b64 });
 }
 
-function seedTenant(overrides: Partial<TenantConfig> = {}): void {
-  const tenant = {
-    git: {
-      repository: {
-        cloneUrl: "https://example.com/repo.git",
-        repoName: "repo",
-        branch: "main",
-      },
+const SEED: TenantConfig = {
+  git: {
+    repository: {
+      cloneUrl: "https://example.com/repo.git",
+      repoName: "repo",
+      branch: "main",
     },
-    application: {
-      packageManager: {
-        name: "npm",
-        path: undefined,
-      },
-      developmentServer: {
-        port: 3000,
-        running: false,
-      },
-      runtime: {
-        name: "node",
-        pathPrefix: "",
-      },
-    },
-    ...overrides,
-  };
-  setTenantConfig(tenant as TenantConfig);
-}
+  },
+  application: {
+    packageManager: { name: "npm" },
+    runtime: "node",
+    intent: "paused",
+    desiredPort: 3000,
+    proxy: {},
+  },
+};
 
 describe("makeConfigUpdateHandler", () => {
   let storageDir: string;
-  let applied: Array<{ kind: ConfigChangeKind; tenant: TenantConfig }>;
+  let store: TenantConfigStore;
 
   beforeEach(() => {
     storageDir = mkdtempSync(join(tmpdir(), "config-route-"));
-    applied = [];
-    setBootConfig({
-      daemonToken: "x".repeat(32),
-      daemonBootId: BOOT_ID,
-      appRoot: "/tmp/app",
-      proxyPort: 9000,
-      dropPrivileges: false,
-    });
-    clearTenantConfig();
+    store = new TenantConfigStore({ storageDir });
   });
 
   afterEach(() => {
     rmSync(storageDir, { recursive: true, force: true });
   });
 
-  function makeHandler() {
-    return makeConfigUpdateHandler({
-      daemonBootId: BOOT_ID,
-      storageDir,
-      onApplied: (kind, tenant) => applied.push({ kind, tenant }),
-    });
+  function handler() {
+    return makeConfigUpdateHandler({ daemonBootId: BOOT_ID, store });
   }
 
-  it("rejects 409 when no bootstrap is pinned yet", async () => {
-    const h = makeHandler();
-    const res = await h(buildReq({ devPort: 5173 }));
-    expect(res.status).toBe(409);
-    expect(applied).toHaveLength(0);
+  it("first POST writes config and emits first-bootstrap", async () => {
+    const h = handler();
+    const res = await h(buildReq("POST", SEED));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { transition: string };
+    expect(body.transition).toBe("first-bootstrap");
   });
 
-  it("devport-only patch applies without re-orchestration", async () => {
-    seedTenant();
-    const h = makeHandler();
-    const res = await h(buildReq({ devPort: 5173 }));
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { applied: ConfigChangeKind };
-    expect(body.applied).toBe("devport-only");
-    expect(applied).toHaveLength(1);
-    expect(applied[0].kind).toBe("devport-only");
-    expect(applied[0].tenant.application?.developmentServer?.port).toBe(5173);
-    // mutable + identity preserved
-    expect(applied[0].tenant.git?.repository?.cloneUrl).toBe(
-      "https://example.com/repo.git",
+  it("PUT branch=feature emits branch-change after seed", async () => {
+    await store.apply(SEED);
+    const h = handler();
+    const res = await h(
+      buildReq("PUT", { git: { repository: { branch: "feature" } } }),
     );
-    expect(applied[0].tenant.git?.repository?.branch).toBe("main");
-  });
-
-  it("branch change is classified as rerun", async () => {
-    seedTenant();
-    const h = makeHandler();
-    const res = await h(buildReq({ branch: "feature" }));
     expect(res.status).toBe(200);
-    expect(applied[0].kind).toBe("rerun");
-    expect(applied[0].tenant.git?.repository?.branch).toBe("feature");
+    const body = (await res.json()) as { transition: string };
+    expect(body.transition).toBe("branch-change");
   });
 
-  it("rejects rerun-class change while phase=bootstrapping", async () => {
-    seedTenant();
-    const h = makeHandler();
-    const res = await h(buildReq({ branch: "feature" }));
+  it("PUT desiredPort emits desired-port-change", async () => {
+    await store.apply(SEED);
+    const h = handler();
+    const res = await h(
+      buildReq("PUT", { application: { desiredPort: 5173 } }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { transition: string };
+    expect(body.transition).toBe("desired-port-change");
+  });
+
+  it("PUT intent=running emits intent-change", async () => {
+    await store.apply(SEED);
+    const h = handler();
+    const res = await h(
+      buildReq("PUT", { application: { intent: "running" } }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { transition: string };
+    expect(body.transition).toBe("intent-change");
+  });
+
+  it("rejects mismatched cloneUrl with 409", async () => {
+    await store.apply(SEED);
+    const h = handler();
+    const res = await h(
+      buildReq("PUT", {
+        git: {
+          repository: { cloneUrl: "https://example.com/different.git" },
+        },
+      }),
+    );
     expect(res.status).toBe(409);
     const body = (await res.json()) as { error: string };
-    expect(body.error).toContain("setup in progress");
-    expect(applied).toHaveLength(0);
-  });
-
-  it("allows devport-only change while phase=bootstrapping", async () => {
-    seedTenant();
-    const h = makeHandler();
-    const res = await h(buildReq({ devPort: 5173 }));
-    expect(res.status).toBe(200);
-    expect(applied[0].kind).toBe("devport-only");
-  });
-
-  it("rejects mismatched cloneUrl with identity-conflict reason", async () => {
-    seedTenant();
-    const h = makeHandler();
-    const res = await h(
-      buildReq({ cloneUrl: "https://example.com/different.git" }),
-    );
-    expect(res.status).toBe(409);
-    const body = (await res.json()) as { reason: string; error: string };
-    expect(body.reason).toBe("identity-conflict");
     expect(body.error).toContain("cloneUrl");
-    expect(applied).toHaveLength(0);
   });
 
-  it("accepts matching cloneUrl in patch (no-op identity)", async () => {
-    seedTenant();
-    const h = makeHandler();
+  it("accepts matching cloneUrl in patch (no-op or downstream change)", async () => {
+    await store.apply(SEED);
+    const h = handler();
     const res = await h(
-      buildReq({
-        cloneUrl: "https://example.com/repo.git",
-        devPort: 4000,
+      buildReq("PUT", {
+        git: {
+          repository: { cloneUrl: "https://example.com/repo.git" },
+        },
+        application: { desiredPort: 4000 },
       }),
     );
     expect(res.status).toBe(200);
-    expect(applied[0].kind).toBe("devport-only");
-    expect(applied[0].tenant.application?.developmentServer?.port).toBe(4000);
   });
 
-  it("invalid primary (not in commands) returns 400", async () => {
-    seedTenant();
-    const h = makeHandler();
+  it("invalid desiredPort returns 400", async () => {
+    await store.apply(SEED);
+    const h = handler();
     const res = await h(
-      buildReq({ commands: { dev: "npm run dev" }, primary: "missing" }),
+      buildReq("PUT", { application: { desiredPort: 70000 } }),
     );
     expect(res.status).toBe(400);
-    expect(applied).toHaveLength(0);
+  });
+});
+
+describe("makeConfigReadHandler", () => {
+  let storageDir: string;
+  let store: TenantConfigStore;
+
+  beforeEach(() => {
+    storageDir = mkdtempSync(join(tmpdir(), "config-route-read-"));
+    store = new TenantConfigStore({ storageDir });
   });
 
-  it("invalid devPort returns 400", async () => {
-    seedTenant();
-    const h = makeHandler();
-    const res = await h(buildReq({ devPort: 70000 }));
-    expect(res.status).toBe(400);
-    expect(applied).toHaveLength(0);
+  afterEach(() => {
+    rmSync(storageDir, { recursive: true, force: true });
+  });
+
+  it("404 when no tenant config", async () => {
+    const h = makeConfigReadHandler({ daemonBootId: BOOT_ID, store });
+    const res = await h();
+    expect(res.status).toBe(404);
+  });
+
+  it("returns config + bootId when set", async () => {
+    await store.apply(SEED);
+    const h = makeConfigReadHandler({ daemonBootId: BOOT_ID, store });
+    const res = await h();
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      bootId: string;
+      config: TenantConfig;
+    };
+    expect(body.bootId).toBe(BOOT_ID);
+    expect(body.config.git?.repository?.cloneUrl).toBe(
+      SEED.git?.repository?.cloneUrl,
+    );
   });
 });

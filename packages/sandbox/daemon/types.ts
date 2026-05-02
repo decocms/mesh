@@ -1,7 +1,10 @@
 export type PackageManager = "npm" | "pnpm" | "yarn" | "bun" | "deno";
-export interface Runtime {
-  name: "node" | "bun" | "deno";
-  pathPrefix: string;
+export type RuntimeName = "node" | "bun" | "deno";
+
+/** Runtime-derived adornment, never persisted to disk. */
+export interface DerivedRuntime {
+  readonly name: RuntimeName;
+  readonly pathPrefix: string;
 }
 
 export interface BootConfig {
@@ -12,42 +15,76 @@ export interface BootConfig {
   readonly dropPrivileges: boolean;
 }
 
-interface GitIdentity {
-  userName: string;
-  userEmail: string;
-}
-interface GitConfig {
-  repository: GitRepository;
-  identity: GitIdentity | undefined;
-}
-interface GitRepository {
-  cloneUrl: string;
-  branch?: string;
-  repoName?: string;
+export interface GitIdentity {
+  readonly userName: string;
+  readonly userEmail: string;
 }
 
-interface Application {
-  packageManager: PackageManagerConfig;
-  developmentServer: DevelopmentServer;
-  runtime: Runtime;
+export interface GitRepository {
+  readonly cloneUrl: string;
+  readonly branch?: string;
+  readonly repoName?: string;
 }
 
-interface DevelopmentServer {
-  port?: number;
-  running: boolean;
+export interface GitConfig {
+  readonly repository: GitRepository;
+  readonly identity?: GitIdentity;
 }
 
 export interface PackageManagerConfig {
-  name: PackageManager;
-  path: string | undefined;
+  readonly name: PackageManager;
+  readonly path?: string;
 }
 
+/**
+ * What the proxy currently forwards to. Last-writer-wins between tenant
+ * (explicit override via PUT /config) and the daemon's port probe. The
+ * probe always reasserts to the current dev process's bound port, so a
+ * tenant override is sticky only until the next dev (re)start observes a
+ * different port.
+ */
+export interface ProxyConfig {
+  readonly targetPort?: number;
+}
+
+/**
+ * Tenant intent for the managed dev server.
+ *
+ * - "running": the daemon installs deps if needed and keeps the dev script
+ *   alive. If the dev script exits non-zero, intent flips to "paused"
+ *   automatically (failure is sticky — tenant must re-set "running" to
+ *   retry).
+ * - "paused": the daemon does not auto-start anything.
+ */
+export type ApplicationIntent = "running" | "paused";
+
+export interface Application {
+  readonly packageManager: PackageManagerConfig;
+  readonly runtime: RuntimeName;
+  readonly intent: ApplicationIntent;
+  /** PORT env hint for the dev script. Daemon picks a default if unset. */
+  readonly desiredPort?: number;
+  readonly proxy: ProxyConfig;
+}
+
+/**
+ * User-intent state for a sandboxed application. Persisted in
+ * `<configDir>/config.json`. Derived fields (e.g. runtime pathPrefix,
+ * proxy probe state) live in memory and are never persisted.
+ */
 export interface TenantConfig {
-  readonly git: GitConfig | undefined;
-  readonly application: Application | undefined;
+  readonly git?: GitConfig;
+  readonly application?: Application;
 }
 
-export type Config = BootConfig & TenantConfig;
+/** In-memory enriched view: TenantConfig + derivations. */
+export interface EnrichedTenantConfig extends TenantConfig {
+  /** Computed from `application.runtime`. */
+  readonly runtimePathPrefix: string;
+}
+
+/** What the rest of the daemon (orchestrator, routes) sees. */
+export type Config = BootConfig & EnrichedTenantConfig;
 
 export interface BroadcastSource {
   /** "setup" | "daemon" | script name */

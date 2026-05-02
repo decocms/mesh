@@ -5,9 +5,10 @@ import { makeSseStream } from "./sse";
 describe("makeSseStream", () => {
   const mkDeps = (b: Broadcaster) => ({
     broadcaster: b,
-    getLastStatus: () => ({ ready: false, htmlSupport: false }),
+    getLastStatus: () => ({ ready: false, htmlSupport: false, port: null }),
     getDiscoveredScripts: () => null,
-    getActiveProcesses: () => [],
+    getActiveJobs: () => [],
+    getAppStatus: () => ({}),
     getLastBranchStatus: () => null,
     maxClients: 10,
   });

@@ -1,7 +1,8 @@
-import { describe, expect, it, beforeEach, afterEach } from "bun:test";
-import { mkdtempSync, rmSync, readFileSync, existsSync } from "node:fs";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { JobManager } from "../process/job-manager";
 import { makeBashHandler } from "./bash";
 
 function b64(obj: unknown): string {
@@ -17,15 +18,25 @@ function post(obj: unknown): Request {
 
 describe("bash", () => {
   let appRoot = "";
+  let logsDir = "";
+  let jobManager: JobManager;
   let h: ReturnType<typeof makeBashHandler>;
 
   beforeEach(() => {
     appRoot = mkdtempSync(join(tmpdir(), "bash-handler-"));
-    h = makeBashHandler({ appRoot });
+    logsDir = mkdtempSync(join(tmpdir(), "bash-logs-"));
+    jobManager = new JobManager({
+      logsDir,
+      ttlMs: 60_000,
+      reapIntervalMs: 60_000,
+    });
+    h = makeBashHandler({ appRoot, jobManager });
   });
 
   afterEach(() => {
+    jobManager.shutdown();
     rmSync(appRoot, { recursive: true, force: true });
+    rmSync(logsDir, { recursive: true, force: true });
   });
 
   it("runs an echo and returns stdout+exitCode=0", async () => {
@@ -37,7 +48,8 @@ describe("bash", () => {
 
   it("SIGKILLs on timeout and returns exitCode=-1", async () => {
     const res = await h(post({ command: "sleep 30", timeout: 300 }));
-    const body = (await res.json()) as { exitCode: number };
+    const body = (await res.json()) as { exitCode: number; timedOut: boolean };
+    expect(body.timedOut).toBe(true);
     expect(body.exitCode).toBe(-1);
   });
 
@@ -46,10 +58,15 @@ describe("bash", () => {
     expect(res.status).toBe(400);
   });
 
+  it("background mode returns jobId immediately", async () => {
+    const res = await h(post({ command: "echo bg-mode", mode: "background" }));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { jobId: string; status: string };
+    expect(typeof body.jobId).toBe("string");
+    expect(body.status).toBe("running");
+  });
+
   it("does not leak backgrounded children past the request", async () => {
-    // Reproduces the wedge: `&` + redirects had bash sit in wait4() forever
-    // on macOS, and even on Linux the child outlived the request. The
-    // process-group SIGKILL on close should reap it.
     const pidFile = join(appRoot, "bg.pid");
     const cmd = `sleep 30 > /dev/null 2>&1 & echo $! > "${pidFile}"; wait $!`;
     const res = await h(post({ command: cmd, timeout: 500 }));
@@ -60,7 +77,6 @@ describe("bash", () => {
     const bgPid = Number(readFileSync(pidFile, "utf-8").trim());
     expect(Number.isInteger(bgPid)).toBe(true);
 
-    // Give SIGKILL a beat to land. `kill 0` throws ESRCH when gone.
     await new Promise((r) => setTimeout(r, 100));
     let alive = true;
     try {

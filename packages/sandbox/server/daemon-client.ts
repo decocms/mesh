@@ -1,38 +1,33 @@
 /**
  * Pure helpers for the unified daemon's HTTP API. Daemon endpoints live
  * under `/_decopilot_vm/*` (except `/health` at root, which is unauth).
- * POST bodies are base64-encoded JSON — the daemon decodes on its side.
+ * POST/PUT bodies are base64-encoded JSON — the daemon decodes on its side.
  */
 
-import { TenantConfig } from "../daemon/types";
+import type { TenantConfig } from "../daemon/types";
 import { sleep } from "../shared";
 import type { ExecInput, ExecOutput } from "./runner/types";
 
 const DEFAULT_EXEC_TIMEOUT_MS = 60_000;
 const HEALTH_PROBE_TIMEOUT_MS = 500;
-const BOOTSTRAP_TIMEOUT_MS = 10_000;
+const CONFIG_TIMEOUT_MS = 10_000;
 const READY_ATTEMPTS = 25;
 const READY_INTERVAL_MS = 200;
-const READY_JITTER_MS = 50; // ±50ms around READY_INTERVAL_MS
+const READY_JITTER_MS = 50;
 
-export interface BootstrapResponse {
-  phase: string;
+export interface ConfigResponse {
   bootId: string;
-  hash: string;
+  transition: string;
+  config: TenantConfig;
 }
 
 export interface DaemonHealth {
   ready: boolean;
   bootId: string;
+  configured: boolean;
   setup: { running: boolean; done: boolean };
 }
 
-/**
- * Returns the parsed /health response, or null if unreachable or the
- * shape is wrong (e.g. an old daemon that predates bootId). Null is
- * the signal to the runner that the container is incompatible and
- * should be force-recreated.
- */
 export async function probeDaemonHealth(
   daemonUrl: string,
 ): Promise<DaemonHealth | null> {
@@ -73,36 +68,56 @@ export async function waitForDaemonReady(daemonUrl: string): Promise<void> {
   );
 }
 
-export interface ConfigUpdateResponse {
-  phase: string;
-  bootId: string;
-  applied: "devport-only" | "rerun";
+/**
+ * POST /_decopilot_vm/config — set initial tenant config (or patch via
+ * the same payload semantics; deep-merge happens daemon-side).
+ *
+ * `/config` is the trust boundary endpoint; the daemon's NetworkPolicy is
+ * the auth on its port. Body is base64-encoded JSON like every other
+ * `/_decopilot_vm/*` route. 200 = applied (or no-op); 400 = invalid;
+ * 409 = identity conflict (e.g., cloneUrl mismatch).
+ */
+export async function postConfig(
+  daemonUrl: string,
+  token: string,
+  payload: Partial<TenantConfig>,
+): Promise<ConfigResponse> {
+  return configRequest(daemonUrl, token, "POST", payload);
 }
 
-// `/bootstrap` is unauthenticated: NetworkPolicy is the trust boundary on the
-// daemon's port (see daemon/bootstrap.ts). Body is base64-encoded JSON like
-// every other `/_decopilot_vm/*` route. 200 = accepted (or idempotent re-POST
-// with matching hash); 409 = a different bootstrap is already pinned, surfaced
-// as an Error so the runner fails loudly instead of running with stale tenant.
-export async function postBootstrap(
+/** PUT /_decopilot_vm/config — merge a patch into the current config. */
+export async function putConfig(
   daemonUrl: string,
-  payload: TenantConfig,
-): Promise<BootstrapResponse> {
+  token: string,
+  payload: Partial<TenantConfig>,
+): Promise<ConfigResponse> {
+  return configRequest(daemonUrl, token, "PUT", payload);
+}
+
+async function configRequest(
+  daemonUrl: string,
+  token: string,
+  method: "POST" | "PUT",
+  payload: Partial<TenantConfig>,
+): Promise<ConfigResponse> {
   const rawBody = JSON.stringify(payload);
   const b64Body = Buffer.from(rawBody, "utf-8").toString("base64");
-  const res = await fetch(`${daemonUrl}/_decopilot_vm/bootstrap`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+  const res = await fetch(`${daemonUrl}/_decopilot_vm/config`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
     body: b64Body,
-    signal: AbortSignal.timeout(BOOTSTRAP_TIMEOUT_MS),
+    signal: AbortSignal.timeout(CONFIG_TIMEOUT_MS),
   });
   const body = await res.text();
   if (!res.ok) {
     throw new Error(
-      `sandbox daemon /_decopilot_vm/bootstrap returned ${res.status}: ${body}`,
+      `sandbox daemon /_decopilot_vm/config returned ${res.status}: ${body}`,
     );
   }
-  return JSON.parse(body) as BootstrapResponse;
+  return JSON.parse(body) as ConfigResponse;
 }
 
 export async function daemonBash(
@@ -147,8 +162,6 @@ export async function daemonBash(
   };
 }
 
-// Dropped before proxying: session cookies (user code must not see the
-// caller's session) + hop-by-hop headers per RFC 7230.
 const STRIP_REQUEST_HEADERS = [
   "cookie",
   "host",
@@ -163,11 +176,6 @@ const STRIP_REQUEST_HEADERS = [
   "content-length",
 ];
 
-/**
- * HTTP passthrough to the daemon. Returns the native Response (streamed, not
- * buffered). `signal` must be the client's AbortSignal — closing the browser
- * connection must cascade to the daemon so SSE subscribers are dropped.
- */
 export async function proxyDaemonRequest(
   daemonUrl: string,
   token: string,

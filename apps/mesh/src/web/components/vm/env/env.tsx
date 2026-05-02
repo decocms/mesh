@@ -287,12 +287,38 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     }
   };
 
+  // Well-known starters (dev/start) are owned by the daemon's ApplicationService,
+  // not JobManager — toggling them goes through application.intent so the
+  // orchestrator handles start/stop and failure-stickiness consistently.
+  const setIntent = async (intent: "running" | "paused") => {
+    if (execInFlight || !vmData || !virtualMcpId || !currentBranch) return;
+    setExecInFlight(true);
+    try {
+      const qs = new URLSearchParams({
+        virtualMcpId,
+        branch: currentBranch,
+      }).toString();
+      const res = await fetch(`/api/vm-config?${qs}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json", "x-org-id": org.id },
+        body: JSON.stringify({ application: { intent } }),
+      });
+      if (!res.ok) throw new Error(`Intent update failed: ${res.statusText}`);
+    } finally {
+      setExecInFlight(false);
+    }
+  };
+
   const handleAddScript = (scriptName: string) => {
     if (!openScriptTabs.includes(scriptName)) {
       setOpenScriptTabs((prev) => [...prev, scriptName]);
     }
     setActiveTab(scriptName);
-    handleExec(scriptName);
+    if (WELL_KNOWN_STARTERS.includes(scriptName)) {
+      setIntent("running");
+    } else {
+      handleExec(scriptName);
+    }
   };
 
   const handleStart = async () => {
@@ -457,7 +483,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
               </Label>
               <Input
                 id="env-port"
-                placeholder="3000"
+                placeholder="3001"
                 className="w-20 h-8"
                 defaultValue={runtime?.port ?? ""}
                 onBlur={(e) =>
@@ -606,15 +632,24 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
               activeTab !== "daemon" &&
               openScriptTabs.includes(activeTab) &&
               (() => {
-                const isRunning =
-                  vmEvents.activeProcesses.includes(activeTab) &&
-                  !killedProcesses.has(activeTab);
+                const isStarter = WELL_KNOWN_STARTERS.includes(activeTab);
+                const appActive =
+                  vmEvents.appStatus?.status === "up" ||
+                  vmEvents.appStatus?.status === "starting";
+                const isRunning = isStarter
+                  ? appActive
+                  : vmEvents.activeProcesses.includes(activeTab) &&
+                    !killedProcesses.has(activeTab);
+                const onRun = () =>
+                  isStarter ? setIntent("running") : handleExec(activeTab);
+                const onStop = () =>
+                  isStarter ? setIntent("paused") : handleKill(activeTab);
                 return (
                   <div className="flex items-center">
                     <button
                       type="button"
                       disabled={execInFlight}
-                      onClick={() => handleExec(activeTab)}
+                      onClick={onRun}
                       className={cn(
                         "flex items-center gap-1 border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50",
                         isRunning ? "rounded-l-md border-r-0" : "rounded-md",
@@ -643,11 +678,9 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
                           </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => handleKill(activeTab)}
-                          >
+                          <DropdownMenuItem onClick={onStop}>
                             <StopCircle size={12} />
-                            Stop Process
+                            {isStarter ? "Stop" : "Stop Process"}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -686,7 +719,11 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
                       variant="outline"
                       size="sm"
                       disabled={execInFlight}
-                      onClick={() => handleExec(tab)}
+                      onClick={() =>
+                        WELL_KNOWN_STARTERS.includes(tab)
+                          ? setIntent("running")
+                          : handleExec(tab)
+                      }
                     >
                       {execInFlight ? (
                         <Loading01 size={14} className="animate-spin" />

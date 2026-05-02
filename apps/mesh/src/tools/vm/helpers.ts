@@ -53,18 +53,20 @@ export async function requireVmEntry(
 /**
  * Resolves package manager and runtime config from Virtual MCP metadata.
  * Returns null packageManager/runtime when no package manager is selected
- * (clone-only mode for non-JS repos).
+ * (clone-only mode for non-JS repos). `port` is null unless the user
+ * explicitly pinned one — runners free to pick a free port otherwise.
  */
 export function resolveRuntimeConfig(metadata: Record<string, unknown>) {
   const runtime = (metadata as RuntimeConfigMeta).runtime ?? null;
   const selected = runtime?.selected ?? null;
   const pm = selected as PackageManager | null;
+  const port = runtime?.port ?? null;
 
   if (!pm || !(pm in PACKAGE_MANAGER_CONFIG)) {
     return {
       packageManager: null,
       runtime: null,
-      port: runtime?.port ?? "3000",
+      port,
       runtimeBinPath: null,
     };
   }
@@ -80,7 +82,7 @@ export function resolveRuntimeConfig(metadata: Record<string, unknown>) {
   return {
     packageManager: pm,
     runtime: pmRuntime,
-    port: runtime?.port ?? "3000",
+    port,
     runtimeBinPath,
   };
 }
