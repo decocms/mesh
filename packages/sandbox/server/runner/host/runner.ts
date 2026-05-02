@@ -37,10 +37,7 @@ import type {
   SandboxRunner,
 } from "../types";
 import type { ClaimPhase } from "../lifecycle-types";
-import type {
-  PackageManagerConfig,
-  TenantConfig,
-} from "packages/sandbox/daemon/types";
+import type { TenantConfig, PackageManagerConfig } from "../../../daemon/types";
 
 const RUNNER_KIND = "host" as const;
 const READY_TIMEOUT_MS = 30_000;
