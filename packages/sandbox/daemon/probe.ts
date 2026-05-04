@@ -12,7 +12,10 @@ export interface ProbePort {
 }
 
 export interface ProbeState {
+  /** Active port answered with 2xx-3xx (i.e. the iframe will render meaningful content). */
   ready: boolean;
+  /** Active port answered any HTTP status (including 4xx/5xx). Use to dismiss boot overlays. */
+  responded: boolean;
   htmlSupport: boolean;
   /** The currently-active dev port: pinned `devPort` if set & responding,
    * otherwise the highest-scored discovered descendant port. */
@@ -48,9 +51,11 @@ export interface ProbeDeps {
   onLog?: (msg: string) => void;
 }
 
-interface ProbeResult {
+export interface ProbeResult {
   port: number;
+  /** Got any HTTP response (including 4xx/5xx). */
   responded: boolean;
+  /** Got a 2xx-3xx response. */
   ready: boolean;
   htmlSupport: boolean;
   /** Higher = more likely to be the actual dev preview surface. */
@@ -80,10 +85,63 @@ function score(root: HeadResult | null, viteClient: HeadResult | null): number {
   return s;
 }
 
+/**
+ * Pure selection over already-probed results. Picks the active port and
+ * derives the three signals (`ready`, `responded`, `htmlSupport`) from
+ * the same per-port result, eliminating per-branch divergence.
+ */
+export function selectActive(
+  probedAll: ProbeResult[],
+  pinned: number | null,
+): {
+  port: number | null;
+  ready: boolean;
+  responded: boolean;
+  htmlSupport: boolean;
+} {
+  if (pinned !== null) {
+    const pinnedResult = probedAll.find((r) => r.port === pinned);
+    if (pinnedResult && pinnedResult.responded) {
+      return {
+        port: pinnedResult.port,
+        ready: pinnedResult.ready,
+        responded: pinnedResult.responded,
+        htmlSupport: pinnedResult.htmlSupport,
+      };
+    }
+    // Pin is stale — fall back to highest-scored other responded port.
+    const others = probedAll.filter((r) => r.responded && r.port !== pinned);
+    const best = others.sort((a, b) => b.score - a.score)[0];
+    if (best) {
+      return {
+        port: best.port,
+        ready: best.ready,
+        responded: best.responded,
+        htmlSupport: best.htmlSupport,
+      };
+    }
+    return { port: null, ready: false, responded: false, htmlSupport: false };
+  }
+
+  if (probedAll.length === 0) {
+    return { port: null, ready: false, responded: false, htmlSupport: false };
+  }
+
+  const responded = probedAll.filter((r) => r.responded);
+  const best = responded.sort((a, b) => b.score - a.score)[0] ?? probedAll[0];
+  return {
+    port: best.port,
+    ready: best.ready,
+    responded: best.responded,
+    htmlSupport: best.htmlSupport,
+  };
+}
+
 /** Kicks off the probe loop; returns the current state (live-updated). */
 export function startUpstreamProbe(deps: ProbeDeps): ProbeState {
   const state: ProbeState = {
     ready: false,
+    responded: false,
     htmlSupport: false,
     port: null,
     ports: [],
@@ -135,6 +193,7 @@ export function startUpstreamProbe(deps: ProbeDeps): ProbeState {
     const prevReady = state.ready;
     const prevPort = state.port;
     const prevHtml = state.htmlSupport;
+    const prevResponded = state.responded;
     const prevPortsKey = portsKey(state.ports);
 
     const discovered = deps.getDiscoveredPorts();
@@ -164,46 +223,11 @@ export function startUpstreamProbe(deps: ProbeDeps): ProbeState {
       commandName: r.rootPid !== null ? deps.getCommandName(r.rootPid) : null,
     }));
 
-    if (pinned !== null) {
-      // Pinned: prefer the pinned port when responding. If the pin is stale
-      // (e.g., dev process restarted and bound a different port), fall back
-      // to the highest-scored discovered port so the proxy self-heals across
-      // pause/resume — entry.ts's writeback then updates the pin.
-      const pinnedResult = probedAll.find((r) => r.port === pinned);
-      if (pinnedResult && pinnedResult.responded) {
-        state.port = pinnedResult.port;
-        state.ready = pinnedResult.ready;
-        state.htmlSupport = pinnedResult.htmlSupport;
-      } else {
-        const responded = probedAll.filter(
-          (r) => r.responded && r.port !== pinned,
-        );
-        const best = responded.sort((a, b) => b.score - a.score)[0];
-        if (best) {
-          state.port = best.port;
-          state.ready = best.ready;
-          state.htmlSupport = best.htmlSupport;
-        } else {
-          state.port = null;
-          state.ready = false;
-          state.htmlSupport = false;
-        }
-      }
-    } else if (probedAll.length > 0) {
-      const responded = probedAll.filter((r) => r.responded);
-      const best =
-        responded.sort((a, b) => b.score - a.score)[0] ?? probedAll[0];
-      state.port = best.port;
-      state.ready = responded.length > 0;
-      state.htmlSupport = best.htmlSupport;
-    } else {
-      // No discovered descendants and no pin: nothing to surface. Don't fall
-      // back to a default like 3000 — on dev machines that's often the
-      // outer mesh, which would nest the studio UI inside its own iframe.
-      state.port = null;
-      state.ready = false;
-      state.htmlSupport = false;
-    }
+    const active = selectActive(probedAll, pinned);
+    state.port = active.port;
+    state.ready = active.ready;
+    state.responded = active.responded;
+    state.htmlSupport = active.htmlSupport;
 
     const newPortsKey = portsKey(state.ports);
     const portsChanged = prevPortsKey !== newPortsKey;
@@ -230,10 +254,12 @@ export function startUpstreamProbe(deps: ProbeDeps): ProbeState {
       readyChanged ||
       portChanged ||
       prevHtml !== state.htmlSupport ||
+      prevResponded !== state.responded ||
       portsChanged
     ) {
       deps.onChange({
         ready: state.ready,
+        responded: state.responded,
         htmlSupport: state.htmlSupport,
         port: state.port,
         ports: state.ports.slice(),
