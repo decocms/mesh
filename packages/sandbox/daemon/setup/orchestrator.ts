@@ -10,6 +10,7 @@ import {
   pmRunCommand,
 } from "../constants";
 import type { Broadcaster } from "../events/broadcast";
+import type { BranchStatusMonitor } from "../git/branch-status";
 import { gitSync } from "../git/git-sync";
 import type { InstallState } from "../install/install-state";
 import { InstallState as InstallStateClass } from "../install/install-state";
@@ -36,6 +37,7 @@ export interface SetupOrchestratorDeps {
   logsDir: string;
   /** When provided, setup phases are tracked via the phase manager. */
   phaseManager?: PhaseManager;
+  branchStatus: BranchStatusMonitor;
 }
 
 /**
@@ -176,6 +178,7 @@ export class SetupOrchestrator {
 
     const cloneUrl = config.git?.repository?.cloneUrl;
     if (cloneUrl && !isResume(config.repoDir)) {
+      this.deps.branchStatus.setPhase({ kind: "cloning" });
       const cloneTaskId = this.deps.phaseManager?.begin("clone");
       const cloneLogPath = appLogPath(this.deps.logsDir, "clone");
       try {
@@ -196,6 +199,10 @@ export class SetupOrchestrator {
         this.chunk(`\r\n[orchestrator] clone failed (exit ${code})\r\n`);
         if (cloneTaskId)
           this.deps.phaseManager?.fail(cloneTaskId, `exit ${code}`);
+        this.deps.branchStatus.setPhase({
+          kind: "clone-failed",
+          error: `exit ${code}`,
+        });
         return;
       }
       if (cloneTaskId) this.deps.phaseManager?.done(cloneTaskId);
@@ -207,6 +214,7 @@ export class SetupOrchestrator {
     // into — earlier order tripped posix_spawn ENOENT (it reads cwd before
     // exec, and repoDir doesn't exist until clone returns).
     await this.gitSetup(config);
+    this.deps.branchStatus.markReady();
 
     if (config.application?.intent === "running") {
       const installed = await this.runInstall();
@@ -222,6 +230,7 @@ export class SetupOrchestrator {
     const config = this.currentConfig();
     if (!config) return;
     await this.gitSetup(config);
+    this.deps.branchStatus.markReady();
 
     if (config.application?.intent === "running") {
       if (
@@ -242,15 +251,17 @@ export class SetupOrchestrator {
   private async branchChange(to: string): Promise<void> {
     await this.deps.appService.stop();
     this.chunk(`[orchestrator] checking out branch: ${to}\r\n`);
+    this.deps.branchStatus.setPhase({ kind: "checking-out", to });
     try {
       await this.checkoutBranch(to);
     } catch (e) {
-      this.chunk(
-        `\r\n[orchestrator] branch-change failed: ${(e as Error).message}\r\n`,
-      );
+      const error = (e as Error).message;
+      this.chunk(`\r\n[orchestrator] branch-change failed: ${error}\r\n`);
+      this.deps.branchStatus.setPhase({ kind: "checkout-failed", error });
       return;
     }
     this.refreshBranchHead();
+    this.deps.branchStatus.markReady();
     const ok = await this.runInstall();
     if (ok) await this.startIfReady();
   }
