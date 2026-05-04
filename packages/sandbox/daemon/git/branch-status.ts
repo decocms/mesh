@@ -86,6 +86,9 @@ export class BranchStatusMonitor {
       this.watcher = fs.watch(gitDir, { recursive: true }, () =>
         this.schedule(),
       );
+      // Swallow errors (e.g. ENOENT when .git is removed during shutdown)
+      // — without this the FSWatcher emits an unhandled 'error' event.
+      this.watcher.on("error", () => {});
     } catch {
       this.pollFallback = setInterval(() => {
         if (this.last.kind === "ready") this.markReady();

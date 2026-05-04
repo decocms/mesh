@@ -187,13 +187,23 @@ export class SetupOrchestrator {
         /* not present */
       }
       const cloneTee = new LogTee(cloneLogPath, INSTALL_LOG_MAX_BYTES);
-      const code = await spawnClone({
-        config,
-        onChunk: (_src, data) => {
-          this.chunk(data);
-          cloneTee.write(data);
-        },
-      });
+      let code: number;
+      try {
+        code = await spawnClone({
+          config,
+          onChunk: (_src, data) => {
+            this.chunk(data);
+            cloneTee.write(data);
+          },
+        });
+      } catch (e) {
+        cloneTee.close();
+        const error = (e as Error).message;
+        this.chunk(`\r\n[orchestrator] clone failed: ${error}\r\n`);
+        if (cloneTaskId) this.deps.phaseManager?.fail(cloneTaskId, error);
+        this.deps.branchStatus.setPhase({ kind: "clone-failed", error });
+        return;
+      }
       cloneTee.close();
       if (code !== 0) {
         this.chunk(`\r\n[orchestrator] clone failed (exit ${code})\r\n`);
