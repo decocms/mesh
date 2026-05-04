@@ -16,7 +16,7 @@ import { InstallState as InstallStateClass } from "../install/install-state";
 import { LogTee } from "../process/log-tee";
 import { appLogPath, hasGitRepo, resolvePmRoot } from "../paths";
 import { discoverScripts } from "../process/script-discovery";
-import type { TaskManager } from "../process/task-manager";
+import type { PhaseManager } from "../process/phase-manager";
 import type { Config } from "../types";
 import { spawnClone } from "./clone";
 import { configureGitIdentity } from "./identity";
@@ -33,8 +33,8 @@ export interface SetupOrchestratorDeps {
   installState: InstallState;
   /** Workspace tmp dir; install tee lives at `<logsDir>/app/install`. */
   logsDir: string;
-  /** When provided, setup phases are tracked as named tasks. */
-  taskManager?: TaskManager;
+  /** When provided, setup phases are tracked via the phase manager. */
+  phaseManager?: PhaseManager;
 }
 
 /**
@@ -96,7 +96,7 @@ export class SetupOrchestrator {
       while (this.queue.length > 0) {
         const t = this.queue.shift();
         if (!t) break;
-        const taskId = this.deps.taskManager?.begin(`transition:${t.kind}`);
+        const taskId = this.deps.phaseManager?.begin(`transition:${t.kind}`);
         this.chunk(`[orchestrator] transition: ${t.kind}\r\n`);
         this.deps.broadcaster.broadcastEvent("transition", {
           kind: t.kind,
@@ -109,7 +109,7 @@ export class SetupOrchestrator {
             kind: t.kind,
             phase: "done",
           });
-          if (taskId) this.deps.taskManager?.done(taskId);
+          if (taskId) this.deps.phaseManager?.done(taskId);
         } catch (e) {
           const msg = (e as Error).message;
           this.chunk(`\r\n[orchestrator] failed: ${t.kind}: ${msg}\r\n`);
@@ -118,7 +118,7 @@ export class SetupOrchestrator {
             phase: "failed",
             error: msg,
           });
-          if (taskId) this.deps.taskManager?.fail(taskId, msg);
+          if (taskId) this.deps.phaseManager?.fail(taskId, msg);
         }
       }
     } finally {
@@ -175,7 +175,7 @@ export class SetupOrchestrator {
 
     const cloneUrl = config.git?.repository?.cloneUrl;
     if (cloneUrl && !isResume(config.repoDir)) {
-      const cloneTaskId = this.deps.taskManager?.begin("clone");
+      const cloneTaskId = this.deps.phaseManager?.begin("clone");
       const cloneLogPath = appLogPath(this.deps.logsDir, "clone");
       try {
         unlinkSync(cloneLogPath);
@@ -194,10 +194,10 @@ export class SetupOrchestrator {
       if (code !== 0) {
         this.chunk(`\r\n[orchestrator] clone failed (exit ${code})\r\n`);
         if (cloneTaskId)
-          this.deps.taskManager?.fail(cloneTaskId, `exit ${code}`);
+          this.deps.phaseManager?.fail(cloneTaskId, `exit ${code}`);
         return;
       }
-      if (cloneTaskId) this.deps.taskManager?.done(cloneTaskId);
+      if (cloneTaskId) this.deps.phaseManager?.done(cloneTaskId);
     } else if (cloneUrl) {
       this.chunk(`[orchestrator] repo already cloned, resuming\r\n`);
     }
@@ -346,7 +346,7 @@ export class SetupOrchestrator {
     const config = this.currentConfig();
     if (!config) return false;
     if (!config.application?.packageManager?.name) return false;
-    const installTaskId = this.deps.taskManager?.begin("install");
+    const installTaskId = this.deps.phaseManager?.begin("install");
     this.chunk(`[orchestrator] installing dependencies\r\n`);
     this.deps.appService.setStatus("installing");
     const installLogPath = appLogPath(this.deps.logsDir, "install");
@@ -369,7 +369,7 @@ export class SetupOrchestrator {
     if (!installPromise) {
       installTee.close();
       this.markInstallSucceeded(config);
-      if (installTaskId) this.deps.taskManager?.done(installTaskId);
+      if (installTaskId) this.deps.phaseManager?.done(installTaskId);
       return true;
     }
     const code = await installPromise;
@@ -382,16 +382,16 @@ export class SetupOrchestrator {
         false,
       );
       if (installTaskId)
-        this.deps.taskManager?.fail(installTaskId, `exit ${code}`);
+        this.deps.phaseManager?.fail(installTaskId, `exit ${code}`);
       return false;
     }
     this.markInstallSucceeded(config);
-    if (installTaskId) this.deps.taskManager?.done(installTaskId);
+    if (installTaskId) this.deps.phaseManager?.done(installTaskId);
     return true;
   }
 
   private async gitSetup(config: Config): Promise<void> {
-    const gitTaskId = this.deps.taskManager?.begin("git-setup");
+    const gitTaskId = this.deps.phaseManager?.begin("git-setup");
     try {
       configureGitIdentity(config);
     } catch (e) {
@@ -412,7 +412,7 @@ export class SetupOrchestrator {
       }
     }
     this.refreshBranchHead();
-    if (gitTaskId) this.deps.taskManager?.done(gitTaskId);
+    if (gitTaskId) this.deps.phaseManager?.done(gitTaskId);
   }
 
   private markInstallSucceeded(config: Config): void {

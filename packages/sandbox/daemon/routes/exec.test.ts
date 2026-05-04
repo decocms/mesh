@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TenantConfigStore } from "../config-store";
 import { Broadcaster } from "../events/broadcast";
-import { JobManager } from "../process/job-manager";
+import { TaskManager } from "../process/task-manager";
 import { makeExecHandler } from "./exec";
 
 function req(name: string, body?: object): Request {
@@ -19,7 +19,7 @@ describe("exec handler", () => {
   let appRoot: string;
   let configDir: string;
   let logsDir: string;
-  let jobManager: JobManager;
+  let taskManager: TaskManager;
   let store: TenantConfigStore;
   let broadcaster: Broadcaster;
 
@@ -27,7 +27,7 @@ describe("exec handler", () => {
     appRoot = mkdtempSync(join(tmpdir(), "exec-root-"));
     configDir = mkdtempSync(join(tmpdir(), "exec-cfg-"));
     logsDir = mkdtempSync(join(tmpdir(), "exec-logs-"));
-    jobManager = new JobManager({
+    taskManager = new TaskManager({
       logsDir,
       ttlMs: 60_000,
       reapIntervalMs: 60_000,
@@ -37,7 +37,7 @@ describe("exec handler", () => {
   });
 
   afterEach(() => {
-    jobManager.shutdown();
+    taskManager.shutdown();
     rmSync(appRoot, { recursive: true, force: true });
     rmSync(configDir, { recursive: true, force: true });
     rmSync(logsDir, { recursive: true, force: true });
@@ -47,7 +47,7 @@ describe("exec handler", () => {
     const h = makeExecHandler({
       repoDir: appRoot,
       store,
-      jobManager,
+      taskManager,
       broadcaster,
     });
     const res = await h(req("dev"));
@@ -70,14 +70,14 @@ describe("exec handler", () => {
     const h = makeExecHandler({
       repoDir: appRoot,
       store,
-      jobManager,
+      taskManager,
       broadcaster,
     });
     const res = await h(req("dev"));
     expect(res.status).toBe(404);
   });
 
-  it("returns jobId for valid script (background mode default)", async () => {
+  it("returns taskId for valid script (background mode default)", async () => {
     writeFileSync(
       join(appRoot, "package.json"),
       JSON.stringify({ scripts: { test: "echo hi" } }),
@@ -93,12 +93,12 @@ describe("exec handler", () => {
     const h = makeExecHandler({
       repoDir: appRoot,
       store,
-      jobManager,
+      taskManager,
       broadcaster,
     });
     const res = await h(req("test"));
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { jobId: string };
-    expect(typeof body.jobId).toBe("string");
+    const body = (await res.json()) as { taskId: string };
+    expect(typeof body.taskId).toBe("string");
   });
 });

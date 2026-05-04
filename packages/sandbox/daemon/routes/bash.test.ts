@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { JobManager } from "../process/job-manager";
+import { TaskManager } from "../process/task-manager";
 import { makeBashHandler } from "./bash";
 
 function b64(obj: unknown): string {
@@ -19,22 +19,22 @@ function post(obj: unknown): Request {
 describe("bash", () => {
   let appRoot = "";
   let logsDir = "";
-  let jobManager: JobManager;
+  let taskManager: TaskManager;
   let h: ReturnType<typeof makeBashHandler>;
 
   beforeEach(() => {
     appRoot = mkdtempSync(join(tmpdir(), "bash-handler-"));
     logsDir = mkdtempSync(join(tmpdir(), "bash-logs-"));
-    jobManager = new JobManager({
+    taskManager = new TaskManager({
       logsDir,
       ttlMs: 60_000,
       reapIntervalMs: 60_000,
     });
-    h = makeBashHandler({ repoDir: appRoot, jobManager });
+    h = makeBashHandler({ repoDir: appRoot, taskManager });
   });
 
   afterEach(() => {
-    jobManager.shutdown();
+    taskManager.shutdown();
     rmSync(appRoot, { recursive: true, force: true });
     rmSync(logsDir, { recursive: true, force: true });
   });
@@ -58,11 +58,11 @@ describe("bash", () => {
     expect(res.status).toBe(400);
   });
 
-  it("background mode returns jobId immediately", async () => {
+  it("background mode returns taskId immediately", async () => {
     const res = await h(post({ command: "echo bg-mode", mode: "background" }));
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { jobId: string; status: string };
-    expect(typeof body.jobId).toBe("string");
+    const body = (await res.json()) as { taskId: string; status: string };
+    expect(typeof body.taskId).toBe("string");
     expect(body.status).toBe("running");
   });
 

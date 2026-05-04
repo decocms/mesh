@@ -1,7 +1,7 @@
 import type { AppStateSnapshot } from "../app/application-service";
 import type { TenantConfigStore } from "../config-store";
 import type { ApplyResult } from "../config-store/types";
-import type { Task } from "../process/task-manager";
+import type { Phase } from "../process/phase-manager";
 import type { TenantConfig } from "../types";
 import { jsonResponse, parseBase64JsonBody } from "./body-parser";
 
@@ -29,8 +29,8 @@ export interface ConfigDeps {
   setDaemonToken?: (next: string) => void;
   /** Live app process + orchestrator + probe state for enriched GET response. */
   getState?: () => DaemonState;
-  /** Recent tasks (setup phases + jobs) for LLM context. */
-  getTasks?: () => Task[];
+  /** Recent setup phases for LLM context. */
+  getTasks?: () => Phase[];
 }
 
 /** Wire-only — never persisted to TenantConfig. Stripped before `store.apply`. */

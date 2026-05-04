@@ -196,7 +196,6 @@ interface RunnerTenant {
 interface K8sRecord {
   id: SandboxId;
   handle: string;
-  podName: string;
   /**
    * The Sandbox CR the operator actually bound to this claim, taken from
    * `claim.status.sandbox.name`. Equals `handle` on cold-start (operator
@@ -206,6 +205,8 @@ interface K8sRecord {
    * Service named after this (the operator-managed Service that targets
    * the *actually-bound* pod), not via the same-named cold-path
    * duplicate the v0.4.x adoption race occasionally leaves behind.
+   * In agent-sandbox the pod name always matches this (the operator names
+   * the Pod after the Sandbox CR), so this doubles as the port-forward target.
    */
   adoptedSandboxName: string;
   token: string;
@@ -239,14 +240,9 @@ interface K8sRecord {
 }
 
 interface PersistedK8sState {
-  podName: string;
-  /**
-   * Adopted Sandbox name (see `K8sRecord.adoptedSandboxName`). Optional
-   * for back-compat with rows written before warm-pool support — when
-   * absent, rehydrate falls back to `handle` (correct for cold-start
-   * runners and pre-warm-pool deployments).
-   */
-  adoptedSandboxName?: string;
+  adoptedSandboxName: string;
+  /** @deprecated back-compat with rows written before warm-pool support. */
+  podName?: string;
   token: string;
   workdir: string;
   workload?: Workload | null;
@@ -1021,18 +1017,17 @@ export class AgentSandboxRunner implements SandboxRunner {
     // size-1 warm pool tripped the 180s readiness timeout on one claim
     // under kind resource pressure, leaving the SandboxClaim behind.
     let adoptedSandboxName: string;
-    let podName: string;
     try {
       adoptedSandboxName = await waitForClaimAdoptedSandbox(
         this.kubeConfig,
         this.namespace,
         handle,
       );
-      ({ podName } = await waitForSandboxReady(
+      await waitForSandboxReady(
         this.kubeConfig,
         this.namespace,
         adoptedSandboxName,
-      ));
+      );
     } catch (err) {
       await deleteSandboxClaim(this.kubeConfig, this.namespace, handle).catch(
         () => {},
@@ -1063,7 +1058,7 @@ export class AgentSandboxRunner implements SandboxRunner {
     }
 
     const daemonForward = await this.openForwarder(
-      podName,
+      adoptedSandboxName,
       DAEMON_CONTAINER_PORT,
       handle,
     );
@@ -1112,7 +1107,6 @@ export class AgentSandboxRunner implements SandboxRunner {
     return {
       id,
       handle,
-      podName,
       adoptedSandboxName,
       token,
       workdir,
@@ -1243,7 +1237,8 @@ export class AgentSandboxRunner implements SandboxRunner {
     persisted: { handle: string; state: Record<string, unknown> },
   ): Promise<K8sRecord | null> {
     const state = persisted.state as Partial<PersistedK8sState>;
-    if (!state.podName || !state.token) return null;
+    if ((!state.adoptedSandboxName && !state.podName) || !state.token)
+      return null;
 
     const claim = await getSandboxClaim(
       this.kubeConfig,
@@ -1258,22 +1253,18 @@ export class AgentSandboxRunner implements SandboxRunner {
     // claims keep routing correctly. Cross-check `claim.status.sandbox.name`
     // first: the operator can update it (e.g. on pod recreation), and
     // routing must follow that.
+    // Cross-check claim.status.sandbox.name first: the operator can update
+    // it (e.g. on pod recreation). Fall back to persisted adoptedSandboxName,
+    // then state.podName (back-compat with pre-warm-pool rows), then handle.
+    // In agent-sandbox the pod name always equals the Sandbox CR name, so
+    // adoptedSandboxName is the correct port-forward target.
     const adoptedSandboxName =
-      claim.status?.sandbox?.name ?? state.adoptedSandboxName ?? handle;
+      claim.status?.sandbox?.name ??
+      state.adoptedSandboxName ??
+      state.podName ??
+      handle;
 
-    // In agent-sandbox the pod name == the bound Sandbox CR's name, so
-    // `adoptedSandboxName` is also the right pod to forward to. Reading
-    // from the SandboxClaim's metadata is wrong in warm-pool mode: the
-    // pod-name annotation lives on the Sandbox CR, not the claim, so the
-    // fallback resolves to the claim's own metadata.name — which on
-    // adoption-race claims happens to coincide with the cold-path
-    // duplicate Pod the v0.4.x operator creates alongside the actually-
-    // adopted pool pod. Forwarding there silently lands on a pod whose
-    // daemon never received the workload config (no clone, no dev server),
-    // and every subsequent rehydrate latches that wrong record.
-    const currentPodName = adoptedSandboxName;
-
-    const live = await this.openAndProbeDaemon(currentPodName, handle);
+    const live = await this.openAndProbeDaemon(adoptedSandboxName, handle);
     if (!live) return null;
 
     // Pod bounced but the daemon's orchestrator handles re-bootstrap itself
@@ -1287,7 +1278,6 @@ export class AgentSandboxRunner implements SandboxRunner {
     return {
       id,
       handle,
-      podName: currentPodName,
       adoptedSandboxName,
       token: state.token,
       workdir: state.workdir ?? DEFAULT_WORKDIR,
@@ -1306,8 +1296,7 @@ export class AgentSandboxRunner implements SandboxRunner {
     claim: SandboxResource,
   ): Promise<K8sRecord | null> {
     if (!isSandboxReady(claim)) return null;
-    const podName = readPodName(claim);
-    if (!podName) return null;
+    const adoptedSandboxName = claim.status?.sandbox?.name ?? handle;
     // Warm-pool mode keeps `claim.spec.env: []` so the per-claim token is
     // not recoverable from the cluster — it lives only in the state-store.
     // When the state-store is wiped (the trigger that brings us into
@@ -1318,16 +1307,10 @@ export class AgentSandboxRunner implements SandboxRunner {
     const token = readClaimDaemonToken(claim);
     if (!token) return null;
 
-    const live = await this.openAndProbeDaemon(podName, handle);
+    const live = await this.openAndProbeDaemon(adoptedSandboxName, handle);
     if (!live) return null;
 
     const tenant = readClaimTenant(claim);
-    // Cold-path adopt only (warm-pool mode short-circuits above). Cold
-    // claims have an operator-rendered Sandbox named after the claim, so
-    // adopted name == handle. Falls back to `handle` if the operator
-    // hasn't yet written `claim.status.sandbox.name` (would be unusual
-    // since we already verified `isSandboxReady(claim)`).
-    const adoptedSandboxName = claim.status?.sandbox?.name ?? handle;
     // Backfill the Service port + HTTPRoute for legacy claims provisioned
     // before per-claim routing existed. Both calls are idempotent — Service
     // patch is a no-op once `port: 9000` is already declared, and
@@ -1359,7 +1342,6 @@ export class AgentSandboxRunner implements SandboxRunner {
     return {
       id,
       handle,
-      podName,
       adoptedSandboxName,
       token,
       workdir: DEFAULT_WORKDIR,
@@ -1531,7 +1513,6 @@ export class AgentSandboxRunner implements SandboxRunner {
   ): Promise<void> {
     if (!ops) return;
     const state: PersistedK8sState = {
-      podName: rec.podName,
       adoptedSandboxName: rec.adoptedSandboxName,
       token: rec.token,
       workdir: rec.workdir,
@@ -1743,14 +1724,6 @@ function readClaimDaemonToken(claim: SandboxResource): string | null {
     if (entry.name === "DAEMON_TOKEN" && entry.value) return entry.value;
   }
   return null;
-}
-
-function readPodName(resource: SandboxResource): string | null {
-  return (
-    resource.metadata?.annotations?.[K8S_CONSTANTS.POD_NAME_ANNOTATION] ??
-    resource.metadata?.name ??
-    null
-  );
 }
 
 function deterministicLocalPort(handle: string, containerPort: number): number {

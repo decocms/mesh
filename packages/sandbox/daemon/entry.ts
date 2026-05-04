@@ -11,8 +11,8 @@ import { BranchStatusMonitor } from "./git/branch-status";
 import { InstallState } from "./install/install-state";
 import { CONFIG_FILENAME, readConfig } from "./persistence";
 import { discoverDescendantListeningPorts } from "./process/port-discovery";
-import { JobManager } from "./process/job-manager";
 import { TaskManager } from "./process/task-manager";
+import { PhaseManager } from "./process/phase-manager";
 import { startUpstreamProbe } from "./probe";
 import { makeProxyHandler } from "./proxy";
 import { jsonResponse } from "./routes/body-parser";
@@ -35,13 +35,13 @@ import {
 import { makeHealthHandler } from "./routes/health";
 import { makeIdleHandler } from "./routes/idle";
 import {
-  makeJobsDeleteHandler,
-  makeJobsGetHandler,
-  makeJobsKillAllHandler,
-  makeJobsKillHandler,
-  makeJobsListHandler,
-  makeJobsStreamHandler,
-} from "./routes/jobs";
+  makeTasksDeleteHandler,
+  makeTasksGetHandler,
+  makeTasksKillAllHandler,
+  makeTasksKillHandler,
+  makeTasksListHandler,
+  makeTasksStreamHandler,
+} from "./routes/tasks";
 import { makeScriptsHandler } from "./routes/scripts";
 import { discoverScripts } from "./process/script-discovery";
 import { SetupOrchestrator } from "./setup/orchestrator";
@@ -75,7 +75,7 @@ const bootConfig = {
 // ENOENT when no repo has been cloned yet (tool-only sandboxes, no-repo agents).
 mkdirSync(bootConfig.repoDir, { recursive: true });
 // Workspace layout: <appRoot>/config.json (tenant config), <appRoot>/repo
-// (cloned source), <appRoot>/tmp/{app,jobN} (log tees). Everything inside
+// (cloned source), <appRoot>/tmp/{app,taskN} (log tees). Everything inside
 // appRoot is reachable by fs/bash routes (clamped to appRoot via safePath).
 const CONFIG_DIR = process.env.DAEMON_CONFIG_DIR ?? APP_ROOT;
 const TMP_DIR = join(APP_ROOT, "tmp");
@@ -83,25 +83,25 @@ const TMP_DIR = join(APP_ROOT, "tmp");
 const broadcaster = new Broadcaster(REPLAY_BYTES);
 const store = new TenantConfigStore({ storageDir: CONFIG_DIR });
 const installState = new InstallState();
-const taskManager = new TaskManager({
-  onChange: (tasks) =>
-    broadcaster.broadcastEvent("tasks", { type: "tasks", tasks }),
+const phaseManager = new PhaseManager({
+  onChange: (phases) =>
+    broadcaster.broadcastEvent("phases", { type: "phases", phases }),
 });
-const jobManager = new JobManager({
+const taskManager = new TaskManager({
   logsDir: TMP_DIR,
-  taskManager,
+  phaseManager,
   onChange: () => {
-    broadcaster.broadcastEvent("jobs", {
-      type: "jobs",
-      active: getActiveJobs(),
+    broadcaster.broadcastEvent("tasks", {
+      type: "tasks",
+      active: getActiveTasks(),
     });
   },
 });
 
-function getActiveJobs() {
-  return jobManager
+function getActiveTasks() {
+  return taskManager
     .list({ status: ["running"] })
-    .map((j) => ({ id: j.id, command: j.command }));
+    .map((t) => ({ id: t.id, command: t.command }));
 }
 const appService = new ApplicationService({
   broadcaster,
@@ -125,7 +125,7 @@ const orchestrator = new SetupOrchestrator({
   broadcaster,
   installState,
   logsDir: TMP_DIR,
-  taskManager,
+  phaseManager,
 });
 
 let branchStatus: BranchStatusMonitor | null = null;
@@ -221,21 +221,21 @@ const uploadToUrlH = makeUploadToUrlHandler(fsDeps);
 
 const bashH = makeBashHandler({
   repoDir,
-  jobManager,
+  taskManager,
 });
 const execH = makeExecHandler({
   repoDir,
   store,
-  jobManager,
+  taskManager,
   broadcaster,
 });
 
-const jobsListH = makeJobsListHandler({ jobManager });
-const jobsGetH = makeJobsGetHandler({ jobManager });
-const jobsKillH = makeJobsKillHandler({ jobManager });
-const jobsKillAllH = makeJobsKillAllHandler({ jobManager });
-const jobsDeleteH = makeJobsDeleteHandler({ jobManager });
-const jobsStreamH = makeJobsStreamHandler({ jobManager });
+const tasksListH = makeTasksListHandler({ taskManager });
+const tasksGetH = makeTasksGetHandler({ taskManager });
+const tasksKillH = makeTasksKillHandler({ taskManager });
+const tasksKillAllH = makeTasksKillAllHandler({ taskManager });
+const tasksDeleteH = makeTasksDeleteHandler({ taskManager });
+const tasksStreamH = makeTasksStreamHandler({ taskManager });
 
 const scriptsHandler = makeScriptsHandler(() => {
   if (discoveredScripts) return discoveredScripts;
@@ -261,7 +261,7 @@ const eventsH = makeEventsHandler({
   broadcaster,
   getLastStatus: () => lastStatus,
   getDiscoveredScripts: () => discoveredScripts,
-  getActiveJobs,
+  getActiveTasks,
   getAppStatus: () => appService.snapshot(),
   getLastBranchStatus: () => (branchStatus ? branchStatus.getLast() : null),
 });
@@ -281,7 +281,7 @@ const configReadH = makeConfigReadHandler({
     },
     ready: lastStatus.ready,
   }),
-  getTasks: () => taskManager.recent(20),
+  getTasks: () => phaseManager.recent(20),
 });
 // Closure mutates `bootConfig.daemonToken` in place so the
 // `requireToken(req, bootConfig.daemonToken)` calls below — which read the
@@ -371,27 +371,27 @@ Bun.serve<WsProxyData, never>({
       }
     }
 
-    if (p.startsWith("/_decopilot_vm/jobs")) {
+    if (p.startsWith("/_decopilot_vm/tasks")) {
       const denied = requireToken(req, bootConfig.daemonToken);
       if (denied) return denied;
-      if (req.method === "GET" && p === "/_decopilot_vm/jobs")
-        return jobsListH(req);
-      if (req.method === "POST" && p === "/_decopilot_vm/jobs/kill-all")
-        return jobsKillAllH();
+      if (req.method === "GET" && p === "/_decopilot_vm/tasks")
+        return tasksListH(req);
+      if (req.method === "POST" && p === "/_decopilot_vm/tasks/kill-all")
+        return tasksKillAllH();
       if (
         req.method === "GET" &&
-        /^\/_decopilot_vm\/jobs\/[^/]+\/stream$/.test(p)
+        /^\/_decopilot_vm\/tasks\/[^/]+\/stream$/.test(p)
       )
-        return jobsStreamH(req);
+        return tasksStreamH(req);
       if (
         req.method === "POST" &&
-        /^\/_decopilot_vm\/jobs\/[^/]+\/kill$/.test(p)
+        /^\/_decopilot_vm\/tasks\/[^/]+\/kill$/.test(p)
       )
-        return jobsKillH(req);
-      if (req.method === "DELETE" && /^\/_decopilot_vm\/jobs\/[^/]+$/.test(p))
-        return jobsDeleteH(req);
-      if (req.method === "GET" && /^\/_decopilot_vm\/jobs\/[^/]+$/.test(p))
-        return jobsGetH(req);
+        return tasksKillH(req);
+      if (req.method === "DELETE" && /^\/_decopilot_vm\/tasks\/[^/]+$/.test(p))
+        return tasksDeleteH(req);
+      if (req.method === "GET" && /^\/_decopilot_vm\/tasks\/[^/]+$/.test(p))
+        return tasksGetH(req);
     }
 
     if (req.method === "POST" && p.startsWith("/_decopilot_vm/")) {
@@ -437,7 +437,7 @@ Bun.serve<WsProxyData, never>({
 // Stale tmp file housekeeping: persistence.readConfig handles this on the
 // read path; on a clean shutdown there's nothing to do here.
 process.on("SIGTERM", () => {
-  jobManager.shutdown();
+  taskManager.shutdown();
   appService.shutdown();
   try {
     if (existsSync(join(CONFIG_DIR, CONFIG_FILENAME))) {

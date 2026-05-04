@@ -142,7 +142,7 @@ const DAEMON_EVENT_TYPES = [
   "status",
   "scripts",
   "processes",
-  "jobs",
+  "tasks",
   "app-status",
   "reload",
   "branch-status",
@@ -303,8 +303,8 @@ export function VmEventsProvider({
           setScripts(data.scripts ?? []);
         } else if (e.type === "processes") {
           setActiveProcesses(data.active ?? []);
-        } else if (e.type === "jobs") {
-          // Daemon's new job-manager surface; map to the legacy
+        } else if (e.type === "tasks") {
+          // Daemon's task-manager surface; map to the legacy
           // activeProcesses array of names so the UI's "Stop Process"
           // button continues to render against running script tabs.
           const active = Array.isArray(data.active)

@@ -9,7 +9,7 @@ export interface SseHandshakeDeps {
     port: number | null;
   };
   getDiscoveredScripts: () => string[] | null;
-  getActiveJobs: () => Array<{ id: string; command: string }>;
+  getActiveTasks: () => Array<{ id: string; command: string }>;
   getAppStatus: () => unknown;
   getLastBranchStatus: () => unknown | null;
   maxClients: number;
@@ -55,10 +55,10 @@ export function makeSseStream(
 
       c.enqueue(
         sseFormat(
-          "jobs",
+          "tasks",
           JSON.stringify({
-            type: "jobs",
-            active: deps.getActiveJobs(),
+            type: "tasks",
+            active: deps.getActiveTasks(),
           }),
         ),
       );

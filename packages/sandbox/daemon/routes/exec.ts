@@ -5,10 +5,10 @@ import {
   pmRunCommand,
 } from "../constants";
 import type { Broadcaster } from "../events/broadcast";
-import type { JobManager } from "../process/job-manager";
+import type { TaskManager } from "../process/task-manager";
 import { discoverScripts } from "../process/script-discovery";
 import { jsonResponse, parseBase64JsonBody } from "./body-parser";
-import { awaitJobResponse } from "./jobs";
+import { awaitTaskResponse } from "./tasks";
 
 export type ExecMode = "await" | "background";
 
@@ -16,11 +16,11 @@ export interface ExecDeps {
   /** Default cwd when no packageManager.path is set. Typically `<appRoot>/repo`. */
   repoDir: string;
   store: TenantConfigStore;
-  jobManager: JobManager;
+  taskManager: TaskManager;
   /**
-   * Bridges per-job pty output onto the global SSE log stream so the UI's
-   * script-tab terminal renders /exec output. Without this, /exec jobs are
-   * only observable via /jobs/:id/stream — which the env tab doesn't
+   * Bridges per-task pty output onto the global SSE log stream so the UI's
+   * script-tab terminal renders /exec output. Without this, /exec tasks are
+   * only observable via /tasks/:id/stream — which the env tab doesn't
    * subscribe to — so the tab stays blank.
    */
   broadcaster: Broadcaster;
@@ -34,8 +34,8 @@ interface ExecBody {
 
 /**
  * POST /_decopilot_vm/exec/<name> — run package-script `<name>` via the
- * configured package manager, as a Job. Multiple invocations of the same
- * script run concurrently (each gets its own job UUID); the daemon does
+ * configured package manager, as a Task. Multiple invocations of the same
+ * script run concurrently (each gets its own task UUID); the daemon does
  * not coordinate or deduplicate them.
  */
 export function makeExecHandler(deps: ExecDeps) {
@@ -99,7 +99,7 @@ export function makeExecHandler(deps: ExecDeps) {
       name,
     );
 
-    const job = deps.jobManager.spawn({
+    const task = deps.taskManager.spawn({
       command: cmd,
       cwd,
       env,
@@ -107,25 +107,25 @@ export function makeExecHandler(deps: ExecDeps) {
       timeoutMs: body.timeoutMs,
       label,
       // Named tee: <logsDir>/app/<scriptName> stays stable across runs
-      // so the LLM can `cat tmp/app/build` etc. without chasing job IDs.
+      // so the LLM can `cat tmp/app/build` etc. without chasing task IDs.
       logName: name,
     });
 
-    // Mirror job output onto the global SSE log stream under the script
+    // Mirror task output onto the global SSE log stream under the script
     // name so the env-tab terminal (keyed on `name`) renders it. Header
-    // line first, then forward stdout/stderr chunks until the job ends.
+    // line first, then forward stdout/stderr chunks until the task ends.
     deps.broadcaster.broadcastChunk(name, `${label}\r\n`);
-    const unsubscribe = deps.jobManager.subscribe(job.id, (chunk) => {
+    const unsubscribe = deps.taskManager.subscribe(task.id, (chunk) => {
       deps.broadcaster.broadcastChunk(name, chunk.data);
     });
-    void deps.jobManager.finished(job.id)?.then(() => unsubscribe?.());
+    void deps.taskManager.finished(task.id)?.then(() => unsubscribe?.());
 
     if (mode === "background") {
-      return jsonResponse({ jobId: job.id, status: job.status });
+      return jsonResponse({ taskId: task.id, status: task.status });
     }
 
-    return awaitJobResponse(deps.jobManager, job.id, {
-      extra: { jobId: job.id },
+    return awaitTaskResponse(deps.taskManager, task.id, {
+      extra: { taskId: task.id },
     });
   };
 }

@@ -1,6 +1,6 @@
-import type { JobManager } from "../process/job-manager";
+import type { TaskManager } from "../process/task-manager";
 import { jsonResponse, parseBase64JsonBody } from "./body-parser";
-import { awaitJobResponse } from "./jobs";
+import { awaitTaskResponse } from "./tasks";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_TIMEOUT_MS = 15 * 60 * 1000;
@@ -10,7 +10,7 @@ export type BashMode = "await" | "background";
 export interface BashDeps {
   /** Default cwd for unscoped commands. Typically `<appRoot>/repo` (the repo). */
   repoDir: string;
-  jobManager: JobManager;
+  taskManager: TaskManager;
   env?: Record<string, string>;
 }
 
@@ -26,8 +26,8 @@ interface BashBody {
  * Modes:
  *   - "await" (default): runs to completion and returns the full
  *     stdout/stderr/exitCode body. This is the legacy bash behavior.
- *   - "background": returns the jobId immediately. Caller can poll
- *     /_decopilot_vm/jobs/:id, stream output, or kill via the jobs API.
+ *   - "background": returns the taskId immediately. Caller can poll
+ *     /_decopilot_vm/tasks/:id, stream output, or kill via the tasks API.
  */
 export function makeBashHandler(deps: BashDeps) {
   return async (req: Request): Promise<Response> => {
@@ -45,7 +45,7 @@ export function makeBashHandler(deps: BashDeps) {
     const timeout = clampTimeout(body.timeout, mode);
     const env = body.env ? { ...(deps.env ?? {}), ...body.env } : deps.env;
 
-    const job = deps.jobManager.spawn({
+    const task = deps.taskManager.spawn({
       command: body.command,
       cwd: body.cwd ?? deps.repoDir,
       env,
@@ -55,17 +55,19 @@ export function makeBashHandler(deps: BashDeps) {
     });
 
     if (mode === "background") {
-      return jsonResponse({ jobId: job.id, status: job.status });
+      return jsonResponse({ taskId: task.id, status: task.status });
     }
 
-    return awaitJobResponse(deps.jobManager, job.id, { timedOutExitCode: -1 });
+    return awaitTaskResponse(deps.taskManager, task.id, {
+      timedOutExitCode: -1,
+    });
   };
 }
 
 function clampTimeout(raw: number | undefined, mode: BashMode): number {
   const fallback = DEFAULT_TIMEOUT_MS;
   const requested = typeof raw === "number" && raw > 0 ? raw : fallback;
-  // Background jobs may run longer; cap at 15 min (matches JobManager TTL).
+  // Background tasks may run longer; cap at 15 min (matches TaskManager TTL).
   const ceiling = mode === "background" ? MAX_TIMEOUT_MS : 120_000;
   return Math.min(requested, ceiling);
 }

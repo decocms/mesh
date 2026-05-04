@@ -7,7 +7,7 @@ describe("makeSseStream", () => {
     broadcaster: b,
     getLastStatus: () => ({ ready: false, htmlSupport: false, port: null }),
     getDiscoveredScripts: () => null,
-    getActiveJobs: () => [],
+    getActiveTasks: () => [],
     getAppStatus: () => ({}),
     getLastBranchStatus: () => null,
     maxClients: 10,

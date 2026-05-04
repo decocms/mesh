@@ -1,83 +1,463 @@
-export type TaskStatus = "running" | "done" | "failed";
+import { type ChildProcess, spawn as nodeSpawn } from "node:child_process";
+import { readdirSync, unlinkSync } from "node:fs";
+import { join } from "node:path";
+import { appLogPath } from "../paths";
+import { LogTee } from "./log-tee";
+import { spawnPty } from "./pty-spawn";
+import { RingBuffer } from "./ring-buffer";
+import type { PhaseManager } from "./phase-manager";
 
-export interface Task {
+const RING_BUFFER_BYTES = 256 * 1024;
+const LOG_MAX_BYTES = 10 * 1024 * 1024;
+const DEFAULT_REAP_INTERVAL_MS = 60 * 1000;
+const DEFAULT_TTL_MS = 15 * 60 * 1000;
+const TASK_FILE_PREFIX = "task";
+
+export type TaskStatus = "running" | "exited" | "failed" | "killed" | "timeout";
+
+export type TaskSpawnMode = "pipe" | "pty";
+
+export interface TaskSpec {
+  command: string;
+  cwd: string;
+  env?: Record<string, string>;
+  mode: TaskSpawnMode;
+  timeoutMs?: number;
+  /** Display label for SSE / log header. */
+  label?: string;
+  /**
+   * Named-script tee. When set, output writes to `<logsDir>/app/<logName>`
+   * (stable filename, overwritten across runs of the same name). When
+   * unset, output writes to `<logsDir>/<taskId>` where taskId is `task<N>`
+   * (sequential within the daemon lifetime, purged on startup).
+   */
+  logName?: string;
+}
+
+interface OutputChunk {
+  stream: "stdout" | "stderr";
+  data: string;
+}
+
+export interface TaskSummary {
   id: string;
-  name: string;
+  command: string;
   status: TaskStatus;
+  exitCode: number | null;
   startedAt: number;
-  doneAt: number | null;
-  error?: string;
+  finishedAt: number | null;
+  timedOut: boolean;
+  truncated: boolean;
+}
+
+export interface TaskResult {
+  exitCode: number;
+  status: TaskStatus;
+  timedOut: boolean;
+}
+
+interface TaskInternal {
+  id: string;
+  spec: TaskSpec;
+  status: TaskStatus;
+  exitCode: number | null;
+  startedAt: number;
+  finishedAt: number | null;
+  timedOut: boolean;
+  pid: number | undefined;
+  pgid: number | undefined;
+  phaseId: string | undefined;
+  stdout: RingBuffer;
+  stderr: RingBuffer;
+  /**
+   * Single combined tee at `<logsDir>/<id>`. Header line ("$ <command>")
+   * is written first, then stdout + stderr chunks interleave in arrival
+   * order. Capped at 10MB; cleaned up when the task is reaped.
+   */
+  tee: LogTee;
+  logPath: string;
+  subscribers: Set<(c: OutputChunk) => void>;
+  finishedPromise: Promise<TaskResult>;
+  resolveFinished: (r: TaskResult) => void;
+  kill: (signal?: NodeJS.Signals) => void;
+  timer: ReturnType<typeof setTimeout> | null;
 }
 
 export interface TaskManagerDeps {
-  onChange?: (tasks: Task[]) => void;
+  /** Where per-task logs live: <logsDir>/<taskId>/{stdout,stderr}.log. */
+  logsDir: string;
+  ttlMs?: number;
+  reapIntervalMs?: number;
+  /** Fires on spawn and finalize so callers can re-broadcast the running set. */
+  onChange?: () => void;
+  /** When provided, each task is registered as a named phase on spawn/finalize. */
+  phaseManager?: PhaseManager;
 }
 
 /**
- * Lightweight in-memory task registry. Tracks named setup phases (clone,
- * install, transition) and ad-hoc jobs so the LLM and the SSE stream have
- * a structured view of "what is the daemon doing right now."
+ * Manages transient, concurrent tasks (ad-hoc bash, package scripts via
+ * /exec/:name). UUID-keyed; many tasks may run in parallel. The managed
+ * application service (dev server) is NOT here — see ApplicationService.
  *
- * Not persisted — resets on each daemon boot.
+ * Lifecycle:
+ *   spawn → running → (exited | failed | killed | timeout)
+ *   completed tasks are reaped after `ttlMs` (default 15 min).
  */
 export class TaskManager {
-  private readonly all: Task[] = [];
+  private readonly tasks = new Map<string, TaskInternal>();
+  private readonly reaper: ReturnType<typeof setInterval>;
+  private readonly ttlMs: number;
   private idCounter = 0;
-  private readonly deps: TaskManagerDeps;
 
-  constructor(deps: TaskManagerDeps = {}) {
-    this.deps = deps;
+  constructor(private readonly deps: TaskManagerDeps) {
+    this.ttlMs = deps.ttlMs ?? DEFAULT_TTL_MS;
+    // Stale `task*` files from previous daemon lifetimes are unreachable
+    // (in-memory state is gone; IDs restart from 1). Drop them so the
+    // workspace doesn't accumulate orphaned tees.
+    this.purgeStaleLogs();
+    this.reaper = setInterval(
+      () => this.reap(),
+      deps.reapIntervalMs ?? DEFAULT_REAP_INTERVAL_MS,
+    );
+    this.reaper.unref?.();
   }
 
-  begin(name: string): string {
-    const id = `task${++this.idCounter}`;
-    this.all.push({
-      id,
-      name,
-      status: "running",
-      startedAt: Date.now(),
-      doneAt: null,
+  spawn(spec: TaskSpec): TaskSummary {
+    const id = `${TASK_FILE_PREFIX}${++this.idCounter}`;
+    const task = this.create(id, spec);
+    this.tasks.set(id, task);
+    this.deps.onChange?.();
+    return summarize(task);
+  }
+
+  get(id: string): TaskSummary | null {
+    const t = this.tasks.get(id);
+    return t ? summarize(t) : null;
+  }
+
+  output(
+    id: string,
+  ): { stdout: string; stderr: string; truncated: boolean } | null {
+    const t = this.tasks.get(id);
+    if (!t) return null;
+    const stdout = t.stdout.read();
+    const stderr = t.stderr.read();
+    return {
+      stdout: stdout.data,
+      stderr: stderr.data,
+      truncated: stdout.truncated || stderr.truncated || t.tee.isTruncated(),
+    };
+  }
+
+  finished(id: string): Promise<TaskResult> | null {
+    const t = this.tasks.get(id);
+    return t ? t.finishedPromise : null;
+  }
+
+  subscribe(id: string, fn: (c: OutputChunk) => void): (() => void) | null {
+    const t = this.tasks.get(id);
+    if (!t) return null;
+    t.subscribers.add(fn);
+    return () => t.subscribers.delete(fn);
+  }
+
+  list(filter?: { status?: ReadonlyArray<TaskStatus> }): TaskSummary[] {
+    const out: TaskSummary[] = [];
+    for (const t of this.tasks.values()) {
+      if (filter?.status && !filter.status.includes(t.status)) continue;
+      out.push(summarize(t));
+    }
+    return out;
+  }
+
+  kill(id: string, signal: NodeJS.Signals = "SIGTERM"): boolean {
+    const t = this.tasks.get(id);
+    if (!t) return false;
+    if (t.status !== "running") return false;
+    t.kill(signal);
+    setTimeout(() => {
+      if (t.status === "running") {
+        t.kill("SIGKILL");
+      }
+    }, 3000);
+    return true;
+  }
+
+  killAll(): number {
+    let count = 0;
+    for (const t of this.tasks.values()) {
+      if (t.status === "running") {
+        t.kill("SIGTERM");
+        count++;
+      }
+    }
+    return count;
+  }
+
+  delete(id: string): boolean {
+    const t = this.tasks.get(id);
+    if (!t) return false;
+    if (t.status === "running") return false;
+    this.tasks.delete(id);
+    t.tee.close();
+    this.unlink(t.logPath);
+    return true;
+  }
+
+  shutdown(): void {
+    clearInterval(this.reaper);
+    for (const t of this.tasks.values()) {
+      if (t.status === "running") t.kill("SIGKILL");
+      t.tee.close();
+    }
+    this.tasks.clear();
+  }
+
+  private reap(): void {
+    const now = Date.now();
+    for (const [id, t] of this.tasks) {
+      if (t.status === "running" || t.finishedAt === null) continue;
+      if (now - t.finishedAt > this.ttlMs) {
+        this.tasks.delete(id);
+        t.tee.close();
+        this.unlink(t.logPath);
+      }
+    }
+  }
+
+  private purgeStaleLogs(): void {
+    let entries: string[];
+    try {
+      entries = readdirSync(this.deps.logsDir);
+    } catch {
+      return;
+    }
+    for (const name of entries) {
+      if (!name.startsWith(TASK_FILE_PREFIX)) continue;
+      this.unlink(join(this.deps.logsDir, name));
+    }
+  }
+
+  private unlink(path: string): void {
+    try {
+      unlinkSync(path);
+    } catch {
+      /* file already gone or never opened */
+    }
+  }
+
+  private create(id: string, spec: TaskSpec): TaskInternal {
+    const stdout = new RingBuffer(RING_BUFFER_BYTES);
+    const stderr = new RingBuffer(RING_BUFFER_BYTES);
+    const logPath = spec.logName
+      ? appLogPath(this.deps.logsDir, spec.logName)
+      : join(this.deps.logsDir, id);
+    const tee = new LogTee(logPath, LOG_MAX_BYTES);
+    tee.writeHeader(spec.label ?? `$ ${spec.command}`);
+    const subscribers = new Set<(c: OutputChunk) => void>();
+
+    let resolveFinished!: (r: TaskResult) => void;
+    const finishedPromise = new Promise<TaskResult>((resolve) => {
+      resolveFinished = resolve;
     });
-    this.emit();
-    return id;
+
+    const phaseId = this.deps.phaseManager?.begin(spec.label ?? spec.command);
+    const task: TaskInternal = {
+      id,
+      spec,
+      status: "running",
+      exitCode: null,
+      startedAt: Date.now(),
+      finishedAt: null,
+      timedOut: false,
+      pid: undefined,
+      pgid: undefined,
+      phaseId,
+      stdout,
+      stderr,
+      tee,
+      logPath,
+      subscribers,
+      finishedPromise,
+      resolveFinished,
+      kill: () => undefined,
+      timer: null,
+    };
+
+    if (spec.mode === "pty") {
+      this.startPty(task);
+    } else {
+      this.startPipe(task);
+    }
+    return task;
   }
 
-  done(id: string): void {
-    const t = this.findRunning(id);
-    if (!t) return;
-    t.status = "done";
-    t.doneAt = Date.now();
-    this.emit();
+  private startPty(task: TaskInternal): void {
+    let child: ReturnType<typeof spawnPty>;
+    try {
+      child = spawnPty({
+        cmd: task.spec.command,
+        cwd: task.spec.cwd,
+        env: task.spec.env as NodeJS.ProcessEnv | undefined,
+      });
+    } catch (e) {
+      const msg = `spawn error: ${(e as Error).message}\n`;
+      task.stderr.append(msg);
+      task.tee.write(msg);
+      this.fanOut(task, { stream: "stderr", data: msg });
+      // Defer finalize so callers awaiting `finished` see the same shape
+      // as a normal exit; spawn() returning synchronously must observe a
+      // running task for one tick before it resolves to failed.
+      queueMicrotask(() =>
+        this.finalize(task, { exitCode: -1, timedOut: false }),
+      );
+      return;
+    }
+    task.pid = child.pid;
+    task.kill = (signal) => child.kill(signal ?? "SIGTERM");
+
+    child.onData((data) => {
+      task.stdout.append(data);
+      task.tee.write(data);
+      this.fanOut(task, { stream: "stdout", data });
+    });
+
+    if (task.spec.timeoutMs && task.spec.timeoutMs > 0) {
+      task.timer = setTimeout(() => {
+        if (task.status !== "running") return;
+        task.timedOut = true;
+        try {
+          child.kill("SIGKILL");
+        } catch {
+          /* already gone */
+        }
+      }, task.spec.timeoutMs);
+    }
+
+    child.onExit((code) => {
+      if (task.timer) clearTimeout(task.timer);
+      this.finalize(task, {
+        exitCode: code,
+        timedOut: task.timedOut,
+      });
+    });
   }
 
-  fail(id: string, error?: string): void {
-    const t = this.findRunning(id);
-    if (!t) return;
-    t.status = "failed";
-    t.doneAt = Date.now();
-    if (error) t.error = error;
-    this.emit();
+  private startPipe(task: TaskInternal): void {
+    const opts: Parameters<typeof nodeSpawn>[2] = {
+      cwd: task.spec.cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: task.spec.env,
+      detached: true,
+    };
+    const child: ChildProcess = nodeSpawn(
+      "bash",
+      ["-c", task.spec.command],
+      opts,
+    );
+    task.pid = child.pid;
+    task.pgid = child.pid;
+
+    const killGroup = (signal: NodeJS.Signals) => {
+      if (task.pgid === undefined) return;
+      try {
+        process.kill(-task.pgid, signal);
+      } catch {
+        /* group already gone */
+      }
+    };
+    task.kill = (signal) => killGroup(signal ?? "SIGTERM");
+
+    child.stdout?.on("data", (chunk: Buffer) => {
+      const data = chunk.toString("utf-8");
+      task.stdout.append(data);
+      task.tee.write(data);
+      this.fanOut(task, { stream: "stdout", data });
+    });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      const data = chunk.toString("utf-8");
+      task.stderr.append(data);
+      task.tee.write(data);
+      this.fanOut(task, { stream: "stderr", data });
+    });
+
+    if (task.spec.timeoutMs && task.spec.timeoutMs > 0) {
+      task.timer = setTimeout(() => {
+        if (task.status !== "running") return;
+        task.timedOut = true;
+        killGroup("SIGKILL");
+      }, task.spec.timeoutMs);
+    }
+
+    child.on("close", (code) => {
+      if (task.timer) clearTimeout(task.timer);
+      // Reap survivors of any backgrounded children.
+      killGroup("SIGKILL");
+      this.finalize(task, {
+        exitCode: code ?? 1,
+        timedOut: task.timedOut,
+      });
+    });
+    child.on("error", (err) => {
+      if (task.timer) clearTimeout(task.timer);
+      const msg = `spawn error: ${err.message}\n`;
+      task.stderr.append(msg);
+      task.tee.write(msg);
+      this.fanOut(task, { stream: "stderr", data: msg });
+      this.finalize(task, { exitCode: -1, timedOut: false });
+    });
   }
 
-  list(filter?: { status?: ReadonlyArray<TaskStatus> }): Task[] {
-    if (!filter?.status) return this.all.slice();
-    return this.all.filter((t) => filter.status!.includes(t.status));
+  private finalize(
+    task: TaskInternal,
+    result: { exitCode: number; timedOut: boolean },
+  ): void {
+    if (task.status !== "running") return;
+    let status: TaskStatus;
+    if (result.timedOut) status = "timeout";
+    else if (result.exitCode === 0) status = "exited";
+    else if (result.exitCode === -1) status = "failed";
+    else if (result.exitCode > 128) status = "killed";
+    else status = "exited";
+    task.status = status;
+    task.exitCode = result.exitCode;
+    task.finishedAt = Date.now();
+    task.tee.close();
+    if (task.phaseId) {
+      if (status === "exited" || status === "killed") {
+        this.deps.phaseManager?.done(task.phaseId);
+      } else {
+        this.deps.phaseManager?.fail(task.phaseId, `exit ${result.exitCode}`);
+      }
+    }
+    task.resolveFinished({
+      exitCode: result.exitCode,
+      status,
+      timedOut: result.timedOut,
+    });
+    this.deps.onChange?.();
   }
 
-  /** Running tasks + last `maxFinished` completed/failed tasks. */
-  recent(maxFinished = 20): Task[] {
-    const running = this.all.filter((t) => t.status === "running");
-    const finished = this.all
-      .filter((t) => t.status !== "running")
-      .slice(-maxFinished);
-    return [...running, ...finished];
+  private fanOut(task: TaskInternal, chunk: OutputChunk): void {
+    for (const sub of task.subscribers) {
+      try {
+        sub(chunk);
+      } catch {
+        /* one bad subscriber doesn't stop the rest */
+      }
+    }
   }
+}
 
-  private findRunning(id: string): Task | undefined {
-    return this.all.find((t) => t.id === id && t.status === "running");
-  }
-
-  private emit(): void {
-    this.deps.onChange?.(this.all.slice());
-  }
+function summarize(t: TaskInternal): TaskSummary {
+  return {
+    id: t.id,
+    command: t.spec.command,
+    status: t.status,
+    exitCode: t.exitCode,
+    startedAt: t.startedAt,
+    finishedAt: t.finishedAt,
+    timedOut: t.timedOut,
+    truncated: t.tee.isTruncated(),
+  };
 }

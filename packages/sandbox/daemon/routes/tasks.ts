@@ -1,17 +1,17 @@
-import type { JobManager, JobStatus } from "../process/job-manager";
+import type { TaskManager, TaskStatus } from "../process/task-manager";
 import { sseFormat } from "../events/sse-format";
 import { jsonResponse } from "./body-parser";
 
-export async function awaitJobResponse(
-  jobManager: JobManager,
+export async function awaitTaskResponse(
+  taskManager: TaskManager,
   id: string,
   opts: { extra?: Record<string, unknown>; timedOutExitCode?: number } = {},
 ): Promise<Response> {
-  const wait = jobManager.finished(id);
+  const wait = taskManager.finished(id);
   if (!wait)
-    return jsonResponse({ error: "job vanished before completion" }, 500);
+    return jsonResponse({ error: "task vanished before completion" }, 500);
   const result = await wait;
-  const out = jobManager.output(id);
+  const out = taskManager.output(id);
   const exitCode =
     opts.timedOutExitCode !== undefined && result.timedOut
       ? opts.timedOutExitCode
@@ -26,11 +26,11 @@ export async function awaitJobResponse(
   });
 }
 
-export interface JobsDeps {
-  jobManager: JobManager;
+export interface TasksDeps {
+  taskManager: TaskManager;
 }
 
-const VALID_STATUS: ReadonlySet<JobStatus> = new Set([
+const VALID_STATUS: ReadonlySet<TaskStatus> = new Set([
   "running",
   "exited",
   "failed",
@@ -38,31 +38,31 @@ const VALID_STATUS: ReadonlySet<JobStatus> = new Set([
   "timeout",
 ]);
 
-/** GET /_decopilot_vm/jobs?status=running,exited */
-export function makeJobsListHandler(deps: JobsDeps) {
+/** GET /_decopilot_vm/tasks?status=running,exited */
+export function makeTasksListHandler(deps: TasksDeps) {
   return async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
     const statusParam = url.searchParams.get("status");
     const status = statusParam
       ? statusParam
           .split(",")
-          .filter((s): s is JobStatus => VALID_STATUS.has(s as JobStatus))
+          .filter((s): s is TaskStatus => VALID_STATUS.has(s as TaskStatus))
       : undefined;
-    const jobs = deps.jobManager.list(
+    const tasks = deps.taskManager.list(
       status && status.length > 0 ? { status } : undefined,
     );
-    return jsonResponse({ jobs });
+    return jsonResponse({ tasks });
   };
 }
 
-/** GET /_decopilot_vm/jobs/:id */
-export function makeJobsGetHandler(deps: JobsDeps) {
+/** GET /_decopilot_vm/tasks/:id */
+export function makeTasksGetHandler(deps: TasksDeps) {
   return async (req: Request): Promise<Response> => {
-    const id = idFrom(req, "/jobs/");
-    if (!id) return jsonResponse({ error: "missing job id" }, 400);
-    const summary = deps.jobManager.get(id);
-    if (!summary) return jsonResponse({ error: "job not found" }, 404);
-    const out = deps.jobManager.output(id);
+    const id = idFrom(req, "/tasks/");
+    if (!id) return jsonResponse({ error: "missing task id" }, 400);
+    const summary = deps.taskManager.get(id);
+    if (!summary) return jsonResponse({ error: "task not found" }, 404);
+    const out = deps.taskManager.output(id);
     return jsonResponse({
       ...summary,
       stdout: out?.stdout ?? "",
@@ -72,46 +72,46 @@ export function makeJobsGetHandler(deps: JobsDeps) {
   };
 }
 
-/** POST /_decopilot_vm/jobs/:id/kill[?signal=SIGTERM|SIGKILL] */
-export function makeJobsKillHandler(deps: JobsDeps) {
+/** POST /_decopilot_vm/tasks/:id/kill[?signal=SIGTERM|SIGKILL] */
+export function makeTasksKillHandler(deps: TasksDeps) {
   return async (req: Request): Promise<Response> => {
-    const id = idFrom(req, "/jobs/", "/kill");
-    if (!id) return jsonResponse({ error: "missing job id" }, 400);
+    const id = idFrom(req, "/tasks/", "/kill");
+    if (!id) return jsonResponse({ error: "missing task id" }, 400);
     const url = new URL(req.url);
     const sig = (url.searchParams.get("signal") ?? "SIGTERM") as NodeJS.Signals;
-    const ok = deps.jobManager.kill(id, sig);
-    if (!ok) return jsonResponse({ error: "job not running" }, 400);
+    const ok = deps.taskManager.kill(id, sig);
+    if (!ok) return jsonResponse({ error: "task not running" }, 400);
     return jsonResponse({ ok: true });
   };
 }
 
-/** POST /_decopilot_vm/jobs/kill-all */
-export function makeJobsKillAllHandler(deps: JobsDeps) {
+/** POST /_decopilot_vm/tasks/kill-all */
+export function makeTasksKillAllHandler(deps: TasksDeps) {
   return async (): Promise<Response> => {
-    const count = deps.jobManager.killAll();
+    const count = deps.taskManager.killAll();
     return jsonResponse({ ok: true, killed: count });
   };
 }
 
-/** DELETE /_decopilot_vm/jobs/:id */
-export function makeJobsDeleteHandler(deps: JobsDeps) {
+/** DELETE /_decopilot_vm/tasks/:id */
+export function makeTasksDeleteHandler(deps: TasksDeps) {
   return async (req: Request): Promise<Response> => {
-    const id = idFrom(req, "/jobs/");
-    if (!id) return jsonResponse({ error: "missing job id" }, 400);
-    const ok = deps.jobManager.delete(id);
+    const id = idFrom(req, "/tasks/");
+    if (!id) return jsonResponse({ error: "missing task id" }, 400);
+    const ok = deps.taskManager.delete(id);
     if (!ok)
-      return jsonResponse({ error: "job not found or still running" }, 400);
+      return jsonResponse({ error: "task not found or still running" }, 400);
     return jsonResponse({ ok: true });
   };
 }
 
-/** GET /_decopilot_vm/jobs/:id/stream — SSE: replay buffered output, then live. */
-export function makeJobsStreamHandler(deps: JobsDeps) {
+/** GET /_decopilot_vm/tasks/:id/stream — SSE: replay buffered output, then live. */
+export function makeTasksStreamHandler(deps: TasksDeps) {
   return async (req: Request): Promise<Response> => {
-    const id = idFrom(req, "/jobs/", "/stream");
-    if (!id) return jsonResponse({ error: "missing job id" }, 400);
-    const summary = deps.jobManager.get(id);
-    if (!summary) return jsonResponse({ error: "job not found" }, 404);
+    const id = idFrom(req, "/tasks/", "/stream");
+    if (!id) return jsonResponse({ error: "missing task id" }, 400);
+    const summary = deps.taskManager.get(id);
+    if (!summary) return jsonResponse({ error: "task not found" }, 404);
 
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
@@ -123,7 +123,7 @@ export function makeJobsStreamHandler(deps: JobsDeps) {
           }
         };
 
-        const replay = deps.jobManager.output(id);
+        const replay = deps.taskManager.output(id);
         if (replay) {
           if (replay.stdout) send("stdout", { data: replay.stdout });
           if (replay.stderr) send("stderr", { data: replay.stderr });
@@ -138,11 +138,11 @@ export function makeJobsStreamHandler(deps: JobsDeps) {
           return;
         }
 
-        const unsubscribe = deps.jobManager.subscribe(id, (chunk) => {
+        const unsubscribe = deps.taskManager.subscribe(id, (chunk) => {
           send(chunk.stream, { data: chunk.data });
         });
 
-        void deps.jobManager.finished(id)?.then((result) => {
+        void deps.taskManager.finished(id)?.then((result) => {
           send("end", {
             status: result.status,
             exitCode: result.exitCode,
