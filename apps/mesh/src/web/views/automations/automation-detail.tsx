@@ -4,6 +4,7 @@
  * Settings and run history for a single automation on one page.
  */
 
+import { cn } from "@deco/ui/lib/utils.ts";
 import {
   useAiProviderModels,
   type AiProviderModel,
@@ -620,9 +621,9 @@ export function SettingsTab({
         {/* Section: Starter (was Triggers) */}
         <div className="flex flex-col gap-2.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground/60">
+            <h2 className="text-sm font-medium text-foreground">
               Starter
-            </span>
+            </h2>
             <AddStarterPopover
               automationId={automationId}
               open={starterOpen}
@@ -760,9 +761,9 @@ export function SettingsTab({
         {/* Section: Instructions */}
         <div className="flex flex-col gap-2.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground/60">
+            <h2 className="text-sm font-medium text-foreground">
               Instructions
-            </span>
+            </h2>
             <Button
               variant="outline"
               size="sm"
@@ -778,11 +779,28 @@ export function SettingsTab({
             tiptapDoc={tiptapDoc}
             setTiptapDoc={setTiptapDoc}
             placeholder="What should this automation do?"
+            enableHeadings
           >
             <div className="rounded-xl border border-border min-h-[120px] flex flex-col">
               <TiptapInput
                 virtualMcpId={agentId || null}
-                className="max-h-[45vh]"
+                className={cn(
+                  "max-h-[45vh]",
+                  "[&_.ProseMirror_h1]:text-[1.25em] [&_.ProseMirror_h1]:font-bold [&_.ProseMirror_h1]:leading-snug [&_.ProseMirror_h1]:mt-4 [&_.ProseMirror_h1]:mb-1",
+                  "[&_.ProseMirror_h2]:text-[1.1em] [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_h2]:leading-snug [&_.ProseMirror_h2]:mt-3 [&_.ProseMirror_h2]:mb-0.5",
+                  "[&_.ProseMirror_h3]:text-[1em] [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h3]:leading-snug [&_.ProseMirror_h3]:mt-2",
+                  "[&_.ProseMirror_>*:first-child]:mt-0",
+                  "[&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_ul]:my-1",
+                  "[&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5 [&_.ProseMirror_ol]:my-1",
+                  "[&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:border-muted-foreground/30 [&_.ProseMirror_blockquote]:pl-3 [&_.ProseMirror_blockquote]:text-muted-foreground",
+                  "[&_.ProseMirror_code]:bg-muted [&_.ProseMirror_code]:rounded-sm [&_.ProseMirror_code]:px-1 [&_.ProseMirror_code]:text-[0.85em] [&_.ProseMirror_code]:font-mono",
+                  "[&_.ProseMirror_pre]:bg-muted [&_.ProseMirror_pre]:rounded-lg [&_.ProseMirror_pre]:p-3 [&_.ProseMirror_pre]:my-2 [&_.ProseMirror_pre]:overflow-x-auto",
+                  "[&_.ProseMirror_pre_code]:bg-transparent [&_.ProseMirror_pre_code]:p-0 [&_.ProseMirror_pre_code]:text-sm",
+                  "[&_.ProseMirror_hr]:border-border [&_.ProseMirror_hr]:my-3",
+                  "[&_.ProseMirror_table]:border-collapse [&_.ProseMirror_table]:my-2 [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:text-sm",
+                  "[&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-border [&_.ProseMirror_th]:px-2 [&_.ProseMirror_th]:py-1 [&_.ProseMirror_th]:bg-muted [&_.ProseMirror_th]:font-semibold [&_.ProseMirror_th]:text-left",
+                  "[&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-border [&_.ProseMirror_td]:px-2 [&_.ProseMirror_td]:py-1",
+                )}
               />
 
               <div className="flex items-center justify-end gap-1.5 p-2.5">

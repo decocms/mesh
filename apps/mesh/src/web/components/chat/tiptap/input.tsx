@@ -1,5 +1,9 @@
 import { cn } from "@deco/ui/lib/utils.ts";
 import Placeholder from "@tiptap/extension-placeholder";
+import { Table } from "@tiptap/extension-table";
+import { TableCell } from "@tiptap/extension-table-cell";
+import { TableHeader } from "@tiptap/extension-table-header";
+import { TableRow } from "@tiptap/extension-table-row";
 import type { EditorView } from "@tiptap/pm/view";
 import {
   EditorContent,
@@ -10,6 +14,7 @@ import {
 import StarterKit from "@tiptap/starter-kit";
 import type { Ref } from "react";
 import { Suspense, useEffect, useImperativeHandle, useRef } from "react";
+import { MarkdownPaste } from "@/web/components/markdown-editor.tsx";
 import type { Metadata } from "../types.ts";
 import { FileNode, FileUploader, type UnsupportedFileInfo } from "./file";
 import { MentionNode } from "./mention";
@@ -17,13 +22,16 @@ import { AtMention } from "./mention-at.tsx";
 import { SlashMention } from "./mention-slash.tsx";
 import { AiProviderModel } from "@/web/hooks/collections/use-ai-providers.ts";
 
-function buildExtensions(placeholderRef: React.RefObject<string | undefined>) {
+function buildExtensions(
+  placeholderRef: React.RefObject<string | undefined>,
+  enableHeadings = false,
+) {
   return [
     StarterKit.configure({
-      heading: false,
-      blockquote: false,
-      codeBlock: false,
-      horizontalRule: false,
+      heading: enableHeadings ? { levels: [1, 2, 3] } : false,
+      blockquote: enableHeadings ? undefined : false,
+      codeBlock: enableHeadings ? undefined : false,
+      horizontalRule: enableHeadings ? undefined : false,
       dropcursor: false,
     }),
     Placeholder.configure({
@@ -34,6 +42,15 @@ function buildExtensions(placeholderRef: React.RefObject<string | undefined>) {
     }),
     MentionNode,
     FileNode,
+    ...(enableHeadings
+      ? [
+          Table.configure({ resizable: false }),
+          TableRow,
+          TableHeader,
+          TableCell,
+          MarkdownPaste,
+        ]
+      : []),
   ];
 }
 
@@ -52,6 +69,7 @@ interface TiptapProviderProps {
   enterToSubmit?: boolean;
   placeholder?: string;
   onSubmit?: () => void;
+  enableHeadings?: boolean;
   children: React.ReactNode;
 }
 
@@ -66,6 +84,7 @@ export function TiptapProvider({
   enterToSubmit = false,
   placeholder,
   onSubmit,
+  enableHeadings = false,
   children,
 }: TiptapProviderProps) {
   // Store callbacks and config in refs to avoid recreating the editor on every render
@@ -76,7 +95,7 @@ export function TiptapProvider({
 
   // Initialize Tiptap editor
   const editor = useEditor({
-    extensions: buildExtensions(placeholderRef),
+    extensions: buildExtensions(placeholderRef, enableHeadings),
     content: tiptapDoc || "",
     editorProps: {
       attributes: {
