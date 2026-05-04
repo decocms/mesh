@@ -30,14 +30,12 @@ interface ThreadOutputsResponse {
 
 async function fetchThreadOutputs(
   threadId: string,
-  orgId: string,
+  orgSlug: string,
 ): Promise<ThreadOutput[]> {
   const res = await fetch(
-    `/api/threads/${encodeURIComponent(threadId)}/outputs`,
+    `/api/${orgSlug}/threads/${encodeURIComponent(threadId)}/outputs`,
     {
       credentials: "include",
-      // mesh resolves the active org from x-org-id; without it the route 400s.
-      headers: { "x-org-id": orgId },
     },
   );
   if (!res.ok) {
@@ -57,7 +55,7 @@ export function ThreadOutputs({ threadId }: { threadId: string }) {
   const { org } = useProjectContext();
   const { data: outputs } = useQuery({
     queryKey: KEYS.threadOutputs(threadId),
-    queryFn: () => fetchThreadOutputs(threadId, org.id),
+    queryFn: () => fetchThreadOutputs(threadId, org.slug),
     // Stale immediately so refetch on invalidation is fresh.
     staleTime: 0,
   });
