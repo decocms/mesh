@@ -176,10 +176,12 @@ function PickerContent({
   const githubClient = useMCPClient({
     connectionId: effectiveConnection?.id ?? "",
     orgId: org.id,
+    orgSlug: org.slug,
   });
   const selfClient = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
+    orgSlug: org.slug,
   });
 
   const getFileContent = async (
@@ -498,6 +500,7 @@ function PickerContent({
       <InstallationPicker
         connectionId={effectiveConnection.id}
         orgId={org.id}
+        orgSlug={org.slug}
         onSelect={onSelectInstallation}
         showBackButton={githubConnections.length > 1}
         onBack={() => setSelectedConnection(null)}
@@ -509,6 +512,7 @@ function PickerContent({
     <RepoBrowser
       connectionId={effectiveConnection.id}
       orgId={org.id}
+      orgSlug={org.slug}
       installation={selectedInstallation}
       onSelectRepo={(repo) => importMutation.mutate(repo)}
       isSaving={importMutation.isPending}
@@ -522,12 +526,14 @@ function PickerContent({
 function InstallationPicker({
   connectionId,
   orgId,
+  orgSlug,
   onSelect,
   showBackButton,
   onBack,
 }: {
   connectionId: string;
   orgId: string;
+  orgSlug: string;
   onSelect: (installation: GitHubInstallation) => void;
   showBackButton: boolean;
   onBack: () => void;
@@ -535,6 +541,7 @@ function InstallationPicker({
   const selfClient = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId,
+    orgSlug,
   });
 
   const installationsQuery = useQuery({
@@ -644,6 +651,7 @@ function InstallationPicker({
 function RepoBrowser({
   connectionId,
   orgId,
+  orgSlug,
   installation,
   onSelectRepo,
   isSaving,
@@ -653,6 +661,7 @@ function RepoBrowser({
 }: {
   connectionId: string;
   orgId: string;
+  orgSlug: string;
   installation: GitHubInstallation;
   onSelectRepo: (repo: Repo) => void;
   isSaving: boolean;
@@ -692,6 +701,7 @@ function RepoBrowser({
           <RepoList
             connectionId={connectionId}
             orgId={orgId}
+            orgSlug={orgSlug}
             installation={installation}
             query={deferredQuery}
             onSelectRepo={onSelectRepo}
@@ -718,6 +728,7 @@ function RepoBrowser({
 function RepoList({
   connectionId,
   orgId,
+  orgSlug,
   installation,
   query,
   onSelectRepo,
@@ -725,12 +736,13 @@ function RepoList({
 }: {
   connectionId: string;
   orgId: string;
+  orgSlug: string;
   installation: GitHubInstallation;
   query: string;
   onSelectRepo: (repo: Repo) => void;
   isSaving: boolean;
 }) {
-  const githubClient = useMCPClient({ connectionId, orgId });
+  const githubClient = useMCPClient({ connectionId, orgId, orgSlug });
 
   const qualifier = installation.type === "User" ? "user" : "org";
   const searchQuery = query

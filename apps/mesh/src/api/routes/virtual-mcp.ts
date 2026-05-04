@@ -22,9 +22,6 @@ import { MCP_TOOL_CALL_TIMEOUT_MS } from "@/core/constants";
 import { createVirtualClientFrom } from "../../mcp-clients/virtual-mcp";
 import type { Env } from "../hono-env";
 
-// Define Hono variables type
-const app = new Hono<Env>();
-
 // ============================================================================
 // Route Handler (shared between /gateway and /virtual-mcp endpoints for backward compat)
 // ============================================================================
@@ -171,30 +168,34 @@ export async function handleVirtualMcpRequest(
 // Route Handlers
 // ============================================================================
 
-/**
- * Virtual MCP endpoint (backward compatible /mcp/gateway/:virtualMcpId)
- *
- * Route: POST /mcp/gateway/:virtualMcpId?
- * - If virtualMcpId is provided: use that specific Virtual MCP
- * - If virtualMcpId is omitted: use Decopilot agent (default agent)
- */
-app.all("/gateway/:virtualMcpId?", async (c) => {
-  const virtualMcpId =
-    c.req.param("virtualMcpId") || c.req.header("x-virtual-mcp-id");
-  return handleVirtualMcpRequest(c, virtualMcpId);
-});
+export const createVirtualMcpRoutes = () => {
+  const app = new Hono<Env>();
 
-/**
- * Virtual MCP endpoint (new canonical /mcp/virtual-mcp/:virtualMcpId)
- *
- * Route: POST /mcp/virtual-mcp/:virtualMcpId?
- * - If virtualMcpId is provided: use that specific virtual MCP
- * - If virtualMcpId is omitted: use Decopilot agent (default agent)
- */
-app.all("/virtual-mcp/:virtualMcpId?", async (c) => {
-  const virtualMcpId =
-    c.req.param("virtualMcpId") || c.req.header("x-virtual-mcp-id");
-  return handleVirtualMcpRequest(c, virtualMcpId);
-});
+  /**
+   * Virtual MCP endpoint (backward compatible /mcp/gateway/:virtualMcpId)
+   *
+   * Route: POST /mcp/gateway/:virtualMcpId?
+   * - If virtualMcpId is provided: use that specific Virtual MCP
+   * - If virtualMcpId is omitted: use Decopilot agent (default agent)
+   */
+  app.all("/gateway/:virtualMcpId?", async (c) => {
+    const virtualMcpId =
+      c.req.param("virtualMcpId") || c.req.header("x-virtual-mcp-id");
+    return handleVirtualMcpRequest(c, virtualMcpId);
+  });
 
-export default app;
+  /**
+   * Virtual MCP endpoint (new canonical /mcp/virtual-mcp/:virtualMcpId)
+   *
+   * Route: POST /mcp/virtual-mcp/:virtualMcpId?
+   * - If virtualMcpId is provided: use that specific virtual MCP
+   * - If virtualMcpId is omitted: use Decopilot agent (default agent)
+   */
+  app.all("/virtual-mcp/:virtualMcpId?", async (c) => {
+    const virtualMcpId =
+      c.req.param("virtualMcpId") || c.req.header("x-virtual-mcp-id");
+    return handleVirtualMcpRequest(c, virtualMcpId);
+  });
+
+  return app;
+};

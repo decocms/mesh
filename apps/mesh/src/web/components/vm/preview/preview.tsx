@@ -3,7 +3,11 @@ import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import { authClient } from "@/web/lib/auth-client";
 import { useToggleEnvPanel } from "@/web/hooks/use-toggle-env-panel";
 import { useChatTask } from "@/web/components/chat/context";
-import { useMCPClient, SELF_MCP_ALIAS_ID } from "@decocms/mesh-sdk";
+import {
+  useMCPClient,
+  useProjectContext,
+  SELF_MCP_ALIAS_ID,
+} from "@decocms/mesh-sdk";
 
 import type { VmMapEntry } from "@decocms/mesh-sdk";
 import {
@@ -137,9 +141,11 @@ export function PreviewContent() {
   //   self-heal:  once per dead vmId (don't loop on repeat 404s; new vmId OK)
   // A shared ref would conflate them.
   const virtualMcpId = inset?.entity?.id ?? null;
+  const { org } = useProjectContext();
   const mcpClient = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: inset?.entity?.organization_id ?? "",
+    orgSlug: org.slug,
   });
   const startVm = useVmStart(mcpClient);
   const lastStartError = startVm.error?.message ?? null;

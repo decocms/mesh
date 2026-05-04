@@ -164,6 +164,7 @@ function VmEventsBridge({
   const autoStartClient = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
+    orgSlug: org.slug,
   });
   const { mutate: triggerAutoStart } = useVmStart(autoStartClient);
   // Attempt at most one auto-start per (branch, mount). A user VM_DELETE
@@ -221,7 +222,7 @@ function AgentInsetProvider() {
   const { org } = useProjectContext();
   const tasksOpen = useOptionalTasksPanelState()?.tasksOpen ?? false;
 
-  useStatusSounds(org.id);
+  useStatusSounds(org.slug);
 
   const params = useParams({ strict: false }) as {
     org?: string;

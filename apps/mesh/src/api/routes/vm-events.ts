@@ -68,152 +68,154 @@ const NO_CLAIM_MAX_MS = 90_000;
 
 const HEARTBEAT_MS = 15_000;
 
-const app = new Hono<Env>();
+export const createVmEventsRoutes = () => {
+  const app = new Hono<Env>();
+  app.get("/", async (c) => {
+    const ctx = c.var.meshContext;
+    try {
+      requireAuth(ctx);
+    } catch {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+    const userId = getUserId(ctx);
+    if (!userId) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
 
-app.get("/", async (c) => {
-  const ctx = c.var.meshContext;
-  try {
-    requireAuth(ctx);
-  } catch {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
-  const userId = getUserId(ctx);
-  if (!userId) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
+    let organization: ReturnType<typeof requireOrganization>;
+    try {
+      organization = requireOrganization(ctx);
+    } catch {
+      return c.json({ error: "Organization scope required" }, 403);
+    }
 
-  let organization: ReturnType<typeof requireOrganization>;
-  try {
-    organization = requireOrganization(ctx);
-  } catch {
-    return c.json({ error: "Organization scope required" }, 403);
-  }
+    const virtualMcpId = c.req.query("virtualMcpId");
+    const branch = c.req.query("branch");
+    if (!virtualMcpId || !branch) {
+      return c.json({ error: "virtualMcpId and branch are required" }, 400);
+    }
 
-  const virtualMcpId = c.req.query("virtualMcpId");
-  const branch = c.req.query("branch");
-  if (!virtualMcpId || !branch) {
-    return c.json({ error: "virtualMcpId and branch are required" }, 400);
-  }
+    // Verify caller's org actually owns this virtualMcp. Without this check,
+    // an authenticated user could probe arbitrary virtualMcpIds — the claim
+    // hash includes their userId so they couldn't *observe* anyone else's
+    // events, but the 404 vs not-yet-created surface would still leak
+    // existence/identity information.
+    const virtualMcp = await ctx.storage.virtualMcps.findById(virtualMcpId);
+    if (!virtualMcp || virtualMcp.organization_id !== organization.id) {
+      return c.json({ error: "Virtual MCP not found" }, 404);
+    }
 
-  // Verify caller's org actually owns this virtualMcp. Without this check,
-  // an authenticated user could probe arbitrary virtualMcpIds — the claim
-  // hash includes their userId so they couldn't *observe* anyone else's
-  // events, but the 404 vs not-yet-created surface would still leak
-  // existence/identity information.
-  const virtualMcp = await ctx.storage.virtualMcps.findById(virtualMcpId);
-  if (!virtualMcp || virtualMcp.organization_id !== organization.id) {
-    return c.json({ error: "Virtual MCP not found" }, 404);
-  }
-
-  const projectRef = composeSandboxRef({
-    orgId: organization.id,
-    virtualMcpId,
-    branch,
-  });
-  const runnerKind = resolveRunnerKindFromEnv();
-  // The handle is the same value the runner stored in its state-store when
-  // VM_START provisioned the sandbox, so the daemon-proxy lookup hits.
-  // agent-sandbox uses hashLen:16 for preview-URL security; other runners
-  // use the default hashLen:5.
-  const claimName = computeHandle(
-    { userId, projectRef },
-    branch,
-    runnerKind === "agent-sandbox" ? { hashLen: 16 } : {},
-  );
-
-  // Snapshot vmMap from the same metadata read used for the org-ownership
-  // check. Used below to gate the stale-handle probe: we only run it when
-  // this user already had a vmMap entry pointing at *this exact* claim.
-  // The vmId-match guard avoids racing VM_START's claim-creation window
-  // (~250ms–1.2s for agent-sandbox before `createSandboxClaim` lands;
-  // similar window for host/docker between `runner.ensure` returning and
-  // `setVmMapEntry` writing the row). Without it, an SSE that opens during
-  // that window would observe alive=false and emit a spurious `gone`.
-  const existingVmEntry = resolveVm(
-    readVmMap(virtualMcp.metadata as Record<string, unknown> | null),
-    userId,
-    branch,
-  );
-  const expectingHandle = existingVmEntry?.vmId === claimName;
-  const existingRunnerKind = existingVmEntry?.runnerKind ?? null;
-
-  const runner = await getOrInitSharedRunner();
-
-  // No runner configured at all → can't proxy daemon SSE. Surface a failed
-  // phase rather than a silent close so the UI shows a meaningful error.
-  if (!runner) {
-    return streamSSE(c, async (stream) => {
-      await stream.writeSSE({
-        event: "phase",
-        data: JSON.stringify({
-          kind: "failed",
-          reason: "unknown",
-          message: "No sandbox runner configured on this mesh.",
-        } satisfies ClaimPhase),
-      });
+    const projectRef = composeSandboxRef({
+      orgId: organization.id,
+      virtualMcpId,
+      branch,
     });
-  }
+    const runnerKind = resolveRunnerKindFromEnv();
+    // The handle is the same value the runner stored in its state-store when
+    // VM_START provisioned the sandbox, so the daemon-proxy lookup hits.
+    // agent-sandbox uses hashLen:16 for preview-URL security; other runners
+    // use the default hashLen:5.
+    const claimName = computeHandle(
+      { userId, projectRef },
+      branch,
+      runnerKind === "agent-sandbox" ? { hashLen: 16 } : {},
+    );
 
-  c.header("X-Accel-Buffering", "no");
-  c.header("Content-Encoding", "identity");
+    // Snapshot vmMap from the same metadata read used for the org-ownership
+    // check. Used below to gate the stale-handle probe: we only run it when
+    // this user already had a vmMap entry pointing at *this exact* claim.
+    // The vmId-match guard avoids racing VM_START's claim-creation window
+    // (~250ms–1.2s for agent-sandbox before `createSandboxClaim` lands;
+    // similar window for host/docker between `runner.ensure` returning and
+    // `setVmMapEntry` writing the row). Without it, an SSE that opens during
+    // that window would observe alive=false and emit a spurious `gone`.
+    const existingVmEntry = resolveVm(
+      readVmMap(virtualMcp.metadata as Record<string, unknown> | null),
+      userId,
+      branch,
+    );
+    const expectingHandle = existingVmEntry?.vmId === claimName;
+    const existingRunnerKind = existingVmEntry?.runnerKind ?? null;
 
-  return streamSSE(c, async (stream) => {
-    const abortCtl = new AbortController();
-    const heartbeat = setInterval(() => {
-      stream.writeSSE({ event: "keepalive", data: "" }).catch(() => {
+    const runner = await getOrInitSharedRunner();
+
+    // No runner configured at all → can't proxy daemon SSE. Surface a failed
+    // phase rather than a silent close so the UI shows a meaningful error.
+    if (!runner) {
+      return streamSSE(c, async (stream) => {
+        await stream.writeSSE({
+          event: "phase",
+          data: JSON.stringify({
+            kind: "failed",
+            reason: "unknown",
+            message: "No sandbox runner configured on this mesh.",
+          } satisfies ClaimPhase),
+        });
+      });
+    }
+
+    c.header("X-Accel-Buffering", "no");
+    c.header("Content-Encoding", "identity");
+
+    return streamSSE(c, async (stream) => {
+      const abortCtl = new AbortController();
+      const heartbeat = setInterval(() => {
+        stream.writeSSE({ event: "keepalive", data: "" }).catch(() => {
+          clearInterval(heartbeat);
+        });
+      }, HEARTBEAT_MS);
+      stream.onAbort(() => {
+        abortCtl.abort();
         clearInterval(heartbeat);
       });
-    }, HEARTBEAT_MS);
-    stream.onAbort(() => {
-      abortCtl.abort();
-      clearInterval(heartbeat);
-    });
 
-    try {
-      // Same probe for every runner. `runner.alive` is honest across
-      // host/docker/freestyle/agent-sandbox: each implementation queries
-      // its respective source-of-truth (state-store + pid for host, docker
-      // inspect, K8s API, freestyle daemon HTTP). When the prior vmMap
-      // entry's runner kind differs from the env's current runner, we
-      // route the stale-state cleanup through the *prior* kind so we
-      // don't leave behind rows in the wrong table.
-      if (expectingHandle) {
-        const stale = await isStaleHandle(runner, claimName);
-        if (stale) {
-          await cleanupStaleEntry({
-            ctx,
-            runner,
-            claimName,
-            userId,
-            projectRef,
-            runnerKind: existingRunnerKind ?? runnerKind,
-          });
-          await stream.writeSSE({ event: "gone", data: "" }).catch(() => {});
-          return;
+      try {
+        // Same probe for every runner. `runner.alive` is honest across
+        // host/docker/freestyle/agent-sandbox: each implementation queries
+        // its respective source-of-truth (state-store + pid for host, docker
+        // inspect, K8s API, freestyle daemon HTTP). When the prior vmMap
+        // entry's runner kind differs from the env's current runner, we
+        // route the stale-state cleanup through the *prior* kind so we
+        // don't leave behind rows in the wrong table.
+        if (expectingHandle) {
+          const stale = await isStaleHandle(runner, claimName);
+          if (stale) {
+            await cleanupStaleEntry({
+              ctx,
+              runner,
+              claimName,
+              userId,
+              projectRef,
+              runnerKind: existingRunnerKind ?? runnerKind,
+            });
+            await stream.writeSSE({ event: "gone", data: "" }).catch(() => {});
+            return;
+          }
         }
+
+        // ---- Phase 1: lifecycle (pre-Ready) ---------------------------------
+        const lifecycleOk = await emitLifecycle({
+          stream,
+          claimName,
+          runner,
+          signal: abortCtl.signal,
+        });
+        if (!lifecycleOk || abortCtl.signal.aborted) return;
+
+        // ---- Phase 2: daemon SSE proxy --------------------------------------
+        await proxyDaemonEvents({
+          stream,
+          runner,
+          claimName,
+          signal: abortCtl.signal,
+        });
+      } finally {
+        clearInterval(heartbeat);
       }
-
-      // ---- Phase 1: lifecycle (pre-Ready) ---------------------------------
-      const lifecycleOk = await emitLifecycle({
-        stream,
-        claimName,
-        runner,
-        signal: abortCtl.signal,
-      });
-      if (!lifecycleOk || abortCtl.signal.aborted) return;
-
-      // ---- Phase 2: daemon SSE proxy --------------------------------------
-      await proxyDaemonEvents({
-        stream,
-        runner,
-        claimName,
-        signal: abortCtl.signal,
-      });
-    } finally {
-      clearInterval(heartbeat);
-    }
+    });
   });
-});
+  return app;
+};
 
 async function isStaleHandle(
   runner: NonNullable<Awaited<ReturnType<typeof getOrInitSharedRunner>>>,
@@ -515,5 +517,3 @@ function sleepAbortable(ms: number, signal: AbortSignal): Promise<void> {
     signal.addEventListener("abort", onAbort, { once: true });
   });
 }
-
-export const vmEventsRoutes = app;

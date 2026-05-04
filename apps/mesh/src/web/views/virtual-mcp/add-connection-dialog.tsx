@@ -137,6 +137,7 @@ function ConnectionDialogContent({
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
+    orgSlug: org.slug,
   });
 
   const where = deferredSearch?.trim()
@@ -621,7 +622,10 @@ export function AddConnectionDialog({
       const id = created.id;
 
       // Handle OAuth if needed
-      const mcpProxyUrl = new URL(`/mcp/${id}`, window.location.origin);
+      const mcpProxyUrl = new URL(
+        `/api/${org.slug}/mcp/${id}`,
+        window.location.origin,
+      );
       const authStatus = await isConnectionAuthenticated({
         url: mcpProxyUrl.href,
         token: null,
@@ -631,6 +635,7 @@ export function AddConnectionDialog({
       if (authStatus.supportsOAuth && !authStatus.isAuthenticated) {
         const { token, tokenInfo, error } = await authenticateMcp({
           connectionId: id,
+          orgSlug: org.slug,
           scope: "offline_access",
         });
         if (error || !token) {
@@ -650,23 +655,25 @@ export function AddConnectionDialog({
         });
         if (tokenInfo) {
           try {
-            const response = await fetch(`/api/connections/${id}/oauth-token`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "x-org-id": org.id,
+            const response = await fetch(
+              `/api/${org.slug}/connections/${id}/oauth-token`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                credentials: "include",
+                body: JSON.stringify({
+                  accessToken: tokenInfo.accessToken,
+                  refreshToken: tokenInfo.refreshToken,
+                  expiresIn: tokenInfo.expiresIn,
+                  scope: tokenInfo.scope,
+                  clientId: tokenInfo.clientId,
+                  clientSecret: tokenInfo.clientSecret,
+                  tokenEndpoint: tokenInfo.tokenEndpoint,
+                }),
               },
-              credentials: "include",
-              body: JSON.stringify({
-                accessToken: tokenInfo.accessToken,
-                refreshToken: tokenInfo.refreshToken,
-                expiresIn: tokenInfo.expiresIn,
-                scope: tokenInfo.scope,
-                clientId: tokenInfo.clientId,
-                clientSecret: tokenInfo.clientSecret,
-                tokenEndpoint: tokenInfo.tokenEndpoint,
-              }),
-            });
+            );
             if (!response.ok) {
               await connectionActions.update.mutateAsync({
                 id,
@@ -734,7 +741,10 @@ export function AddConnectionDialog({
       const { id } = await connectionActions.create.mutateAsync(connectionData);
 
       // Handle OAuth flow
-      const mcpProxyUrl = new URL(`/mcp/${id}`, window.location.origin);
+      const mcpProxyUrl = new URL(
+        `/api/${org.slug}/mcp/${id}`,
+        window.location.origin,
+      );
       const authStatus = await isConnectionAuthenticated({
         url: mcpProxyUrl.href,
         token: null,
@@ -744,6 +754,7 @@ export function AddConnectionDialog({
       if (authStatus.supportsOAuth && !authStatus.isAuthenticated) {
         const { token, tokenInfo, error } = await authenticateMcp({
           connectionId: id,
+          orgSlug: org.slug,
           scope: "offline_access",
         });
         if (error || !token) {
@@ -764,23 +775,25 @@ export function AddConnectionDialog({
 
         if (tokenInfo) {
           try {
-            const response = await fetch(`/api/connections/${id}/oauth-token`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "x-org-id": org.id,
+            const response = await fetch(
+              `/api/${org.slug}/connections/${id}/oauth-token`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                credentials: "include",
+                body: JSON.stringify({
+                  accessToken: tokenInfo.accessToken,
+                  refreshToken: tokenInfo.refreshToken,
+                  expiresIn: tokenInfo.expiresIn,
+                  scope: tokenInfo.scope,
+                  clientId: tokenInfo.clientId,
+                  clientSecret: tokenInfo.clientSecret,
+                  tokenEndpoint: tokenInfo.tokenEndpoint,
+                }),
               },
-              credentials: "include",
-              body: JSON.stringify({
-                accessToken: tokenInfo.accessToken,
-                refreshToken: tokenInfo.refreshToken,
-                expiresIn: tokenInfo.expiresIn,
-                scope: tokenInfo.scope,
-                clientId: tokenInfo.clientId,
-                clientSecret: tokenInfo.clientSecret,
-                tokenEndpoint: tokenInfo.tokenEndpoint,
-              }),
-            });
+            );
             if (!response.ok) {
               await connectionActions.update.mutateAsync({
                 id,
@@ -870,7 +883,10 @@ export function AddConnectionDialog({
           setCreateOpen(false);
 
           // Handle OAuth if needed (same flow as handleConnectAndAdd)
-          const mcpProxyUrl = new URL(`/mcp/${id}`, window.location.origin);
+          const mcpProxyUrl = new URL(
+            `/api/${org.slug}/mcp/${id}`,
+            window.location.origin,
+          );
           const authStatus = await isConnectionAuthenticated({
             url: mcpProxyUrl.href,
             token: null,
@@ -880,6 +896,7 @@ export function AddConnectionDialog({
           if (authStatus.supportsOAuth && !authStatus.isAuthenticated) {
             const { token, tokenInfo, error } = await authenticateMcp({
               connectionId: id,
+              orgSlug: org.slug,
               scope: "offline_access",
             });
             if (error || !token) {
@@ -901,12 +918,11 @@ export function AddConnectionDialog({
             if (tokenInfo) {
               try {
                 const response = await fetch(
-                  `/api/connections/${id}/oauth-token`,
+                  `/api/${org.slug}/connections/${id}/oauth-token`,
                   {
                     method: "POST",
                     headers: {
                       "Content-Type": "application/json",
-                      "x-org-id": org.id,
                     },
                     credentials: "include",
                     body: JSON.stringify({

@@ -80,6 +80,7 @@ function buildRegistrySearchWhere(
 function useRegistryGroupQuery(
   registries: RegistrySource[],
   orgId: string,
+  orgSlug: string,
   enabled: boolean,
   search?: string,
 ) {
@@ -120,6 +121,7 @@ function useRegistryGroupQuery(
                 client = await createMCPClient({
                   connectionId: registry.id,
                   orgId,
+                  orgSlug,
                 });
 
                 const params: Record<string, unknown> = { limit: PAGE_SIZE };
@@ -250,6 +252,7 @@ export function useMergedStoreDiscovery(
   const ncQuery = useRegistryGroupQuery(
     nonCommunityRegistries,
     org.id,
+    org.slug,
     true,
     search,
   );
@@ -260,6 +263,7 @@ export function useMergedStoreDiscovery(
   const cQuery = useRegistryGroupQuery(
     communityRegistries,
     org.id,
+    org.slug,
     allNonCommunityExhausted,
     search,
   );

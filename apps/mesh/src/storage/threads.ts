@@ -50,6 +50,25 @@ export class OrgScopedThreadStorage {
     return this.organizationId;
   }
 
+  /**
+   * Rebind this storage to a different org id.
+   * Called by `resolveOrgFromPath` middleware after the org is resolved from
+   * the URL slug — meshContext is constructed eagerly, so when no `x-org-id`
+   * header is present the storage starts with `organizationId = undefined`
+   * and must be updated in-place once the path-resolved org is known.
+   */
+  setOrganizationId(organizationId: string | undefined): void {
+    this.organizationId = organizationId;
+  }
+
+  /**
+   * Currently bound organization id (or undefined). Exposed primarily for
+   * tests that assert middleware rebinds the storage correctly.
+   */
+  getOrganizationId(): string | undefined {
+    return this.organizationId;
+  }
+
   create(data: Partial<Thread>): Promise<Thread> {
     const orgId = this.requireOrg();
     return this.inner.create({ ...data, organization_id: orgId });
