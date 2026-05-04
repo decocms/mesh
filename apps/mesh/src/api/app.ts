@@ -1391,14 +1391,21 @@ export async function createApp(options: CreateAppOptions = {}) {
   // OpenAI-compatible LLM API routes
   app.route("/api", openaiCompatRoutes);
 
-  // Trigger callback endpoint (external MCPs → Mesh automations)
-  app.route(
-    "/api",
+  // Trigger callback endpoint (external MCPs → Mesh automations).
+  // Legacy mount at /api/trigger-callback with deprecation log; the new
+  // /api/:org/trigger-callback mount is wired in a later task.
+  const legacyTriggerCallback = new Hono<{
+    Variables: { meshContext: MeshContext };
+  }>();
+  legacyTriggerCallback.use("*", logDeprecatedRoute);
+  legacyTriggerCallback.route(
+    "/",
     createTriggerCallbackRoutes({
       tokenStorage: triggerCallbackTokenStorage,
       eventTriggerEngine,
     }),
   );
+  app.route("/api", legacyTriggerCallback);
 
   // KV store (org-scoped, for external MCPs to persist state)
   // Legacy mount at /api/* with deprecation log; the new /api/:org/* mount
