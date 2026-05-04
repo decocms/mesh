@@ -41,6 +41,7 @@ export const resolveOrgFromPath: MiddlewareHandler<{
   //
   // Routes that need an authenticated principal still reject via their own
   // ctx.access.check() (UnauthorizedError → 401).
+  let pathRole: string | undefined;
   if (userId) {
     const membership = await db
       .selectFrom("member")
@@ -52,6 +53,7 @@ export const resolveOrgFromPath: MiddlewareHandler<{
     if (!membership) {
       return c.json({ error: "forbidden: not a member of organization" }, 403);
     }
+    pathRole = membership.role;
   }
 
   ctx.organization = { id: org.id, slug: org.slug, name: org.name };
@@ -60,6 +62,12 @@ export const resolveOrgFromPath: MiddlewareHandler<{
   // activeOrganizationId — which races with signup in CI and can be stale or
   // pointing at a different org than the URL.
   ctx.access.setOrganizationId(org.id);
+  // Also propagate the user's role in the path-resolved org. AccessControl's
+  // built-in admin/owner bypass reads `this.role`, which was set at
+  // construction time from the session's active org. When the path targets a
+  // different org — or when there's no active org and the role was undefined
+  // — the bypass silently fails and owners get spurious 403s on tool calls.
+  ctx.access.setRole(pathRole);
   // Rebind org-scoped storage that was constructed eagerly with `undefined`
   // when meshContext was created (no `x-org-id` header on the new path
   // means `organization` was not yet resolved). Without this, any thread

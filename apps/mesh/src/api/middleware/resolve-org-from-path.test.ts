@@ -35,6 +35,9 @@ const buildApp = (db: TestDatabase, auth: FakeAuth) => {
         setOrganizationId: (id: string | undefined) => {
           accessOrgIds.push(id);
         },
+        setRole: (_role: string | undefined) => {
+          /* no-op for tests; covered by dedicated AccessControl tests */
+        },
         // Expose the captured ids for tests via a non-standard field
         _orgIds: accessOrgIds,
       },

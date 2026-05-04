@@ -89,6 +89,17 @@ export class AccessControl implements Disposable {
   }
 
   /**
+   * Set the user's role within the path-resolved organization.
+   * Without this, `checkResource` would use the role baked in at construction
+   * time, which was derived from the session's active org. When the path
+   * targets a different org (or when the session has no active org), the
+   * built-in admin/owner bypass would silently fail and tools would 403.
+   */
+  setRole(role: string | undefined): void {
+    this.role = role;
+  }
+
+  /**
    * Grant access unconditionally
    * Use for manual overrides, admin actions, or custom validation
    */
