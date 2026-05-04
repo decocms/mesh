@@ -77,8 +77,53 @@ export function selectHeaderButton(input: {
     };
   }
 
-  const hasLocalWork =
-    branchStatus.workingTreeDirty || branchStatus.unpushed > 0;
+  switch (branchStatus.kind) {
+    case "initializing":
+      return {
+        label: "Starting sandbox…",
+        disabled: true,
+        loading: true,
+        variant: "outline",
+        tooltip: "Waiting for the sandbox daemon to come online",
+      };
+    case "cloning":
+      return {
+        label: "Cloning repo…",
+        disabled: true,
+        loading: true,
+        variant: "outline",
+        tooltip: "Cloning the project repository",
+      };
+    case "clone-failed":
+      return {
+        label: "Clone failed",
+        disabled: true,
+        variant: "outline",
+        tooltip: branchStatus.error || "git clone failed — see setup logs",
+      };
+    case "checking-out":
+      return {
+        label: `Switching to ${branchStatus.to}…`,
+        disabled: true,
+        loading: true,
+        variant: "outline",
+        tooltip: `Checking out ${branchStatus.to}`,
+      };
+    case "checkout-failed":
+      return {
+        label: "Checkout failed",
+        disabled: true,
+        variant: "outline",
+        tooltip: branchStatus.error || "git checkout failed — see setup logs",
+      };
+    case "ready":
+      break;
+  }
+
+  // From here on, branchStatus.kind === "ready" — narrow it.
+  const ready = branchStatus;
+
+  const hasLocalWork = ready.workingTreeDirty || ready.unpushed > 0;
   if (hasLocalWork) {
     return {
       label: "Save changes",
@@ -96,9 +141,7 @@ export function selectHeaderButton(input: {
   // the branch's HEAD sha to the PR's head sha to decide.
   if (pr?.merged) {
     const branchAdvanced =
-      !!branchStatus.headSha &&
-      !!pr.headSha &&
-      branchStatus.headSha !== pr.headSha;
+      !!ready.headSha && !!pr.headSha && ready.headSha !== pr.headSha;
     if (branchAdvanced) {
       return {
         label: "Continue",
@@ -115,7 +158,7 @@ export function selectHeaderButton(input: {
     };
   }
 
-  if (branchStatus.aheadOfBase > 0) {
+  if (ready.aheadOfBase > 0) {
     if (pr && pr.state === "closed" && !pr.merged) {
       return {
         label: "Reopen",
@@ -129,7 +172,7 @@ export function selectHeaderButton(input: {
         label: "Submit for review",
         action: "create-pr",
         variant: "default",
-        tooltip: `Open a PR for ${branchStatus.branch} → ${branchStatus.base}`,
+        tooltip: `Open a PR for ${ready.branch} → ${ready.base}`,
       };
     }
 
@@ -211,6 +254,6 @@ export function selectHeaderButton(input: {
     label: "Up to date",
     disabled: true,
     variant: "outline",
-    tooltip: `Branch is in sync with ${branchStatus.base}`,
+    tooltip: `Branch is in sync with ${ready.base}`,
   };
 }
