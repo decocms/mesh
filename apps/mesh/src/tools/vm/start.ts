@@ -220,7 +220,8 @@ async function provisionSandbox(
     throw new Error("GitHub connection id missing on virtual MCP metadata");
   }
 
-  let { runtime, packageManager, port } = resolveRuntimeConfig(metadata);
+  let { runtime, packageManager, port, packageManagerPath } =
+    resolveRuntimeConfig(metadata);
 
   // Skip clone + lockfile probe entirely when no repo is connected — the
   // sandbox boots blank (Docker only; freestyle requires a baked clone).
@@ -292,6 +293,7 @@ async function provisionSandbox(
           runtime,
           packageManager,
           ...(port !== null ? { devPort: Number(port) } : {}),
+          ...(packageManagerPath ? { packageManagerPath } : {}),
         }
       : undefined;
 

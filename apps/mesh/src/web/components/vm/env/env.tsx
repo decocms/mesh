@@ -46,7 +46,11 @@ import { usePanelActions } from "@/web/layouts/shell-layout";
 import { VmErrorState } from "../vm-error-state";
 import { VmSuspendedState } from "../vm-suspended-state";
 import { useVmEvents } from "../hooks/use-vm-events";
-import { useIsVmStartPending, useVmStart } from "../hooks/use-vm-start";
+import {
+  useIsVmStartPending,
+  useVmStart,
+  vmUserStop,
+} from "../hooks/use-vm-start";
 import { VmTerminal } from "./terminal";
 import type { Terminal as XTerminal } from "@xterm/xterm";
 import { EmptyState } from "../../empty-state";
@@ -316,6 +320,9 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const handleStart = async () => {
     if (startingRef.current) return;
     startingRef.current = true;
+    if (inset?.entity?.id && currentBranch) {
+      vmUserStop.clear(inset.entity.id, currentBranch);
+    }
     startedAtRef.current = Date.now();
     setOverride("creating");
     setStatusLabel("Connecting...");
@@ -360,6 +367,8 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     setOverride("stopping");
 
     const virtualMcpId = inset?.entity?.id;
+    if (virtualMcpId && branchToStop)
+      vmUserStop.mark(virtualMcpId, branchToStop);
     if (virtualMcpId && branchToStop) {
       try {
         await client.callTool({

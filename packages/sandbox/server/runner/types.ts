@@ -34,6 +34,8 @@ export interface Workload {
    * sandboxes; container runners: fall back to their own default).
    */
   devPort?: number;
+  /** Subdirectory inside the repo where the package manager manifest lives (e.g. `apps/web`). */
+  packageManagerPath?: string;
 }
 
 export interface EnsureOptions {

@@ -174,7 +174,7 @@ opt-in (delete the Secret + helm upgrade, or `kubectl edit`).
 */}}
 {{- define "sandbox-env.sentinelToken" -}}
 {{- $name := include "sandbox-env.sentinelSecretName" . -}}
-{{- $existing := lookup "v1" "Secret" "agent-sandbox-system" $name -}}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $name -}}
 {{- if and $existing $existing.data $existing.data.daemonToken -}}
 {{- $existing.data.daemonToken | b64dec -}}
 {{- else -}}

@@ -3,6 +3,7 @@ import {
   createConfigTools,
   fromDaemonConfig,
   GetVmConfigInputSchema,
+  normalizePackageManagerPath,
   type SetVmConfigInput,
   SetVmConfigInputSchema,
   toDaemonPatch,
@@ -11,7 +12,8 @@ import {
 describe("SetVmConfigInputSchema", () => {
   test("accepts a single field", () => {
     expect(
-      SetVmConfigInputSchema.safeParse({ monorepoPath: "apps/web" }).success,
+      SetVmConfigInputSchema.safeParse({ packageManagerPath: "apps/web" })
+        .success,
     ).toBe(true);
     expect(
       SetVmConfigInputSchema.safeParse({ packageManager: "pnpm" }).success,
@@ -44,7 +46,7 @@ describe("SetVmConfigInputSchema", () => {
     // `branch`) or deliberately removed (`gitIdentity` — commits should be
     // authored by the user, not the agent) cannot reach `toDaemonPatch`.
     const result = SetVmConfigInputSchema.safeParse({
-      monorepoPath: "apps/web",
+      packageManagerPath: "apps/web",
       auth: { rotateToken: "x".repeat(48) },
       cloneUrl: "https://malicious.example.com/repo.git",
       branch: "feature",
@@ -61,9 +63,33 @@ describe("SetVmConfigInputSchema", () => {
   });
 });
 
+describe("normalizePackageManagerPath", () => {
+  test("passes plain directory paths through unchanged", () => {
+    expect(normalizePackageManagerPath("apps/web")).toBe("apps/web");
+  });
+
+  test("strips trailing slashes", () => {
+    expect(normalizePackageManagerPath("apps/web/")).toBe("apps/web");
+    expect(normalizePackageManagerPath("apps/web//")).toBe("apps/web");
+  });
+
+  test("strips known manifest filenames", () => {
+    expect(normalizePackageManagerPath("apps/web/package.json")).toBe(
+      "apps/web",
+    );
+    expect(normalizePackageManagerPath("apps/web/deno.json")).toBe("apps/web");
+    expect(normalizePackageManagerPath("apps/web/deno.jsonc")).toBe("apps/web");
+  });
+
+  test("returns null for root-level manifests", () => {
+    expect(normalizePackageManagerPath("package.json")).toBeNull();
+    expect(normalizePackageManagerPath("deno.json")).toBeNull();
+  });
+});
+
 describe("toDaemonPatch", () => {
-  test("translates monorepoPath into application.packageManager.path", () => {
-    expect(toDaemonPatch({ monorepoPath: "apps/web" })).toEqual({
+  test("translates packageManagerPath into application.packageManager.path", () => {
+    expect(toDaemonPatch({ packageManagerPath: "apps/web" })).toEqual({
       application: { packageManager: { path: "apps/web" } },
     });
   });
@@ -74,9 +100,9 @@ describe("toDaemonPatch", () => {
     });
   });
 
-  test("merges packageManager and monorepoPath under one packageManager object", () => {
+  test("merges packageManager and packageManagerPath under one packageManager object", () => {
     expect(
-      toDaemonPatch({ packageManager: "pnpm", monorepoPath: "apps/web" }),
+      toDaemonPatch({ packageManager: "pnpm", packageManagerPath: "apps/web" }),
     ).toEqual({
       application: {
         packageManager: { name: "pnpm", path: "apps/web" },
@@ -105,7 +131,7 @@ describe("toDaemonPatch", () => {
     // of the test is to assert that toDaemonPatch ignores anything outside
     // the allowed surface, even if the type system were to fail us upstream.
     const smuggled = {
-      monorepoPath: "apps/web",
+      packageManagerPath: "apps/web",
       auth: { rotateToken: "x".repeat(48) },
       gitIdentity: { name: "Mallory", email: "mallory@example.com" },
     } as unknown as SetVmConfigInput;
@@ -141,7 +167,7 @@ describe("fromDaemonConfig", () => {
       cloneUrl: "https://github.com/acme/web.git",
       branch: "main",
       packageManager: "pnpm",
-      monorepoPath: "apps/web",
+      packageManagerPath: "apps/web",
       runtime: "node",
       intent: "running",
       previewPort: 3000,
@@ -154,7 +180,7 @@ describe("fromDaemonConfig", () => {
       application: { packageManager: { name: "npm" }, runtime: "node" },
     });
     expect(out).toEqual({ packageManager: "npm", runtime: "node" });
-    expect("monorepoPath" in out).toBe(false);
+    expect("packageManagerPath" in out).toBe(false);
     expect("previewPort" in out).toBe(false);
     expect("intent" in out).toBe(false);
   });
@@ -253,7 +279,7 @@ describe("createConfigTools", () => {
     });
 
     const out = await tools.set_vm_config.execute!(
-      { packageManager: "pnpm", monorepoPath: "apps/web" },
+      { packageManager: "pnpm", packageManagerPath: "apps/web" },
       // biome-ignore lint/suspicious/noExplicitAny: AI SDK execute options
       {} as any,
     );
@@ -272,7 +298,7 @@ describe("createConfigTools", () => {
       transition: "pm-change",
       config: {
         packageManager: "pnpm",
-        monorepoPath: "apps/web",
+        packageManagerPath: "apps/web",
         runtime: "node",
         intent: "paused",
       },

@@ -180,7 +180,9 @@ export class HostSandboxRunner implements SandboxRunner {
       packageManager: opts.workload?.packageManager
         ? {
             name: opts.workload.packageManager,
-            path: undefined,
+            ...(opts.workload.packageManagerPath
+              ? { path: opts.workload.packageManagerPath }
+              : {}),
           }
         : null,
       repo: opts.repo ?? null,

@@ -15,7 +15,14 @@ export function spawnClone(deps: CloneDeps): Promise<number> {
   if (!cloneUrl) {
     return Promise.resolve(1);
   }
-  const cmd = `git -c safe.directory='*' clone --depth 1 ${cloneUrl} ${config.repoDir}`;
+  if (!config.repoDir || !config.repoDir.startsWith("/")) {
+    deps.onChunk(
+      "setup",
+      `\r\n[clone] repoDir is not an absolute path (got: ${String(config.repoDir)}) — aborting clone to prevent relative-path mishap\r\n`,
+    );
+    return Promise.resolve(1);
+  }
+  const cmd = `git -c safe.directory='*' -c credential.helper= clone --depth 1 ${cloneUrl} ${config.repoDir}`;
   const label = `$ git clone --depth 1 ${repoLabel} ${config.repoDir}`;
   deps.onChunk("setup", `${label}\r\n`);
 

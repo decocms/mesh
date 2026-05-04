@@ -30,13 +30,14 @@ const PortSchema = z.number().int().min(1).max(65535);
 
 export const SetVmConfigInputSchema = z
   .object({
-    monorepoPath: z
+    packageManagerPath: z
       .string()
       .min(1)
       .optional()
       .describe(
-        "Subdirectory inside the repo where package.json lives, for " +
-          "monorepos (e.g. 'apps/web'). Omit to use the repo root.",
+        "Path to the directory (or manifest file) where the package manager " +
+          "lives. Accepts 'apps/web', 'apps/web/', or 'apps/web/package.json' " +
+          "— all normalized to a directory. Omit to use the repo root.",
       ),
     packageManager: z
       .enum(PACKAGE_MANAGERS)
@@ -64,7 +65,7 @@ export const SetVmConfigInputSchema = z
   })
   .refine(
     (v) =>
-      v.monorepoPath !== undefined ||
+      v.packageManagerPath !== undefined ||
       v.packageManager !== undefined ||
       v.runtime !== undefined ||
       v.intent !== undefined ||
@@ -85,7 +86,7 @@ export type GetVmConfigInput = z.infer<typeof GetVmConfigInputSchema>;
 export interface UserFacingVmConfig {
   cloneUrl?: string;
   branch?: string;
-  monorepoPath?: string;
+  packageManagerPath?: string;
   packageManager?: (typeof PACKAGE_MANAGERS)[number];
   runtime?: (typeof RUNTIMES)[number];
   intent?: (typeof INTENTS)[number];
@@ -94,14 +95,14 @@ export interface UserFacingVmConfig {
 }
 
 const SET_VM_CONFIG_DESCRIPTION =
-  "Patch the sandbox's runtime config: `monorepoPath`, `packageManager`, " +
+  "Patch the sandbox's runtime config: `packageManagerPath`, `packageManager`, " +
   "`runtime`, `intent` (running/paused), `previewPort`. All fields are " +
   "optional and deep-merged. Returns the resulting config plus a " +
   "`transition` marker (e.g. 'pm-change', 'intent-change', 'no-op').";
 
 const GET_VM_CONFIG_DESCRIPTION =
   "Read the sandbox's current runtime config and live state. Returns: " +
-  "`config` (monorepoPath, packageManager, runtime, intent, previewPort — " +
+  "`config` (packageManagerPath, packageManager, runtime, intent, previewPort — " +
   "null if not yet configured), `appStatus` (idle/installing/starting/up/failed), " +
   "`ready` (true when the preview URL is accessible), " +
   "`orchestrator.running` (true while a setup transition is in progress), and " +
@@ -115,9 +116,12 @@ export interface ConfigToolsParams {
   readonly needsApproval: boolean;
   /**
    * Called after a successful daemon PUT with the validated input. The caller
-   * mirrors mutable fields (packageManager, previewPort) back to the Virtual
-   * MCP metadata so new branch sandboxes are provisioned with the updated
-   * workload.
+   * mirrors repo-level fields (packageManager, packageManagerPath) to the
+   * Virtual MCP metadata so new branch sandboxes are provisioned with the
+   * correct workload. `previewPort` is intentionally excluded — it is a
+   * per-sandbox override that must not be inherited across branches (host
+   * runner shares the host network; seeding the same port on every branch
+   * causes bind conflicts).
    */
   readonly onSaved?: (input: SetVmConfigInput) => Promise<void>;
 }
@@ -186,14 +190,37 @@ interface DaemonConfig {
   };
 }
 
+/**
+ * Accepts `apps/web`, `apps/web/`, `apps/web/package.json`,
+ * `apps/web/deno.json`, etc. — strips trailing slashes and known manifest
+ * filenames so the daemon always receives a clean directory path.
+ * Returns null when the result is empty (= repo root, leave unset).
+ */
+export function normalizePackageManagerPath(raw: string): string | null {
+  let p = raw.replace(/\/+$/, "");
+  const manifests = ["package.json", "deno.json", "deno.jsonc"];
+  for (const m of manifests) {
+    if (p === m) return null;
+    if (p.endsWith(`/${m}`)) {
+      p = p.slice(0, p.length - m.length - 1);
+      break;
+    }
+  }
+  return p || null;
+}
+
 export function toDaemonPatch(
   input: SetVmConfigInput,
 ): Record<string, unknown> {
   const application: Record<string, unknown> = {};
-  if (input.packageManager !== undefined || input.monorepoPath !== undefined) {
+  const normalizedPath =
+    input.packageManagerPath !== undefined
+      ? normalizePackageManagerPath(input.packageManagerPath)
+      : undefined;
+  if (input.packageManager !== undefined || normalizedPath !== undefined) {
     const pm: Record<string, unknown> = {};
     if (input.packageManager !== undefined) pm.name = input.packageManager;
-    if (input.monorepoPath !== undefined) pm.path = input.monorepoPath;
+    if (normalizedPath !== undefined) pm.path = normalizedPath ?? null;
     application.packageManager = pm;
   }
   if (input.runtime !== undefined) application.runtime = input.runtime;
@@ -221,7 +248,7 @@ export function fromDaemonConfig(
       out.packageManager = app.packageManager.name;
     }
     if (app.packageManager?.path !== undefined) {
-      out.monorepoPath = app.packageManager.path;
+      out.packageManagerPath = app.packageManager.path;
     }
     if (app.runtime !== undefined) out.runtime = app.runtime;
     if (app.intent !== undefined) out.intent = app.intent;

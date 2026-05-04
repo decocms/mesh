@@ -319,7 +319,12 @@ export class DockerSandboxRunner implements SandboxRunner {
     const configPayload = buildConfigPayload({
       runtime: opts.workload?.runtime ?? "node",
       packageManager: opts.workload?.packageManager
-        ? { name: opts.workload.packageManager }
+        ? {
+            name: opts.workload.packageManager,
+            ...(opts.workload.packageManagerPath
+              ? { path: opts.workload.packageManagerPath }
+              : {}),
+          }
         : null,
       repo: opts.repo ?? null,
       desiredPort: devContainerPort,

@@ -42,6 +42,7 @@ import { useVmEvents, useVmReloadHandler } from "../hooks/use-vm-events";
 import {
   useIsVmStartPending,
   useVmStart,
+  vmUserStop,
   type VmStartArgs,
 } from "../hooks/use-vm-start";
 import { VmSuspendedState } from "../vm-suspended-state";
@@ -218,9 +219,12 @@ export function PreviewContent() {
     if (!deadVmId || !virtualMcpId) return;
     if (lastStartError || startVm.isPending) return;
     if (reprovisionedForVmIdRef.current === deadVmId) return;
+    // Don't self-heal a VM the user explicitly stopped: the SSE "gone" event
+    // can arrive before the vmMap query refetch clears the stale entry.
+    if (branch && vmUserStop.isStopped(virtualMcpId, branch)) return;
     reprovisionedForVmIdRef.current = deadVmId;
     triggerStartRef.current("self-heal");
-  }, [deadVmId, virtualMcpId, lastStartError, startVm.isPending]);
+  }, [deadVmId, virtualMcpId, lastStartError, startVm.isPending, branch]);
 
   const retryAutoStart = () => {
     autoStartedForTaskRef.current = null;

@@ -11,7 +11,7 @@ import { tool, zodSchema } from "ai";
 import path from "node:path";
 import type { SandboxRunner } from "@decocms/sandbox/runner";
 import { maybeTruncate } from "./common";
-import { createConfigTools } from "./config-tools";
+import { createConfigTools, normalizePackageManagerPath } from "./config-tools";
 import {
   BASH_DESCRIPTION,
   BashInputSchema,
@@ -330,7 +330,10 @@ export function createVmTools(params: VmToolsParams) {
     ensureHandle,
     needsApproval: vmConfigNeedsApproval(needsApproval),
     onSaved: async (input) => {
-      if (input.packageManager === undefined && input.previewPort === undefined)
+      if (
+        input.packageManager === undefined &&
+        input.packageManagerPath === undefined
+      )
         return;
       const userId = ctx.auth?.user?.id;
       if (!userId) return;
@@ -341,8 +344,12 @@ export function createVmTools(params: VmToolsParams) {
       const runtime: Record<string, unknown> = { ...existing };
       if (input.packageManager !== undefined)
         runtime.selected = input.packageManager;
-      if (input.previewPort !== undefined)
-        runtime.port = String(input.previewPort);
+      if (input.packageManagerPath !== undefined) {
+        const normalized = normalizePackageManagerPath(
+          input.packageManagerPath,
+        );
+        runtime.path = normalized ?? null;
+      }
       await ctx.storage.virtualMcps.update(virtualMcpId, userId, {
         metadata: { ...meta, runtime },
       });

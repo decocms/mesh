@@ -27,7 +27,13 @@ export function spawnInstall(deps: InstallDeps): Promise<number> | null {
   const hasManifest = pmConfig.manifests.some((file) =>
     existsSync(join(installRoot, file)),
   );
-  if (!hasManifest) return null;
+  if (!hasManifest) {
+    deps.onChunk(
+      "setup",
+      `\r\n[install] no package manifest (${pmConfig.manifests.join(" or ")}) found at ${installRoot} — skipping install\r\n`,
+    );
+    return null;
+  }
   const corepack =
     "export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 && (corepack enable 2>/dev/null || true) && ";
   const cmd = `${config.runtimePathPrefix}cd ${installRoot} && ${corepack}${pmConfig.install}`;

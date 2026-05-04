@@ -22,6 +22,7 @@ type RuntimeConfigMeta = {
   runtime?: {
     selected?: string | null;
     port?: string | null;
+    path?: string | null;
   } | null;
 };
 
@@ -61,12 +62,14 @@ export function resolveRuntimeConfig(metadata: Record<string, unknown>) {
   const selected = runtime?.selected ?? null;
   const pm = selected as PackageManager | null;
   const port = runtime?.port ?? null;
+  const packageManagerPath = runtime?.path ?? null;
 
   if (!pm || !(pm in PACKAGE_MANAGER_CONFIG)) {
     return {
       packageManager: null,
       runtime: null,
       port,
+      packageManagerPath,
       runtimeBinPath: null,
     };
   }
@@ -83,6 +86,7 @@ export function resolveRuntimeConfig(metadata: Record<string, unknown>) {
     packageManager: pm,
     runtime: pmRuntime,
     port,
+    packageManagerPath,
     runtimeBinPath,
   };
 }

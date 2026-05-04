@@ -1,4 +1,5 @@
-import { unlinkSync } from "node:fs";
+import { existsSync, unlinkSync } from "node:fs";
+import { join } from "node:path";
 import type { ApplicationService } from "../app/application-service";
 import type { TenantConfigStore } from "../config-store";
 import type { Transition } from "../config-store/types";
@@ -209,6 +210,10 @@ export class SetupOrchestrator {
     if (config.application?.intent === "running") {
       const installed = await this.runInstall();
       if (installed) await this.startIfReady();
+    } else if (!config.application?.packageManager?.name) {
+      this.chunk(
+        "\r\n[orchestrator] no package manager configured — call set_vm_config to install dependencies and start a dev server\r\n",
+      );
     }
   }
 
@@ -281,9 +286,7 @@ export class SetupOrchestrator {
     }
     const command = this.buildStartCommand(config);
     if (!command) {
-      this.chunk(
-        "\r\n[orchestrator] skipping start: no dev/start script discovered\r\n",
-      );
+      this.chunk(this.diagnoseNoStartCommand(config));
       return;
     }
     this.deps.appService.start({
@@ -293,6 +296,29 @@ export class SetupOrchestrator {
       label: command.label,
       source: command.source,
     });
+  }
+
+  private diagnoseNoStartCommand(config: Config): string {
+    const pm = config.application?.packageManager?.name;
+    if (!pm) {
+      return "\r\n[orchestrator] skipping start: no package manager configured — update the VM config to enable a dev server\r\n";
+    }
+    const pmConf = PACKAGE_MANAGER_DAEMON_CONFIG[pm];
+    const cwd = resolvePmRoot(
+      config.repoDir,
+      config.application?.packageManager?.path,
+    );
+    const scripts = discoverScripts(cwd, pm);
+    if (scripts.length === 0) {
+      const hasManifest = pmConf?.manifests.some((f) =>
+        existsSync(join(cwd, f)),
+      );
+      if (!hasManifest) {
+        return `\r\n[orchestrator] skipping start: no package manifest (${pmConf?.manifests.join(" or ")}) found at ${cwd} — update the VM config if a dev server should run\r\n`;
+      }
+      return `\r\n[orchestrator] skipping start: no scripts defined in ${cwd}/package.json — update the VM config if a dev server should run\r\n`;
+    }
+    return `\r\n[orchestrator] skipping start: no 'dev' or 'start' script found (available: ${scripts.join(", ")}) — update the VM config to set the correct start script\r\n`;
   }
 
   private buildStartCommand(
