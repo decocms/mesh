@@ -26,6 +26,23 @@ interface OrgScopedDeps {
   mountDevAssets: boolean;
   /** mcpAuth middleware (defined in app.ts; must be applied under the new MCP prefixes). */
   mcpAuth: MiddlewareHandler<Env>;
+  /**
+   * OAuth-proxy handler (defined in app.ts). Mounted under
+   * `/api/:org/oauth-proxy/:connectionId/*` and inherits cross-org enforcement
+   * from `resolveOrgFromPath` (the handler additionally checks that the
+   * connection's `organization_id` matches the resolved org).
+   */
+  oauthProxyHandler: MiddlewareHandler<Env>;
+  /**
+   * Public events handler (defined in app.ts). Mounted at
+   * `POST /api/:org/events/:type`.
+   */
+  eventsHandler: MiddlewareHandler<Env>;
+  /**
+   * SSE watch handler (defined in app.ts). Mounted at
+   * `GET /api/:org/watch`.
+   */
+  watchHandler: MiddlewareHandler<Env>;
 }
 
 export const createOrgScopedApi = (deps: OrgScopedDeps) => {
@@ -63,6 +80,16 @@ export const createOrgScopedApi = (deps: OrgScopedDeps) => {
   app.route("/mcp", createVirtualMcpRoutes());
   app.route("/mcp/self", createSelfRoutes());
   app.route("/mcp", createProxyRoutes());
+
+  // --- Inline routes migrated from app.ts (Task 15) ---
+  // OAuth proxy under the org-scoped prefix; resolveOrgFromPath has run, so
+  // the handler can enforce cross-org access (connection.organization_id
+  // must match the resolved org).
+  app.all("/oauth-proxy/:connectionId/*", deps.oauthProxyHandler);
+
+  // Public events publish + SSE watch.
+  app.post("/events/:type", deps.eventsHandler);
+  app.get("/watch", deps.watchHandler);
 
   return app;
 };
