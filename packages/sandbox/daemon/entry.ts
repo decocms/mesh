@@ -8,6 +8,7 @@ import { TenantConfigStore } from "./config-store";
 import { REPLAY_BYTES } from "./constants";
 import { Broadcaster } from "./events/broadcast";
 import { BranchStatusMonitor } from "./git/branch-status";
+import { gitSync } from "./git/git-sync";
 import { InstallState } from "./install/install-state";
 import { CONFIG_FILENAME, readConfig } from "./persistence";
 import { discoverDescendantListeningPorts } from "./process/port-discovery";
@@ -439,6 +440,18 @@ Bun.serve<WsProxyData, never>({
 process.on("SIGTERM", () => {
   taskManager.shutdown();
   appService.shutdown();
+  const branch = store.read()?.git?.repository?.branch;
+  if (branch) {
+    try {
+      gitSync(["add", "-A"], { cwd: bootConfig.repoDir });
+      gitSync(["commit", "--allow-empty", "-m", "autosave"], {
+        cwd: bootConfig.repoDir,
+      });
+      gitSync(["push", "origin", branch], { cwd: bootConfig.repoDir });
+    } catch {
+      // best-effort
+    }
+  }
   try {
     if (existsSync(join(CONFIG_DIR, CONFIG_FILENAME))) {
       // Leave config.json in place — it's the persistent record. Just exit.
