@@ -35,14 +35,15 @@ export function getProviderLogo(model: {
   providerId: string;
   modelId: string;
 }): string {
-  const upstreamProvider = model.modelId.includes("/")
-    ? model.modelId.split("/")[0]
-    : inferUpstreamFromModelId(model.modelId);
-  return (
-    (upstreamProvider && PROVIDER_LOGOS[upstreamProvider]) ||
-    PROVIDER_LOGOS[model.providerId] ||
-    DEFAULT_LOGO
-  );
+  if (model.modelId.includes("/")) {
+    const upstream = model.modelId.split("/")[0];
+    if (PROVIDER_LOGOS[upstream]) return PROVIDER_LOGOS[upstream];
+  }
+  if (PROVIDER_LOGOS[model.providerId]) {
+    return PROVIDER_LOGOS[model.providerId];
+  }
+  const inferred = inferUpstreamFromModelId(model.modelId);
+  return (inferred && PROVIDER_LOGOS[inferred]) || DEFAULT_LOGO;
 }
 
 export const PROVIDER_LOGOS: Record<string, string> = {
