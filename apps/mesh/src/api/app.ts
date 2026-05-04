@@ -44,19 +44,19 @@ import {
   createDecoSitesOrgRoutes,
   createDecoSitesUserRoutes,
 } from "./routes/deco-sites";
-import virtualMcpRoutes from "./routes/virtual-mcp";
+import { createVirtualMcpRoutes } from "./routes/virtual-mcp";
 import oauthProxyRoutes, {
   fetchAuthorizationServerMetadata,
   fetchProtectedResourceMetadata,
 } from "./routes/oauth-proxy";
 import openaiCompatRoutes from "./routes/openai-compat";
-import proxyRoutes from "./routes/proxy";
+import { createProxyRoutes } from "./routes/proxy";
 import { createKVRoutes } from "./routes/kv";
 import { createTriggerCallbackRoutes } from "./routes/trigger-callback";
 import publicConfigRoutes from "./routes/public-config";
 import filesRoutes from "./routes/files";
 import { createThreadOutputsRoutes } from "./routes/thread-outputs";
-import selfRoutes from "./routes/self";
+import { createSelfRoutes } from "./routes/self";
 import { shouldSkipMeshContext, SYSTEM_PATHS } from "./utils/paths";
 import {
   mountPluginRoutes,
@@ -1348,14 +1348,23 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // Virtual MCP / Agent routes (must be before proxy to match /mcp/gateway and /mcp/virtual-mcp before /mcp/:connectionId)
   // /mcp/gateway/:virtualMcpId (backward compat) or /mcp/virtual-mcp/:virtualMcpId
-  app.route("/mcp", virtualMcpRoutes);
+  const legacyVirtualMcp = new Hono<Env>();
+  legacyVirtualMcp.use("*", logDeprecatedRoute);
+  legacyVirtualMcp.route("/", createVirtualMcpRoutes());
+  app.route("/mcp", legacyVirtualMcp);
 
   // Self MCP routes (at /mcp/self) - exposes all management tools
-  app.route("/mcp/self", selfRoutes);
+  const legacySelf = new Hono<Env>();
+  legacySelf.use("*", logDeprecatedRoute);
+  legacySelf.route("/", createSelfRoutes());
+  app.route("/mcp/self", legacySelf);
 
   // MCP Proxy routes (connection-specific)
   // Note: SELF MCP ({org}_self) is handled by proxy.ts with special case detection
-  app.route("/mcp", proxyRoutes);
+  const legacyProxy = new Hono<Env>();
+  legacyProxy.use("*", logDeprecatedRoute);
+  legacyProxy.route("/", createProxyRoutes());
+  app.route("/mcp", legacyProxy);
 
   // Measure LLM models route latency
   app.use("/api/:org/models/*", async (c, next) => {
