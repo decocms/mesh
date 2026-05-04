@@ -1,5 +1,4 @@
 import type { MiddlewareHandler } from "hono";
-import { HTTPException } from "hono/http-exception";
 import type { MeshContext } from "../../core/mesh-context";
 
 export const resolveOrgFromPath: MiddlewareHandler<{
@@ -7,12 +6,12 @@ export const resolveOrgFromPath: MiddlewareHandler<{
 }> = async (c, next) => {
   const slug = c.req.param("org");
   if (!slug) {
-    throw new HTTPException(400, { message: "org slug missing in path" });
+    return c.json({ error: "org slug missing in path" }, 400);
   }
 
   const ctx = c.get("meshContext");
   if (!ctx?.db) {
-    throw new HTTPException(500, { message: "meshContext not initialized" });
+    return c.json({ error: "meshContext not initialized" }, 500);
   }
   const db = ctx.db;
 
@@ -23,16 +22,12 @@ export const resolveOrgFromPath: MiddlewareHandler<{
     .executeTakeFirst();
 
   if (!org) {
-    throw new HTTPException(404, {
-      message: `organization "${slug}" not found`,
-    });
+    return c.json({ error: `organization "${slug}" not found` }, 404);
   }
 
   const userId = ctx.auth?.user?.id;
   if (!userId) {
-    throw new HTTPException(403, {
-      message: "forbidden: not a member of organization",
-    });
+    return c.json({ error: "forbidden: not a member of organization" }, 403);
   }
 
   const membership = await db
@@ -43,12 +38,10 @@ export const resolveOrgFromPath: MiddlewareHandler<{
     .executeTakeFirst();
 
   if (!membership) {
-    throw new HTTPException(403, {
-      message: "forbidden: not a member of organization",
-    });
+    return c.json({ error: "forbidden: not a member of organization" }, 403);
   }
 
   ctx.organization = { id: org.id, slug: org.slug, name: org.name };
 
-  await next();
+  return await next();
 };
