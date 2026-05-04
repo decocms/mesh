@@ -165,6 +165,7 @@ export const createProxyRoutes = () => {
             connectionId,
             connectionUrl: connection.connection_url,
             headers: {}, // Headers are built internally by createEnhancedServer
+            orgSlug: ctx.organization?.slug,
           });
           if (authResponse) {
             return authResponse;

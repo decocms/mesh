@@ -46,7 +46,9 @@ import {
   createDecoSitesUserRoutes,
 } from "./routes/deco-sites";
 import { createVirtualMcpRoutes } from "./routes/virtual-mcp";
-import oauthProxyRoutes, {
+import {
+  createWellKnownAuthServerRoutes,
+  createWellKnownProtectedResourceRoutes,
   fetchAuthorizationServerMetadata,
   fetchProtectedResourceMetadata,
 } from "./routes/oauth-proxy";
@@ -958,7 +960,20 @@ export async function createApp(options: CreateAppOptions = {}) {
   // OAuth Proxy Routes (for proxying OAuth to origin MCP servers)
   // MUST be defined BEFORE the wildcard OAuth routes below
   // ============================================================================
-  app.route("/", oauthProxyRoutes);
+
+  // OAuth Protected-Resource discovery metadata — proxied from the origin MCP
+  // server. Two URL shapes (well-known prefix vs resource-relative) are wired
+  // by the factory. Legacy mount gets the deprecation log; the new canonical
+  // mount under `/api/:org/...` is added inside `createOrgScopedApi` below.
+  const legacyWellKnownProtectedResource =
+    createWellKnownProtectedResourceRoutes();
+  legacyWellKnownProtectedResource.use("*", logDeprecatedRoute);
+  app.route("/", legacyWellKnownProtectedResource);
+
+  // Auth-server metadata stays at the legacy global path indefinitely —
+  // third-party OAuth providers may have this URL registered as a
+  // redirect_uri base, so we don't migrate or log deprecation here.
+  app.route("/", createWellKnownAuthServerRoutes());
 
   // OAuth endpoint proxy — legacy mount with deprecation log. The new
   // canonical mount lives under `/api/:org/oauth-proxy/...` (registered via
@@ -966,17 +981,28 @@ export async function createApp(options: CreateAppOptions = {}) {
   app.use("/oauth-proxy/:connectionId/*", logDeprecatedRoute);
   app.all("/oauth-proxy/:connectionId/*", oauthProxyHandler);
 
-  // Mount OAuth discovery metadata endpoints
+  // Better-Auth-served Protected Resource Metadata for the gateway-style MCP
+  // URL family. The handler is the same regardless of which path it's mounted
+  // at (Better Auth derives the resource from `baseURL`), so the legacy and
+  // new mounts share the same closure. Legacy mount gets the deprecation log.
+  const betterAuthProtectedResourceHandler: MiddlewareHandler<Env> = async (
+    c,
+  ) => {
+    const handleOAuthProtectedResourceMetadata =
+      getHandleOAuthProtectedResourceMetadata();
+    const res = await handleOAuthProtectedResourceMetadata(c.req.raw);
+    const data = (await res.json()) as ResourceServerMetadata;
+    return Response.json(data, res);
+  };
+  app.use(
+    "/mcp/:gateway?/:connectionId/.well-known/oauth-protected-resource/*",
+    logDeprecatedRoute,
+  );
   app.get(
     "/mcp/:gateway?/:connectionId/.well-known/oauth-protected-resource/*",
-    async (c) => {
-      const handleOAuthProtectedResourceMetadata =
-        getHandleOAuthProtectedResourceMetadata();
-      const res = await handleOAuthProtectedResourceMetadata(c.req.raw);
-      const data = (await res.json()) as ResourceServerMetadata;
-      return Response.json(data, res);
-    },
+    betterAuthProtectedResourceHandler,
   );
+
   const authorizationServerHandler: MiddlewareHandler<Env> = async (c) => {
     const handleOAuthDiscoveryMetadata = getHandleOAuthDiscoveryMetadata();
     const res = await handleOAuthDiscoveryMetadata(c.req.raw);
@@ -984,6 +1010,8 @@ export async function createApp(options: CreateAppOptions = {}) {
     return Response.json(data, res);
   };
 
+  // RFC 8414 mandates this exact path location, so it stays global per the
+  // org-scoped-API plan (no `/api/:org/...` mount, no deprecation log).
   app.get(
     "/.well-known/oauth-authorization-server/*/:gateway?/:connectionId?",
     authorizationServerHandler,
@@ -1680,6 +1708,7 @@ export async function createApp(options: CreateAppOptions = {}) {
     oauthProxyHandler,
     eventsHandler,
     watchHandler,
+    betterAuthProtectedResourceHandler,
   });
   app.route("/api/:org", orgScopedApi);
 
