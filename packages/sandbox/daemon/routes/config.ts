@@ -1,7 +1,15 @@
+import type { AppStateSnapshot } from "../app/application-service";
 import type { TenantConfigStore } from "../config-store";
 import type { ApplyResult } from "../config-store/types";
+import type { Task } from "../process/task-manager";
 import type { TenantConfig } from "../types";
 import { jsonResponse, parseBase64JsonBody } from "./body-parser";
+
+export interface DaemonState {
+  app: AppStateSnapshot;
+  orchestrator: { running: boolean; pending: number };
+  ready: boolean;
+}
 
 export interface ConfigDeps {
   daemonBootId: string;
@@ -19,6 +27,10 @@ export interface ConfigDeps {
    * that wired a setter accept rotation requests.
    */
   setDaemonToken?: (next: string) => void;
+  /** Live app process + orchestrator + probe state for enriched GET response. */
+  getState?: () => DaemonState;
+  /** Recent tasks (setup phases + jobs) for LLM context. */
+  getTasks?: () => Task[];
 }
 
 /** Wire-only — never persisted to TenantConfig. Stripped before `store.apply`. */
@@ -34,22 +46,21 @@ const TOKEN_MIN_LENGTH = 32;
 const TOKEN_MAX_LENGTH = 256;
 
 /**
- * GET /_decopilot_vm/config — current TenantConfig (in-memory snapshot,
- * which mirrors disk after every successful apply). Returns 404 when no
- * tenant config has been set yet.
+ * GET /_decopilot_vm/config — current TenantConfig plus live daemon state.
+ * Always returns 200 (config is null when not yet set) so callers get full
+ * state context even on a fresh daemon before the first PUT /config.
  */
 export function makeConfigReadHandler(deps: ConfigDeps) {
   return async (): Promise<Response> => {
     const tenant = deps.store.read();
-    if (!tenant) {
-      return jsonResponse(
-        { error: "no tenant config; POST /_decopilot_vm/config first" },
-        404,
-      );
-    }
+    const state = deps.getState?.();
     return jsonResponse({
       bootId: deps.daemonBootId,
-      config: stripDerived(tenant),
+      config: tenant ? stripDerived(tenant) : null,
+      app: state?.app,
+      orchestrator: state?.orchestrator,
+      ready: state?.ready ?? false,
+      tasks: deps.getTasks?.(),
     });
   };
 }

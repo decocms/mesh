@@ -179,6 +179,7 @@ async function buildAllTools(
         pendingImages,
         ctx,
         threadId: vmContext.threadId,
+        virtualMcpId: vmContext.virtualMcpId,
       }),
     );
   }

@@ -12,6 +12,7 @@ import { InstallState } from "./install/install-state";
 import { CONFIG_FILENAME, readConfig } from "./persistence";
 import { discoverDescendantListeningPorts } from "./process/port-discovery";
 import { JobManager } from "./process/job-manager";
+import { TaskManager } from "./process/task-manager";
 import { startUpstreamProbe } from "./probe";
 import { makeProxyHandler } from "./proxy";
 import { jsonResponse } from "./routes/body-parser";
@@ -79,8 +80,13 @@ const TMP_DIR = join(APP_ROOT, "tmp");
 const broadcaster = new Broadcaster(REPLAY_BYTES);
 const store = new TenantConfigStore({ storageDir: CONFIG_DIR });
 const installState = new InstallState();
+const taskManager = new TaskManager({
+  onChange: (tasks) =>
+    broadcaster.broadcastEvent("tasks", { type: "tasks", tasks }),
+});
 const jobManager = new JobManager({
   logsDir: TMP_DIR,
+  taskManager,
   onChange: () => {
     broadcaster.broadcastEvent("jobs", {
       type: "jobs",
@@ -116,6 +122,7 @@ const orchestrator = new SetupOrchestrator({
   broadcaster,
   installState,
   logsDir: TMP_DIR,
+  taskManager,
 });
 
 let branchStatus: BranchStatusMonitor | null = null;
@@ -176,6 +183,7 @@ const lastStatus = startUpstreamProbe({
     if (pid === appService.pid()) return "dev";
     return null;
   },
+  onLog: (msg) => broadcaster.broadcastChunk("setup", msg),
   onChange: (s) => {
     broadcaster.broadcastEvent("status", { type: "status", ...s });
     if (s.ready && s.port !== null) {
@@ -262,6 +270,15 @@ const wsProxy = makeWsUpgrader(getDevPort, { onClientMessage: bumpActivity });
 const configReadH = makeConfigReadHandler({
   daemonBootId: process.env.DAEMON_BOOT_ID ?? "",
   store,
+  getState: () => ({
+    app: appService.snapshot(),
+    orchestrator: {
+      running: orchestrator.isRunning(),
+      pending: orchestrator.pendingCount(),
+    },
+    ready: lastStatus.ready,
+  }),
+  getTasks: () => taskManager.recent(20),
 });
 // Closure mutates `bootConfig.daemonToken` in place so the
 // `requireToken(req, bootConfig.daemonToken)` calls below — which read the

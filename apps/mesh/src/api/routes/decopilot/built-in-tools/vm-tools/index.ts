@@ -186,6 +186,7 @@ export function createVmTools(params: VmToolsParams) {
     pendingImages,
     ctx,
     threadId,
+    virtualMcpId,
   } = params;
   const approvalFor = (mutating: boolean) => (mutating ? needsApproval : false);
   const call = async (
@@ -328,6 +329,24 @@ export function createVmTools(params: VmToolsParams) {
     runner,
     ensureHandle,
     needsApproval: vmConfigNeedsApproval(needsApproval),
+    onSaved: async (input) => {
+      if (input.packageManager === undefined && input.previewPort === undefined)
+        return;
+      const userId = ctx.auth?.user?.id;
+      if (!userId) return;
+      const virtualMcp = await ctx.storage.virtualMcps.findById(virtualMcpId);
+      if (!virtualMcp) return;
+      const meta = (virtualMcp.metadata ?? {}) as Record<string, unknown>;
+      const existing = (meta.runtime as Record<string, unknown>) ?? {};
+      const runtime: Record<string, unknown> = { ...existing };
+      if (input.packageManager !== undefined)
+        runtime.selected = input.packageManager;
+      if (input.previewPort !== undefined)
+        runtime.port = String(input.previewPort);
+      await ctx.storage.virtualMcps.update(virtualMcpId, userId, {
+        metadata: { ...meta, runtime },
+      });
+    },
   });
 
   return {

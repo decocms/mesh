@@ -15,6 +15,7 @@ import { InstallState as InstallStateClass } from "../install/install-state";
 import { LogTee } from "../process/log-tee";
 import { appLogPath, hasGitRepo, resolvePmRoot } from "../paths";
 import { discoverScripts } from "../process/script-discovery";
+import type { TaskManager } from "../process/task-manager";
 import type { Config } from "../types";
 import { spawnClone } from "./clone";
 import { configureGitIdentity } from "./identity";
@@ -31,6 +32,8 @@ export interface SetupOrchestratorDeps {
   installState: InstallState;
   /** Workspace tmp dir; install tee lives at `<logsDir>/app/install`. */
   logsDir: string;
+  /** When provided, setup phases are tracked as named tasks. */
+  taskManager?: TaskManager;
 }
 
 /**
@@ -92,13 +95,29 @@ export class SetupOrchestrator {
       while (this.queue.length > 0) {
         const t = this.queue.shift();
         if (!t) break;
+        const taskId = this.deps.taskManager?.begin(`transition:${t.kind}`);
+        this.chunk(`[orchestrator] transition: ${t.kind}\r\n`);
+        this.deps.broadcaster.broadcastEvent("transition", {
+          kind: t.kind,
+          phase: "start",
+        });
         try {
           await this.run(t);
+          this.chunk(`[orchestrator] done: ${t.kind}\r\n`);
+          this.deps.broadcaster.broadcastEvent("transition", {
+            kind: t.kind,
+            phase: "done",
+          });
+          if (taskId) this.deps.taskManager?.done(taskId);
         } catch (e) {
-          this.deps.broadcaster.broadcastChunk(
-            "setup",
-            `\r\n[orchestrator] transition ${t.kind} failed: ${(e as Error).message}\r\n`,
-          );
+          const msg = (e as Error).message;
+          this.chunk(`\r\n[orchestrator] failed: ${t.kind}: ${msg}\r\n`);
+          this.deps.broadcaster.broadcastEvent("transition", {
+            kind: t.kind,
+            phase: "failed",
+            error: msg,
+          });
+          if (taskId) this.deps.taskManager?.fail(taskId, msg);
         }
       }
     } finally {
@@ -155,6 +174,7 @@ export class SetupOrchestrator {
 
     const cloneUrl = config.git?.repository?.cloneUrl;
     if (cloneUrl && !isResume(config.repoDir)) {
+      const cloneTaskId = this.deps.taskManager?.begin("clone");
       const cloneLogPath = appLogPath(this.deps.logsDir, "clone");
       try {
         unlinkSync(cloneLogPath);
@@ -171,11 +191,14 @@ export class SetupOrchestrator {
       });
       cloneTee.close();
       if (code !== 0) {
-        this.chunk(`\r\nClone failed with exit code ${code}\r\n`);
+        this.chunk(`\r\n[orchestrator] clone failed (exit ${code})\r\n`);
+        if (cloneTaskId)
+          this.deps.taskManager?.fail(cloneTaskId, `exit ${code}`);
         return;
       }
+      if (cloneTaskId) this.deps.taskManager?.done(cloneTaskId);
     } else if (cloneUrl) {
-      this.chunk(`$ (resuming setup; ${config.repoDir} already cloned)\r\n`);
+      this.chunk(`[orchestrator] repo already cloned, resuming\r\n`);
     }
 
     // Identity has to run after clone so `git config` has a repo to write
@@ -212,10 +235,13 @@ export class SetupOrchestrator {
 
   private async branchChange(to: string): Promise<void> {
     await this.deps.appService.stop();
+    this.chunk(`[orchestrator] checking out branch: ${to}\r\n`);
     try {
       await this.checkoutBranch(to);
     } catch (e) {
-      this.chunk(`\r\nbranch-change failed: ${(e as Error).message}\r\n`);
+      this.chunk(
+        `\r\n[orchestrator] branch-change failed: ${(e as Error).message}\r\n`,
+      );
       return;
     }
     this.refreshBranchHead();
@@ -294,6 +320,8 @@ export class SetupOrchestrator {
     const config = this.currentConfig();
     if (!config) return false;
     if (!config.application?.packageManager?.name) return false;
+    const installTaskId = this.deps.taskManager?.begin("install");
+    this.chunk(`[orchestrator] installing dependencies\r\n`);
     this.deps.appService.setStatus("installing");
     const installLogPath = appLogPath(this.deps.logsDir, "install");
     try {
@@ -315,41 +343,50 @@ export class SetupOrchestrator {
     if (!installPromise) {
       installTee.close();
       this.markInstallSucceeded(config);
+      if (installTaskId) this.deps.taskManager?.done(installTaskId);
       return true;
     }
     const code = await installPromise;
     installTee.close();
     if (code !== 0) {
-      this.chunk(`\r\nInstall failed with exit code ${code}\r\n`);
+      this.chunk(`\r\n[orchestrator] install failed (exit ${code})\r\n`);
       this.deps.appService.setStatus("failed", `install exit ${code}`);
       this.deps.installState.mark(
         InstallStateClass.fingerprint(config, this.currentBranchHead),
         false,
       );
+      if (installTaskId)
+        this.deps.taskManager?.fail(installTaskId, `exit ${code}`);
       return false;
     }
     this.markInstallSucceeded(config);
+    if (installTaskId) this.deps.taskManager?.done(installTaskId);
     return true;
   }
 
   private async gitSetup(config: Config): Promise<void> {
+    const gitTaskId = this.deps.taskManager?.begin("git-setup");
     try {
       configureGitIdentity(config);
     } catch (e) {
       this.chunk(
-        `\r\nWarning: git identity setup failed: ${(e as Error).message}\r\n`,
+        `\r\n[orchestrator] warning: git identity setup failed: ${(e as Error).message}\r\n`,
       );
     }
     if (config.git?.repository?.branch) {
+      this.chunk(
+        `[orchestrator] checking out branch: ${config.git.repository.branch}\r\n`,
+      );
       try {
         await this.checkoutBranch(config.git.repository.branch);
       } catch (e) {
         this.chunk(
-          `\r\nWarning: branch checkout failed: ${(e as Error).message}\r\n`,
+          `\r\n[orchestrator] warning: branch checkout failed: ${(e as Error).message}\r\n`,
         );
       }
     }
     this.refreshBranchHead();
+    if (gitTaskId) this.deps.taskManager?.done(gitTaskId);
   }
 
   private markInstallSucceeded(config: Config): void {

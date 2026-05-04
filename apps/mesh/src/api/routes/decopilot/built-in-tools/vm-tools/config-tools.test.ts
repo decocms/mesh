@@ -224,8 +224,10 @@ describe("createConfigTools", () => {
     // GET must not carry a body — the daemon's body parser treats a non-empty
     // body on GET as a contract violation worth catching here.
     expect(call.body).toBeNull();
-    expect(out).toEqual({
+    expect(out).toMatchObject({
       config: { packageManager: "npm", runtime: "node", intent: "paused" },
+      appStatus: "unknown",
+      ready: false,
     });
   });
 

@@ -44,6 +44,8 @@ export interface ProbeDeps {
   /** Map a root pid back to the tracked process name, or null if unknown. */
   getCommandName: (rootPid: number) => string | null;
   onChange: (state: ProbeState) => void;
+  /** Called with human-readable log messages (port discovery, ready state). */
+  onLog?: (msg: string) => void;
 }
 
 interface ProbeResult {
@@ -203,11 +205,32 @@ export function startUpstreamProbe(deps: ProbeDeps): ProbeState {
       state.htmlSupport = false;
     }
 
+    const newPortsKey = portsKey(state.ports);
+    const portsChanged = prevPortsKey !== newPortsKey;
+    const readyChanged = prevReady !== state.ready;
+    const portChanged = prevPort !== state.port;
+
+    if (portsChanged && state.ports.length > 0) {
+      const portList = state.ports
+        .map((p) => `${p.port}${p.ready ? " (ready)" : ""}`)
+        .join(", ");
+      deps.onLog?.(`[probe] discovered port(s): ${portList}\r\n`);
+    }
+    if (readyChanged) {
+      if (state.ready) {
+        deps.onLog?.(`[probe] server ready on port ${state.port}\r\n`);
+      } else if (prevReady) {
+        deps.onLog?.(`[probe] server no longer ready\r\n`);
+      }
+    } else if (portChanged && state.port !== null) {
+      deps.onLog?.(`[probe] active port changed to ${state.port}\r\n`);
+    }
+
     if (
-      prevReady !== state.ready ||
-      prevPort !== state.port ||
+      readyChanged ||
+      portChanged ||
       prevHtml !== state.htmlSupport ||
-      prevPortsKey !== portsKey(state.ports)
+      portsChanged
     ) {
       deps.onChange({
         ready: state.ready,

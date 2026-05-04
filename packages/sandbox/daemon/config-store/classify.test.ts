@@ -26,14 +26,32 @@ describe("classify", () => {
     expect(classify(null, after).kind).toBe("first-bootstrap");
   });
 
-  it("cloneUrl mismatch = identity-conflict", () => {
+  it("cloneUrl mismatch (different repo) = identity-conflict", () => {
     const before: TenantConfig = {
-      git: { repository: { cloneUrl: "https://a.git" } },
+      git: { repository: { cloneUrl: "https://github.com/org/repo-a.git" } },
     };
     const after: TenantConfig = {
-      git: { repository: { cloneUrl: "https://b.git" } },
+      git: { repository: { cloneUrl: "https://github.com/org/repo-b.git" } },
     };
     expect(classify(before, after).kind).toBe("identity-conflict");
+  });
+
+  it("cloneUrl credential-only change (refreshed OAuth token) = not identity-conflict", () => {
+    const before: TenantConfig = {
+      git: {
+        repository: {
+          cloneUrl: "https://x-access-token:OLD_TOKEN@github.com/org/repo.git",
+        },
+      },
+    };
+    const after: TenantConfig = {
+      git: {
+        repository: {
+          cloneUrl: "https://x-access-token:NEW_TOKEN@github.com/org/repo.git",
+        },
+      },
+    };
+    expect(classify(before, after).kind).not.toBe("identity-conflict");
   });
 
   it("branch change = branch-change", () => {

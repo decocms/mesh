@@ -5,6 +5,7 @@ import { appLogPath } from "../paths";
 import { LogTee } from "./log-tee";
 import { spawnPty } from "./pty-spawn";
 import { RingBuffer } from "./ring-buffer";
+import type { TaskManager } from "./task-manager";
 
 const RING_BUFFER_BYTES = 256 * 1024;
 const LOG_MAX_BYTES = 10 * 1024 * 1024;
@@ -65,6 +66,7 @@ interface JobInternal {
   timedOut: boolean;
   pid: number | undefined;
   pgid: number | undefined;
+  taskId: string | undefined;
   stdout: RingBuffer;
   stderr: RingBuffer;
   /**
@@ -88,6 +90,8 @@ export interface JobManagerDeps {
   reapIntervalMs?: number;
   /** Fires on spawn and finalize so callers can re-broadcast the running set. */
   onChange?: () => void;
+  /** When provided, each job is registered as a named task on spawn/finalize. */
+  taskManager?: TaskManager;
 }
 
 /**
@@ -257,6 +261,7 @@ export class JobManager {
       resolveFinished = resolve;
     });
 
+    const taskId = this.deps.taskManager?.begin(spec.label ?? spec.command);
     const job: JobInternal = {
       id,
       spec,
@@ -267,6 +272,7 @@ export class JobManager {
       timedOut: false,
       pid: undefined,
       pgid: undefined,
+      taskId,
       stdout,
       stderr,
       tee,
@@ -417,6 +423,13 @@ export class JobManager {
     job.exitCode = result.exitCode;
     job.finishedAt = Date.now();
     job.tee.close();
+    if (job.taskId) {
+      if (status === "exited" || status === "killed") {
+        this.deps.taskManager?.done(job.taskId);
+      } else {
+        this.deps.taskManager?.fail(job.taskId, `exit ${result.exitCode}`);
+      }
+    }
     job.resolveFinished({
       exitCode: result.exitCode,
       status,

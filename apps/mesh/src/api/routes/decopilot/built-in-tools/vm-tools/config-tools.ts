@@ -100,13 +100,26 @@ const SET_VM_CONFIG_DESCRIPTION =
   "`transition` marker (e.g. 'pm-change', 'intent-change', 'no-op').";
 
 const GET_VM_CONFIG_DESCRIPTION =
-  "Read the sandbox's current runtime config. Use this before " +
-  "`set_vm_config` to inspect state instead of guessing.";
+  "Read the sandbox's current runtime config and live state. Returns: " +
+  "`config` (monorepoPath, packageManager, runtime, intent, previewPort — " +
+  "null if not yet configured), `appStatus` (idle/installing/starting/up/failed), " +
+  "`ready` (true when the preview URL is accessible), " +
+  "`orchestrator.running` (true while a setup transition is in progress), and " +
+  "`tasks` (recent setup phases and jobs). Call this before `set_vm_config` to " +
+  "understand the current state — e.g. if config is null or packageManager is " +
+  "missing, the sandbox needs configuration before it can run.";
 
 export interface ConfigToolsParams {
   readonly runner: SandboxRunner;
   readonly ensureHandle: () => Promise<string>;
   readonly needsApproval: boolean;
+  /**
+   * Called after a successful daemon PUT with the validated input. The caller
+   * mirrors mutable fields (packageManager, previewPort) back to the Virtual
+   * MCP metadata so new branch sandboxes are provisioned with the updated
+   * workload.
+   */
+  readonly onSaved?: (input: SetVmConfigInput) => Promise<void>;
 }
 
 /**
@@ -117,6 +130,25 @@ export interface ConfigToolsParams {
 interface DaemonReadResponse {
   bootId: string;
   config: DaemonConfig | null;
+  app?: {
+    status: string;
+    failureReason?: string;
+    installedAt?: number;
+    startedAt?: number;
+  };
+  orchestrator?: {
+    running: boolean;
+    pending: number;
+  };
+  ready?: boolean;
+  tasks?: Array<{
+    id: string;
+    name: string;
+    status: string;
+    startedAt: number;
+    doneAt: number | null;
+    error?: string;
+  }>;
 }
 
 interface DaemonWriteResponse {
@@ -204,7 +236,7 @@ export function fromDaemonConfig(
 const CONFIG_PATH = "/_decopilot_vm/config";
 
 export function createConfigTools(params: ConfigToolsParams) {
-  const { runner, ensureHandle, needsApproval } = params;
+  const { runner, ensureHandle, needsApproval, onSaved } = params;
 
   const get_vm_config = tool({
     needsApproval: false,
@@ -219,7 +251,16 @@ export function createConfigTools(params: ConfigToolsParams) {
         null,
         "GET",
       )) as DaemonReadResponse;
-      return { config: fromDaemonConfig(raw.config) };
+      return {
+        config: fromDaemonConfig(raw.config),
+        appStatus: raw.app?.status ?? "unknown",
+        ...(raw.app?.failureReason
+          ? { failureReason: raw.app.failureReason }
+          : {}),
+        ready: raw.ready ?? false,
+        ...(raw.orchestrator ? { orchestrator: raw.orchestrator } : {}),
+        ...(raw.tasks ? { tasks: raw.tasks } : {}),
+      };
     },
   });
 
@@ -237,6 +278,15 @@ export function createConfigTools(params: ConfigToolsParams) {
         patch,
         "PUT",
       )) as DaemonWriteResponse;
+
+      if (onSaved) {
+        try {
+          await onSaved(input);
+        } catch (err) {
+          console.error("[set_vm_config] metadata persist failed:", err);
+        }
+      }
+
       return {
         transition: raw.transition,
         config: fromDaemonConfig(raw.config),

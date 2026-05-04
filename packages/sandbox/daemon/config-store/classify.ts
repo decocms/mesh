@@ -15,13 +15,17 @@ export function classify(
   before: TenantConfig | null,
   after: TenantConfig,
 ): Transition {
-  // 1. Identity invariants (write-once cloneUrl).
+  // 1. Identity invariants (write-once repo path; credentials are excluded).
+  // The cloneUrl embeds an OAuth token (e.g. x-access-token:TOKEN@github.com/…)
+  // that is refreshed on each VM_START. Comparing raw URLs would flag a refreshed
+  // token as an identity conflict even though the repo hasn't changed. Strip
+  // username/password before comparing so only the actual repo path is guarded.
   const beforeUrl = before?.git?.repository?.cloneUrl;
   const afterUrl = after.git?.repository?.cloneUrl;
   if (
     beforeUrl !== undefined &&
     afterUrl !== undefined &&
-    beforeUrl !== afterUrl
+    stripCredentials(beforeUrl) !== stripCredentials(afterUrl)
   ) {
     return { kind: "identity-conflict", field: "cloneUrl" };
   }
@@ -88,4 +92,15 @@ export function classify(
   }
 
   return { kind: "no-op" };
+}
+
+function stripCredentials(rawUrl: string): string {
+  try {
+    const u = new URL(rawUrl);
+    u.username = "";
+    u.password = "";
+    return u.toString();
+  } catch {
+    return rawUrl;
+  }
 }

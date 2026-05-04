@@ -184,10 +184,13 @@ describe("makeConfigReadHandler", () => {
     rmSync(storageDir, { recursive: true, force: true });
   });
 
-  it("404 when no tenant config", async () => {
+  it("returns 200 with null config when no tenant config set", async () => {
     const h = makeConfigReadHandler({ daemonBootId: BOOT_ID, store });
     const res = await h();
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { bootId: string; config: null };
+    expect(body.bootId).toBe(BOOT_ID);
+    expect(body.config).toBeNull();
   });
 
   it("returns config + bootId when set", async () => {
