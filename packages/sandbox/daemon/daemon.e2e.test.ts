@@ -11,16 +11,10 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 
 const DAEMON_BUNDLE = join(import.meta.dir, "dist", "daemon.js");
 const DAEMON_TOKEN = "t".repeat(32);
-
-// Ripgrep isn't always installed on bare CI runners or dev machines; skip
-// the rg-dependent test when it's missing so the rest of the suite still runs.
-// Currently unused because the rg test is force-skipped (TODO #3259); kept for
-// when it's re-enabled.
-const _hasRipgrep = spawnSync("which", ["rg"]).status === 0;
 
 // CI cold-start of `bun` + the bundled daemon listener occasionally exceeds
 // Bun's default 5s hook timeout, especially on shared runners under load.
@@ -216,10 +210,9 @@ describe("daemon e2e (runs generated script under Bun)", () => {
     );
   });
 
-  // TODO(sandbox-daemon): broken since the state-machine refactor (#3259).
-  // Test expectations predate the new daemon API; main passes only by shard
-  // luck. Re-enable after the daemon-state-machine maintainer updates the
-  // tests to the new contract.
+  // TODO(#3259): pre-existing failure since the daemon state-machine PR
+  // landed. Tests skipped to keep CI honest while the fixtures are updated
+  // to POST /config and adapt to the new proxy 503 / "No dev server" copy.
   it.skip("SSE replays buffered events on connect and delivers live broadcasts", async () => {
     // Fire a request to produce a log line in the "daemon" replay buffer.
     await fetch(`http://localhost:${daemonPort}/_decopilot_vm/scripts`, {
@@ -262,7 +255,6 @@ describe("daemon e2e (runs generated script under Bun)", () => {
     ctrl.abort();
   });
 
-  // TODO(sandbox-daemon): broken since the state-machine refactor (#3259).
   it.skip("POST /_decopilot_vm/exec/setup returns { ok: true } when idle", async () => {
     // Boot autostart is stripped by patchForTest so the daemon is idle here.
     const res = await fetch(
@@ -274,7 +266,6 @@ describe("daemon e2e (runs generated script under Bun)", () => {
     expect(body.ok).toBe(true);
   });
 
-  // TODO(sandbox-daemon): broken since the state-machine refactor (#3259).
   it.skip("POST /_decopilot_vm/exec/setup concurrent calls return [200, 409]", async () => {
     // A local HTTP server that accepts connections but never responds.
     // git clone's curl transport will hang in the headers-read phase, which
@@ -310,7 +301,6 @@ describe("daemon e2e (runs generated script under Bun)", () => {
     }
   });
 
-  // TODO(sandbox-daemon): broken since the state-machine refactor (#3259).
   it.skip("POST /_decopilot_vm/exec/<unknown> before setup returns 400", async () => {
     const res = await fetch(
       `http://localhost:${daemonPort}/_decopilot_vm/exec/dev`,
@@ -321,7 +311,6 @@ describe("daemon e2e (runs generated script under Bun)", () => {
     expect(body.error).toContain("setup not complete");
   });
 
-  // TODO(sandbox-daemon): broken since the state-machine refactor (#3259).
   it.skip("POST /_decopilot_vm/kill/<name> when process isn't running returns 400", async () => {
     const res = await fetch(
       `http://localhost:${daemonPort}/_decopilot_vm/kill/nonexistent`,
@@ -332,7 +321,6 @@ describe("daemon e2e (runs generated script under Bun)", () => {
     expect(body.error).toContain("not running");
   });
 
-  // TODO(sandbox-daemon): broken since the state-machine refactor (#3259).
   it.skip("POST /_decopilot_vm/grep and /_decopilot_vm/glob succeed (confirms uid/gid stripped from spawn)", async () => {
     // Create a file in appDir to search
     const sampleFile = join(appDir, "needle.txt");
@@ -366,7 +354,6 @@ describe("daemon e2e (runs generated script under Bun)", () => {
     expect(globBody.files).toContain("needle.txt");
   });
 
-  // TODO(sandbox-daemon): broken since the state-machine refactor (#3259).
   it.skip("POST /_decopilot_vm/read returns file contents with line numbers", async () => {
     const sampleFile = join(appDir, "greet.txt");
     writeFileSync(sampleFile, "line1\nline2\nline3\n");
@@ -553,7 +540,10 @@ describe.skip("daemon e2e (reverse proxy)", () => {
     }
   }, HOOK_TIMEOUT_MS);
 
-  it("injects BOOTSTRAP and strips XFO/CSP/content-encoding for HTML", async () => {
+  // TODO(#3259): pre-existing failure since the daemon state-machine PR
+  // landed. The proxy 503 page text/headers changed and the bootstrap
+  // requirement now blocks these flows; tests skipped pending fixture refresh.
+  it.skip("injects BOOTSTRAP and strips XFO/CSP/content-encoding for HTML", async () => {
     await startWithUpstream(
       () =>
         new Response("<html><body><h1>hi</h1></body></html>", {
@@ -578,7 +568,7 @@ describe.skip("daemon e2e (reverse proxy)", () => {
     expect(body.indexOf("<script>")).toBeLessThan(body.lastIndexOf("</body>"));
   });
 
-  it("passes through non-HTML responses untouched", async () => {
+  it.skip("passes through non-HTML responses untouched", async () => {
     await startWithUpstream(() =>
       Response.json({ ok: true }, { headers: { "X-Frame-Options": "DENY" } }),
     );
@@ -590,7 +580,7 @@ describe.skip("daemon e2e (reverse proxy)", () => {
     expect(body.ok).toBe(true);
   });
 
-  it("returns 503 'Server is starting' HTML when upstream is unreachable at /", async () => {
+  it.skip("returns 503 'Server is starting' HTML when upstream is unreachable at /", async () => {
     await startWithoutUpstream();
     const res = await fetch(`http://localhost:${daemonPort}/`);
     expect(res.status).toBe(503);
@@ -600,7 +590,7 @@ describe.skip("daemon e2e (reverse proxy)", () => {
     expect(body).toContain("Server is starting");
   });
 
-  it("returns 502 JSON when upstream is unreachable at a non-root path", async () => {
+  it.skip("returns 502 JSON when upstream is unreachable at a non-root path", async () => {
     await startWithoutUpstream();
     const res = await fetch(`http://localhost:${daemonPort}/api/thing`);
     expect(res.status).toBe(502);
@@ -608,7 +598,7 @@ describe.skip("daemon e2e (reverse proxy)", () => {
     expect(body.error).toContain("proxy error");
   });
 
-  it("forwards POST bodies to upstream", async () => {
+  it.skip("forwards POST bodies to upstream", async () => {
     let receivedBody = "";
     await startWithUpstream(async (req) => {
       receivedBody = await req.text();
@@ -624,7 +614,7 @@ describe.skip("daemon e2e (reverse proxy)", () => {
     expect(receivedBody).toBe('{"hello":"world"}');
   });
 
-  it("forwards chunked POST bodies to upstream", async () => {
+  it.skip("forwards chunked POST bodies to upstream", async () => {
     let receivedBody = "";
     await startWithUpstream(async (req) => {
       receivedBody = await req.text();
@@ -649,7 +639,7 @@ describe.skip("daemon e2e (reverse proxy)", () => {
     expect(receivedBody).toBe("chunk1 chunk2");
   });
 
-  it("strips Authorization from the request seen by the dev server", async () => {
+  it.skip("strips Authorization from the request seen by the dev server", async () => {
     let seenAuth: string | null = "<<unset>>";
     await startWithUpstream((req) => {
       seenAuth = req.headers.get("authorization");
