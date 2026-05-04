@@ -39,6 +39,7 @@ import { createSsoRoutes } from "./routes/org-sso";
 import { createDecopilotRoutes } from "./routes/decopilot";
 import { createDownstreamTokenRoutes } from "./routes/downstream-token";
 import { logDeprecatedRoute } from "./middleware/log-deprecated-route";
+import { resolveOrgFromPath } from "./middleware/resolve-org-from-path";
 import { createOrgScopedApi } from "./routes/org-scoped";
 import { createVmEventsRoutes } from "./routes/vm-events";
 import {
@@ -1424,6 +1425,17 @@ export async function createApp(options: CreateAppOptions = {}) {
       }
     }
   });
+
+  // Apply path-based org resolution to the pre-existing org-scoped routes
+  // that aren't under createOrgScopedApi: decopilot, OpenAI compat, files.
+  // These use ensureOrganization() to read ctx.organization, which would
+  // otherwise be undefined now that the frontend no longer sends x-org-id
+  // headers. We can't apply this globally to /api/:org/* because legacy
+  // unscoped routes like /api/connections/:id/... also match that pattern
+  // (where :org matches "connections" etc).
+  app.use("/api/:org/decopilot/*", resolveOrgFromPath);
+  app.use("/api/:org/v1/*", resolveOrgFromPath);
+  app.use("/api/:org/files/*", resolveOrgFromPath);
 
   // ============================================================================
   // Server-side SSO Enforcement Middleware
