@@ -628,7 +628,9 @@ async function watchEvents(
         resolve(claimName);
         return;
       }
-      signal.addEventListener("abort", () => resolve(claimName), { once: true });
+      signal.addEventListener("abort", () => resolve(claimName), {
+        once: true,
+      });
     }),
   ]);
 
