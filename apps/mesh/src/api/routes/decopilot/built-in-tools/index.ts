@@ -258,7 +258,7 @@ async function buildAllTools(
  * tools. Preserves the original tool shape so AI SDK can't tell the wrapper
  * is there.
  */
-function instrumentBuiltIns<T extends Record<string, unknown>>(
+export function instrumentBuiltIns<T extends Record<string, unknown>>(
   tools: T,
   params: BuiltinToolParams,
   ctx: MeshContext,
@@ -274,40 +274,61 @@ function instrumentBuiltIns<T extends Record<string, unknown>>(
       continue;
     }
     const hints = BUILTIN_TOOL_ANNOTATIONS[name];
-    result[name] = {
-      ...t,
-      execute: async (input: unknown, options: unknown) => {
-        const startTime = performance.now();
-        let isError = false;
-        try {
-          return await originalExecute.call(t, input, options);
-        } catch (err) {
-          isError = true;
-          throw err;
-        } finally {
-          const latencyMs = performance.now() - startTime;
-          if (orgId && userId) {
-            posthog.capture({
-              distinctId: userId,
-              event: "tool_called",
-              groups: { organization: orgId },
-              properties: {
-                organization_id: orgId,
-                tool_source: "builtin",
-                tool_name: name,
-                tool_safe_name: name,
-                read_only: hints?.readOnly ?? null,
-                destructive: hints?.destructive ?? null,
-                idempotent: null,
-                open_world: null,
-                latency_ms: Math.round(latencyMs),
-                is_error: isError,
-              },
-            });
+    const isAsyncGen =
+      originalExecute.constructor?.name === "AsyncGeneratorFunction";
+    const captureToolCalled = (latencyMs: number, isError: boolean) => {
+      if (!orgId || !userId) return;
+      posthog.capture({
+        distinctId: userId,
+        event: "tool_called",
+        groups: { organization: orgId },
+        properties: {
+          organization_id: orgId,
+          tool_source: "builtin",
+          tool_name: name,
+          tool_safe_name: name,
+          read_only: hints?.readOnly ?? null,
+          destructive: hints?.destructive ?? null,
+          idempotent: null,
+          open_world: null,
+          latency_ms: Math.round(latencyMs),
+          is_error: isError,
+        },
+      });
+    };
+    // Generator-shaped execute must stay generator-shaped, otherwise the
+    // AI SDK's isAsyncIterable check fails on the returned Promise and the
+    // streamed yields are dropped (subtask "No output available" bug).
+    const wrappedExecute = isAsyncGen
+      ? async function* (input: unknown, options: unknown) {
+          const startTime = performance.now();
+          let isError = false;
+          try {
+            yield* originalExecute.call(
+              t,
+              input,
+              options,
+            ) as AsyncIterable<unknown>;
+          } catch (err) {
+            isError = true;
+            throw err;
+          } finally {
+            captureToolCalled(performance.now() - startTime, isError);
           }
         }
-      },
-    };
+      : async (input: unknown, options: unknown) => {
+          const startTime = performance.now();
+          let isError = false;
+          try {
+            return await originalExecute.call(t, input, options);
+          } catch (err) {
+            isError = true;
+            throw err;
+          } finally {
+            captureToolCalled(performance.now() - startTime, isError);
+          }
+        };
+    result[name] = { ...t, execute: wrappedExecute };
   }
   return result as T;
 }
