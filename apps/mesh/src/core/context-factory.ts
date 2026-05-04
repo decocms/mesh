@@ -500,11 +500,18 @@ async function authenticateRequest(
     if (session) {
       const userId = session.userId;
 
-      // For MCP OAuth sessions, we need to query the database directly
-      // because getFullOrganization requires a browser session (cookies)
-      // Query user's first organization membership
-      const membership = await timings.measure("auth_query_membership", () =>
-        db
+      // For MCP OAuth sessions we need to query the database directly because
+      // getFullOrganization requires a browser session (cookies). The OAuth
+      // grant doesn't carry org context, so prefer an explicit hint from the
+      // request (x-org-id / x-org-slug) and fall back to the user's first
+      // membership only when no hint is given. Without the hint, multi-org
+      // users get a non-deterministic pick and end up with the wrong
+      // ctx.organization on every request that doesn't target their first org.
+      const orgIdHint = req.headers.get("x-org-id");
+      const orgSlugHint = req.headers.get("x-org-slug");
+
+      const membership = await timings.measure("auth_query_membership", () => {
+        const base = db
           .selectFrom("member")
           .innerJoin("organization", "organization.id", "member.organizationId")
           .select([
@@ -514,9 +521,20 @@ async function authenticateRequest(
             "organization.slug as orgSlug",
             "organization.name as orgName",
           ])
-          .where("member.userId", "=", userId)
-          .executeTakeFirst(),
-      );
+          .where("member.userId", "=", userId);
+
+        if (orgIdHint) {
+          return base
+            .where("organization.id", "=", orgIdHint)
+            .executeTakeFirst();
+        }
+        if (orgSlugHint) {
+          return base
+            .where("organization.slug", "=", orgSlugHint)
+            .executeTakeFirst();
+        }
+        return base.executeTakeFirst();
+      });
 
       const role = membership?.role;
       const organization = membership
