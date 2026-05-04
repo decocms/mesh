@@ -123,8 +123,14 @@ export async function pollInteraction(
     if (opts.onProgress) opts.onProgress(buildTranscript(outputs));
 
     switch (status) {
-      case "completed":
-        return finalize(outputs, parseUsage(payload));
+      case "completed": {
+        const result = finalize(outputs, parseUsage(payload));
+        // Gemini surfaces citation URLs as `vertexaisearch.cloud.google.com/...`
+        // redirects rather than the underlying source. Resolve them so the
+        // UI shows the real domain instead of an opaque Google URL.
+        result.citations = await resolveCitationRedirects(result.citations);
+        return result;
+      }
       case "failed":
       case "cancelled": {
         const errMsg =
@@ -140,6 +146,47 @@ export async function pollInteraction(
 
     await sleep(interval, opts.abortSignal);
   }
+}
+
+/**
+ * Citation URLs from Gemini come as Vertex AI Search redirect URLs, e.g.
+ * `https://vertexaisearch.cloud.google.com/grounding-api-redirect/<token>`.
+ * Resolve each in parallel via a HEAD request that doesn't follow redirects;
+ * if the response carries a Location header, swap in that URL. On any
+ * failure (network, no Location, non-redirect response) we keep the
+ * original — the UI still works, it just shows the redirect URL.
+ */
+async function resolveCitationRedirects(
+  citations: InteractionsCitation[],
+): Promise<InteractionsCitation[]> {
+  const REDIRECT_HOST = "vertexaisearch.cloud.google.com";
+  const TIMEOUT_MS = 5_000;
+  return Promise.all(
+    citations.map(async (c) => {
+      let host: string;
+      try {
+        host = new URL(c.url).hostname;
+      } catch {
+        return c;
+      }
+      if (host !== REDIRECT_HOST) return c;
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+        const res = await fetch(c.url, {
+          method: "HEAD",
+          redirect: "manual",
+          signal: ctrl.signal,
+        });
+        clearTimeout(timer);
+        const location = res.headers.get("location");
+        if (location) return { ...c, url: location };
+        return c;
+      } catch {
+        return c;
+      }
+    }),
+  );
 }
 
 function buildTranscript(outputs: OutputBlock[]): string {

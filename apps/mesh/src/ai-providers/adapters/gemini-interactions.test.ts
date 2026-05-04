@@ -223,6 +223,83 @@ describe("pollInteraction", () => {
     expect(calls).toHaveLength(0);
   });
 
+  test("rewrites vertexaisearch redirect URLs to the underlying source", async () => {
+    queueFetch([
+      // poll → completed
+      () =>
+        jsonResponse({
+          status: "completed",
+          outputs: [
+            {
+              type: "text",
+              text: "report",
+              annotations: [
+                {
+                  type: "url_citation",
+                  url: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AAA",
+                  title: "vertexaisearch.cloud.go…",
+                },
+                {
+                  type: "url_citation",
+                  url: "https://example.com/already-direct",
+                  title: "Direct",
+                },
+              ],
+            },
+          ],
+          usage: { input_tokens: 1, output_tokens: 1 },
+        }),
+      // HEAD on the redirect URL → 302 with Location
+      () =>
+        new Response(null, {
+          status: 302,
+          headers: { location: "https://nytimes.com/article" },
+        }),
+    ]);
+
+    const result = await pollInteraction({
+      apiKey: "k",
+      interactionId: "i_redir",
+      pollIntervalMs: 0,
+    });
+
+    expect(result.citations).toEqual([
+      { url: "https://nytimes.com/article", title: "vertexaisearch.cloud.go…" },
+      { url: "https://example.com/already-direct", title: "Direct" },
+    ]);
+  });
+
+  test("keeps original URL when redirect resolution fails", async () => {
+    queueFetch([
+      () =>
+        jsonResponse({
+          status: "completed",
+          outputs: [
+            {
+              type: "text",
+              text: "x",
+              annotations: [
+                {
+                  type: "url_citation",
+                  url: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/BBB",
+                  title: "T",
+                },
+              ],
+            },
+          ],
+          usage: { input_tokens: 0, output_tokens: 0 },
+        }),
+      // HEAD returns 200 without a Location header — keep original.
+      () => new Response(null, { status: 200 }),
+    ]);
+    const result = await pollInteraction({
+      apiKey: "k",
+      interactionId: "i_keep",
+      pollIntervalMs: 0,
+    });
+    expect(result.citations[0]?.url).toMatch(/grounding-api-redirect\/BBB/);
+  });
+
   test("URL-encodes the interaction id", async () => {
     const calls = queueFetch([
       () => jsonResponse({ status: "completed", outputs: [] }),

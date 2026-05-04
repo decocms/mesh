@@ -21,6 +21,9 @@ export interface ModelInfo {
   costs: { input: number; output: number } | null;
   /** When true the upstream provider has flagged this model as deprecated. */
   deprecated?: boolean;
+  /** Mirrors `AiProviderModel.asyncResearch` — restricts this model to the
+   *  deep-research slot. */
+  asyncResearch?: boolean;
 }
 
 export interface TokenCounter {
