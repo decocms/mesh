@@ -1,5 +1,10 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import type { ModelCapability } from "@decocms/mesh-sdk";
+import {
+  isInteractionsOnlyModel,
+  pollInteraction,
+  submitInteraction,
+} from "./gemini-interactions";
 import type { MeshProvider, ProviderAdapter, ModelInfo } from "../types";
 
 interface GoogleModel {
@@ -61,6 +66,27 @@ export const googleAdapter: ProviderAdapter = {
     return {
       info: this.info,
       aiSdk,
+
+      asyncResearch: {
+        canHandle: (modelId) => isInteractionsOnlyModel(modelId),
+        start: async ({ modelId, query, abortSignal }) => {
+          const { interactionId } = await submitInteraction({
+            apiKey,
+            agent: modelId,
+            query,
+            abortSignal,
+          });
+          return { jobId: interactionId };
+        },
+        resume: ({ jobId, abortSignal, onProgress, pollIntervalMs }) =>
+          pollInteraction({
+            apiKey,
+            interactionId: jobId,
+            abortSignal,
+            onProgress,
+            pollIntervalMs,
+          }),
+      },
 
       async listModels(): Promise<ModelInfo[]> {
         const res = await fetch(

@@ -5,12 +5,13 @@
  * Threads are organization-scoped, messages are thread-scoped.
  */
 
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import { DEFAULT_THREAD_TITLE } from "@/api/routes/decopilot/constants";
 import type { ThreadStoragePort } from "./ports";
 import type {
   Database,
+  InflightAsyncJob,
   Thread,
   ThreadMessage,
   ThreadMetadata,
@@ -19,6 +20,18 @@ import type {
 
 function toIsoString(v: Date | string): string {
   return typeof v === "string" ? v : v.toISOString();
+}
+
+function parseInflightJobs(
+  raw: InflightAsyncJob[] | string | null | undefined,
+): InflightAsyncJob[] | null {
+  if (raw == null) return null;
+  if (typeof raw !== "string") return raw;
+  try {
+    return JSON.parse(raw) as InflightAsyncJob[];
+  } catch {
+    return null;
+  }
 }
 
 // ============================================================================
@@ -94,6 +107,40 @@ export class OrgScopedThreadStorage {
     options?: { limit?: number; offset?: number },
   ): Promise<{ threads: Thread[]; total: number }> {
     return this.inner.listByTriggerIds(this.requireOrg(), triggerIds, options);
+  }
+
+  addInflightAsyncJob(taskId: string, entry: InflightAsyncJob): Promise<void> {
+    return this.inner.addInflightAsyncJob(taskId, this.requireOrg(), entry);
+  }
+
+  findInflightAsyncJob(
+    taskId: string,
+    provider: string,
+    modelId: string,
+    query: string,
+  ): Promise<InflightAsyncJob | null> {
+    return this.inner.findInflightAsyncJob(
+      taskId,
+      this.requireOrg(),
+      provider,
+      modelId,
+      query,
+    );
+  }
+
+  removeInflightAsyncJob(
+    taskId: string,
+    provider: string,
+    modelId: string,
+    query: string,
+  ): Promise<void> {
+    return this.inner.removeInflightAsyncJob(
+      taskId,
+      this.requireOrg(),
+      provider,
+      modelId,
+      query,
+    );
   }
 
   saveMessages(data: ThreadMessage[]): Promise<void> {
@@ -660,6 +707,79 @@ export class SqlThreadStorage implements ThreadStoragePort {
     return rows.map((r) => r.id);
   }
 
+  async addInflightAsyncJob(
+    taskId: string,
+    organizationId: string,
+    entry: InflightAsyncJob,
+  ): Promise<void> {
+    // jsonb concat: append the entry to whatever's there (or to []).
+    await this.db
+      .updateTable("threads")
+      .set({
+        inflight_async_jobs: sql`COALESCE(inflight_async_jobs, '[]'::jsonb) || ${JSON.stringify([entry])}::jsonb`,
+        updated_at: new Date().toISOString(),
+      })
+      .where("id", "=", taskId)
+      .where("organization_id", "=", organizationId)
+      .execute();
+  }
+
+  async findInflightAsyncJob(
+    taskId: string,
+    organizationId: string,
+    provider: string,
+    modelId: string,
+    query: string,
+  ): Promise<InflightAsyncJob | null> {
+    const row = await this.db
+      .selectFrom("threads")
+      .select("inflight_async_jobs")
+      .where("id", "=", taskId)
+      .where("organization_id", "=", organizationId)
+      .executeTakeFirst();
+    const list = parseInflightJobs(row?.inflight_async_jobs);
+    if (!list) return null;
+    // Most recently submitted first → reverse so we prefer the freshest match.
+    for (let i = list.length - 1; i >= 0; i--) {
+      const e = list[i];
+      if (
+        e &&
+        e.provider === provider &&
+        e.modelId === modelId &&
+        e.query === query
+      ) {
+        return e;
+      }
+    }
+    return null;
+  }
+
+  async removeInflightAsyncJob(
+    taskId: string,
+    organizationId: string,
+    provider: string,
+    modelId: string,
+    query: string,
+  ): Promise<void> {
+    await this.db
+      .updateTable("threads")
+      .set({
+        inflight_async_jobs: sql`(
+          SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
+          FROM jsonb_array_elements(COALESCE(inflight_async_jobs, '[]'::jsonb)) elem
+          WHERE NOT (
+            elem->>'provider' = ${provider}
+            AND elem->>'modelId' = ${modelId}
+            AND elem->>'query' = ${query}
+          )
+        )`,
+        updated_at: new Date().toISOString(),
+      })
+      .where("id", "=", taskId)
+      .where("organization_id", "=", organizationId)
+      .execute();
+  }
+
   // ==========================================================================
   // Private Helper Methods
   // ==========================================================================
@@ -675,6 +795,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
     run_owner_pod?: string | null;
     run_config?: Record<string, unknown> | null;
     run_started_at?: Date | string | null;
+    inflight_async_jobs?: InflightAsyncJob[] | string | null;
     virtual_mcp_id?: string | null;
     branch?: string | null;
     metadata?: ThreadMetadata | string | null;
@@ -714,6 +835,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
       run_started_at: row.run_started_at
         ? toIsoString(row.run_started_at)
         : null,
+      inflight_async_jobs: parseInflightJobs(row.inflight_async_jobs),
       virtual_mcp_id: row.virtual_mcp_id ?? "",
       branch: row.branch ?? null,
       metadata,

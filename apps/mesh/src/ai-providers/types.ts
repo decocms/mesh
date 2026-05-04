@@ -30,9 +30,45 @@ export interface TokenCounter {
   }): Promise<{ count: number }>;
 }
 
+export interface AsyncResearchResult {
+  text: string;
+  citations: Array<{ url: string; title?: string }>;
+  usage: { inputTokens: number; outputTokens: number };
+}
+
+/**
+ * Generic capability for "research" jobs that don't fit streamText — they're
+ * submit-then-poll, take minutes, and need to survive pod death. Each adapter
+ * decides which of its models route through this path; the caller doesn't
+ * know whether the underlying protocol is Gemini's Interactions API,
+ * something OpenAI ships later, etc.
+ */
+export interface AsyncResearchProvider {
+  /** Whether the given model id should be driven through this capability. */
+  canHandle(modelId: string): boolean;
+  /** Submit a new job. Returns an adapter-opaque handle that survives restarts. */
+  start(req: {
+    modelId: string;
+    query: string;
+    abortSignal?: AbortSignal;
+  }): Promise<{ jobId: string }>;
+  /**
+   * Drive an already-submitted job to terminal state. Same call works for the
+   * pod that submitted it AND for a fresh pod resuming after a crash.
+   */
+  resume(req: {
+    jobId: string;
+    abortSignal?: AbortSignal;
+    onProgress?: (transcript: string) => void;
+    pollIntervalMs?: number;
+  }): Promise<AsyncResearchResult>;
+}
+
 export interface MeshProvider {
   readonly info: ProviderInfo;
   readonly aiSdk: ProviderV3;
+  /** Set by providers that expose async/long-running research jobs. */
+  readonly asyncResearch?: AsyncResearchProvider;
   listModels(): Promise<ModelInfo[]>;
 }
 

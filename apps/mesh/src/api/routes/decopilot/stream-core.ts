@@ -513,6 +513,7 @@ async function streamCoreInner(
                 pendingImages,
                 passthroughClient,
                 vmContext,
+                taskId: mem.thread.id,
               },
               ctx,
             );
