@@ -34,22 +34,25 @@ import {
 export type ToolApprovalLevel = "auto" | "readonly";
 
 /**
- * Determine if a tool needs approval based on approval level and readOnlyHint
+ * Determine if a tool needs approval based on approval level and annotations
  *
  * @param level - The approval level setting
  * @param readOnlyHint - Optional hint from MCP tool annotations
  * @param options.isPlanMode - When true (chat `mode: "plan"`), non-read-only tools are hard-blocked
+ * @param options.destructiveHint - When true, the tool always requires approval regardless of level
  * @returns true if the tool requires approval, false if auto-approved
  */
 export function toolNeedsApproval(
   level: ToolApprovalLevel,
   readOnlyHint?: boolean,
-  options?: { isPlanMode?: boolean },
+  options?: { isPlanMode?: boolean; destructiveHint?: boolean },
 ): boolean | "hard-block" {
   if (options?.isPlanMode) {
     if (readOnlyHint === true) return false;
     return "hard-block";
   }
+  // Destructive tools always require approval
+  if (options?.destructiveHint === true) return true;
   if (level === "auto") return false;
   // "readonly": auto-approve only if explicitly marked readOnly
   return readOnlyHint !== true;
@@ -165,6 +168,7 @@ export async function toolsFromMCP(
         needsApproval:
           toolNeedsApproval(toolApprovalLevel, annotations?.readOnlyHint, {
             isPlanMode: options?.isPlanMode,
+            destructiveHint: annotations?.destructiveHint,
           }) !== false,
         execute: async (input, callOptions) => {
           const startTime = performance.now();
