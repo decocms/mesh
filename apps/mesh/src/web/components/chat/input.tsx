@@ -259,7 +259,7 @@ function FileDropZone({
 
 /**
  * Submit handler for the home composer. No active task exists; we write
- * the tiptap doc to localStorage and navigate to a fresh /$org/$taskId.
+ * the tiptap doc to sessionStorage and navigate to a fresh /$org/$taskId.
  * The new task page's useEnsureTask creates the thread (server-side
  * idempotent on id) and ActiveTaskProvider's autosend consumer fires
  * sendMessage on mount.
@@ -278,7 +278,7 @@ function useHomeSubmit() {
     const newId = crypto.randomUUID();
     const targetVmcp =
       virtualMcp?.id ?? getWellKnownDecopilotVirtualMCP(org.id).id;
-    writeStoredAutosend(localStorage, locator, newId, { tiptapDoc });
+    writeStoredAutosend(sessionStorage, locator, newId, { tiptapDoc });
     navigate({
       to: "/$org/$taskId",
       params: { org: org.slug, taskId: newId },
