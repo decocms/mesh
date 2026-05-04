@@ -39,6 +39,8 @@ import orgSsoRoutes from "./routes/org-sso";
 import { createDecopilotRoutes } from "./routes/decopilot";
 import downstreamTokenRoutes from "./routes/downstream-token";
 import { vmEventsRoutes } from "./routes/vm-events";
+import { vmExecRoutes } from "./routes/vm-exec";
+import { vmConfigRoutes } from "./routes/vm-config";
 import decoSitesRoutes from "./routes/deco-sites";
 import virtualMcpRoutes from "./routes/virtual-mcp";
 import oauthProxyRoutes, {
@@ -1507,6 +1509,15 @@ export async function createApp(options: CreateAppOptions = {}) {
   // the sandbox is up. Replaces the prior split between `/api/vm-lifecycle`
   // and the browser's direct daemon EventSource.
   app.route("/api/vm-events", vmEventsRoutes);
+
+  // Browser-facing /exec and /kill proxy. Daemon enforces a bearer token on
+  // mutating routes; mesh holds the token, so the env panel routes script
+  // start/stop here instead of hitting the daemon previewUrl directly.
+  app.route("/api/vm-exec", vmExecRoutes);
+
+  // Browser-facing read of the daemon's live tenantConfig. PUT will land
+  // alongside in a follow-up.
+  app.route("/api/vm-config", vmConfigRoutes);
 
   // ============================================================================
   // Server Plugin Routes

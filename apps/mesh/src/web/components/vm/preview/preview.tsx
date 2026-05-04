@@ -42,6 +42,7 @@ import { useVmEvents, useVmReloadHandler } from "../hooks/use-vm-events";
 import {
   useIsVmStartPending,
   useVmStart,
+  vmUserStop,
   type VmStartArgs,
 } from "../hooks/use-vm-start";
 import { VmSuspendedState } from "../vm-suspended-state";
@@ -96,6 +97,13 @@ export function PreviewContent() {
   const hasHtmlPreview = vmEvents.status.htmlSupport;
   const suspended = vmEvents.suspended;
 
+  // Install ran, dev script is intentionally stopped (idle) — treat as paused,
+  // not booting. Otherwise on remount the booting overlay falsely flashes
+  // "Installing packages…" because probe.ready=false and scripts.length>0.
+  const appPaused =
+    vmEvents.appStatus?.status === "idle" &&
+    vmEvents.appStatus?.installedAt != null;
+
   // Gate iframe on upstream readiness to avoid the daemon's "Server is
   // starting..." placeholder; keep mounted once ever-ready so HMR hiccups
   // don't re-show the boot screen. `at` uses server-stamped
@@ -115,7 +123,8 @@ export function PreviewContent() {
   if (previewUrl && vmEvents.status.ready && !bootTrackedRef.current.ready) {
     bootTrackedRef.current.ready = true;
   }
-  const booting = !!previewUrl && !bootTrackedRef.current.ready && !suspended;
+  const booting =
+    !!previewUrl && !bootTrackedRef.current.ready && !suspended && !appPaused;
 
   // Cover the gap between VM_START being submitted and vmMap populating a
   // previewUrl; otherwise the empty "No server running" state flashes while
@@ -210,9 +219,12 @@ export function PreviewContent() {
     if (!deadVmId || !virtualMcpId) return;
     if (lastStartError || startVm.isPending) return;
     if (reprovisionedForVmIdRef.current === deadVmId) return;
+    // Don't self-heal a VM the user explicitly stopped: the SSE "gone" event
+    // can arrive before the vmMap query refetch clears the stale entry.
+    if (branch && vmUserStop.isStopped(virtualMcpId, branch)) return;
     reprovisionedForVmIdRef.current = deadVmId;
     triggerStartRef.current("self-heal");
-  }, [deadVmId, virtualMcpId, lastStartError, startVm.isPending]);
+  }, [deadVmId, virtualMcpId, lastStartError, startVm.isPending, branch]);
 
   const retryAutoStart = () => {
     autoStartedForTaskRef.current = null;
@@ -415,7 +427,7 @@ export function PreviewContent() {
           </div>
         )}
 
-        {!lastStartError && suspended && (
+        {!lastStartError && (suspended || appPaused) && (
           <div className="absolute inset-0 z-30 bg-background/80 backdrop-blur-sm">
             <VmSuspendedState onResume={openEnv} />
           </div>
@@ -450,7 +462,7 @@ export function PreviewContent() {
             onDismiss={() => setVisualElement(null)}
           />
         )}
-        {previewUrl && !booting && !vmEvents.notFound && (
+        {previewUrl && !booting && !vmEvents.notFound && !appPaused && (
           <iframe
             // Key on previewUrl: `src` mutations don't reliably refetch in all
             // browsers and leak in-frame state across branches.

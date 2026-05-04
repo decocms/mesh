@@ -113,7 +113,13 @@ app.get("/", async (c) => {
   const runnerKind = resolveRunnerKindFromEnv();
   // The handle is the same value the runner stored in its state-store when
   // VM_START provisioned the sandbox, so the daemon-proxy lookup hits.
-  const claimName = computeHandle({ userId, projectRef }, branch);
+  // agent-sandbox uses hashLen:16 for preview-URL security; other runners
+  // use the default hashLen:5.
+  const claimName = computeHandle(
+    { userId, projectRef },
+    branch,
+    runnerKind === "agent-sandbox" ? { hashLen: 16 } : {},
+  );
 
   // Snapshot vmMap from the same metadata read used for the org-ownership
   // check. Used below to gate the stale-handle probe: we only run it when
@@ -176,6 +182,8 @@ app.get("/", async (c) => {
         if (stale) {
           await cleanupStaleEntry({
             ctx,
+            runner,
+            claimName,
             userId,
             projectRef,
             runnerKind: existingRunnerKind ?? runnerKind,
@@ -225,10 +233,21 @@ async function isStaleHandle(
 }
 
 /**
- * Best-effort: drop the stale runner-state row so the next VM_START's
- * `runner.ensure` skips the rehydrate path (which would chase a dead
- * port-forward and timeout) and falls through to cluster-adopt or fresh
- * provision instead.
+ * Drop the stale in-memory record (closes its port-forward) AND the
+ * state-store row, so the next VM_START's `runner.ensure` skips the
+ * rehydrate path (which would chase a dead port-forward and timeout) and
+ * falls through to fresh provision. The state-store delete alone wasn't
+ * enough — when `runner.alive` returns false because the operator's
+ * housekeeper reaped the claim out from under us, mesh's `records` map
+ * still held the K8sRecord pointing at the now-deleted pod, and the
+ * deterministic preview port stayed bound to that dead pod's WS forwarder
+ * until process restart. Calling `runner.delete` invalidates both.
+ *
+ * `runner.delete` is idempotent: it 404-tolerantly tries to delete the
+ * SandboxClaim, closes any forwarder, drops in-memory + state-store rows.
+ * The runner-kind dispatch matches the *prior* kind (existingRunnerKind)
+ * so we don't leave behind rows in the wrong table when the env's runner
+ * has flipped between starts and stops.
  *
  * We deliberately do NOT touch the vmMap entry. Two reasons:
  *   1. `runner.ensure` resumes from the state-store, not vmMap — vmMap is
@@ -246,11 +265,22 @@ async function isStaleHandle(
  */
 async function cleanupStaleEntry(args: {
   ctx: MeshContext;
+  runner: NonNullable<Awaited<ReturnType<typeof getOrInitSharedRunner>>>;
+  claimName: string;
   userId: string;
   projectRef: string;
   runnerKind: "host" | "docker" | "freestyle" | "agent-sandbox";
 }): Promise<void> {
-  const { ctx, userId, projectRef, runnerKind } = args;
+  const { ctx, runner, claimName, userId, projectRef, runnerKind } = args;
+  try {
+    await runner.delete(claimName);
+  } catch (err) {
+    console.warn(
+      `[vm-events] runner.delete failed for ${claimName}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
   try {
     const stateStore = new KyselySandboxRunnerStateStore(ctx.db);
     await stateStore.delete({ userId, projectRef }, runnerKind);

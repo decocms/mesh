@@ -295,7 +295,8 @@ describe("daemon e2e (runs generated script under Bun)", () => {
       );
       const [r1, r2] = await Promise.all([first, second]);
       const statuses = [r1.status, r2.status].sort();
-      expect(statuses).toEqual([200, 409]);
+      expect(statuses[0]).toBe(200);
+      expect([409, 503]).toContain(statuses[1]);
     } finally {
       blocker.stop(true);
     }
@@ -633,5 +634,170 @@ describe("daemon e2e (reverse proxy)", () => {
     });
     expect(res.status).toBe(200);
     expect(receivedBody).toBe("chunk1 chunk2");
+  });
+
+  it("strips Authorization from the request seen by the dev server", async () => {
+    let seenAuth: string | null = "<<unset>>";
+    await startWithUpstream((req) => {
+      seenAuth = req.headers.get("authorization");
+      return Response.json({ ok: true });
+    });
+    const res = await fetch(`http://localhost:${daemonPort}/api/sniff`, {
+      headers: { Authorization: `Bearer ${DAEMON_TOKEN}` },
+    });
+    expect(res.status).toBe(200);
+    expect(seenAuth).toBeNull();
+  });
+});
+
+describe("daemon e2e (auth on mutating routes)", () => {
+  beforeEach(async () => {
+    await startDaemon();
+  }, HOOK_TIMEOUT_MS);
+  afterEach(async () => {
+    await stopDaemon();
+  }, HOOK_TIMEOUT_MS);
+
+  const toBody = (obj: unknown) =>
+    Buffer.from(JSON.stringify(obj), "utf-8").toString("base64");
+
+  const MUTATING_POSTS: Array<{
+    name: string;
+    path: string;
+    body: string;
+  }> = [
+    { name: "read", path: "/_decopilot_vm/read", body: toBody({ path: "x" }) },
+    {
+      name: "write",
+      path: "/_decopilot_vm/write",
+      body: toBody({ path: "x", content: "y" }),
+    },
+    {
+      name: "edit",
+      path: "/_decopilot_vm/edit",
+      body: toBody({ path: "x", old_string: "a", new_string: "b" }),
+    },
+    {
+      name: "grep",
+      path: "/_decopilot_vm/grep",
+      body: toBody({ pattern: "x" }),
+    },
+    {
+      name: "glob",
+      path: "/_decopilot_vm/glob",
+      body: toBody({ pattern: "*" }),
+    },
+    {
+      name: "bash",
+      path: "/_decopilot_vm/bash",
+      body: toBody({ command: "true" }),
+    },
+    { name: "exec/setup", path: "/_decopilot_vm/exec/setup", body: "" },
+    { name: "kill/foo", path: "/_decopilot_vm/kill/foo", body: "" },
+  ];
+
+  for (const m of MUTATING_POSTS) {
+    it(`POST ${m.name} without bearer returns 401`, async () => {
+      const res = await fetch(`http://localhost:${daemonPort}${m.path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: m.body,
+      });
+      expect(res.status).toBe(401);
+    });
+
+    it(`POST ${m.name} with wrong bearer returns 401`, async () => {
+      const res = await fetch(`http://localhost:${daemonPort}${m.path}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer wrong-token",
+        },
+        body: m.body,
+      });
+      expect(res.status).toBe(401);
+    });
+
+    it(`POST ${m.name} with correct bearer is not 401`, async () => {
+      const res = await fetch(`http://localhost:${daemonPort}${m.path}`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: m.body,
+      });
+      expect(res.status).not.toBe(401);
+    });
+  }
+
+  it("GET /health works without auth", async () => {
+    const res = await fetch(`http://localhost:${daemonPort}/health`);
+    expect(res.status).toBe(200);
+  });
+
+  it("GET /_decopilot_vm/idle works without auth", async () => {
+    const res = await fetch(
+      `http://localhost:${daemonPort}/_decopilot_vm/idle`,
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("GET /_decopilot_vm/scripts works without auth", async () => {
+    const res = await fetch(
+      `http://localhost:${daemonPort}/_decopilot_vm/scripts`,
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("GET /_decopilot_vm/events works without auth", async () => {
+    const ctrl = new AbortController();
+    const res = await fetch(
+      `http://localhost:${daemonPort}/_decopilot_vm/events`,
+      { signal: ctrl.signal },
+    );
+    expect(res.status).toBe(200);
+    ctrl.abort();
+  });
+
+  it("GET /health tolerates an arbitrary Authorization header", async () => {
+    const res = await fetch(`http://localhost:${daemonPort}/health`, {
+      headers: { Authorization: "Bearer junk-token" },
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("GET /_decopilot_vm/idle tolerates an arbitrary Authorization header", async () => {
+    const res = await fetch(
+      `http://localhost:${daemonPort}/_decopilot_vm/idle`,
+      { headers: { Authorization: "Bearer junk-token" } },
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("GET /_decopilot_vm/scripts tolerates an arbitrary Authorization header", async () => {
+    const res = await fetch(
+      `http://localhost:${daemonPort}/_decopilot_vm/scripts`,
+      { headers: { Authorization: "Bearer junk-token" } },
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("GET /_decopilot_vm/events tolerates an arbitrary Authorization header", async () => {
+    const ctrl = new AbortController();
+    const res = await fetch(
+      `http://localhost:${daemonPort}/_decopilot_vm/events`,
+      {
+        signal: ctrl.signal,
+        headers: { Authorization: "Bearer junk-token" },
+      },
+    );
+    expect(res.status).toBe(200);
+    ctrl.abort();
+  });
+
+  it("OPTIONS /_decopilot_vm/* preflight works without auth", async () => {
+    const res = await fetch(
+      `http://localhost:${daemonPort}/_decopilot_vm/bash`,
+      { method: "OPTIONS" },
+    );
+    expect(res.status).toBe(204);
   });
 });

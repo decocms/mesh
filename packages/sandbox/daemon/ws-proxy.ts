@@ -24,8 +24,9 @@ import type { ServerWebSocket } from "bun";
 const MAX_PENDING_FRAMES = 256;
 
 export interface WsProxyData {
-  /** Full upstream URL — `ws://localhost:<devPort><path>?<search>`. */
-  target: string;
+  /** Full upstream URL — `ws://localhost:<devPort><path>?<search>`.
+   *  Null when no upstream port is known at upgrade time. */
+  target: string | null;
   /** Subprotocols the client advertised on the upgrade request. */
   protocols: string[] | undefined;
   upstream: WebSocket | null;
@@ -38,14 +39,20 @@ export interface WsUpgraderOptions {
 }
 
 export function makeWsUpgrader(
-  getDevPort: () => number,
+  getDevPort: () => number | null,
   opts: WsUpgraderOptions = {},
 ) {
   return {
-    /** Build the per-connection state attached to ws.data at upgrade time. */
+    /** Build the per-connection state attached to ws.data at upgrade time.
+     *  Falls back to `target=null` when no upstream port is known; `open()`
+     *  closes the client immediately rather than connecting to a guess. */
     upgradeData(req: Request): WsProxyData {
       const url = new URL(req.url);
-      const target = `ws://localhost:${getDevPort()}${url.pathname}${url.search}`;
+      const port = getDevPort();
+      const target =
+        port === null
+          ? null
+          : `ws://localhost:${port}${url.pathname}${url.search}`;
       const protoHeader = req.headers.get("sec-websocket-protocol");
       const protocols = protoHeader
         ? protoHeader
@@ -57,6 +64,12 @@ export function makeWsUpgrader(
     },
 
     open(ws: ServerWebSocket<WsProxyData>): void {
+      if (ws.data.target === null) {
+        try {
+          ws.close(1011, "no upstream dev server");
+        } catch {}
+        return;
+      }
       const upstream = new WebSocket(ws.data.target, ws.data.protocols);
       upstream.binaryType = "arraybuffer";
       ws.data.upstream = upstream;
