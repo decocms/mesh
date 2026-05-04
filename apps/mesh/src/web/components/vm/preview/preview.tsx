@@ -187,7 +187,6 @@ export function PreviewContent() {
     notFound: vmEvents.notFound,
     bootEverReady: bootTrackedRef.current.everReady,
   });
-  const booting = previewState.kind === "booting";
 
   // ref-latest pattern: effects below depend only on upstream signals, not
   // on this closure's churning captures (branch, mutation, setter).
@@ -466,7 +465,9 @@ export function PreviewContent() {
           <div className="absolute inset-0 z-30 flex items-center justify-center bg-background">
             <VmBootingState
               since={
-                booting ? bootTrackedRef.current.at : startingSinceRef.current
+                previewUrl
+                  ? bootTrackedRef.current.at
+                  : startingSinceRef.current
               }
               hasSetupData={vmEvents.hasData("setup")}
               scripts={vmEvents.scripts}
