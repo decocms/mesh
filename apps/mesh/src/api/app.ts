@@ -35,7 +35,7 @@ import {
   tracingMiddleware,
 } from "../observability";
 import authRoutes from "./routes/auth";
-import orgSsoRoutes from "./routes/org-sso";
+import { createSsoRoutes } from "./routes/org-sso";
 import { createDecopilotRoutes } from "./routes/decopilot";
 import { createDownstreamTokenRoutes } from "./routes/downstream-token";
 import { logDeprecatedRoute } from "./middleware/log-deprecated-route";
@@ -1284,8 +1284,15 @@ export async function createApp(options: CreateAppOptions = {}) {
     return next();
   });
 
-  // Organization-level SSO routes (must be after context middleware)
-  app.route("/api/org-sso", orgSsoRoutes);
+  // Organization-level SSO routes (must be after context middleware).
+  // Legacy mount at /api/org-sso with deprecation log; the new
+  // /api/:org/org-sso mount is wired in a later task.
+  const legacyOrgSso = new Hono<{
+    Variables: { meshContext: MeshContext };
+  }>();
+  legacyOrgSso.use("*", logDeprecatedRoute);
+  legacyOrgSso.route("/", createSsoRoutes());
+  app.route("/api/org-sso", legacyOrgSso);
 
   // Get all management tools (for OAuth consent UI)
   app.get("/api/tools/management", (c) => {
