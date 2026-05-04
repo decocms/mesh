@@ -1,18 +1,20 @@
 import type { MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
+import type { MeshContext } from "../../core/mesh-context";
 
-export const resolveOrgFromPath: MiddlewareHandler = async (c, next) => {
+export const resolveOrgFromPath: MiddlewareHandler<{
+  Variables: { meshContext: MeshContext };
+}> = async (c, next) => {
   const slug = c.req.param("org");
   if (!slug) {
     throw new HTTPException(400, { message: "org slug missing in path" });
   }
 
-  // biome-ignore lint/suspicious/noExplicitAny: meshContext shape is dynamic across handlers
-  const ctx: any = c.get("meshContext");
-  if (!ctx?.storage?.db) {
+  const ctx = c.get("meshContext");
+  if (!ctx?.db) {
     throw new HTTPException(500, { message: "meshContext not initialized" });
   }
-  const db = ctx.storage.db;
+  const db = ctx.db;
 
   const org = await db
     .selectFrom("organization")
@@ -27,29 +29,26 @@ export const resolveOrgFromPath: MiddlewareHandler = async (c, next) => {
   }
 
   const userId = ctx.auth?.user?.id;
-  const apiKeyOrgId = ctx.auth?.apiKey?.organizationId;
-
-  let isMember = false;
-  if (apiKeyOrgId === org.id) {
-    isMember = true;
-  } else if (userId) {
-    const membership = await db
-      .selectFrom("member")
-      .select(["role"])
-      .where("userId", "=", userId)
-      .where("organizationId", "=", org.id)
-      .executeTakeFirst();
-    isMember = !!membership;
+  if (!userId) {
+    throw new HTTPException(403, {
+      message: "forbidden: not a member of organization",
+    });
   }
 
-  if (!isMember) {
+  const membership = await db
+    .selectFrom("member")
+    .select(["role"])
+    .where("userId", "=", userId)
+    .where("organizationId", "=", org.id)
+    .executeTakeFirst();
+
+  if (!membership) {
     throw new HTTPException(403, {
       message: "forbidden: not a member of organization",
     });
   }
 
   ctx.organization = { id: org.id, slug: org.slug, name: org.name };
-  c.set("meshContext", ctx);
 
   await next();
 };

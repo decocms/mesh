@@ -11,9 +11,33 @@ import { resolveOrgFromPath } from "./resolve-org-from-path";
 
 type Variables = { meshContext: MeshContext };
 
+interface FakeAuth {
+  user?: { id: string };
+  apiKey?: { id: string; name: string; userId: string };
+}
+
+const buildApp = (db: TestDatabase, auth: FakeAuth) => {
+  const app = new Hono<{ Variables: Variables }>();
+  app.use("*", async (c, next) => {
+    c.set("meshContext", {
+      auth,
+      db: db.db,
+    } as unknown as MeshContext);
+    await next();
+  });
+  app.use("/api/:org/*", resolveOrgFromPath);
+  app.get("/api/:org/probe", (c) => {
+    const ctx = c.get("meshContext");
+    return c.json({
+      orgId: ctx.organization?.id,
+      orgSlug: ctx.organization?.slug,
+    });
+  });
+  return app;
+};
+
 describe("resolveOrgFromPath", () => {
   let db: TestDatabase;
-  let app: Hono<{ Variables: Variables }>;
 
   beforeEach(async () => {
     db = await createTestDatabase();
@@ -50,24 +74,6 @@ describe("resolveOrgFromPath", () => {
         createdAt: new Date().toISOString(),
       })
       .execute();
-
-    app = new Hono<{ Variables: Variables }>();
-    // Inject a fake meshContext that is "user-1" so the middleware sees them.
-    app.use("*", async (c, next) => {
-      c.set("meshContext", {
-        auth: { user: { id: "user-1" } },
-        storage: { db: db.db },
-      } as unknown as MeshContext);
-      await next();
-    });
-    app.use("/api/:org/*", resolveOrgFromPath);
-    app.get("/api/:org/probe", (c) => {
-      const ctx = c.get("meshContext");
-      return c.json({
-        orgId: ctx.organization?.id,
-        orgSlug: ctx.organization?.slug,
-      });
-    });
   });
 
   afterEach(async () => {
@@ -75,6 +81,7 @@ describe("resolveOrgFromPath", () => {
   });
 
   it("returns 404 when slug does not exist", async () => {
+    const app = buildApp(db, { user: { id: "user-1" } });
     const res = await app.request("/api/nope/probe");
     expect(res.status).toBe(404);
   });
@@ -89,15 +96,30 @@ describe("resolveOrgFromPath", () => {
         createdAt: new Date().toISOString(),
       })
       .execute();
+    const app = buildApp(db, { user: { id: "user-1" } });
     const res = await app.request("/api/other/probe");
     expect(res.status).toBe(403);
   });
 
   it("sets ctx.organization on success", async () => {
+    const app = buildApp(db, { user: { id: "user-1" } });
     const res = await app.request("/api/acme/probe");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.orgId).toBe("org-1");
     expect(body.orgSlug).toBe("acme");
+  });
+
+  it("authorizes api-key principals via the same membership check", async () => {
+    // For api-key auth, the context-factory populates ctx.auth.user.id from
+    // the api key's userId, so a single membership check covers both flows.
+    const app = buildApp(db, {
+      user: { id: "user-1" },
+      apiKey: { id: "key-1", name: "test-key", userId: "" },
+    });
+    const res = await app.request("/api/acme/probe");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.orgId).toBe("org-1");
   });
 });
