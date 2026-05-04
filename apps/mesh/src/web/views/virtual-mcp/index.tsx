@@ -44,7 +44,7 @@ import {
   SelectValue,
 } from "@deco/ui/components/select.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
-import { Textarea } from "@deco/ui/components/textarea.tsx";
+import { MarkdownEditor } from "@/web/components/markdown-editor.tsx";
 import {
   Tooltip,
   TooltipContent,
@@ -1726,18 +1726,17 @@ Define step-by-step how the agent should handle requests.
                 name="metadata.instructions"
                 control={form.control}
                 render={({ field }) => (
-                  <div className="relative rounded-xl card-shadow bg-card focus-within:ring-1 focus-within:ring-ring">
-                    <Textarea
-                      {...field}
+                  <div className="relative rounded-xl card-shadow bg-card focus-within:border-ring focus-within:ring-[2px] focus-within:ring-ring/20">
+                    <MarkdownEditor
                       value={field.value ?? ""}
+                      onChange={(md) => field.onChange(md)}
                       onBlur={() => {
                         field.onBlur();
                         saveForm();
                       }}
                       disabled={hasGithubRepo}
                       placeholder="Define how this agent should behave, what tone to use, any constraints or guidelines..."
-                      className="min-h-[200px] max-h-[360px] overflow-auto resize-none text-base text-muted-foreground placeholder:text-muted-foreground/40 leading-relaxed border-0 shadow-none px-4 py-3 pr-11 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
-                      style={{ boxShadow: "none" }}
+                      className="min-h-[200px] max-h-[360px] text-base px-4 py-3 pr-11"
                     />
                     <Tooltip delayDuration={0}>
                       <TooltipTrigger asChild>
@@ -1853,17 +1852,16 @@ Define step-by-step how the agent should handle requests.
               name="metadata.instructions"
               control={form.control}
               render={({ field }) => (
-                <Textarea
-                  {...field}
+                <MarkdownEditor
                   value={field.value ?? ""}
+                  onChange={(md) => field.onChange(md)}
                   onBlur={() => {
                     field.onBlur();
                     saveForm();
                   }}
                   disabled={hasGithubRepo}
                   placeholder="Define how this agent should behave, what tone to use, any constraints or guidelines..."
-                  className="w-full h-full resize-none text-base text-muted-foreground placeholder:text-muted-foreground/40 leading-relaxed rounded-xl card-shadow px-4 py-3 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 bg-card border-0"
-                  style={{ boxShadow: "none" }}
+                  className="w-full h-full text-base rounded-xl card-shadow px-4 py-3 bg-card focus-within:border-ring focus-within:ring-[2px] focus-within:ring-ring/20"
                 />
               )}
             />
