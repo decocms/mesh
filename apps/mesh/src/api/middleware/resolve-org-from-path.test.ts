@@ -22,9 +22,15 @@ const buildApp = (db: TestDatabase, auth: FakeAuth) => {
     // Track the organization id forwarded into AccessControl so tests can
     // assert that path-resolved org propagates through to permission checks.
     const accessOrgIds: (string | undefined)[] = [];
+    // Track threads.setOrganizationId calls so tests can assert that the
+    // path-resolved org also rebinds OrgScopedThreadStorage. Without this
+    // rebind, any thread-touching route on the new path family throws
+    // "OrgScopedThreadStorage: thread operations require an authenticated organization".
+    const threadOrgIds: (string | undefined)[] = [];
     c.set("meshContext", {
       auth,
       db: db.db,
+      baseUrl: "http://test",
       access: {
         setOrganizationId: (id: string | undefined) => {
           accessOrgIds.push(id);
@@ -32,6 +38,15 @@ const buildApp = (db: TestDatabase, auth: FakeAuth) => {
         // Expose the captured ids for tests via a non-standard field
         _orgIds: accessOrgIds,
       },
+      storage: {
+        threads: {
+          setOrganizationId: (id: string | undefined) => {
+            threadOrgIds.push(id);
+          },
+          _orgIds: threadOrgIds,
+        },
+      },
+      objectStorage: null,
     } as unknown as MeshContext);
     await next();
   });
@@ -41,6 +56,12 @@ const buildApp = (db: TestDatabase, auth: FakeAuth) => {
     return c.json({
       orgId: ctx.organization?.id,
       orgSlug: ctx.organization?.slug,
+      // Surface the rebound storage org ids so tests can assert middleware
+      // propagated the org into MeshStorage.
+      threadOrgIds: (
+        ctx.storage.threads as unknown as { _orgIds: (string | undefined)[] }
+      )._orgIds,
+      objectStorageBound: ctx.objectStorage !== null,
     });
   });
   return app;
@@ -118,6 +139,20 @@ describe("resolveOrgFromPath", () => {
     const body = await res.json();
     expect(body.orgId).toBe("org-1");
     expect(body.orgSlug).toBe("acme");
+  });
+
+  it("rebinds storage.threads + objectStorage to the path-resolved org", async () => {
+    // Regression: when the new /api/:org path is hit without an x-org-id
+    // header, meshContext is created with org=undefined, so OrgScopedThreadStorage
+    // and objectStorage start out unbound. resolveOrgFromPath must rebind both
+    // after looking up the org from the slug, otherwise thread routes throw
+    // "thread operations require an authenticated organization".
+    const app = buildApp(db, { user: { id: "user-1" } });
+    const res = await app.request("/api/acme/probe");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.threadOrgIds).toEqual(["org-1"]);
+    expect(body.objectStorageBound).toBe(true);
   });
 
   it("authorizes api-key principals via the same membership check", async () => {

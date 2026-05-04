@@ -1,5 +1,8 @@
 import type { MiddlewareHandler } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
+import { createBoundObjectStorage } from "../../object-storage/bound-object-storage";
+import { DevObjectStorage } from "../../object-storage/dev-object-storage";
+import { getObjectStorageS3Service } from "../../object-storage/factory";
 
 export const resolveOrgFromPath: MiddlewareHandler<{
   Variables: { meshContext: MeshContext };
@@ -47,6 +50,20 @@ export const resolveOrgFromPath: MiddlewareHandler<{
   // activeOrganizationId — which races with signup in CI and can be stale or
   // pointing at a different org than the URL.
   ctx.access.setOrganizationId(org.id);
+  // Rebind org-scoped storage that was constructed eagerly with `undefined`
+  // when meshContext was created (no `x-org-id` header on the new path
+  // means `organization` was not yet resolved). Without this, any thread
+  // operation throws "thread operations require an authenticated organization".
+  ctx.storage.threads.setOrganizationId(org.id);
+  // objectStorage is also constructed eagerly (null when no org). Rebuild it
+  // here using the same logic as context-factory so OBJECT_STORAGE binding
+  // resolves on the new path family.
+  if (!ctx.objectStorage) {
+    const s3Service = getObjectStorageS3Service();
+    ctx.objectStorage = s3Service
+      ? createBoundObjectStorage(s3Service, org.id)
+      : new DevObjectStorage(org.id, ctx.baseUrl);
+  }
 
   return await next();
 };
