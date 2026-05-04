@@ -90,6 +90,9 @@ export interface BuiltinToolParams {
    * When null, no VM-backed code execution tool is included.
    */
   vmContext?: VmContext | null;
+  /** Thread (task) id of the current run — needed by tools that persist
+   *  thread-scoped state (e.g. web_search reconnecting to Gemini Deep Research). */
+  taskId: string;
 }
 
 export type { PendingImage };
@@ -116,6 +119,7 @@ async function buildAllTools(
     pendingImages,
     passthroughClient,
     vmContext,
+    taskId,
   } = params;
   const approvalOpts = { isPlanMode };
   const tools: Record<string, unknown> = {
@@ -212,6 +216,7 @@ async function buildAllTools(
       deepResearchModelInfo: models.deepResearch,
       ctx,
       toolOutputMap,
+      taskId,
     });
   }
   // take_screenshot and scrape_url require Browserless API token

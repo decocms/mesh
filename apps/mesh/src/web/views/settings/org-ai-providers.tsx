@@ -1326,6 +1326,7 @@ const filterImageModels = (m: AiProviderModel) =>
   m.capabilities?.includes("image") === true;
 
 const filterWebResearchModels = (m: AiProviderModel) => {
+  if (m.asyncResearch === true) return true;
   const n = m.modelId.toLowerCase().replace(/[^a-z0-9]/g, "");
   return n.includes("sonar") || n.includes("deepresearch");
 };
