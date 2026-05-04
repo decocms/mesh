@@ -82,7 +82,7 @@ export class TenantConfigStore {
         if (!entry) break;
         try {
           entry.resolve(await this.runOne(entry.patch));
-        } catch (e) {
+        } catch {
           entry.resolve({
             kind: "rejected",
             reason: REJECTION_REASONS.APPLY_FAILED,
@@ -123,7 +123,7 @@ export class TenantConfigStore {
 
     try {
       writeConfig(merged, this.deps.storageDir);
-    } catch (e) {
+    } catch {
       return {
         kind: "rejected",
         reason: REJECTION_REASONS.PERSISTENCE_FAILED,
