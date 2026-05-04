@@ -52,7 +52,7 @@ import { createKVRoutes } from "./routes/kv";
 import { createTriggerCallbackRoutes } from "./routes/trigger-callback";
 import publicConfigRoutes from "./routes/public-config";
 import filesRoutes from "./routes/files";
-import threadOutputsRoutes from "./routes/thread-outputs";
+import { createThreadOutputsRoutes } from "./routes/thread-outputs";
 import selfRoutes from "./routes/self";
 import { shouldSkipMeshContext, SYSTEM_PATHS } from "./utils/paths";
 import {
@@ -1369,7 +1369,14 @@ export async function createApp(options: CreateAppOptions = {}) {
   app.route("/api", filesRoutes);
 
   // Thread outputs (model-shared files surfaced as download chips in the chat)
-  app.route("/api", threadOutputsRoutes);
+  // Legacy mount at /api/* with deprecation log; the new /api/:org/* mount
+  // is wired in a later task.
+  const legacyThreadOutputsRoutes = new Hono<{
+    Variables: { meshContext: MeshContext };
+  }>();
+  legacyThreadOutputsRoutes.use("*", logDeprecatedRoute);
+  legacyThreadOutputsRoutes.route("/", createThreadOutputsRoutes());
+  app.route("/api", legacyThreadOutputsRoutes);
 
   // OpenAI-compatible LLM API routes
   app.route("/api", openaiCompatRoutes);
