@@ -40,7 +40,10 @@ import { createDecopilotRoutes } from "./routes/decopilot";
 import { createDownstreamTokenRoutes } from "./routes/downstream-token";
 import { logDeprecatedRoute } from "./middleware/log-deprecated-route";
 import { createVmEventsRoutes } from "./routes/vm-events";
-import decoSitesRoutes from "./routes/deco-sites";
+import {
+  createDecoSitesOrgRoutes,
+  createDecoSitesUserRoutes,
+} from "./routes/deco-sites";
 import virtualMcpRoutes from "./routes/virtual-mcp";
 import oauthProxyRoutes, {
   fetchAuthorizationServerMetadata,
@@ -1522,7 +1525,19 @@ export async function createApp(options: CreateAppOptions = {}) {
   app.route("/api", legacyDownstreamTokenRoutes);
 
   // Deco.cx sites list (requires meshContext / auth)
-  app.route("/api/deco-sites", decoSitesRoutes);
+  // /profile is user-scoped (no org), stays mounted permanently — no
+  // deprecation log.
+  app.route("/api/deco-sites", createDecoSitesUserRoutes());
+
+  // Org-scoped deco-sites routes (GET /, POST /connection). Currently mounted
+  // at /api/deco-sites with a deprecation log; the new /api/:org/deco-sites
+  // mount is wired in a later task.
+  const legacyDecoSitesOrg = new Hono<{
+    Variables: { meshContext: MeshContext };
+  }>();
+  legacyDecoSitesOrg.use("*", logDeprecatedRoute);
+  legacyDecoSitesOrg.route("/", createDecoSitesOrgRoutes());
+  app.route("/api/deco-sites", legacyDecoSitesOrg);
 
   // Unified VM events SSE — single auth-gated stream that emits pre-Ready
   // lifecycle phases, then proxies the daemon's `/_decopilot_vm/events` once
