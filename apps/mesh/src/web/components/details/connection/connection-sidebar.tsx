@@ -72,6 +72,18 @@ export function ConnectionFields({
     }
   })();
 
+  const isFigmaMcp = (() => {
+    if (typeof connectionUrl !== "string" || !connectionUrl) return false;
+    try {
+      const url = new URL(connectionUrl);
+      return (
+        url.hostname === "figma.com" || url.hostname.endsWith(".figma.com")
+      );
+    } catch {
+      return false;
+    }
+  })();
+
   const showStdioOptions =
     stdioEnabled || connection.connection_type === "STDIO";
 
@@ -340,7 +352,11 @@ export function ConnectionFields({
           render={({ field }) => (
             <FormItem className="flex flex-col gap-3">
               <FormLabel className="text-xs text-muted-foreground font-medium">
-                {isGitHubCopilotMcp ? "GitHub Personal Access Token" : "Token"}
+                {isGitHubCopilotMcp
+                  ? "GitHub Personal Access Token"
+                  : isFigmaMcp
+                    ? "Figma Personal Access Token"
+                    : "Token"}
               </FormLabel>
               {/* Authentication status badge */}
               {hasOAuthToken ? (
@@ -395,7 +411,9 @@ export function ConnectionFields({
                       placeholder={
                         isGitHubCopilotMcp
                           ? "Paste your GitHub PAT"
-                          : "Enter access token..."
+                          : isFigmaMcp
+                            ? "Paste your Figma PAT"
+                            : "Enter access token..."
                       }
                       {...field}
                       value={field.value || ""}
@@ -413,6 +431,20 @@ export function ConnectionFields({
                       >
                         github.com/settings/personal-access-tokens
                       </a>
+                    </FormDescription>
+                  )}
+                  {isFigmaMcp && (
+                    <FormDescription>
+                      Create a PAT at{" "}
+                      <a
+                        href="https://www.figma.com/developers/api#access-tokens"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline"
+                      >
+                        figma.com/developers
+                      </a>
+                      . Required for MCP OAuth registration.
                     </FormDescription>
                   )}
                 </>

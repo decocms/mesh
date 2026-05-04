@@ -529,6 +529,20 @@ export function CreateConnectionDialog({
                         </a>
                       </>
                     )}
+                    {providerHint.id === "figma" && (
+                      <>
+                        {" "}
+                        ·{" "}
+                        <a
+                          className="text-foreground underline underline-offset-4 hover:text-foreground/80"
+                          href="https://www.figma.com/developers/api#access-tokens"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open Figma PAT settings
+                        </a>
+                      </>
+                    )}
                   </p>
                 )}
                 <FormMessage />

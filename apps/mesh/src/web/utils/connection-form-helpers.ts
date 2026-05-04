@@ -8,7 +8,7 @@ import type { RegistryItem } from "@/web/components/store/types";
 // ---------------------------------------------------------------------------
 
 export type ConnectionProviderHint = {
-  id: "github" | "perplexity" | "registry";
+  id: "github" | "figma" | "perplexity" | "registry";
   title?: string;
   description?: string | null;
   token?: {
@@ -84,6 +84,28 @@ export function inferHardcodedProviderHint(params: {
         helperText: "Paste a GitHub Personal Access Token (PAT)",
       },
     };
+  }
+
+  // Figma MCP (hardcoded)
+  if (uiType === "HTTP" || uiType === "SSE" || uiType === "Websocket") {
+    try {
+      const url = new URL(normalized);
+      if (url.hostname === "figma.com" || url.hostname.endsWith(".figma.com")) {
+        return {
+          id: "figma",
+          title: "Figma",
+          description: "Figma MCP",
+          token: {
+            label: "Figma PAT",
+            placeholder: "figd_…",
+            helperText:
+              "Paste a Figma Personal Access Token — required for OAuth registration",
+          },
+        };
+      }
+    } catch {
+      // invalid URL, skip
+    }
   }
 
   // Perplexity MCP (hardcoded)
