@@ -39,6 +39,7 @@ import { createSsoRoutes } from "./routes/org-sso";
 import { createDecopilotRoutes } from "./routes/decopilot";
 import { createDownstreamTokenRoutes } from "./routes/downstream-token";
 import { logDeprecatedRoute } from "./middleware/log-deprecated-route";
+import { createOrgScopedApi } from "./routes/org-scoped";
 import { createVmEventsRoutes } from "./routes/vm-events";
 import {
   createDecoSitesOrgRoutes,
@@ -1574,6 +1575,18 @@ export async function createApp(options: CreateAppOptions = {}) {
   legacyVmEvents.use("*", logDeprecatedRoute);
   legacyVmEvents.route("/", createVmEventsRoutes());
   app.route("/api/vm-events", legacyVmEvents);
+
+  // New canonical org-scoped API surface — all routes that depend on org context
+  // live here. Old routes still work (with deprecation logs) until the cleanup
+  // PR removes them after the deprecation window.
+  const orgScopedApi = createOrgScopedApi({
+    kvStorage,
+    tokenStorage: triggerCallbackTokenStorage,
+    eventTriggerEngine,
+    mountDevAssets: usesLocalObjectStorage(),
+    mcpAuth,
+  });
+  app.route("/api/:org", orgScopedApi);
 
   // ============================================================================
   // Server Plugin Routes
