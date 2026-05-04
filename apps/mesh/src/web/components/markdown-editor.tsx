@@ -212,7 +212,8 @@ export function MarkdownEditor({
     content: marked.parse(value || "") as string,
     editorProps: {
       attributes: {
-        class: "outline-none focus:outline-none w-full min-h-[inherit] leading-relaxed",
+        class:
+          "outline-none focus:outline-none w-full min-h-[inherit] leading-relaxed",
       },
     },
     onUpdate: ({ editor }) => {
