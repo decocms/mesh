@@ -72,8 +72,16 @@ export interface BoundAuthClient {
   /**
    * Check if the authenticated user has the specified permission
    * Delegates to Better Auth's Organization plugin hasPermission API
+   *
+   * @param permission - Permission to check
+   * @param options.organizationId - Override the session-based active org.
+   *   When set, Better Auth uses this org for the permission check instead
+   *   of the user's session-active org. Used by path-resolved org middleware.
    */
-  hasPermission(permission: Permission): Promise<boolean>;
+  hasPermission(
+    permission: Permission,
+    options?: { organizationId?: string },
+  ): Promise<boolean>;
 
   // Organization APIs (bound with headers)
   organization: {

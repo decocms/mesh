@@ -302,7 +302,7 @@ function buildPathPrefix(orgSlug: string | undefined): string {
  * MCP/well-known shapes. Callers should also rely on `ctx.organization?.slug`
  * (set by `resolveOrgFromPath`) when available — this helper is a fallback.
  */
-export function detectOrgSlugFromPath(path: string): string | undefined {
+function detectOrgSlugFromPath(path: string): string | undefined {
   const m = path.match(/^\/api\/([^/]+)\//);
   const slug = m?.[1];
   if (!slug) return undefined;
@@ -392,7 +392,7 @@ const fixProtocol = (url: URL) => {
  * to our OAuth proxy. This enables OAuth flows for servers like Apify that use WWW-Authenticate
  * but don't expose .well-known/oauth-protected-resource.
  */
-export const protectedResourceMetadataHandler = async (c: {
+const protectedResourceMetadataHandler = async (c: {
   req: { param: (key: string) => string; raw: Request; url: string };
   get: (key: "meshContext") => MeshContext | undefined;
   set: (key: "meshContext", value: MeshContext) => void;

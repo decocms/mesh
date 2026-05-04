@@ -42,6 +42,11 @@ export const resolveOrgFromPath: MiddlewareHandler<{
   }
 
   ctx.organization = { id: org.id, slug: org.slug, name: org.name };
+  // Tell AccessControl to use the path-resolved org for permission checks.
+  // Without this, boundAuth.hasPermission falls back to the session's
+  // activeOrganizationId — which races with signup in CI and can be stale or
+  // pointing at a different org than the URL.
+  ctx.access.setOrganizationId(org.id);
 
   return await next();
 };

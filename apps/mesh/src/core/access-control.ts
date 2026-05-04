@@ -67,6 +67,7 @@ export class AccessControl implements Disposable {
     private role?: string, // From user session (for built-in role bypass)
     private connectionId: string = "self", // For connection-specific checks (matches permission resource key)
     private getToolMeta?: GetToolMetaFn, // Optional callback for public tool check
+    private organizationId?: string, // Path-resolved org (overrides session active org)
   ) {}
 
   [Symbol.dispose](): void {
@@ -75,6 +76,16 @@ export class AccessControl implements Disposable {
 
   setToolName(toolName: string): void {
     this.toolName = toolName;
+  }
+
+  /**
+   * Set the organization id used for permission checks.
+   * Called by `resolveOrgFromPath` middleware after looking up the org from
+   * the URL slug, so subsequent `check()` calls forward the path-resolved org
+   * to Better Auth instead of relying on the session's active org.
+   */
+  setOrganizationId(organizationId: string | undefined): void {
+    this.organizationId = organizationId;
   }
 
   /**
@@ -176,8 +187,13 @@ export class AccessControl implements Disposable {
       permissionToCheck[this.connectionId] = [resource];
     }
 
-    // Delegate to Better Auth's hasPermission API
-    return this.boundAuth.hasPermission(permissionToCheck);
+    // Delegate to Better Auth's hasPermission API. When an organizationId is
+    // set (path-resolved org), pass it through so Better Auth uses it instead
+    // of the session's active org.
+    return this.boundAuth.hasPermission(
+      permissionToCheck,
+      this.organizationId ? { organizationId: this.organizationId } : undefined,
+    );
   }
 
   /**

@@ -19,9 +19,19 @@ interface FakeAuth {
 const buildApp = (db: TestDatabase, auth: FakeAuth) => {
   const app = new Hono<{ Variables: Variables }>();
   app.use("*", async (c, next) => {
+    // Track the organization id forwarded into AccessControl so tests can
+    // assert that path-resolved org propagates through to permission checks.
+    const accessOrgIds: (string | undefined)[] = [];
     c.set("meshContext", {
       auth,
       db: db.db,
+      access: {
+        setOrganizationId: (id: string | undefined) => {
+          accessOrgIds.push(id);
+        },
+        // Expose the captured ids for tests via a non-standard field
+        _orgIds: accessOrgIds,
+      },
     } as unknown as MeshContext);
     await next();
   });
