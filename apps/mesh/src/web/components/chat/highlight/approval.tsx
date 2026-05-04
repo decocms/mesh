@@ -43,6 +43,7 @@ const APPROVAL_LEVEL_OPTIONS: {
 }[] = [
   { value: "readonly", label: "Ask before edit" },
   { value: "auto", label: "Auto approve" },
+  { value: "yolo", label: "YOLO" },
 ];
 
 // ============================================================================
@@ -55,7 +56,7 @@ function ApprovalLevelSelect({ onYolo }: { onYolo: () => void }) {
   const handleLevelChange = (value: string) => {
     const newLevel = value as ToolApprovalLevel;
     setPreferences({ ...preferences, toolApprovalLevel: newLevel });
-    if (newLevel === "auto") {
+    if (newLevel === "auto" || newLevel === "yolo") {
       onYolo();
     }
   };

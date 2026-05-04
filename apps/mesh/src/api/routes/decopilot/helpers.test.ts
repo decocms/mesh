@@ -421,4 +421,32 @@ describe("toolNeedsApproval", () => {
       ).toBe("hard-block");
     });
   });
+
+  describe('approval level: "yolo"', () => {
+    const level: ToolApprovalLevel = "yolo";
+
+    test("returns false for read-only tools", () => {
+      expect(toolNeedsApproval(level, true)).toBe(false);
+    });
+
+    test("returns false for non-read-only tools", () => {
+      expect(toolNeedsApproval(level, false)).toBe(false);
+    });
+
+    test("returns false even for destructive tools", () => {
+      expect(toolNeedsApproval(level, false, { destructiveHint: true })).toBe(
+        false,
+      );
+    });
+
+    test("plan mode still hard-blocks non-read-only tools", () => {
+      expect(toolNeedsApproval(level, false, { isPlanMode: true })).toBe(
+        "hard-block",
+      );
+    });
+
+    test("plan mode allows read-only tools", () => {
+      expect(toolNeedsApproval(level, true, { isPlanMode: true })).toBe(false);
+    });
+  });
 });
