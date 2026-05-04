@@ -22,7 +22,12 @@ const INTERACTIONS_URL =
 const DEFAULT_POLL_INTERVAL_MS = 5_000;
 
 export function isInteractionsOnlyModel(modelId: string): boolean {
-  return /^deep-research(-max)?-preview-/.test(modelId);
+  // All Gemini Deep Research variants share the `deep-research-` prefix
+  // (deep-research-preview-*, deep-research-max-preview-*,
+  //  deep-research-pro-preview-*, etc.) and all run via the Interactions
+  // API. Match the whole family rather than enumerate suffixes — every
+  // model in this line so far has been Interactions-only.
+  return /^deep-research-/.test(modelId);
 }
 
 export interface SubmitInteractionOptions {

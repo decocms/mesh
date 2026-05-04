@@ -39,9 +39,12 @@ function queueFetch(responses: Array<() => Response>) {
 }
 
 describe("isInteractionsOnlyModel", () => {
-  test("matches deep-research preview ids", () => {
+  test("matches every deep-research variant", () => {
     expect(isInteractionsOnlyModel("deep-research-preview-04-2026")).toBe(true);
     expect(isInteractionsOnlyModel("deep-research-max-preview-04-2026")).toBe(
+      true,
+    );
+    expect(isInteractionsOnlyModel("deep-research-pro-preview-12-2025")).toBe(
       true,
     );
   });
