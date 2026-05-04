@@ -356,9 +356,7 @@ export function VmEventsProvider({
             }
           }
         } else if (e.type === "branch-status") {
-          const kind = String(
-            data.kind ?? "initializing",
-          ) as BranchStatus["kind"];
+          const kind = String(data.kind ?? "initializing");
           switch (kind) {
             case "ready":
               setBranchStatus({
@@ -372,19 +370,33 @@ export function VmEventsProvider({
                 headSha: String(data.headSha ?? ""),
               });
               break;
-            case "cloning":
             case "initializing":
-              setBranchStatus({ kind });
+              setBranchStatus({ kind: "initializing" });
+              break;
+            case "cloning":
+              setBranchStatus({ kind: "cloning" });
               break;
             case "clone-failed":
+              setBranchStatus({
+                kind: "clone-failed",
+                error: String(data.error ?? ""),
+              });
+              break;
             case "checkout-failed":
-              setBranchStatus({ kind, error: String(data.error ?? "") });
+              setBranchStatus({
+                kind: "checkout-failed",
+                error: String(data.error ?? ""),
+              });
               break;
             case "checking-out":
               setBranchStatus({
                 kind: "checking-out",
                 to: String(data.to ?? ""),
               });
+              break;
+            default:
+              console.warn("[vm-events] unknown branch-status kind:", kind);
+              setBranchStatus({ kind: "initializing" });
               break;
           }
         }

@@ -118,6 +118,11 @@ export function selectHeaderButton(input: {
       };
     case "ready":
       break;
+    default: {
+      const _exhaustive: never = branchStatus;
+      void _exhaustive;
+      break;
+    }
   }
 
   // From here on, branchStatus.kind === "ready" — narrow it.
