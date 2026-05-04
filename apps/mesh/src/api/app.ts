@@ -37,7 +37,8 @@ import {
 import authRoutes from "./routes/auth";
 import orgSsoRoutes from "./routes/org-sso";
 import { createDecopilotRoutes } from "./routes/decopilot";
-import downstreamTokenRoutes from "./routes/downstream-token";
+import { createDownstreamTokenRoutes } from "./routes/downstream-token";
+import { logDeprecatedRoute } from "./middleware/log-deprecated-route";
 import { vmEventsRoutes } from "./routes/vm-events";
 import decoSitesRoutes from "./routes/deco-sites";
 import virtualMcpRoutes from "./routes/virtual-mcp";
@@ -1497,7 +1498,14 @@ export async function createApp(options: CreateAppOptions = {}) {
   });
 
   // Downstream token management routes
-  app.route("/api", downstreamTokenRoutes);
+  // Legacy mount at /api/* with deprecation log; the new /api/:org/* mount
+  // is wired in a later task.
+  const legacyDownstreamTokenRoutes = new Hono<{
+    Variables: { meshContext: MeshContext };
+  }>();
+  legacyDownstreamTokenRoutes.use("*", logDeprecatedRoute);
+  legacyDownstreamTokenRoutes.route("/", createDownstreamTokenRoutes());
+  app.route("/api", legacyDownstreamTokenRoutes);
 
   // Deco.cx sites list (requires meshContext / auth)
   app.route("/api/deco-sites", decoSitesRoutes);
