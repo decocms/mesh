@@ -1,7 +1,7 @@
 import { useLocalStorage } from "./use-local-storage.ts";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys.ts";
 
-export type ToolApprovalLevel = "auto" | "readonly" | "yolo";
+export type ToolApprovalLevel = "auto" | "readonly" | "trust-all";
 export type ThemeMode = "light" | "dark" | "system";
 interface Preferences {
   toolApprovalLevel: ToolApprovalLevel;
@@ -22,7 +22,7 @@ const DEFAULT_PREFERENCES: Preferences = {
 const VALID_TOOL_APPROVAL_LEVELS: ToolApprovalLevel[] = [
   "auto",
   "readonly",
-  "yolo",
+  "trust-all",
 ];
 
 const VALID_THEME_MODES: ThemeMode[] = ["light", "dark", "system"];

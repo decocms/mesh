@@ -422,8 +422,8 @@ describe("toolNeedsApproval", () => {
     });
   });
 
-  describe('approval level: "yolo"', () => {
-    const level: ToolApprovalLevel = "yolo";
+  describe('approval level: "trust-all"', () => {
+    const level: ToolApprovalLevel = "trust-all";
 
     test("returns false for read-only tools", () => {
       expect(toolNeedsApproval(level, true)).toBe(false);

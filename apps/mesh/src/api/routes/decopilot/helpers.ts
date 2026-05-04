@@ -31,7 +31,7 @@ import {
 /**
  * Tool approval levels determine which tools require user approval before executing
  */
-export type ToolApprovalLevel = "auto" | "readonly" | "yolo";
+export type ToolApprovalLevel = "auto" | "readonly" | "trust-all";
 
 /**
  * Determine if a tool needs approval based on approval level and annotations
@@ -51,8 +51,8 @@ export function toolNeedsApproval(
     if (readOnlyHint === true) return false;
     return "hard-block";
   }
-  // "yolo": auto-approve everything, including destructive tools
-  if (level === "yolo") return false;
+  // "trust-all": auto-approve everything, including destructive tools
+  if (level === "trust-all") return false;
   // Destructive tools always require approval (unless yolo)
   if (options?.destructiveHint === true) return true;
   if (level === "auto") return false;
