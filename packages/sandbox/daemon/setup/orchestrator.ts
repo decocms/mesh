@@ -21,6 +21,7 @@ import type { Config } from "../types";
 import { spawnClone } from "./clone";
 import { configureGitIdentity } from "./identity";
 import { spawnInstall } from "./install";
+import { installProtectedBranchHook } from "../git/protect-branch";
 import { isResume } from "./resume";
 
 const INSTALL_LOG_MAX_BYTES = 10 * 1024 * 1024;
@@ -398,6 +399,15 @@ export class SetupOrchestrator {
       this.chunk(
         `\r\n[orchestrator] warning: git identity setup failed: ${(e as Error).message}\r\n`,
       );
+    }
+    if (config.repoDir) {
+      try {
+        installProtectedBranchHook(config.repoDir);
+      } catch (e) {
+        this.chunk(
+          `\r\n[orchestrator] warning: could not install protected-branch hook: ${(e as Error).message}\r\n`,
+        );
+      }
     }
     if (config.git?.repository?.branch) {
       this.chunk(
