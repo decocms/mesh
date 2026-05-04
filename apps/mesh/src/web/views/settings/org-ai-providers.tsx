@@ -1321,8 +1321,6 @@ const filterImageModels = (m: AiProviderModel) =>
 
 const filterWebResearchModels = (m: AiProviderModel) => {
   if (m.asyncResearch === true) return true;
-  // Fallback for cached entries that predate the asyncResearch flag.
-  if (/^deep-research-/.test(m.modelId)) return true;
   const n = m.modelId.toLowerCase().replace(/[^a-z0-9]/g, "");
   return n.includes("sonar") || n.includes("deepresearch");
 };
