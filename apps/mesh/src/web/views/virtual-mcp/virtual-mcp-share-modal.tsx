@@ -394,9 +394,10 @@ export function VirtualMCPShareModal({
   onOpenChange: (open: boolean) => void;
   virtualMcp: VirtualMCPEntity;
 }) {
+  const { org } = useProjectContext();
   // Virtual MCPs (agents) are accessed via the virtual-mcp endpoint
   const virtualMcpUrl = new URL(
-    `/mcp/virtual-mcp/${virtualMcp.id}`,
+    `/api/${org.slug}/mcp/virtual-mcp/${virtualMcp.id}`,
     window.location.origin,
   );
 

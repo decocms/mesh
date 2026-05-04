@@ -85,7 +85,7 @@ function ConnectionRow({
     queryKey: KEYS.monitorConnectionAuthProbe(connectionId),
     queryFn: async () =>
       isConnectionAuthenticated({
-        url: `/mcp/${connectionId}`,
+        url: `/api/${org.slug}/mcp/${connectionId}`,
         token: null,
         orgId: org.id,
       }),
