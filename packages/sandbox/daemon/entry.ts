@@ -429,6 +429,7 @@ Bun.serve<WsProxyData, never>({
 process.on("SIGTERM", () => {
   taskManager.shutdown();
   appService.shutdown();
+  branchStatus.stop();
   const branch = store.read()?.git?.repository?.branch;
   if (branch) {
     try {
