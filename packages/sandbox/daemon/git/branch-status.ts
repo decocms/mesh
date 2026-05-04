@@ -15,11 +15,7 @@ export class BranchStatusMonitor {
   constructor(
     private readonly config: Config,
     private readonly broadcaster: Broadcaster,
-  ) {
-    // Emit initial 'initializing' so newly-connected SSE clients see something
-    // even if the orchestrator hasn't dispatched a transition yet.
-    this.broadcast(this.last);
-  }
+  ) {}
 
   getLast(): BranchStatus {
     return this.last;
