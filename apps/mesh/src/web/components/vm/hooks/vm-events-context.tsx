@@ -355,7 +355,7 @@ export function VmEventsProvider({
       if (reconnectTimer) clearTimeout(reconnectTimer);
       clearSuspendTimer();
     };
-  }, [virtualMcpId, branch, org.id]);
+  }, [virtualMcpId, branch, org.slug]);
 
   const value: VmEventsValue = {
     phase,

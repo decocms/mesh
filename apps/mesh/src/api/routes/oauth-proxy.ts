@@ -303,7 +303,7 @@ function buildPathPrefix(orgSlug: string | undefined): string {
  * (set by `resolveOrgFromPath`) when available — this helper is a fallback.
  */
 export function detectOrgSlugFromPath(path: string): string | undefined {
-  const m = path.match(/^\/api\/([^\/]+)\//);
+  const m = path.match(/^\/api\/([^/]+)\//);
   const slug = m?.[1];
   if (!slug) return undefined;
   // Filter out non-org `/api/...` segments. The full list of these lives in
