@@ -18,6 +18,14 @@ import type {
   ThreadStatus,
 } from "./types";
 
+/**
+ * After this much time, a persisted async-job handle is considered too old
+ * to safely resume against the provider. Gemini Deep Research worst-case is
+ * ~20min; 1h leaves plenty of margin for slow runs while keeping abandoned
+ * rows from being silently re-attached to.
+ */
+const INFLIGHT_ASYNC_JOB_MAX_AGE_MS = 60 * 60 * 1000;
+
 function toIsoString(v: Date | string): string {
   return typeof v === "string" ? v : v.toISOString();
 }
@@ -739,6 +747,11 @@ export class SqlThreadStorage implements ThreadStoragePort {
       .executeTakeFirst();
     const list = parseInflightJobs(row?.inflight_async_jobs);
     if (!list) return null;
+    // Stale entries are ignored at read time — protects callers from
+    // reconnecting to a long-dead provider job. Storage rows still need a
+    // separate sweep to be GC'd, but read-side filtering is enough to keep
+    // them from causing visible misbehaviour.
+    const cutoff = Date.now() - INFLIGHT_ASYNC_JOB_MAX_AGE_MS;
     // Most recently submitted first → reverse so we prefer the freshest match.
     for (let i = list.length - 1; i >= 0; i--) {
       const e = list[i];
@@ -746,7 +759,8 @@ export class SqlThreadStorage implements ThreadStoragePort {
         e &&
         e.provider === provider &&
         e.modelId === modelId &&
-        e.query === query
+        e.query === query &&
+        new Date(e.startedAt).getTime() >= cutoff
       ) {
         return e;
       }

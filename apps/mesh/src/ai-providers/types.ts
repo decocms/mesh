@@ -37,6 +37,23 @@ export interface AsyncResearchResult {
 }
 
 /**
+ * Thrown by `AsyncResearchProvider.resume` when the underlying job reaches a
+ * terminal failure state on the provider's side (e.g. Gemini's interaction
+ * status transitioned to `failed`/`cancelled`). The job no longer exists to
+ * resume, so callers should drop any persisted handle.
+ *
+ * Plain `Error` from `resume` means our own poll/HTTP failed transiently —
+ * the provider-side job may still be running; the handle should be kept for
+ * a future reconnect.
+ */
+export class AsyncResearchTerminalError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AsyncResearchTerminalError";
+  }
+}
+
+/**
  * Generic capability for "research" jobs that don't fit streamText — they're
  * submit-then-poll, take minutes, and need to survive pod death. Each adapter
  * decides which of its models route through this path; the caller doesn't

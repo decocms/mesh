@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { AsyncResearchTerminalError } from "../types";
 import {
   isInteractionsOnlyModel,
   pollInteraction,
@@ -128,7 +129,7 @@ describe("pollInteraction", () => {
     expect(progress.at(-1)).toContain("Researching");
   });
 
-  test("throws on failed status with error message", async () => {
+  test("throws AsyncResearchTerminalError on failed status", async () => {
     queueFetch([
       () => jsonResponse({ status: "failed", error: "model overloaded" }),
     ]);
@@ -139,10 +140,10 @@ describe("pollInteraction", () => {
         interactionId: "i_2",
         pollIntervalMs: 0,
       }),
-    ).rejects.toThrow(/model overloaded/);
+    ).rejects.toBeInstanceOf(AsyncResearchTerminalError);
   });
 
-  test("throws on cancelled status", async () => {
+  test("throws AsyncResearchTerminalError on cancelled status", async () => {
     queueFetch([() => jsonResponse({ status: "cancelled" })]);
     await expect(
       pollInteraction({
@@ -150,7 +151,23 @@ describe("pollInteraction", () => {
         interactionId: "i_3",
         pollIntervalMs: 0,
       }),
-    ).rejects.toThrow(/cancelled/);
+    ).rejects.toBeInstanceOf(AsyncResearchTerminalError);
+  });
+
+  test("transient HTTP errors throw plain Error (not terminal)", async () => {
+    queueFetch([() => new Response("upstream timeout", { status: 502 })]);
+    let caught: unknown;
+    try {
+      await pollInteraction({
+        apiKey: "k",
+        interactionId: "i_2b",
+        pollIntervalMs: 0,
+      });
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught).not.toBeInstanceOf(AsyncResearchTerminalError);
   });
 
   test("dedupes citations across outputs by url", async () => {

@@ -8,7 +8,13 @@
  * This module exposes the protocol as `submit` (POST a new job) and `poll`
  * (GET status until terminal). The tool layer interleaves persistence between
  * them so a fresh pod can reconnect to an in-flight job after a crash.
+ *
+ * `pollInteraction` throws `AsyncResearchTerminalError` when Google reports
+ * `failed`/`cancelled` (the job is dead, drop the handle), and a regular
+ * `Error` for transient HTTP/network problems (the job may still be running,
+ * keep the handle for a future reconnect).
  */
+import { AsyncResearchTerminalError } from "../types";
 
 const INTERACTIONS_URL =
   "https://generativelanguage.googleapis.com/v1beta/interactions";
@@ -125,7 +131,9 @@ export async function pollInteraction(
           stringField(payload, "error") ??
           stringField(payload, "message") ??
           status;
-        throw new Error(`Gemini Interactions: ${errMsg}`);
+        // Terminal Google-side state — the interaction id no longer
+        // resumable; surface a typed error so callers drop the handle.
+        throw new AsyncResearchTerminalError(`Gemini Interactions: ${errMsg}`);
       }
       // "in_progress" / unknown → keep polling
     }

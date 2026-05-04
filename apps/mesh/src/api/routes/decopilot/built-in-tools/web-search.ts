@@ -17,7 +17,10 @@
 
 import { tool, zodSchema, streamText, type UIMessageStreamWriter } from "ai";
 import { z } from "zod";
-import type { MeshProvider } from "@/ai-providers/types";
+import {
+  AsyncResearchTerminalError,
+  type MeshProvider,
+} from "@/ai-providers/types";
 import type { MeshContext } from "@/core/mesh-context";
 import { sanitizeProviderMetadata } from "@decocms/mesh-sdk";
 import type { ModelInfo } from "../types";
@@ -118,6 +121,12 @@ export function createWebSearchTool(
           let lastSendTime = 0;
           const THROTTLE_MS = 50;
 
+          // Only delete the persisted handle when we know the provider-side
+          // job is gone (success OR terminal provider failure). Transient
+          // errors (network, 5xx) keep the row so the next attempt can
+          // reconnect to the still-running job rather than spawning a fresh
+          // expensive duplicate.
+          let providerJobGone = false;
           try {
             const result = await asyncResearch.resume({
               jobId,
@@ -130,6 +139,7 @@ export function createWebSearchTool(
                 }
               },
             });
+            providerJobGone = true;
             fullText = result.text;
             citations = result.citations;
             inputTokens = result.usage.inputTokens;
@@ -137,10 +147,13 @@ export function createWebSearchTool(
             // Final flush with the report only — drops the *thinking* prefix
             // streamed during the run.
             writeProgress(fullText);
+          } catch (err) {
+            if (err instanceof AsyncResearchTerminalError) {
+              providerJobGone = true;
+            }
+            throw err;
           } finally {
-            // On success or terminal failure, remove the inflight row. On
-            // user abort we keep it so a future re-attempt can reconnect.
-            if (!options.abortSignal?.aborted) {
+            if (providerJobGone) {
               await ctx.storage.threads.removeInflightAsyncJob(
                 taskId,
                 providerId,
