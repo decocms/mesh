@@ -7,7 +7,7 @@ const MAX_TIMEOUT_MS = 15 * 60 * 1000;
 export type BashMode = "await" | "background";
 
 export interface BashDeps {
-  /** Default cwd for unscoped commands. Typically `<appRoot>/app` (the repo). */
+  /** Default cwd for unscoped commands. Typically `<appRoot>/repo` (the repo). */
   repoDir: string;
   jobManager: JobManager;
   env?: Record<string, string>;

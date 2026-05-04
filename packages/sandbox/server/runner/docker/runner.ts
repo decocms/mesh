@@ -11,6 +11,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { DAEMON_PORT, DEFAULT_IMAGE, sleep } from "../../../shared";
 import {
   daemonBash,
+  postConfig,
   probeDaemonHealth,
   proxyDaemonRequest,
   waitForDaemonReady,
@@ -42,6 +43,7 @@ import type {
   Workload,
 } from "../types";
 import type { ClaimPhase } from "../lifecycle-types";
+import type { PackageManagerConfig, TenantConfig } from "../../../daemon/types";
 
 const RUNNER_KIND = "docker" as const;
 const LABEL_ROOT = "studio-sandbox";
@@ -301,36 +303,27 @@ export class DockerSandboxRunner implements SandboxRunner {
     const workdir = DEFAULT_WORKDIR;
     const image = opts.image ?? this.defaultImage;
     const devContainerPort = opts.workload?.devPort ?? DEFAULT_DEV_PORT;
-    const runtime = opts.workload?.runtime ?? "node";
-    const packageManager = opts.workload?.packageManager ?? null;
-    const repo = opts.repo ?? null;
-    const repoLabel = repo
-      ? (repo.displayName ?? deriveRepoLabel(repo.cloneUrl))
-      : null;
 
+    // Bootstrap-only env: identity + ports. Repo + workload are pushed via
+    // POST /_decopilot_vm/config after the daemon is healthy. opts.env is
+    // spread last to match the host runner's escape-hatch semantics —
+    // overriding daemon bootstrap names is rare and breaks things, but the
+    // hatch stays.
     const env: Record<string, string> = {
       DAEMON_TOKEN: token,
       DAEMON_BOOT_ID: daemonBootId,
       APP_ROOT: workdir,
       PROXY_PORT: String(DAEMON_PORT),
-      DEV_PORT: String(devContainerPort),
-      RUNTIME: runtime,
-      // Docker env-injection path: tell the daemon to auto-start when a
-      // workload is provided. Tool sandboxes (no workload) leave INTENT
-      // unset, which the daemon reads as "paused".
-      ...(packageManager ? { INTENT: "running" } : {}),
-      ...(repo
-        ? {
-            CLONE_URL: repo.cloneUrl,
-            REPO_NAME: repoLabel ?? "",
-            BRANCH: repo.branch ?? "",
-            GIT_USER_NAME: repo.userName,
-            GIT_USER_EMAIL: repo.userEmail,
-          }
-        : {}),
-      ...(packageManager ? { PACKAGE_MANAGER: packageManager } : {}),
       ...(opts.env ?? {}),
     };
+    const configPayload = buildConfigPayload({
+      runtime: opts.workload?.runtime ?? "node",
+      packageManager: opts.workload?.packageManager
+        ? { name: opts.workload.packageManager }
+        : null,
+      repo: opts.repo ?? null,
+      desiredPort: devContainerPort,
+    });
 
     // Shared singleton; awaits any background build kicked off by the CLI.
     log("ensureSandboxImage start");
@@ -405,6 +398,11 @@ export class DockerSandboxRunner implements SandboxRunner {
     log("waitForDaemonReady start", { daemonUrl });
     try {
       await waitForDaemonReady(daemonUrl);
+      if (configPayload) {
+        log("postConfig start", { daemonUrl });
+        await postConfig(daemonUrl, token, configPayload);
+        log("postConfig ok");
+      }
     } catch (err) {
       log("waitForDaemonReady failed", {
         err: err instanceof Error ? err.message : String(err),
@@ -689,4 +687,57 @@ function deriveRepoLabel(cloneUrl: string): string {
   } catch {
     return cloneUrl;
   }
+}
+
+/**
+ * Mirrors the host runner's `buildConfigPayload`: collapses caller intent
+ * into the daemon's TenantConfig shape. Intent defaults to "running" when
+ * a packageManager is provided so the dev server auto-starts after the
+ * orchestrator's clone+install completes.
+ */
+function buildConfigPayload(args: {
+  runtime: "node" | "bun" | "deno";
+  packageManager: PackageManagerConfig | null;
+  desiredPort?: number;
+  repo: NonNullable<EnsureOptions["repo"]> | null;
+}): Partial<TenantConfig> | null {
+  const repo = args.repo;
+  const git = repo
+    ? {
+        repository: {
+          cloneUrl: repo.cloneUrl,
+          repoName: repo.displayName ?? deriveRepoLabel(repo.cloneUrl),
+          ...(repo.branch ? { branch: repo.branch } : {}),
+        },
+        identity: {
+          userName: repo.userName,
+          userEmail: repo.userEmail,
+        },
+      }
+    : undefined;
+
+  const packageManager = args.packageManager
+    ? {
+        name: args.packageManager.name,
+        ...(args.packageManager.path ? { path: args.packageManager.path } : {}),
+      }
+    : undefined;
+
+  const application = packageManager
+    ? {
+        packageManager,
+        runtime: args.runtime,
+        intent: "running" as const,
+        ...(args.desiredPort !== undefined
+          ? { desiredPort: args.desiredPort }
+          : {}),
+        proxy: {},
+      }
+    : undefined;
+
+  if (!git && !application) return null;
+  return {
+    ...(git ? { git } : {}),
+    ...(application ? { application } : {}),
+  };
 }

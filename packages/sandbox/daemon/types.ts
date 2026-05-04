@@ -16,7 +16,7 @@ export interface BootConfig {
    * so the LLM can read/mutate everything inside the workspace.
    */
   readonly appRoot: string;
-  /** `<appRoot>/app` — cwd for git, install, dev script, scripts. */
+  /** `<appRoot>/repo` — cwd for git, install, dev script, scripts. */
   readonly repoDir: string;
   readonly proxyPort: number;
   readonly dropPrivileges: boolean;

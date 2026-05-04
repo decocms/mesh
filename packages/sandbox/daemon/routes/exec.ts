@@ -8,7 +8,7 @@ import { jsonResponse, parseBase64JsonBody } from "./body-parser";
 export type ExecMode = "await" | "background";
 
 export interface ExecDeps {
-  /** Default cwd when no packageManager.path is set. Typically `<appRoot>/app`. */
+  /** Default cwd when no packageManager.path is set. Typically `<appRoot>/repo`. */
   repoDir: string;
   store: TenantConfigStore;
   jobManager: JobManager;

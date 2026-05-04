@@ -125,6 +125,50 @@ describe("makeConfigUpdateHandler", () => {
     );
     expect(res.status).toBe(400);
   });
+
+  it("auth.rotateToken invokes setDaemonToken before applying patch", async () => {
+    let captured: string | null = null;
+    const h = makeConfigUpdateHandler({
+      daemonBootId: BOOT_ID,
+      store,
+      setDaemonToken: (next) => {
+        captured = next;
+      },
+    });
+    const newToken = "a".repeat(48);
+    const res = await h(
+      buildReq("POST", { ...SEED, auth: { rotateToken: newToken } }),
+    );
+    expect(res.status).toBe(200);
+    expect(captured).toBe(newToken);
+    // Auth field MUST be stripped before persisting — TenantConfig has no auth.
+    const persisted = store.read();
+    expect((persisted as unknown as { auth?: unknown })?.auth).toBeUndefined();
+  });
+
+  it("auth.rotateToken too short returns 400 and does not call setter", async () => {
+    let called = false;
+    const h = makeConfigUpdateHandler({
+      daemonBootId: BOOT_ID,
+      store,
+      setDaemonToken: () => {
+        called = true;
+      },
+    });
+    const res = await h(
+      buildReq("POST", { ...SEED, auth: { rotateToken: "short" } }),
+    );
+    expect(res.status).toBe(400);
+    expect(called).toBe(false);
+  });
+
+  it("auth.rotateToken without setter returns 400", async () => {
+    const h = handler();
+    const res = await h(
+      buildReq("POST", { ...SEED, auth: { rotateToken: "a".repeat(48) } }),
+    );
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("makeConfigReadHandler", () => {

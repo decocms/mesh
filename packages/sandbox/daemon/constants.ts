@@ -23,9 +23,13 @@ export const BOOTSTRAP_SCRIPT = IFRAME_BOOTSTRAP_SCRIPT;
 // `manifest` files gate `install`: running `deno install` (and friends) on an
 // empty workdir is at best a no-op and at worst a panic (Deno 2.2.6 crashes
 // in deno_semver). When none of these exist in appRoot, install is skipped.
+//
+// `install` is optional: deno auto-fetches imports on first `deno task`, so
+// there's no separate install step (and `deno install` without args means
+// different things across Deno 1.x vs 2.x — both wrong here).
 export const PACKAGE_MANAGER_DAEMON_CONFIG: Record<
   string,
-  { install: string; runPrefix: string; manifests: readonly string[] }
+  { install?: string; runPrefix: string; manifests: readonly string[] }
 > = {
   npm: {
     install: "npm install",
@@ -48,7 +52,6 @@ export const PACKAGE_MANAGER_DAEMON_CONFIG: Record<
     manifests: ["package.json"],
   },
   deno: {
-    install: "deno install",
     runPrefix: "deno task",
     manifests: ["deno.json", "deno.jsonc", "package.json"],
   },

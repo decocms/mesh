@@ -19,7 +19,7 @@ export interface FsDeps {
   appRoot: string;
   /**
    * Default base for resolving relative paths and as the cwd for
-   * grep/glob. Typically `<appRoot>/app` so the LLM's path UX matches
+   * grep/glob. Typically `<appRoot>/repo` so the LLM's path UX matches
    * bash's cwd.
    */
   repoDir: string;

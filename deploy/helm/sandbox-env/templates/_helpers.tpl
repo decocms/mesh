@@ -154,3 +154,30 @@ to drop the env scope. README has copy-paste values.
 {{- define "sandbox-env.housekeeperPodSelector" -}}
 {{- printf "studio.decocms.com/role=claimed,studio.decocms.com/env=%s" (include "sandbox-env.envName" .) -}}
 {{- end }}
+
+{{/*
+Sentinel-token Secret name. Holds the bearer baked into pool-pod env via
+`valueFrom.secretKeyRef`; mesh reads the same secret out-of-band (env var
+sourced from this Secret in the studio chart) so both sides agree on the
+sentinel without it landing in any chart values.yaml.
+*/}}
+{{- define "sandbox-env.sentinelSecretName" -}}
+{{- printf "studio-sandbox-sentinel-%s" (include "sandbox-env.envName" .) -}}
+{{- end }}
+
+{{/*
+Sentinel token. Generated once at chart install (Helm's `randAlphaNum`
+gives a 64-char alphanumeric — well above the 32-char floor the daemon
+enforces) and pinned across upgrades via `lookup`: helm refuses to
+re-randomize an existing Secret, so rotating the sentinel is an explicit
+opt-in (delete the Secret + helm upgrade, or `kubectl edit`).
+*/}}
+{{- define "sandbox-env.sentinelToken" -}}
+{{- $name := include "sandbox-env.sentinelSecretName" . -}}
+{{- $existing := lookup "v1" "Secret" "agent-sandbox-system" $name -}}
+{{- if and $existing $existing.data $existing.data.daemonToken -}}
+{{- $existing.data.daemonToken | b64dec -}}
+{{- else -}}
+{{- randAlphaNum 64 -}}
+{{- end -}}
+{{- end }}

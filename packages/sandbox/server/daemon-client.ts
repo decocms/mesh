@@ -69,6 +69,23 @@ export async function waitForDaemonReady(daemonUrl: string): Promise<void> {
 }
 
 /**
+ * Optional bootstrap-time fields that travel alongside the tenant patch.
+ * Stripped from the persisted config daemon-side; consumed only as
+ * side-effects on the request itself.
+ */
+export interface ConfigAuthPatch {
+  /**
+   * Replace the daemon's in-memory bearer token. Authorized via the
+   * *current* token (i.e. the `token` argument to `postConfig`); on
+   * success, subsequent calls must use `rotateToken`. Used by the
+   * agent-sandbox runner's warm-pool bootstrap to swap the
+   * SandboxTemplate-baked sentinel for a per-claim secret without
+   * needing a separate endpoint.
+   */
+  rotateToken?: string;
+}
+
+/**
  * POST /_decopilot_vm/config — set initial tenant config (or patch via
  * the same payload semantics; deep-merge happens daemon-side).
  *
@@ -76,13 +93,17 @@ export async function waitForDaemonReady(daemonUrl: string): Promise<void> {
  * the auth on its port. Body is base64-encoded JSON like every other
  * `/_decopilot_vm/*` route. 200 = applied (or no-op); 400 = invalid;
  * 409 = identity conflict (e.g., cloneUrl mismatch).
+ *
+ * `auth.rotateToken` is applied *before* the tenant patch — see
+ * `ConfigAuthPatch.rotateToken`.
  */
 export async function postConfig(
   daemonUrl: string,
   token: string,
   payload: Partial<TenantConfig>,
+  auth?: ConfigAuthPatch,
 ): Promise<ConfigResponse> {
-  return configRequest(daemonUrl, token, "POST", payload);
+  return configRequest(daemonUrl, token, "POST", payload, auth);
 }
 
 /** PUT /_decopilot_vm/config — merge a patch into the current config. */
@@ -90,8 +111,9 @@ export async function putConfig(
   daemonUrl: string,
   token: string,
   payload: Partial<TenantConfig>,
+  auth?: ConfigAuthPatch,
 ): Promise<ConfigResponse> {
-  return configRequest(daemonUrl, token, "PUT", payload);
+  return configRequest(daemonUrl, token, "PUT", payload, auth);
 }
 
 async function configRequest(
@@ -99,8 +121,11 @@ async function configRequest(
   token: string,
   method: "POST" | "PUT",
   payload: Partial<TenantConfig>,
+  auth?: ConfigAuthPatch,
 ): Promise<ConfigResponse> {
-  const rawBody = JSON.stringify(payload);
+  const wire: Record<string, unknown> = { ...payload };
+  if (auth && auth.rotateToken !== undefined) wire.auth = auth;
+  const rawBody = JSON.stringify(wire);
   const b64Body = Buffer.from(rawBody, "utf-8").toString("base64");
   const res = await fetch(`${daemonUrl}/_decopilot_vm/config`, {
     method,

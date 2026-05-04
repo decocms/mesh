@@ -20,6 +20,9 @@ export function spawnInstall(deps: InstallDeps): Promise<number> | null {
   if (!pm) return null;
   const pmConfig = PACKAGE_MANAGER_DAEMON_CONFIG[pm];
   if (!pmConfig) return null;
+  // No install command (e.g. deno) — runtime fetches deps lazily on first
+  // task. Caller treats null as "nothing to do" and proceeds to start.
+  if (!pmConfig.install) return null;
   const installRoot =
     config.application?.packageManager?.path ?? config.repoDir;
   const hasManifest = pmConfig.manifests.some((file) =>

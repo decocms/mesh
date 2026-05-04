@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { ApplicationService } from "./app/application-service";
-import { bumpActivity } from "./activity";
+import { bumpActivity, markClaimed } from "./activity";
 import { requireToken } from "./auth";
 import { TenantConfigStore } from "./config-store";
 import { REPLAY_BYTES } from "./constants";
@@ -64,12 +64,15 @@ const bootConfig = {
   daemonToken: process.env.DAEMON_TOKEN ?? "",
   daemonBootId: process.env.DAEMON_BOOT_ID ?? "",
   appRoot: APP_ROOT,
-  repoDir: join(APP_ROOT, "app"),
+  repoDir: join(APP_ROOT, "repo"),
   proxyPort: parseInt(process.env.PROXY_PORT ?? "9000", 10),
 };
-// Workspace layout: <appRoot>/config.json (tenant config), <appRoot>/app
-// (repo), <appRoot>/tmp/{app,jobN} (log tees). Everything inside appRoot
-// is reachable by fs/bash routes (clamped to appRoot via safePath).
+// Ensure repoDir exists so bash commands with the default cwd don't fail with
+// ENOENT when no repo has been cloned yet (tool-only sandboxes, no-repo agents).
+mkdirSync(bootConfig.repoDir, { recursive: true });
+// Workspace layout: <appRoot>/config.json (tenant config), <appRoot>/repo
+// (cloned source), <appRoot>/tmp/{app,jobN} (log tees). Everything inside
+// appRoot is reachable by fs/bash routes (clamped to appRoot via safePath).
 const CONFIG_DIR = process.env.DAEMON_CONFIG_DIR ?? APP_ROOT;
 const TMP_DIR = join(APP_ROOT, "tmp");
 
@@ -260,9 +263,18 @@ const configReadH = makeConfigReadHandler({
   daemonBootId: process.env.DAEMON_BOOT_ID ?? "",
   store,
 });
+// Closure mutates `bootConfig.daemonToken` in place so the
+// `requireToken(req, bootConfig.daemonToken)` calls below — which read the
+// property on each request — pick up the rotated value without any
+// reload. The auth handler validates the rotation request against the
+// *current* token; rotation happens only after that check passes, so a
+// successful rotation is always an authenticated handoff.
 const configUpdateH = makeConfigUpdateHandler({
   daemonBootId: process.env.DAEMON_BOOT_ID ?? "",
   store,
+  setDaemonToken: (next) => {
+    bootConfig.daemonToken = next;
+  },
 });
 
 function hydrate(): void {
@@ -329,8 +341,14 @@ Bun.serve<WsProxyData, never>({
       const denied = requireToken(req, bootConfig.daemonToken);
       if (denied) return denied;
       if (req.method === "GET") return configReadH();
-      if (req.method === "PUT" || req.method === "POST")
-        return configUpdateH(req);
+      if (req.method === "PUT" || req.method === "POST") {
+        const res = await configUpdateH(req);
+        // Mark daemon as claimed on first successful config delivery so the
+        // housekeeper can distinguish warm-pool pods awaiting adoption from
+        // idle-but-active sandboxes.
+        if (res.status === 200) markClaimed();
+        return res;
+      }
     }
 
     if (p.startsWith("/_decopilot_vm/jobs")) {

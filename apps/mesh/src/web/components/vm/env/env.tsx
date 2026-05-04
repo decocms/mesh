@@ -45,7 +45,7 @@ import { useChatBridge, useChatTask } from "@/web/components/chat/context";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { VmErrorState } from "../vm-error-state";
 import { VmSuspendedState } from "../vm-suspended-state";
-import { useVmChunkHandler, useVmEvents } from "../hooks/use-vm-events";
+import { useVmEvents } from "../hooks/use-vm-events";
 import { useIsVmStartPending, useVmStart } from "../hooks/use-vm-start";
 import { VmTerminal } from "./terminal";
 import type { Terminal as XTerminal } from "@xterm/xterm";
@@ -160,15 +160,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     orgId: org.id,
   });
 
-  const handleChunk = (source: string, data: string) => {
-    const term = terminalRefs.current.get(source);
-    if (term) {
-      term.write(data);
-    }
-  };
-
   const vmEvents = useVmEvents();
-  useVmChunkHandler(handleChunk);
 
   const vmStartPending = useIsVmStartPending(
     inset?.entity?.id,
@@ -699,13 +691,13 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
             >
               {vmEvents.hasData(tab) || tab === "setup" || tab === "daemon" ? (
                 <VmTerminal
+                  source={tab}
                   onReady={(t) => {
                     terminalRefs.current.set(tab, t);
                   }}
                   onSelectionChange={(has, getText) =>
                     handleSelectionChange(tab, has, getText)
                   }
-                  initialData={vmEvents.getBuffer(tab)}
                   className="h-full"
                 />
               ) : (

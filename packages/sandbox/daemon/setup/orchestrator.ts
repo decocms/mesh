@@ -148,13 +148,6 @@ export class SetupOrchestrator {
   private async firstBootstrap(): Promise<void> {
     const config = this.currentConfig();
     if (!config) return;
-    try {
-      configureGitIdentity(config);
-    } catch (e) {
-      this.chunk(
-        `\r\nWarning: git identity setup failed: ${(e as Error).message}\r\n`,
-      );
-    }
 
     const cloneUrl = config.git?.repository?.cloneUrl;
     if (cloneUrl && !isResume(config.repoDir)) {
@@ -168,6 +161,17 @@ export class SetupOrchestrator {
       }
     } else if (cloneUrl) {
       this.chunk(`$ (resuming setup; ${config.repoDir} already cloned)\r\n`);
+    }
+
+    // Identity has to run after clone so `git config` has a repo to write
+    // into — earlier order tripped posix_spawn ENOENT (it reads cwd before
+    // exec, and repoDir doesn't exist until clone returns).
+    try {
+      configureGitIdentity(config);
+    } catch (e) {
+      this.chunk(
+        `\r\nWarning: git identity setup failed: ${(e as Error).message}\r\n`,
+      );
     }
 
     if (config.git?.repository?.branch) {
@@ -214,6 +218,11 @@ export class SetupOrchestrator {
       ) {
         const ok = await this.runInstall();
         if (!ok) return;
+      } else {
+        // Skipping runInstall on resume means the SSE `scripts` event from
+        // that path doesn't fire — broadcast directly so the UI's Dev/Start
+        // tabs reappear after a daemon restart.
+        this.broadcastDiscoveredScripts(config);
       }
       await this.startIfReady();
     }
@@ -322,10 +331,19 @@ export class SetupOrchestrator {
         installTee.write(data);
       },
     });
+    // null = no install step needed (e.g. deno auto-fetches; or no manifest
+    // present yet). Treat as success so the caller proceeds to start; mark
+    // the install fingerprint so resume doesn't retry on every boot.
     if (!installPromise) {
       installTee.close();
+      this.deps.installState.mark(
+        InstallStateClass.fingerprint(config, this.currentBranchHead),
+        true,
+      );
+      this.deps.appService.markInstalled();
       this.deps.appService.setStatus("idle");
-      return false;
+      this.broadcastDiscoveredScripts(config);
+      return true;
     }
     const code = await installPromise;
     installTee.close();
@@ -344,8 +362,15 @@ export class SetupOrchestrator {
     );
     this.deps.appService.markInstalled();
     this.deps.appService.setStatus("idle");
+    this.broadcastDiscoveredScripts(config);
+    return true;
+  }
 
-    // Broadcast discovered scripts so SSE consumers can populate dropdowns.
+  // Source of truth for the SSE `scripts` event. Without this the UI never
+  // opens script tabs (e.g. Dev) — the env panel gates `openScriptTabs` on
+  // `vmEvents.scripts`. Idempotent: callers in both fresh-install and
+  // skip-install paths dispatch the same payload.
+  private broadcastDiscoveredScripts(config: Config): void {
     const cwd = config.application?.packageManager?.path ?? config.repoDir;
     const scripts = discoverScripts(
       cwd,
@@ -355,7 +380,6 @@ export class SetupOrchestrator {
       type: "scripts",
       scripts,
     });
-    return true;
   }
 
   private refreshBranchHead(): void {
