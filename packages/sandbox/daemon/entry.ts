@@ -60,13 +60,16 @@ if (!process.env.DAEMON_BOOT_ID) {
 // run whichever PM the daemon picked, regardless of what an ancestor declared.
 process.env.COREPACK_ENABLE_STRICT = "0";
 
-const APP_ROOT = process.env.APP_ROOT ?? "/";
+const APP_ROOT = process.env.WORKDIR ?? process.env.APP_ROOT ?? "/";
 const bootConfig = {
   daemonToken: process.env.DAEMON_TOKEN ?? "",
   daemonBootId: process.env.DAEMON_BOOT_ID ?? "",
   appRoot: APP_ROOT,
   repoDir: join(APP_ROOT, "repo"),
-  proxyPort: parseInt(process.env.PROXY_PORT ?? "9000", 10),
+  proxyPort: parseInt(
+    process.env.DAEMON_PORT ?? process.env.PROXY_PORT ?? "9000",
+    10,
+  ),
 };
 // Ensure repoDir exists so bash commands with the default cwd don't fail with
 // ENOENT when no repo has been cloned yet (tool-only sandboxes, no-repo agents).

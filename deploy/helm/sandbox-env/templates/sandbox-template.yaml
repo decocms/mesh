@@ -84,18 +84,10 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           workingDir: /app
           env:
-            # Daemon bootstrap: paths + ports the entrypoint reads at
-            # boot. APP_ROOT and PROXY_PORT are the real names the daemon
-            # consumes (DAEMON_PORT / WORKDIR were leftovers from an
-            # earlier shape — the daemon ignores them).
-            - name: APP_ROOT
+            - name: WORKDIR
               value: "/app"
-            - name: PROXY_PORT
+            - name: DAEMON_PORT
               value: "9000"
-            # Sentinel bearer for the warm-pool path. Pool pods boot with
-            # this; mesh authenticates the first call and rotates to a
-            # per-claim token. See sandbox-sentinel-secret.yaml for the
-            # trust-window rationale.
             - name: DAEMON_TOKEN
               valueFrom:
                 secretKeyRef:

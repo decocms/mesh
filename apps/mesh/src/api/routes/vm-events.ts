@@ -113,7 +113,13 @@ app.get("/", async (c) => {
   const runnerKind = resolveRunnerKindFromEnv();
   // The handle is the same value the runner stored in its state-store when
   // VM_START provisioned the sandbox, so the daemon-proxy lookup hits.
-  const claimName = computeHandle({ userId, projectRef }, branch);
+  // agent-sandbox uses hashLen:16 for preview-URL security; other runners
+  // use the default hashLen:5.
+  const claimName = computeHandle(
+    { userId, projectRef },
+    branch,
+    runnerKind === "agent-sandbox" ? { hashLen: 16 } : {},
+  );
 
   // Snapshot vmMap from the same metadata read used for the org-ownership
   // check. Used below to gate the stale-handle probe: we only run it when

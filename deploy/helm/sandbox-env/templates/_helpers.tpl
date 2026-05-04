@@ -166,18 +166,25 @@ sentinel without it landing in any chart values.yaml.
 {{- end }}
 
 {{/*
-Sentinel token. Generated once at chart install (Helm's `randAlphaNum`
-gives a 64-char alphanumeric — well above the 32-char floor the daemon
-enforces) and pinned across upgrades via `lookup`: helm refuses to
-re-randomize an existing Secret, so rotating the sentinel is an explicit
-opt-in (delete the Secret + helm upgrade, or `kubectl edit`).
+Sentinel token. Priority order:
+  1. .Values.sentinel.token — explicit value supplied by CI/operator so
+     both charts (sandbox-env + studio) can be deployed with the same token
+     without an extraction step.
+  2. Existing Secret — preserves the token across `helm upgrade` so
+     rotating is an explicit opt-in (delete the Secret + re-upgrade).
+  3. randAlphaNum 64 — generated on first install when neither of the
+     above is present.
 */}}
 {{- define "sandbox-env.sentinelToken" -}}
+{{- if and .Values.sentinel .Values.sentinel.token (ne .Values.sentinel.token "") -}}
+{{- .Values.sentinel.token -}}
+{{- else -}}
 {{- $name := include "sandbox-env.sentinelSecretName" . -}}
 {{- $existing := lookup "v1" "Secret" .Release.Namespace $name -}}
 {{- if and $existing $existing.data $existing.data.daemonToken -}}
 {{- $existing.data.daemonToken | b64dec -}}
 {{- else -}}
 {{- randAlphaNum 64 -}}
+{{- end -}}
 {{- end -}}
 {{- end }}
