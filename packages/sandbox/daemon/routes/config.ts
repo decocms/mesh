@@ -124,7 +124,10 @@ function validateAuthPatch(
 function makeApplyResponse(bootId: string, result: ApplyResult): Response {
   if (result.kind === "rejected") {
     const status = inferStatus(result.reason);
-    return jsonResponse({ error: result.reason }, status);
+    const error = result.detail
+      ? `${result.reason}: ${result.detail}`
+      : result.reason;
+    return jsonResponse({ error }, status);
   }
   return jsonResponse({
     bootId,

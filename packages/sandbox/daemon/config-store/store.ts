@@ -108,6 +108,7 @@ export class TenantConfigStore {
       return {
         kind: "rejected",
         reason: REJECTION_REASONS.IMMUTABLE,
+        detail: transition.field,
       };
     }
 

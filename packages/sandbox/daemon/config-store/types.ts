@@ -56,4 +56,4 @@ export type ApplyResult =
       after: TenantConfig;
       transition: Transition;
     }
-  | { kind: "rejected"; reason: RejectionReason };
+  | { kind: "rejected"; reason: RejectionReason; detail?: string };
