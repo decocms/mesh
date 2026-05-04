@@ -167,12 +167,11 @@ function ConnectionRow({
       // Save OAuth tokens
       if (authResult.tokenInfo) {
         const res = await fetch(
-          `/api/connections/${connectionId}/oauth-token`,
+          `/api/${org.slug}/connections/${connectionId}/oauth-token`,
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "x-org-id": org.id,
             },
             credentials: "include",
             body: JSON.stringify({
@@ -208,10 +207,10 @@ function ConnectionRow({
   };
 
   const saveTokenInternal = async (token: string) => {
-    const res = await fetch("/mcp/self", {
+    const res = await fetch(`/api/${org.slug}/mcp/self`, {
       method: "POST",
       credentials: "include",
-      headers: { "Content-Type": "application/json", "x-org-id": org.id },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 1,

@@ -802,7 +802,10 @@ function ConnectionResults({
       const { id } = await actions.create.mutateAsync(connectionData);
 
       // Handle OAuth flow
-      const mcpProxyUrl = new URL(`/mcp/${id}`, window.location.origin);
+      const mcpProxyUrl = new URL(
+        `/api/${org.slug}/mcp/${id}`,
+        window.location.origin,
+      );
       const authStatus = await isConnectionAuthenticated({
         url: mcpProxyUrl.href,
         token: null,
@@ -830,12 +833,11 @@ function ConnectionResults({
           if (tokenInfo) {
             try {
               const response = await fetch(
-                `/api/connections/${id}/oauth-token`,
+                `/api/${org.slug}/connections/${id}/oauth-token`,
                 {
                   method: "POST",
                   headers: {
                     "Content-Type": "application/json",
-                    "x-org-id": org.id,
                   },
                   credentials: "include",
                   body: JSON.stringify({

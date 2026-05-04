@@ -1243,7 +1243,10 @@ function VirtualMcpDetailViewWithData({
     dispatch({ type: "SET_ADD_DIALOG_OPEN", payload: false });
 
     // Auto-trigger OAuth if the connection needs authorization
-    const mcpProxyUrl = new URL(`/mcp/${connectionId}`, window.location.origin);
+    const mcpProxyUrl = new URL(
+      `/api/${org.slug}/mcp/${connectionId}`,
+      window.location.origin,
+    );
     const authStatus = await isConnectionAuthenticated({
       url: mcpProxyUrl.href,
       token: null,
@@ -1312,7 +1315,10 @@ function VirtualMcpDetailViewWithData({
       });
 
       // Handle OAuth if needed
-      const mcpProxyUrl = new URL(`/mcp/${newId}`, window.location.origin);
+      const mcpProxyUrl = new URL(
+        `/api/${org.slug}/mcp/${newId}`,
+        window.location.origin,
+      );
       const authStatus = await isConnectionAuthenticated({
         url: mcpProxyUrl.href,
         token: null,
@@ -1359,12 +1365,11 @@ function VirtualMcpDetailViewWithData({
     if (tokenInfo) {
       try {
         const response = await fetch(
-          `/api/connections/${connectionId}/oauth-token`,
+          `/api/${org.slug}/connections/${connectionId}/oauth-token`,
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "x-org-id": org.id,
             },
             credentials: "include",
             body: JSON.stringify({
@@ -1411,7 +1416,10 @@ function VirtualMcpDetailViewWithData({
       });
     }
 
-    const mcpProxyUrl = new URL(`/mcp/${connectionId}`, window.location.origin);
+    const mcpProxyUrl = new URL(
+      `/api/${org.slug}/mcp/${connectionId}`,
+      window.location.origin,
+    );
     await queryClient.invalidateQueries({
       queryKey: KEYS.isMCPAuthenticated(mcpProxyUrl.href, null),
     });

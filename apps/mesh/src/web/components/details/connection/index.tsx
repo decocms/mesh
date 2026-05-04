@@ -315,23 +315,25 @@ function ConnectionInspectorViewWithConnection({
 
     if (tokenInfo) {
       try {
-        const response = await fetch(`/api/connections/${connId}/oauth-token`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-org-id": projectOrg.id,
+        const response = await fetch(
+          `/api/${projectOrg.slug}/connections/${connId}/oauth-token`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            credentials: "include",
+            body: JSON.stringify({
+              accessToken: tokenInfo.accessToken,
+              refreshToken: tokenInfo.refreshToken,
+              expiresIn: tokenInfo.expiresIn,
+              scope: tokenInfo.scope,
+              clientId: tokenInfo.clientId,
+              clientSecret: tokenInfo.clientSecret,
+              tokenEndpoint: tokenInfo.tokenEndpoint,
+            }),
           },
-          credentials: "include",
-          body: JSON.stringify({
-            accessToken: tokenInfo.accessToken,
-            refreshToken: tokenInfo.refreshToken,
-            expiresIn: tokenInfo.expiresIn,
-            scope: tokenInfo.scope,
-            clientId: tokenInfo.clientId,
-            clientSecret: tokenInfo.clientSecret,
-            tokenEndpoint: tokenInfo.tokenEndpoint,
-          }),
-        });
+        );
         if (!response.ok) {
           console.error("Failed to save OAuth token:", await response.text());
           await connectionActions.update.mutateAsync({
@@ -365,7 +367,10 @@ function ConnectionInspectorViewWithConnection({
       });
     }
 
-    const mcpProxyUrl = new URL(`/mcp/${connId}`, window.location.origin);
+    const mcpProxyUrl = new URL(
+      `/api/${projectOrg.slug}/mcp/${connId}`,
+      window.location.origin,
+    );
     await queryClient.invalidateQueries({
       queryKey: KEYS.isMCPAuthenticated(mcpProxyUrl.href, null),
     });
@@ -378,11 +383,10 @@ function ConnectionInspectorViewWithConnection({
   const handleRemoveOAuth = async () => {
     try {
       const response = await fetch(
-        `/api/connections/${connection.id}/oauth-token`,
+        `/api/${projectOrg.slug}/connections/${connection.id}/oauth-token`,
         {
           method: "DELETE",
           credentials: "include",
-          headers: { "x-org-id": projectOrg.id },
         },
       );
 
@@ -393,7 +397,7 @@ function ConnectionInspectorViewWithConnection({
       }
 
       const mcpProxyUrl = new URL(
-        `/mcp/${connection.id}`,
+        `/api/${projectOrg.slug}/mcp/${connection.id}`,
         window.location.origin,
       );
       await queryClient.invalidateQueries({
@@ -585,7 +589,7 @@ function ConnectionInspectorViewWithConnection({
                         status: "inactive",
                       });
                       const mcpProxyUrl = new URL(
-                        `/mcp/${newId}`,
+                        `/api/${projectOrg.slug}/mcp/${newId}`,
                         window.location.origin,
                       );
                       const authStatus = await isConnectionAuthenticated({
