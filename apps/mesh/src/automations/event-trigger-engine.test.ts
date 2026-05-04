@@ -516,5 +516,275 @@ describe("EventTriggerEngine", () => {
 
       expect(streamCoreFn).not.toHaveBeenCalled();
     });
+
+    // -------- array data sugar (back-compat) --------
+
+    it("matches scalar param against array event data via includes", async () => {
+      const trigger = makeTriggerWithAutomation({
+        params: JSON.stringify({ labelIds: "INBOX" }),
+      });
+      const storage = {
+        findActiveEventTriggers: mock(() => Promise.resolve([trigger])),
+        tryAcquireRunSlot: mock(() => Promise.resolve("thrd_1")),
+        deactivateAutomation: mock(() => Promise.resolve()),
+        markRunFailed: mock(() => Promise.resolve()),
+      } as unknown as AutomationsStorage;
+
+      const { engine, streamCoreFn } = makeEngine({ storage });
+      engine.notifyEvents([
+        {
+          source: "conn_1",
+          type: "test",
+          data: { labelIds: ["INBOX", "IMPORTANT"] },
+          organizationId: ORG_ID,
+        },
+      ]);
+      await flush();
+
+      expect(streamCoreFn).toHaveBeenCalled();
+    });
+
+    it("rejects scalar param when array event data does not include it", async () => {
+      const trigger = makeTriggerWithAutomation({
+        params: JSON.stringify({ labelIds: "INBOX" }),
+      });
+      const storage = {
+        findActiveEventTriggers: mock(() => Promise.resolve([trigger])),
+        tryAcquireRunSlot: mock(() => Promise.resolve("thrd_1")),
+        deactivateAutomation: mock(() => Promise.resolve()),
+        markRunFailed: mock(() => Promise.resolve()),
+      } as unknown as AutomationsStorage;
+
+      const { engine, streamCoreFn } = makeEngine({ storage });
+      engine.notifyEvents([
+        {
+          source: "conn_1",
+          type: "test",
+          data: { labelIds: ["SENT", "DRAFT"] },
+          organizationId: ORG_ID,
+        },
+      ]);
+      await flush();
+
+      expect(streamCoreFn).not.toHaveBeenCalled();
+    });
+
+    // -------- explicit { op: "eq" } --------
+
+    it('matches { op: "eq", value } the same as a scalar param', async () => {
+      const trigger = makeTriggerWithAutomation({
+        params: JSON.stringify({ status: { op: "eq", value: "paid" } }),
+      });
+      const storage = {
+        findActiveEventTriggers: mock(() => Promise.resolve([trigger])),
+        tryAcquireRunSlot: mock(() => Promise.resolve("thrd_1")),
+        deactivateAutomation: mock(() => Promise.resolve()),
+        markRunFailed: mock(() => Promise.resolve()),
+      } as unknown as AutomationsStorage;
+
+      const { engine, streamCoreFn } = makeEngine({ storage });
+      engine.notifyEvents([
+        {
+          source: "conn_1",
+          type: "test",
+          data: { status: "paid" },
+          organizationId: ORG_ID,
+        },
+      ]);
+      await flush();
+
+      expect(streamCoreFn).toHaveBeenCalled();
+    });
+
+    // -------- { op: "contains" } --------
+
+    it('matches { op: "contains" } against a string field (case-insensitive)', async () => {
+      const trigger = makeTriggerWithAutomation({
+        params: JSON.stringify({
+          subject: { op: "contains", value: "INVOICE" },
+        }),
+      });
+      const storage = {
+        findActiveEventTriggers: mock(() => Promise.resolve([trigger])),
+        tryAcquireRunSlot: mock(() => Promise.resolve("thrd_1")),
+        deactivateAutomation: mock(() => Promise.resolve()),
+        markRunFailed: mock(() => Promise.resolve()),
+      } as unknown as AutomationsStorage;
+
+      const { engine, streamCoreFn } = makeEngine({ storage });
+      engine.notifyEvents([
+        {
+          source: "conn_1",
+          type: "test",
+          data: { subject: "Your invoice for May" },
+          organizationId: ORG_ID,
+        },
+      ]);
+      await flush();
+
+      expect(streamCoreFn).toHaveBeenCalled();
+    });
+
+    it('rejects { op: "contains" } when the substring is absent', async () => {
+      const trigger = makeTriggerWithAutomation({
+        params: JSON.stringify({
+          subject: { op: "contains", value: "invoice" },
+        }),
+      });
+      const storage = {
+        findActiveEventTriggers: mock(() => Promise.resolve([trigger])),
+        tryAcquireRunSlot: mock(() => Promise.resolve("thrd_1")),
+        deactivateAutomation: mock(() => Promise.resolve()),
+        markRunFailed: mock(() => Promise.resolve()),
+      } as unknown as AutomationsStorage;
+
+      const { engine, streamCoreFn } = makeEngine({ storage });
+      engine.notifyEvents([
+        {
+          source: "conn_1",
+          type: "test",
+          data: { subject: "Daily standup reminder" },
+          organizationId: ORG_ID,
+        },
+      ]);
+      await flush();
+
+      expect(streamCoreFn).not.toHaveBeenCalled();
+    });
+
+    it('matches { op: "contains" } against an array field element', async () => {
+      const trigger = makeTriggerWithAutomation({
+        params: JSON.stringify({
+          tags: { op: "contains", value: "billing" },
+        }),
+      });
+      const storage = {
+        findActiveEventTriggers: mock(() => Promise.resolve([trigger])),
+        tryAcquireRunSlot: mock(() => Promise.resolve("thrd_1")),
+        deactivateAutomation: mock(() => Promise.resolve()),
+        markRunFailed: mock(() => Promise.resolve()),
+      } as unknown as AutomationsStorage;
+
+      const { engine, streamCoreFn } = makeEngine({ storage });
+      engine.notifyEvents([
+        {
+          source: "conn_1",
+          type: "test",
+          data: { tags: ["billing-team", "urgent"] },
+          organizationId: ORG_ID,
+        },
+      ]);
+      await flush();
+
+      expect(streamCoreFn).toHaveBeenCalled();
+    });
+
+    // -------- { op: "in" } --------
+
+    it('matches { op: "in", value: [...] } against scalar field', async () => {
+      const trigger = makeTriggerWithAutomation({
+        params: JSON.stringify({
+          status: { op: "in", value: ["paid", "shipped"] },
+        }),
+      });
+      const storage = {
+        findActiveEventTriggers: mock(() => Promise.resolve([trigger])),
+        tryAcquireRunSlot: mock(() => Promise.resolve("thrd_1")),
+        deactivateAutomation: mock(() => Promise.resolve()),
+        markRunFailed: mock(() => Promise.resolve()),
+      } as unknown as AutomationsStorage;
+
+      const { engine, streamCoreFn } = makeEngine({ storage });
+      engine.notifyEvents([
+        {
+          source: "conn_1",
+          type: "test",
+          data: { status: "shipped" },
+          organizationId: ORG_ID,
+        },
+      ]);
+      await flush();
+
+      expect(streamCoreFn).toHaveBeenCalled();
+    });
+
+    it('matches { op: "in", value: [...] } against array field via overlap', async () => {
+      const trigger = makeTriggerWithAutomation({
+        params: JSON.stringify({
+          labelIds: { op: "in", value: ["IMPORTANT", "STARRED"] },
+        }),
+      });
+      const storage = {
+        findActiveEventTriggers: mock(() => Promise.resolve([trigger])),
+        tryAcquireRunSlot: mock(() => Promise.resolve("thrd_1")),
+        deactivateAutomation: mock(() => Promise.resolve()),
+        markRunFailed: mock(() => Promise.resolve()),
+      } as unknown as AutomationsStorage;
+
+      const { engine, streamCoreFn } = makeEngine({ storage });
+      engine.notifyEvents([
+        {
+          source: "conn_1",
+          type: "test",
+          data: { labelIds: ["INBOX", "IMPORTANT"] },
+          organizationId: ORG_ID,
+        },
+      ]);
+      await flush();
+
+      expect(streamCoreFn).toHaveBeenCalled();
+    });
+
+    // -------- defensive --------
+
+    it("rejects unknown operator object", async () => {
+      const trigger = makeTriggerWithAutomation({
+        params: JSON.stringify({ status: { op: "regex", value: ".*" } }),
+      });
+      const storage = {
+        findActiveEventTriggers: mock(() => Promise.resolve([trigger])),
+        tryAcquireRunSlot: mock(() => Promise.resolve("thrd_1")),
+        deactivateAutomation: mock(() => Promise.resolve()),
+        markRunFailed: mock(() => Promise.resolve()),
+      } as unknown as AutomationsStorage;
+
+      const { engine, streamCoreFn } = makeEngine({ storage });
+      engine.notifyEvents([
+        {
+          source: "conn_1",
+          type: "test",
+          data: { status: "paid" },
+          organizationId: ORG_ID,
+        },
+      ]);
+      await flush();
+
+      expect(streamCoreFn).not.toHaveBeenCalled();
+    });
+
+    it("rejects malformed object param value (no op)", async () => {
+      const trigger = makeTriggerWithAutomation({
+        params: JSON.stringify({ status: { value: "paid" } }),
+      });
+      const storage = {
+        findActiveEventTriggers: mock(() => Promise.resolve([trigger])),
+        tryAcquireRunSlot: mock(() => Promise.resolve("thrd_1")),
+        deactivateAutomation: mock(() => Promise.resolve()),
+        markRunFailed: mock(() => Promise.resolve()),
+      } as unknown as AutomationsStorage;
+
+      const { engine, streamCoreFn } = makeEngine({ storage });
+      engine.notifyEvents([
+        {
+          source: "conn_1",
+          type: "test",
+          data: { status: "paid" },
+          organizationId: ORG_ID,
+        },
+      ]);
+      await flush();
+
+      expect(streamCoreFn).not.toHaveBeenCalled();
+    });
   });
 });
