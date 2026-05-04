@@ -1,11 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import type { BranchStatus } from "@/web/components/vm/hooks/use-vm-events";
+import type {
+  BranchStatus,
+  BranchStatusReady,
+} from "@/web/components/vm/hooks/use-vm-events";
 import { selectHeaderButton } from "./panel-state";
 import type { CheckRun, PrSummary } from "./use-pr-data";
 import type { PrReviewSignals } from "./use-pr-reviews";
 
-function bs(over: Partial<BranchStatus> = {}): BranchStatus {
+function bs(over: Partial<BranchStatusReady> = {}): BranchStatusReady {
   return {
+    kind: "ready",
     branch: "feat/x",
     base: "main",
     workingTreeDirty: false,
@@ -80,6 +84,67 @@ describe("selectHeaderButton", () => {
     });
     expect(r.label).toBe("Loading…");
     expect(r.loading).toBe(true);
+  });
+
+  test("kind=initializing → 'Starting sandbox…' (disabled, spinner)", () => {
+    const r = selectHeaderButton({
+      branchStatus: { kind: "initializing" } as BranchStatus,
+      pr: null,
+      checks: [],
+      reviews: null,
+    });
+    expect(r.label).toBe("Starting sandbox…");
+    expect(r.disabled).toBe(true);
+    expect(r.loading).toBe(true);
+    expect(r.variant).toBe("outline");
+  });
+
+  test("kind=cloning → 'Cloning repo…' (disabled, spinner)", () => {
+    const r = selectHeaderButton({
+      branchStatus: { kind: "cloning" } as BranchStatus,
+      pr: null,
+      checks: [],
+      reviews: null,
+    });
+    expect(r.label).toBe("Cloning repo…");
+    expect(r.loading).toBe(true);
+  });
+
+  test("kind=clone-failed → 'Clone failed' with error tooltip", () => {
+    const r = selectHeaderButton({
+      branchStatus: { kind: "clone-failed", error: "exit 128" } as BranchStatus,
+      pr: null,
+      checks: [],
+      reviews: null,
+    });
+    expect(r.label).toBe("Clone failed");
+    expect(r.disabled).toBe(true);
+    expect(r.tooltip).toBe("exit 128");
+  });
+
+  test("kind=checking-out → 'Switching to <branch>…'", () => {
+    const r = selectHeaderButton({
+      branchStatus: { kind: "checking-out", to: "feat/y" } as BranchStatus,
+      pr: null,
+      checks: [],
+      reviews: null,
+    });
+    expect(r.label).toBe("Switching to feat/y…");
+    expect(r.loading).toBe(true);
+  });
+
+  test("kind=checkout-failed → 'Checkout failed' with error tooltip", () => {
+    const r = selectHeaderButton({
+      branchStatus: {
+        kind: "checkout-failed",
+        error: "dirty working tree",
+      } as BranchStatus,
+      pr: null,
+      checks: [],
+      reviews: null,
+    });
+    expect(r.label).toBe("Checkout failed");
+    expect(r.tooltip).toBe("dirty working tree");
   });
 
   test("no diff anywhere → Up to date (disabled, outline)", () => {
