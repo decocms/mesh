@@ -1391,8 +1391,15 @@ export async function createApp(options: CreateAppOptions = {}) {
   );
 
   // KV store (org-scoped, for external MCPs to persist state)
+  // Legacy mount at /api/* with deprecation log; the new /api/:org/* mount
+  // is wired in a later task.
   const kvStorage = new KyselyKVStorage(database.db);
-  app.route("/api", createKVRoutes({ kvStorage }));
+  const legacyKVRoutes = new Hono<{
+    Variables: { meshContext: MeshContext };
+  }>();
+  legacyKVRoutes.use("*", logDeprecatedRoute);
+  legacyKVRoutes.route("/", createKVRoutes({ kvStorage }));
+  app.route("/api", legacyKVRoutes);
 
   // Public Events endpoint
   app.post("/org/:organizationId/events/:type", async (c) => {
