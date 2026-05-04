@@ -216,7 +216,8 @@ function ShellLayoutContent() {
 
   // Check org-level SSO enforcement (must be before early returns to satisfy Rules of Hooks)
   const orgId = activeOrg?.id;
-  const { data: ssoStatus } = useOrgSsoStatus(orgId);
+  const orgSlug = activeOrg?.slug;
+  const { data: ssoStatus } = useOrgSsoStatus(orgId, orgSlug);
 
   if (!activeOrg) {
     return <SplashScreen />;
@@ -226,6 +227,7 @@ function ShellLayoutContent() {
     return (
       <SsoRequiredScreen
         orgId={activeOrg.id}
+        orgSlug={activeOrg.slug}
         orgName={activeOrg.name}
         domain={ssoStatus.domain}
       />
