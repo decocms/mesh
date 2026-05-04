@@ -5,6 +5,7 @@ export interface SseHandshakeDeps {
   broadcaster: Broadcaster;
   getLastStatus: () => {
     ready: boolean;
+    responded: boolean;
     htmlSupport: boolean;
     port: number | null;
   };
