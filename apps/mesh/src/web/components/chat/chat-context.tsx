@@ -1070,7 +1070,7 @@ export function ActiveTaskProvider({
     messages.length > 0;
 
   // Stream manager (SSE + resume) — task-scoped
-  useStreamManager(taskId, org.id, chat, thread?.status);
+  useStreamManager(taskId, chat, thread?.status);
 
   // sendMessage — captures context at call time
   async function sendMessageInternal(params: SendMessageParams): Promise<void> {

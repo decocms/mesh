@@ -216,7 +216,7 @@ function AgentInsetProvider() {
   const { org } = useProjectContext();
   const tasksOpen = useOptionalTasksPanelState()?.tasksOpen ?? false;
 
-  useStatusSounds(org.id);
+  useStatusSounds(org.slug);
 
   const params = useParams({ strict: false }) as {
     org?: string;

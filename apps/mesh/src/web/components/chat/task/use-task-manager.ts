@@ -273,7 +273,7 @@ export function useTaskManager(virtualMcpId: string) {
 
   // Org-wide SSE for real-time sidebar task status updates
   useDecopilotEvents({
-    orgId: org.id,
+    orgSlug: org.slug,
     enabled: true,
     onTaskStatus: (event) => {
       const threadId = event.subject;
