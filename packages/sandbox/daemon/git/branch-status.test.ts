@@ -101,14 +101,16 @@ describe("BranchStatusMonitor", () => {
     expect(events.length).toBe(before);
   });
 
-  it("setPhase to a different kind always broadcasts even with same kind", () => {
+  it("setPhase deduplicates identical consecutive phases", () => {
     const m = newMonitor();
     m.setPhase({ kind: "cloning" });
     m.setPhase({ kind: "cloning" });
-    const branchStatusEvents = events.filter(
-      (e) => e.event === "branch-status",
+    const cloningEvents = events.filter(
+      (e) =>
+        e.event === "branch-status" &&
+        (e.data as { kind?: string }).kind === "cloning",
     );
-    expect(branchStatusEvents.length).toBe(1);
+    expect(cloningEvents.length).toBe(1);
   });
 
   it("setPhase overwrites a sticky 'clone-failed'", () => {
