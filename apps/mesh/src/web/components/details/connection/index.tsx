@@ -648,6 +648,7 @@ function ConnectionInspectorViewContent() {
   const client = useMCPClient({
     connectionId: connectionId || null,
     orgId: projectOrg.id,
+    orgSlug: projectOrg.slug,
   });
 
   // Fetch tools - uses cached if available, otherwise fetches dynamically

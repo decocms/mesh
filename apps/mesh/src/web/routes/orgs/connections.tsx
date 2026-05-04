@@ -891,6 +891,7 @@ function ConnectionResults({
   const selfClient = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
+    orgSlug: org.slug,
   });
 
   const invalidateConnections = () => {

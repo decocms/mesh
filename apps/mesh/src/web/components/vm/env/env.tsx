@@ -168,6 +168,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
+    orgSlug: org.slug,
   });
 
   const handleChunk = (source: string, data: string) => {

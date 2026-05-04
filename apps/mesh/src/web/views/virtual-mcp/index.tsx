@@ -528,6 +528,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
+    orgSlug: org.slug,
   });
   const queryClient = useQueryClient();
 
@@ -1071,6 +1072,7 @@ function VirtualMcpDetailViewWithData({
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
+    orgSlug: org.slug,
   });
 
   // Form setup

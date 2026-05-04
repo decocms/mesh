@@ -2,7 +2,7 @@
  * ThreadOutputs — download chips for files the model has shared back
  * to the user via the `share_with_user` tool. Files live under
  * `model-outputs/<thread_id>/` and are listed by
- * `GET /api/threads/:threadId/outputs`. The query is invalidated on
+ * `GET /api/:org/threads/:threadId/outputs`. The query is invalidated on
  * assistant-turn completion (see useStreamManager + chat onFinish).
  *
  * Attribution caveat: outputs are aggregated under the *last* assistant

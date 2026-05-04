@@ -83,6 +83,7 @@ export function useTriggerList(connectionId: string | undefined) {
   const client = useMCPClient({
     connectionId: connectionId ?? SELF_MCP_ALIAS_ID,
     orgId: org.id,
+    orgSlug: org.slug,
   });
 
   return useQuery({
@@ -158,6 +159,7 @@ export function useAutomations(virtualMcpId?: string | null) {
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
+    orgSlug: org.slug,
   });
 
   return useQuery({
@@ -186,6 +188,7 @@ export function useAutomation(id: string) {
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
+    orgSlug: org.slug,
   });
 
   return useQuery({
@@ -229,6 +232,7 @@ export function useAutomationActions() {
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
+    orgSlug: org.slug,
   });
   const queryClient = useQueryClient();
 

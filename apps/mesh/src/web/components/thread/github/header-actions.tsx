@@ -43,6 +43,7 @@ export function HeaderActions({ virtualMcpId }: Props) {
 
   const prQuery = usePrByBranch({
     orgId: org.id,
+    orgSlug: org.slug,
     connectionId: githubRepo?.connectionId ?? "",
     owner: githubRepo?.owner ?? "",
     repo: githubRepo?.name ?? "",
@@ -52,6 +53,7 @@ export function HeaderActions({ virtualMcpId }: Props) {
 
   const checksQuery = useChecks({
     orgId: org.id,
+    orgSlug: org.slug,
     connectionId: githubRepo?.connectionId ?? "",
     owner: githubRepo?.owner ?? "",
     repo: githubRepo?.name ?? "",
@@ -60,6 +62,7 @@ export function HeaderActions({ virtualMcpId }: Props) {
 
   const reviewsQuery = usePrReviews({
     orgId: org.id,
+    orgSlug: org.slug,
     connectionId: githubRepo?.connectionId ?? "",
     owner: githubRepo?.owner ?? "",
     repo: githubRepo?.name ?? "",

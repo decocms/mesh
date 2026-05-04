@@ -47,6 +47,7 @@ export function useTasks(params: UseTasksParams) {
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
+    orgSlug: org.slug,
   });
 
   const { data, refetch } = useSuspenseQuery({
@@ -106,6 +107,7 @@ export function useTaskMessages(taskId: string | null) {
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
+    orgSlug: org.slug,
   });
 
   // Pass null client when no taskId to skip the query entirely
@@ -186,6 +188,7 @@ export function useTaskManager(virtualMcpId: string) {
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
+    orgSlug: org.slug,
   });
 
   // Update task in cache (across all matching task lists)
