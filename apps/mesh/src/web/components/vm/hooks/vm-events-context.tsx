@@ -182,13 +182,9 @@ export function VmEventsProvider({
 
     if (!virtualMcpId || !branch) return;
 
-    // EventSource can't set custom headers, so x-org-id rides as a query
-    // param. authenticateRequest reads it as a fallback when the header is
-    // absent.
     const sseUrl =
-      `/api/vm-events?virtualMcpId=${encodeURIComponent(virtualMcpId)}` +
-      `&branch=${encodeURIComponent(branch)}` +
-      `&x-org-id=${encodeURIComponent(org.id)}`;
+      `/api/${encodeURIComponent(org.slug)}/vm-events?virtualMcpId=${encodeURIComponent(virtualMcpId)}` +
+      `&branch=${encodeURIComponent(branch)}`;
 
     let disposed = false;
     let reconnectAttempt = 0;
