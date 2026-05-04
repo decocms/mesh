@@ -298,6 +298,8 @@ interface FullTokenResult {
  */
 export async function authenticateMcp(params: {
   connectionId: string;
+  /** Organization slug — used to build the org-scoped /api/:org/mcp/... URL. */
+  orgSlug?: string;
   /** Mesh server URL - optional, defaults to window.location.origin (for external apps, provide your Mesh server URL) */
   meshUrl?: string;
   clientName?: string;
@@ -310,7 +312,10 @@ export async function authenticateMcp(params: {
   windowMode?: OAuthWindowMode;
 }): Promise<AuthenticateMcpResult> {
   const baseUrl = params.meshUrl ?? window.location.origin;
-  const serverUrl = new URL(`/mcp/${params.connectionId}`, baseUrl);
+  const path = params.orgSlug
+    ? `/api/${encodeURIComponent(params.orgSlug)}/mcp/${params.connectionId}`
+    : `/mcp/${params.connectionId}`;
+  const serverUrl = new URL(path, baseUrl);
   const provider = new McpOAuthProvider({
     serverUrl: serverUrl.href,
     clientName: params.clientName,

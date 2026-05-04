@@ -154,6 +154,7 @@ function ConnectionRow({
       toast.info(`Opening authentication window for "${title}"...`);
       const authResult = await authenticateMcp({
         connectionId,
+        orgSlug: org.slug,
         clientName: `MCP Test - ${title}`,
         timeout: 180000,
         scope: "offline_access",

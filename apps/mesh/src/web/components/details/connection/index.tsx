@@ -306,6 +306,7 @@ function ConnectionInspectorViewWithConnection({
   const handleAuthenticateForId = async (connId: string) => {
     const { token, tokenInfo, error } = await authenticateMcp({
       connectionId: connId,
+      orgSlug: projectOrg.slug,
       scope: "offline_access",
     });
     if (error || !token) {
