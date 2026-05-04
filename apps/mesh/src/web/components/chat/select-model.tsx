@@ -62,6 +62,18 @@ import { useNavigate } from "@tanstack/react-router";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import { NoAiProviderEmptyState } from "./no-ai-provider-empty-state";
 
+/**
+ * True if a model can only be used through the provider's
+ * `AsyncResearchProvider` capability (e.g. Gemini Deep Research). Prefers
+ * the server-set `asyncResearch` flag, with an id-pattern fallback so a
+ * stale cached response without the flag still gets hidden from the
+ * regular picker.
+ */
+function isAsyncResearchModel(m: AiProviderModel): boolean {
+  if (m.asyncResearch === true) return true;
+  return /^deep-research-/.test(m.modelId);
+}
+
 function parseModelTitle(model: { title: string; modelId: string }): {
   provider: string;
   displayName: string;
@@ -805,9 +817,14 @@ function ConnectionModelList({
   // Fast model — the agent loop's `streamText` rejects them. Callers that
   // want to expose them (the deep-research slot) pass their own filter that
   // opts them back in.
+  //
+  // The `asyncResearch` flag comes from the server, but cached responses
+  // (NATS KV server-side, React Query client-side) may predate the flag.
+  // The id pattern fallback covers that — every shipped Gemini Deep
+  // Research variant uses `deep-research-` as a prefix.
   const allModels = filterModelsProp
     ? rawModels.filter(filterModelsProp)
-    : rawModels.filter((m) => m.asyncResearch !== true);
+    : rawModels.filter((m) => !isAsyncResearchModel(m));
   const [shortlistSet, setShortlistSet] = useState<Set<string>>(
     () => (keyId ? readShortlist(keyId) : null) ?? DEFAULT_SHORTLIST,
   );
