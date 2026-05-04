@@ -141,6 +141,17 @@ describe("resolveOrgFromPath", () => {
     expect(body.orgSlug).toBe("acme");
   });
 
+  it("passes unauthenticated requests through with org set (so MCP OAuth discovery works)", async () => {
+    // Cursor/Claude rely on mcpAuth returning 401 with a WWW-Authenticate header
+    // pointing at the protected-resource metadata URL. If this middleware blocks
+    // unauthenticated callers with 403, OAuth discovery never starts.
+    const app = buildApp(db, { user: undefined });
+    const res = await app.request("/api/acme/probe");
+    expect(res.status).toBe(200); // probe handler doesn't enforce auth
+    const body = await res.json();
+    expect(body.orgId).toBe("org-1"); // org is set so downstream handlers can use it
+  });
+
   it("rebinds storage.threads + objectStorage to the path-resolved org", async () => {
     // Regression: when the new /api/:org path is hit without an x-org-id
     // header, meshContext is created with org=undefined, so OrgScopedThreadStorage

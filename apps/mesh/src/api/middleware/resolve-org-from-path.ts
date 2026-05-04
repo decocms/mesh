@@ -29,19 +29,29 @@ export const resolveOrgFromPath: MiddlewareHandler<{
   }
 
   const userId = ctx.auth?.user?.id;
-  if (!userId) {
-    return c.json({ error: "forbidden: not a member of organization" }, 403);
-  }
+  // For unauthenticated requests, set the org context but don't enforce
+  // membership here. The downstream auth middleware (mcpAuth) needs to be the
+  // one that returns 401 with WWW-Authenticate so OAuth-capable clients
+  // (Cursor, Claude) can discover the protected-resource metadata URL and
+  // start their OAuth flow. Blocking unauthenticated callers at THIS layer
+  // with 403 short-circuits OAuth discovery entirely.
+  //
+  // The .well-known/oauth-protected-resource discovery endpoint also has to
+  // be reachable without auth — same reason.
+  //
+  // Routes that need an authenticated principal still reject via their own
+  // ctx.access.check() (UnauthorizedError → 401).
+  if (userId) {
+    const membership = await db
+      .selectFrom("member")
+      .select(["role"])
+      .where("userId", "=", userId)
+      .where("organizationId", "=", org.id)
+      .executeTakeFirst();
 
-  const membership = await db
-    .selectFrom("member")
-    .select(["role"])
-    .where("userId", "=", userId)
-    .where("organizationId", "=", org.id)
-    .executeTakeFirst();
-
-  if (!membership) {
-    return c.json({ error: "forbidden: not a member of organization" }, 403);
+    if (!membership) {
+      return c.json({ error: "forbidden: not a member of organization" }, 403);
+    }
   }
 
   ctx.organization = { id: org.id, slug: org.slug, name: org.name };
