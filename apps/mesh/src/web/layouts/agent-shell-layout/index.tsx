@@ -176,7 +176,12 @@ function VmEventsBridge({
     if (!hasActiveGithubRepo) return;
     if (!userId) return;
     if (!currentBranch) return;
-    if (vmMap?.[userId]?.[currentBranch]) return;
+    if (vmMap?.[userId]?.[currentBranch]) {
+      // VM is already running — record the branch so a user stop won't
+      // re-trigger auto-start within this mount.
+      autoStartAttemptedRef.current.add(currentBranch);
+      return;
+    }
     if (autoStartAttemptedRef.current.has(currentBranch)) return;
     autoStartAttemptedRef.current.add(currentBranch);
     triggerAutoStart(

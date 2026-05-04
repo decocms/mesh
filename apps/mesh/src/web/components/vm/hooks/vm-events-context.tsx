@@ -41,6 +41,18 @@ export type { ClaimFailureReason, ClaimPhase };
 export interface VmStatus {
   ready: boolean;
   htmlSupport: boolean;
+  /** Currently active dev port (pinned `devPort` if responding, otherwise highest-scored discovered). */
+  port: number | null;
+}
+
+/** Mirrors the daemon's AppStateSnapshot — kept inline to avoid pulling daemon types into the web bundle. */
+export interface AppStatus {
+  status: "idle" | "installing" | "starting" | "up" | "failed";
+  pid?: number;
+  failureReason?: string;
+  startedAt?: number;
+  installedAt?: number;
+  lastExitCode: number | null;
 }
 
 export interface BranchStatus {
@@ -72,6 +84,8 @@ export interface VmEventsValue {
   notFound: boolean;
   scripts: string[];
   activeProcesses: string[];
+  /** Latest dev-script lifecycle from ApplicationService. Null until first emit. */
+  appStatus: AppStatus | null;
   branchStatus: BranchStatus | null;
   getBuffer: (source: string) => string;
   hasData: (source: string) => boolean;
@@ -82,11 +96,12 @@ export interface VmEventsValue {
 
 const DEFAULT_VALUE: VmEventsValue = {
   phase: null,
-  status: { ready: false, htmlSupport: false },
+  status: { ready: false, htmlSupport: false, port: null },
   suspended: false,
   notFound: false,
   scripts: [],
   activeProcesses: [],
+  appStatus: null,
   branchStatus: null,
   getBuffer: () => "",
   hasData: () => false,
@@ -127,6 +142,8 @@ const DAEMON_EVENT_TYPES = [
   "status",
   "scripts",
   "processes",
+  "tasks",
+  "app-status",
   "reload",
   "branch-status",
 ] as const;
@@ -145,11 +162,13 @@ export function VmEventsProvider({
   const [status, setStatus] = useState<VmStatus>({
     ready: false,
     htmlSupport: false,
+    port: null,
   });
   const [suspended, setSuspended] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [scripts, setScripts] = useState<string[]>([]);
   const [activeProcesses, setActiveProcesses] = useState<string[]>([]);
+  const [appStatus, setAppStatus] = useState<AppStatus | null>(null);
   const [branchStatus, setBranchStatus] = useState<BranchStatus | null>(null);
   // Bumped on log chunks so getBuffer/hasData consumers re-render; buffer
   // mutation alone doesn't.
@@ -172,11 +191,12 @@ export function VmEventsProvider({
   useEffect(() => {
     // Reset on key change so stale data doesn't linger across branches.
     setPhase(null);
-    setStatus({ ready: false, htmlSupport: false });
+    setStatus({ ready: false, htmlSupport: false, port: null });
     setSuspended(false);
     setNotFound(false);
     setScripts([]);
     setActiveProcesses([]);
+    setAppStatus(null);
     setBranchStatus(null);
     buffers.current.clear();
 
@@ -244,9 +264,10 @@ export function VmEventsProvider({
       // vmEntry exists; the empty "Start Server" state when it doesn't.
       setNotFound(true);
       setPhase(null);
-      setStatus({ ready: false, htmlSupport: false });
+      setStatus({ ready: false, htmlSupport: false, port: null });
       setScripts([]);
       setActiveProcesses([]);
+      setAppStatus(null);
       setBranchStatus(null);
       buffers.current.clear();
     };
@@ -272,11 +293,36 @@ export function VmEventsProvider({
           setStatus({
             ready: Boolean(data.ready),
             htmlSupport: Boolean(data.htmlSupport),
+            port: typeof data.port === "number" ? data.port : null,
           });
         } else if (e.type === "scripts") {
           setScripts(data.scripts ?? []);
         } else if (e.type === "processes") {
           setActiveProcesses(data.active ?? []);
+        } else if (e.type === "tasks") {
+          // Daemon's task-manager surface; map to the legacy
+          // activeProcesses array of names so the UI's "Stop Process"
+          // button continues to render against running script tabs.
+          const active = Array.isArray(data.active)
+            ? (data.active as Array<{ kind?: string; command?: string }>)
+                .filter(
+                  (j) => j?.kind === "exec" && typeof j.command === "string",
+                )
+                // Best-effort: extract trailing word as script name (e.g.
+                // "$ npm run dev" → "dev").
+                .map((j) => {
+                  const m = /\s(\S+)$/.exec(j.command ?? "");
+                  return m?.[1] ?? "";
+                })
+                .filter(Boolean)
+            : [];
+          setActiveProcesses(active);
+        } else if (e.type === "app-status") {
+          const { type: _type, ...rest } = data as { type?: string } & Record<
+            string,
+            unknown
+          >;
+          setAppStatus(rest as unknown as AppStatus);
         } else if (e.type === "reload") {
           for (const fn of reloadHandlers.current) {
             try {
@@ -364,6 +410,7 @@ export function VmEventsProvider({
     notFound,
     scripts,
     activeProcesses,
+    appStatus,
     branchStatus,
     getBuffer: (source: string) => buffers.current.get(source)?.get() ?? "",
     hasData: (source: string) =>

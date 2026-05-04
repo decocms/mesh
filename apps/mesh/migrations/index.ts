@@ -72,6 +72,7 @@ import * as migration070modelcategories from "./070-model-categories.ts";
 import * as migration071defaulthomeagents from "./071-default-home-agents.ts";
 import * as migration072aiproviderkeypresetid from "./072-ai-provider-key-preset-id.ts";
 import * as migration073backfillbasicusageroles from "./073-backfill-basic-usage-roles.ts";
+import * as migration074sandboxrunnerstatehandlenonunique from "./074-sandbox-runner-state-handle-nonunique.ts";
 
 /**
  * Core migrations for the Mesh application.
@@ -158,6 +159,8 @@ const migrations: Record<string, Migration> = {
   "071-default-home-agents": migration071defaulthomeagents,
   "072-ai-provider-key-preset-id": migration072aiproviderkeypresetid,
   "073-backfill-basic-usage-roles": migration073backfillbasicusageroles,
+  "074-sandbox-runner-state-handle-nonunique":
+    migration074sandboxrunnerstatehandlenonunique,
 };
 
 export default migrations;

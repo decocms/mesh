@@ -1,10 +1,6 @@
-import fs from "node:fs";
+import { hasGitRepo } from "../paths";
 
-/** Returns true if `<appRoot>/.git` exists (daemon is resuming after restart). */
-export function isResume(appRoot: string): boolean {
-  try {
-    return fs.existsSync(`${appRoot}/.git`);
-  } catch {
-    return false;
-  }
+/** Returns true if `<repoDir>/.git` exists (daemon is resuming after restart). */
+export function isResume(repoDir: string): boolean {
+  return hasGitRepo(repoDir);
 }

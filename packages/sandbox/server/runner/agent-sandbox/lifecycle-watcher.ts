@@ -520,8 +520,12 @@ async function watchPod(
     label: `pod/${claimName}`,
     onEvent: (envelope) => {
       if (envelope.type !== "ADDED" && envelope.type !== "MODIFIED") return;
+      // No name-equality guard: in warm-pool mode the adopted pod's name
+      // is the pool pod's generated name (e.g. `studio-sandbox-kind-abcde`),
+      // not the claim handle. The labelSelector above already pins to the
+      // pod the operator stamped with `sandbox-handle=<claimName>`, so the
+      // first match IS the right pod regardless of its name.
       const pod = envelope.object;
-      if (pod.metadata?.name !== claimName) return;
       applyPodSnapshot(pod, state, now);
       push("pod");
     },
@@ -560,19 +564,19 @@ async function watchSandbox(
   push: (k: SignalKind) => void,
 ): Promise<void> {
   const path =
-    `/apis/${K8S_CONSTANTS.SANDBOX_API_GROUP}/${K8S_CONSTANTS.SANDBOX_API_VERSION}` +
-    `/namespaces/${encodeURIComponent(namespace)}/${K8S_CONSTANTS.SANDBOX_PLURAL}` +
+    `/apis/${K8S_CONSTANTS.CLAIM_API_GROUP}/${K8S_CONSTANTS.CLAIM_API_VERSION}` +
+    `/namespaces/${encodeURIComponent(namespace)}/${K8S_CONSTANTS.CLAIM_PLURAL}` +
     `?watch=true&fieldSelector=${encodeURIComponent(`metadata.name=${claimName}`)}`;
 
   return runWatch<SandboxResource>({
     kc,
     path,
     signal,
-    label: `sandbox/${claimName}`,
+    label: `sandboxclaim/${claimName}`,
     onEvent: (envelope) => {
       if (envelope.type !== "ADDED" && envelope.type !== "MODIFIED") return;
-      const sandbox = envelope.object;
-      const ready = sandbox.status?.conditions?.find((c) => c.type === "Ready");
+      const claim = envelope.object;
+      const ready = claim.status?.conditions?.find((c) => c.type === "Ready");
       if (!ready) return;
       if (ready.status === "True") {
         state.sandbox.ready = true;
