@@ -19,7 +19,7 @@ export interface BootConfig {
   /** `<appRoot>/repo` — cwd for git, install, dev script, scripts. */
   readonly repoDir: string;
   readonly proxyPort: number;
-  readonly dropPrivileges: boolean;
+  readonly dropPrivileges?: boolean;
 }
 
 export interface GitIdentity {

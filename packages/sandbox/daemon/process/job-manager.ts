@@ -1,6 +1,7 @@
 import { type ChildProcess, spawn as nodeSpawn } from "node:child_process";
-import { existsSync, readdirSync, unlinkSync } from "node:fs";
+import { readdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
+import { appLogPath } from "../paths";
 import { LogTee } from "./log-tee";
 import { spawnPty } from "./pty-spawn";
 import { RingBuffer } from "./ring-buffer";
@@ -245,17 +246,10 @@ export class JobManager {
     const stdout = new RingBuffer(RING_BUFFER_BYTES);
     const stderr = new RingBuffer(RING_BUFFER_BYTES);
     const logPath = spec.logName
-      ? join(this.deps.logsDir, "app", spec.logName)
+      ? appLogPath(this.deps.logsDir, spec.logName)
       : join(this.deps.logsDir, id);
     const tee = new LogTee(logPath, LOG_MAX_BYTES);
-    const header = spec.label ?? `$ ${spec.command}`;
-    // Named-script tees keep history across runs; mark each invocation
-    // with a dated event line so the boundary between runs is obvious.
-    tee.write(
-      existsSync(logPath)
-        ? `\r\n=== ${new Date().toISOString()} ${header} ===\r\n`
-        : `${header}\r\n`,
-    );
+    tee.writeHeader(spec.label ?? `$ ${spec.command}`);
     const subscribers = new Set<(c: OutputChunk) => void>();
 
     let resolveFinished!: (r: JobResult) => void;

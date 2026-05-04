@@ -2,6 +2,30 @@ import type { JobManager, JobStatus } from "../process/job-manager";
 import { sseFormat } from "../events/sse-format";
 import { jsonResponse } from "./body-parser";
 
+export async function awaitJobResponse(
+  jobManager: JobManager,
+  id: string,
+  opts: { extra?: Record<string, unknown>; timedOutExitCode?: number } = {},
+): Promise<Response> {
+  const wait = jobManager.finished(id);
+  if (!wait)
+    return jsonResponse({ error: "job vanished before completion" }, 500);
+  const result = await wait;
+  const out = jobManager.output(id);
+  const exitCode =
+    opts.timedOutExitCode !== undefined && result.timedOut
+      ? opts.timedOutExitCode
+      : result.exitCode;
+  return jsonResponse({
+    ...opts.extra,
+    stdout: out?.stdout ?? "",
+    stderr: out?.stderr ?? "",
+    exitCode,
+    timedOut: result.timedOut,
+    truncated: out?.truncated ?? false,
+  });
+}
+
 export interface JobsDeps {
   jobManager: JobManager;
 }

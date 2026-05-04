@@ -106,16 +106,6 @@ export async function postConfig(
   return configRequest(daemonUrl, token, "POST", payload, auth);
 }
 
-/** PUT /_decopilot_vm/config — merge a patch into the current config. */
-export async function putConfig(
-  daemonUrl: string,
-  token: string,
-  payload: Partial<TenantConfig>,
-  auth?: ConfigAuthPatch,
-): Promise<ConfigResponse> {
-  return configRequest(daemonUrl, token, "PUT", payload, auth);
-}
-
 async function configRequest(
   daemonUrl: string,
   token: string,

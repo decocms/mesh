@@ -319,7 +319,6 @@ function discoverMacOS({
   const pidToRoot = new Map<number, number>();
   for (const root of rootPids) {
     for (const pid of getDescendantSet(root, procs)) {
-      if (pid === root) continue;
       const proc = procByPid.get(pid);
       if (proc && SIDECAR_COMMS.has(proc.comm)) continue;
       if (!pidToRoot.has(pid)) pidToRoot.set(pid, root);

@@ -1,7 +1,6 @@
-import { existsSync } from "node:fs";
-import { join } from "node:path";
 import { DECO_GID, DECO_UID } from "../constants";
 import type { Broadcaster } from "../events/broadcast";
+import { appLogPath } from "../paths";
 import { LogTee } from "../process/log-tee";
 import { spawnPty, type PtyHandle } from "../process/pty-spawn";
 
@@ -109,17 +108,12 @@ export class ApplicationService {
     // Per-script tee at `<logsDir>/app/<source>` (e.g. `tmp/app/dev`).
     // History accumulates across launches; each (re)start writes a dated
     // event line so the boundary between runs is visible.
-    const logPath = join(this.deps.logsDir, "app", spec.source);
-    const isRerun = existsSync(logPath);
+    const logPath = appLogPath(this.deps.logsDir, spec.source);
     this.currentTee = new LogTee(
       logPath,
       this.deps.logMaxBytes ?? DEFAULT_LOG_MAX_BYTES,
     );
-    this.currentTee.write(
-      isRerun
-        ? `\r\n=== ${new Date().toISOString()} ${spec.label} ===\r\n`
-        : `${spec.label}\r\n`,
-    );
+    this.currentTee.writeHeader(spec.label);
 
     this.deps.broadcaster.broadcastChunk(spec.source, `${spec.label}\r\n`);
     const child = spawnPty({

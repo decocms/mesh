@@ -1,12 +1,9 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import {
-  DECO_GID,
-  DECO_UID,
-  PACKAGE_MANAGER_DAEMON_CONFIG,
-} from "../constants";
-import { spawnPty } from "../process/pty-spawn";
+import { PACKAGE_MANAGER_DAEMON_CONFIG } from "../constants";
+import { resolvePmRoot } from "../paths";
 import type { Config } from "../types";
+import { spawnSetupStep } from "./spawn-step";
 
 export interface InstallDeps {
   config: Config;
@@ -23,8 +20,10 @@ export function spawnInstall(deps: InstallDeps): Promise<number> | null {
   // No install command (e.g. deno) — runtime fetches deps lazily on first
   // task. Caller treats null as "nothing to do" and proceeds to start.
   if (!pmConfig.install) return null;
-  const installRoot =
-    config.application?.packageManager?.path ?? config.repoDir;
+  const installRoot = resolvePmRoot(
+    config.repoDir,
+    config.application?.packageManager?.path,
+  );
   const hasManifest = pmConfig.manifests.some((file) =>
     existsSync(join(installRoot, file)),
   );
@@ -33,12 +32,5 @@ export function spawnInstall(deps: InstallDeps): Promise<number> | null {
     "export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 && (corepack enable 2>/dev/null || true) && ";
   const cmd = `${config.runtimePathPrefix}cd ${installRoot} && ${corepack}${pmConfig.install}`;
   deps.onChunk("setup", `\r\n$ ${pmConfig.install}\r\n`);
-  return new Promise((resolve) => {
-    const child = spawnPty({
-      cmd,
-      ...(deps.dropPrivileges ? { uid: DECO_UID, gid: DECO_GID } : {}),
-    });
-    child.onData((data) => deps.onChunk("setup", data));
-    child.onExit((code) => resolve(code));
-  });
+  return spawnSetupStep(cmd, deps.onChunk, deps.dropPrivileges);
 }

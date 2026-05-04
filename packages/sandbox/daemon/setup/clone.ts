@@ -1,6 +1,5 @@
-import { DECO_GID, DECO_UID } from "../constants";
-import { spawnPty } from "../process/pty-spawn";
 import type { Config } from "../types";
+import { spawnSetupStep } from "./spawn-step";
 
 export interface CloneDeps {
   config: Config;
@@ -20,12 +19,5 @@ export function spawnClone(deps: CloneDeps): Promise<number> {
   const label = `$ git clone --depth 1 ${repoLabel} ${config.repoDir}`;
   deps.onChunk("setup", `${label}\r\n`);
 
-  return new Promise((resolve) => {
-    const child = spawnPty({
-      cmd,
-      ...(deps.dropPrivileges ? { uid: DECO_UID, gid: DECO_GID } : {}),
-    });
-    child.onData((data) => deps.onChunk("setup", data));
-    child.onExit((code) => resolve(code));
-  });
+  return spawnSetupStep(cmd, deps.onChunk, deps.dropPrivileges);
 }

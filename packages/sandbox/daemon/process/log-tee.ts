@@ -66,6 +66,22 @@ export class LogTee {
     }
   }
 
+  writeHeader(label: string): void {
+    let prior = this.written;
+    if (this.fd === null) {
+      try {
+        prior = statSync(this.path).size;
+      } catch {
+        /* new file */
+      }
+    }
+    this.write(
+      prior > 0
+        ? `\r\n=== ${new Date().toISOString()} ${label} ===\r\n`
+        : `${label}\r\n`,
+    );
+  }
+
   isTruncated(): boolean {
     return this.truncated;
   }

@@ -1,17 +1,19 @@
-import { existsSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import { unlinkSync } from "node:fs";
 import type { ApplicationService } from "../app/application-service";
 import type { TenantConfigStore } from "../config-store";
 import type { Transition } from "../config-store/types";
 import {
   PACKAGE_MANAGER_DAEMON_CONFIG,
   WELL_KNOWN_STARTERS,
+  buildDevEnv,
+  pmRunCommand,
 } from "../constants";
 import type { Broadcaster } from "../events/broadcast";
 import { gitSync } from "../git/git-sync";
 import type { InstallState } from "../install/install-state";
 import { InstallState as InstallStateClass } from "../install/install-state";
 import { LogTee } from "../process/log-tee";
+import { appLogPath, hasGitRepo, resolvePmRoot } from "../paths";
 import { discoverScripts } from "../process/script-discovery";
 import type { Config } from "../types";
 import { spawnClone } from "./clone";
@@ -125,6 +127,8 @@ export class SetupOrchestrator {
       case "no-op":
       case "identity-conflict":
         return;
+      default:
+        t satisfies never;
     }
   }
 
@@ -151,10 +155,21 @@ export class SetupOrchestrator {
 
     const cloneUrl = config.git?.repository?.cloneUrl;
     if (cloneUrl && !isResume(config.repoDir)) {
+      const cloneLogPath = appLogPath(this.deps.logsDir, "clone");
+      try {
+        unlinkSync(cloneLogPath);
+      } catch {
+        /* not present */
+      }
+      const cloneTee = new LogTee(cloneLogPath, INSTALL_LOG_MAX_BYTES);
       const code = await spawnClone({
         config,
-        onChunk: (_src, data) => this.chunk(data),
+        onChunk: (_src, data) => {
+          this.chunk(data);
+          cloneTee.write(data);
+        },
       });
+      cloneTee.close();
       if (code !== 0) {
         this.chunk(`\r\nClone failed with exit code ${code}\r\n`);
         return;
@@ -166,24 +181,7 @@ export class SetupOrchestrator {
     // Identity has to run after clone so `git config` has a repo to write
     // into — earlier order tripped posix_spawn ENOENT (it reads cwd before
     // exec, and repoDir doesn't exist until clone returns).
-    try {
-      configureGitIdentity(config);
-    } catch (e) {
-      this.chunk(
-        `\r\nWarning: git identity setup failed: ${(e as Error).message}\r\n`,
-      );
-    }
-
-    if (config.git?.repository?.branch) {
-      try {
-        await this.checkoutBranch(config.git.repository.branch);
-      } catch (e) {
-        this.chunk(
-          `\r\nWarning: branch resolution failed: ${(e as Error).message}\r\n`,
-        );
-      }
-    }
-    this.refreshBranchHead();
+    await this.gitSetup(config);
 
     if (config.application?.intent === "running") {
       const installed = await this.runInstall();
@@ -194,23 +192,7 @@ export class SetupOrchestrator {
   private async resumeFlow(): Promise<void> {
     const config = this.currentConfig();
     if (!config) return;
-    try {
-      configureGitIdentity(config);
-    } catch (e) {
-      this.chunk(
-        `\r\nWarning: git identity setup failed: ${(e as Error).message}\r\n`,
-      );
-    }
-    if (config.git?.repository?.branch) {
-      try {
-        await this.checkoutBranch(config.git.repository.branch);
-      } catch (e) {
-        this.chunk(
-          `\r\nWarning: branch sync failed: ${(e as Error).message}\r\n`,
-        );
-      }
-    }
-    this.refreshBranchHead();
+    await this.gitSetup(config);
 
     if (config.application?.intent === "running") {
       if (
@@ -278,16 +260,10 @@ export class SetupOrchestrator {
       );
       return;
     }
-    const env: Record<string, string> = {
-      HOST: "0.0.0.0",
-      HOSTNAME: "0.0.0.0",
-    };
-    const desired = config.application?.desiredPort;
-    if (desired !== undefined) env.PORT = String(desired);
     this.deps.appService.start({
       command: command.cmd,
-      cwd: config.repoDir,
-      env,
+      cwd: command.cwd,
+      env: buildDevEnv(config),
       label: command.label,
       source: command.source,
     });
@@ -295,19 +271,21 @@ export class SetupOrchestrator {
 
   private buildStartCommand(
     config: Config,
-  ): { cmd: string; label: string; source: string } | null {
+  ): { cmd: string; cwd: string; label: string; source: string } | null {
     const pm = config.application?.packageManager?.name;
     if (!pm) return null;
     const pmConf = PACKAGE_MANAGER_DAEMON_CONFIG[pm];
     if (!pmConf) return null;
-    const scripts = discoverScripts(config.repoDir, pm);
+    const cwd = resolvePmRoot(
+      config.repoDir,
+      config.application?.packageManager?.path,
+    );
+    const scripts = discoverScripts(cwd, pm);
     const starter = WELL_KNOWN_STARTERS.find((s) => scripts.includes(s));
     if (!starter) return null;
-    const prefix = config.runtimePathPrefix;
     return {
-      cmd: `${prefix}cd ${config.repoDir} && ${pmConf.runPrefix} ${starter}`,
-      label: `$ ${pmConf.runPrefix} ${starter}`,
-      // UI tab key — matches scripts list entries the UI renders against.
+      ...pmRunCommand(config.runtimePathPrefix, cwd, pmConf.runPrefix, starter),
+      cwd,
       source: starter,
     };
   }
@@ -317,7 +295,7 @@ export class SetupOrchestrator {
     if (!config) return false;
     if (!config.application?.packageManager?.name) return false;
     this.deps.appService.setStatus("installing");
-    const installLogPath = join(this.deps.logsDir, "app", "install");
+    const installLogPath = appLogPath(this.deps.logsDir, "install");
     try {
       unlinkSync(installLogPath);
     } catch {
@@ -336,13 +314,7 @@ export class SetupOrchestrator {
     // the install fingerprint so resume doesn't retry on every boot.
     if (!installPromise) {
       installTee.close();
-      this.deps.installState.mark(
-        InstallStateClass.fingerprint(config, this.currentBranchHead),
-        true,
-      );
-      this.deps.appService.markInstalled();
-      this.deps.appService.setStatus("idle");
-      this.broadcastDiscoveredScripts(config);
+      this.markInstallSucceeded(config);
       return true;
     }
     const code = await installPromise;
@@ -356,6 +328,31 @@ export class SetupOrchestrator {
       );
       return false;
     }
+    this.markInstallSucceeded(config);
+    return true;
+  }
+
+  private async gitSetup(config: Config): Promise<void> {
+    try {
+      configureGitIdentity(config);
+    } catch (e) {
+      this.chunk(
+        `\r\nWarning: git identity setup failed: ${(e as Error).message}\r\n`,
+      );
+    }
+    if (config.git?.repository?.branch) {
+      try {
+        await this.checkoutBranch(config.git.repository.branch);
+      } catch (e) {
+        this.chunk(
+          `\r\nWarning: branch checkout failed: ${(e as Error).message}\r\n`,
+        );
+      }
+    }
+    this.refreshBranchHead();
+  }
+
+  private markInstallSucceeded(config: Config): void {
     this.deps.installState.mark(
       InstallStateClass.fingerprint(config, this.currentBranchHead),
       true,
@@ -363,7 +360,6 @@ export class SetupOrchestrator {
     this.deps.appService.markInstalled();
     this.deps.appService.setStatus("idle");
     this.broadcastDiscoveredScripts(config);
-    return true;
   }
 
   // Source of truth for the SSE `scripts` event. Without this the UI never
@@ -371,7 +367,10 @@ export class SetupOrchestrator {
   // `vmEvents.scripts`. Idempotent: callers in both fresh-install and
   // skip-install paths dispatch the same payload.
   private broadcastDiscoveredScripts(config: Config): void {
-    const cwd = config.application?.packageManager?.path ?? config.repoDir;
+    const cwd = resolvePmRoot(
+      config.repoDir,
+      config.application?.packageManager?.path,
+    );
     const scripts = discoverScripts(
       cwd,
       config.application?.packageManager?.name ?? null,
@@ -385,7 +384,7 @@ export class SetupOrchestrator {
   private refreshBranchHead(): void {
     const repoDir = this.deps.bootConfig.repoDir;
     if (!repoDir) return;
-    if (!existsSync(join(repoDir, ".git"))) {
+    if (!hasGitRepo(repoDir)) {
       this.currentBranchHead = undefined;
       return;
     }

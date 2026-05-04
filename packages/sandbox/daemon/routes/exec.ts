@@ -1,9 +1,14 @@
 import type { TenantConfigStore } from "../config-store";
-import { PACKAGE_MANAGER_DAEMON_CONFIG } from "../constants";
+import {
+  PACKAGE_MANAGER_DAEMON_CONFIG,
+  buildDevEnv,
+  pmRunCommand,
+} from "../constants";
 import type { Broadcaster } from "../events/broadcast";
 import type { JobManager } from "../process/job-manager";
 import { discoverScripts } from "../process/script-discovery";
 import { jsonResponse, parseBase64JsonBody } from "./body-parser";
+import { awaitJobResponse } from "./jobs";
 
 export type ExecMode = "await" | "background";
 
@@ -86,17 +91,13 @@ export function makeExecHandler(deps: ExecDeps) {
     // a blocking response opt in via mode: "await".
     const mode: ExecMode = body.mode === "await" ? "await" : "background";
 
-    const env: Record<string, string> = {
-      HOST: "0.0.0.0",
-      HOSTNAME: "0.0.0.0",
-      ...(body.env ?? {}),
-    };
-    const desired = config.application?.desiredPort;
-    if (desired !== undefined && env.PORT === undefined) {
-      env.PORT = String(desired);
-    }
-    const cmd = `${config.runtimePathPrefix}cd ${cwd} && ${pmConf.runPrefix} ${name}`;
-    const label = `$ ${pmConf.runPrefix} ${name}`;
+    const env = buildDevEnv(config, body.env);
+    const { cmd, label } = pmRunCommand(
+      config.runtimePathPrefix,
+      cwd,
+      pmConf.runPrefix,
+      name,
+    );
 
     const job = deps.jobManager.spawn({
       command: cmd,
@@ -123,19 +124,8 @@ export function makeExecHandler(deps: ExecDeps) {
       return jsonResponse({ jobId: job.id, status: job.status });
     }
 
-    const finished = await deps.jobManager.finished(job.id);
-    if (!finished) {
-      return jsonResponse({ error: "job vanished before completion" }, 500);
-    }
-    const result = await finished;
-    const out = deps.jobManager.output(job.id);
-    return jsonResponse({
-      jobId: job.id,
-      stdout: out?.stdout ?? "",
-      stderr: out?.stderr ?? "",
-      exitCode: result.exitCode,
-      timedOut: result.timedOut,
-      truncated: out?.truncated ?? false,
+    return awaitJobResponse(deps.jobManager, job.id, {
+      extra: { jobId: job.id },
     });
   };
 }

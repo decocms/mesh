@@ -1,4 +1,25 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
+
+/**
+ * Resolves the package-manager root against `repoDir`.
+ * `pmPath` may be absolute or relative (e.g. "mcp" meaning `<repoDir>/mcp`).
+ * Falls back to `repoDir` when `pmPath` is absent.
+ */
+export function resolvePmRoot(repoDir: string, pmPath?: string): string {
+  if (!pmPath) return repoDir;
+  return path.isAbsolute(pmPath) ? pmPath : path.join(repoDir, pmPath);
+}
+
+/** Returns the tee log path for a named app script (e.g. "dev", "install", "clone"). */
+export function appLogPath(logsDir: string, name: string): string {
+  return path.join(logsDir, "app", name);
+}
+
+/** Returns true when `<repoDir>/.git` exists — i.e. a repo is already checked out. */
+export function hasGitRepo(repoDir: string): boolean {
+  return existsSync(path.join(repoDir, ".git"));
+}
 
 /**
  * Resolves `userPath` relative to `baseDir`, then enforces that the result

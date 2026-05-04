@@ -1,5 +1,6 @@
 import type { JobManager } from "../process/job-manager";
 import { jsonResponse, parseBase64JsonBody } from "./body-parser";
+import { awaitJobResponse } from "./jobs";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_TIMEOUT_MS = 15 * 60 * 1000;
@@ -57,19 +58,7 @@ export function makeBashHandler(deps: BashDeps) {
       return jsonResponse({ jobId: job.id, status: job.status });
     }
 
-    const finished = await deps.jobManager.finished(job.id);
-    if (!finished) {
-      return jsonResponse({ error: "job vanished before completion" }, 500);
-    }
-    const result = await finished;
-    const out = deps.jobManager.output(job.id);
-    return jsonResponse({
-      stdout: out?.stdout ?? "",
-      stderr: out?.stderr ?? "",
-      exitCode: result.timedOut ? -1 : result.exitCode,
-      timedOut: result.timedOut,
-      truncated: out?.truncated ?? false,
-    });
+    return awaitJobResponse(deps.jobManager, job.id, { timedOutExitCode: -1 });
   };
 }
 

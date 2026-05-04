@@ -58,3 +58,30 @@ export const PACKAGE_MANAGER_DAEMON_CONFIG: Record<
 };
 
 export const WELL_KNOWN_STARTERS = ["dev", "start"] as const;
+
+export function buildDevEnv(
+  config: { application?: { desiredPort?: number } },
+  overrides?: Record<string, string>,
+): Record<string, string> {
+  const env: Record<string, string> = {
+    HOST: "0.0.0.0",
+    HOSTNAME: "0.0.0.0",
+    ...(overrides ?? {}),
+  };
+  const desired = config.application?.desiredPort;
+  if (desired !== undefined && env.PORT === undefined)
+    env.PORT = String(desired);
+  return env;
+}
+
+export function pmRunCommand(
+  runtimePrefix: string,
+  cwd: string,
+  runPrefix: string,
+  script: string,
+): { cmd: string; label: string } {
+  return {
+    cmd: `${runtimePrefix}cd ${cwd} && ${runPrefix} ${script}`,
+    label: `$ ${runPrefix} ${script}`,
+  };
+}
