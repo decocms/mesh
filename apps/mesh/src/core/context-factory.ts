@@ -513,10 +513,25 @@ async function authenticateRequest(
             "organization.id as orgId",
             "organization.slug as orgSlug",
             "organization.name as orgName",
+            "organization.metadata as orgMetadata",
           ])
           .where("member.userId", "=", userId)
           .executeTakeFirst(),
       );
+
+      if (membership?.orgMetadata) {
+        try {
+          const meta = JSON.parse(membership.orgMetadata) as Record<
+            string,
+            unknown
+          >;
+          if (meta.archived === true) {
+            throw new Error("Organization is archived");
+          }
+        } catch (e) {
+          if ((e as Error).message === "Organization is archived") throw e;
+        }
+      }
 
       const role = membership?.role;
       const organization = membership
@@ -738,6 +753,7 @@ async function authenticateRequest(
           id: string;
           slug: string;
           name: string;
+          metadata?: Record<string, unknown> | null;
           members?: {
             userId: string;
             role?: string;
@@ -747,6 +763,10 @@ async function authenticateRequest(
         } | null;
 
         if (orgData) {
+          if (orgData.metadata?.archived === true) {
+            throw new Error("Organization is archived");
+          }
+
           organization = {
             id: orgData.id,
             slug: orgData.slug,
