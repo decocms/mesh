@@ -39,7 +39,7 @@ import orgSsoRoutes from "./routes/org-sso";
 import { createDecopilotRoutes } from "./routes/decopilot";
 import { createDownstreamTokenRoutes } from "./routes/downstream-token";
 import { logDeprecatedRoute } from "./middleware/log-deprecated-route";
-import { vmEventsRoutes } from "./routes/vm-events";
+import { createVmEventsRoutes } from "./routes/vm-events";
 import decoSitesRoutes from "./routes/deco-sites";
 import virtualMcpRoutes from "./routes/virtual-mcp";
 import oauthProxyRoutes, {
@@ -1528,7 +1528,14 @@ export async function createApp(options: CreateAppOptions = {}) {
   // lifecycle phases, then proxies the daemon's `/_decopilot_vm/events` once
   // the sandbox is up. Replaces the prior split between `/api/vm-lifecycle`
   // and the browser's direct daemon EventSource.
-  app.route("/api/vm-events", vmEventsRoutes);
+  // Legacy mount at /api/vm-events with deprecation log; the new
+  // /api/:org/vm-events mount is wired in a later task.
+  const legacyVmEvents = new Hono<{
+    Variables: { meshContext: MeshContext };
+  }>();
+  legacyVmEvents.use("*", logDeprecatedRoute);
+  legacyVmEvents.route("/", createVmEventsRoutes());
+  app.route("/api/vm-events", legacyVmEvents);
 
   // ============================================================================
   // Server Plugin Routes
