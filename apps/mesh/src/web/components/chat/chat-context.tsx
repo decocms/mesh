@@ -1201,7 +1201,7 @@ export function ActiveTaskProvider({
   };
 
   // Autosend consumer: the URL carries only `autosend=true`; the message
-  // body lives in localStorage keyed by locator + taskId. It only boots empty
+  // body lives in sessionStorage keyed by locator + taskId. It only boots empty
   // threads, and the stored status gates duplicate sends across remounts.
   const autosendSearch = useSearch({ strict: false }) as { autosend?: string };
   const shouldAutosend = autosendSearch.autosend === AUTOSEND_QUERY_VALUE;

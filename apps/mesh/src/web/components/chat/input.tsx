@@ -259,7 +259,7 @@ function FileDropZone({
 
 /**
  * Submit handler for the home composer. No active task exists; we write
- * the tiptap doc to localStorage and navigate to a fresh /$org/$taskId.
+ * the tiptap doc to sessionStorage and navigate to a fresh /$org/$taskId.
  * The new task page's useEnsureTask creates the thread (server-side
  * idempotent on id) and ActiveTaskProvider's autosend consumer fires
  * sendMessage on mount.
