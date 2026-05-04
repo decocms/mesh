@@ -93,13 +93,13 @@ export interface UserFacingVmConfig {
   proxyTargetPort?: number;
 }
 
-export const SET_VM_CONFIG_DESCRIPTION =
+const SET_VM_CONFIG_DESCRIPTION =
   "Patch the sandbox's runtime config: `monorepoPath`, `packageManager`, " +
   "`runtime`, `intent` (running/paused), `previewPort`. All fields are " +
   "optional and deep-merged. Returns the resulting config plus a " +
   "`transition` marker (e.g. 'pm-change', 'intent-change', 'no-op').";
 
-export const GET_VM_CONFIG_DESCRIPTION =
+const GET_VM_CONFIG_DESCRIPTION =
   "Read the sandbox's current runtime config. Use this before " +
   "`set_vm_config` to inspect state instead of guessing.";
 
