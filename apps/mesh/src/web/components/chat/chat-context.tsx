@@ -28,7 +28,7 @@ import { useChat as useAIChat, type UseChatHelpers } from "@ai-sdk/react";
 import {
   AUTOSEND_QUERY_VALUE,
   claimStoredAutosend,
-  markStoredAutosendSent,
+  clearStoredAutosend,
   writeStoredAutosend,
 } from "@/web/lib/autosend";
 import {
@@ -812,7 +812,7 @@ export function ChatContextProvider({
     const newId = crypto.randomUUID();
     const targetVmcp = params.virtualMcpId ?? virtualMcpId;
     const carryBranch = targetVmcp === virtualMcpId ? currentBranch : null;
-    writeStoredAutosend(localStorage, locator, newId, params.message);
+    writeStoredAutosend(sessionStorage, locator, newId, params.message);
     void taskActions.create
       .mutateAsync({
         id: newId,
@@ -1210,11 +1210,11 @@ export function ActiveTaskProvider({
     if (!shouldAutosend) return;
     if (messages.length > 0) return;
 
-    const payload = claimStoredAutosend(localStorage, locator, taskId);
+    const payload = claimStoredAutosend(sessionStorage, locator, taskId);
     if (!payload) return;
 
     void sendMessageInternal(payload.message).then(() => {
-      markStoredAutosendSent(localStorage, locator, taskId);
+      clearStoredAutosend(sessionStorage, locator, taskId);
     });
     // oxlint-disable-next-line eslint-plugin-react-hooks/exhaustive-deps -- storage status, not function identity, gates duplicate sends
   }, [shouldAutosend, messages.length, locator, taskId, sendMessageInternal]);

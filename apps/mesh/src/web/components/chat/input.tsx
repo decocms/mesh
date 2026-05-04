@@ -278,7 +278,7 @@ function useHomeSubmit() {
     const newId = crypto.randomUUID();
     const targetVmcp =
       virtualMcp?.id ?? getWellKnownDecopilotVirtualMCP(org.id).id;
-    writeStoredAutosend(localStorage, locator, newId, { tiptapDoc });
+    writeStoredAutosend(sessionStorage, locator, newId, { tiptapDoc });
     navigate({
       to: "/$org/$taskId",
       params: { org: org.slug, taskId: newId },
