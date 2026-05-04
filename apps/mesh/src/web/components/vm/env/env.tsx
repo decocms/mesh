@@ -63,7 +63,7 @@ interface VmData {
   vmId: string;
   branch: string;
   isNewVm: boolean;
-  runnerKind?: "docker" | "freestyle" | "agent-sandbox";
+  runnerKind?: "host" | "docker" | "freestyle" | "agent-sandbox";
 }
 
 type ViewStatus =

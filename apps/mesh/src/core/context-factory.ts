@@ -500,11 +500,18 @@ async function authenticateRequest(
     if (session) {
       const userId = session.userId;
 
-      // For MCP OAuth sessions, we need to query the database directly
-      // because getFullOrganization requires a browser session (cookies)
-      // Query user's first organization membership
-      const membership = await timings.measure("auth_query_membership", () =>
-        db
+      // For MCP OAuth sessions we need to query the database directly because
+      // getFullOrganization requires a browser session (cookies). The OAuth
+      // grant doesn't carry org context, so prefer an explicit hint from the
+      // request (x-org-id / x-org-slug) and fall back to the user's first
+      // membership only when no hint is given. Without the hint, multi-org
+      // users get a non-deterministic pick and end up with the wrong
+      // ctx.organization on every request that doesn't target their first org.
+      const orgIdHint = req.headers.get("x-org-id");
+      const orgSlugHint = req.headers.get("x-org-slug");
+
+      const membership = await timings.measure("auth_query_membership", () => {
+        const base = db
           .selectFrom("member")
           .innerJoin("organization", "organization.id", "member.organizationId")
           .select([
@@ -514,9 +521,20 @@ async function authenticateRequest(
             "organization.slug as orgSlug",
             "organization.name as orgName",
           ])
-          .where("member.userId", "=", userId)
-          .executeTakeFirst(),
-      );
+          .where("member.userId", "=", userId);
+
+        if (orgIdHint) {
+          return base
+            .where("organization.id", "=", orgIdHint)
+            .executeTakeFirst();
+        }
+        if (orgSlugHint) {
+          return base
+            .where("organization.slug", "=", orgSlugHint)
+            .executeTakeFirst();
+        }
+        return base.executeTakeFirst();
+      });
 
       const role = membership?.role;
       const organization = membership
@@ -725,7 +743,72 @@ async function authenticateRequest(
       let organization: OrganizationContext | undefined;
       let role: string | undefined;
 
-      if (session.session.activeOrganizationId) {
+      // Prefer per-request org header (x-org-id / x-org-slug) over
+      // session.activeOrganizationId. The session row stores a single active
+      // org shared across all browser tabs, so switching orgs in one tab
+      // would otherwise leak into requests from other tabs. The frontend
+      // sends x-org-id derived from the URL (/$org) on every MCP call.
+      //
+      // Fall back to query params on GET requests for SSE endpoints —
+      // `EventSource` can't set custom headers, so SSE callers append
+      // `?x-org-id=...` instead. GET-only restricts the surface to read paths
+      // (mutations always have a body and never go through EventSource).
+      // Membership is still verified below.
+      let requestedOrgId = req.headers.get("x-org-id");
+      let requestedOrgSlug = req.headers.get("x-org-slug");
+      if (
+        !requestedOrgId &&
+        !requestedOrgSlug &&
+        req.method.toUpperCase() === "GET"
+      ) {
+        try {
+          const params = new URL(req.url).searchParams;
+          requestedOrgId = params.get("x-org-id");
+          requestedOrgSlug = params.get("x-org-slug");
+        } catch {
+          // Malformed URL — leave both null and fall through to session state
+        }
+      }
+
+      if (requestedOrgId || requestedOrgSlug) {
+        const membership = await timings.measure(
+          "auth_query_membership_from_header",
+          () => {
+            let q = db
+              .selectFrom("member")
+              .innerJoin(
+                "organization",
+                "organization.id",
+                "member.organizationId",
+              )
+              .select([
+                "member.role",
+                "organization.id as orgId",
+                "organization.slug as orgSlug",
+                "organization.name as orgName",
+              ])
+              .where("member.userId", "=", session.user.id);
+            if (requestedOrgId) {
+              q = q.where("organization.id", "=", requestedOrgId);
+            } else if (requestedOrgSlug) {
+              q = q.where("organization.slug", "=", requestedOrgSlug);
+            }
+            return q.executeTakeFirst();
+          },
+        );
+
+        if (membership) {
+          organization = {
+            id: membership.orgId,
+            slug: membership.orgSlug,
+            name: membership.orgName,
+          };
+          role = membership.role;
+        }
+        // If header was provided but no membership matched, leave
+        // organization undefined so downstream access checks fail closed
+        // (403) rather than silently falling back to session state.
+      } else if (session.session.activeOrganizationId) {
         // Get full organization data (includes members with roles)
 
         const orgData = (await timings.measure(
@@ -1003,15 +1086,15 @@ export async function createMeshContextFactory(
       config.modelListCache,
     );
 
-    // Create org-scoped object storage if S3 is configured and org is available.
-    // In development without S3, fall back to DevObjectStorage (local filesystem).
+    // Create org-scoped object storage. Use S3 when configured, otherwise fall
+    // back to DevObjectStorage (local filesystem) so the OBJECT_STORAGE binding
+    // still resolves on self-host setups without S3.
     const s3Service = getObjectStorageS3Service();
-    const objectStorage =
-      s3Service && organization
+    const objectStorage = !organization
+      ? null
+      : s3Service
         ? createBoundObjectStorage(s3Service, organization.id)
-        : getSettings().nodeEnv === "development" && organization
-          ? new DevObjectStorage(organization.id, baseUrl)
-          : null;
+        : new DevObjectStorage(organization.id, baseUrl);
 
     const ctx: MeshContext = {
       timings,

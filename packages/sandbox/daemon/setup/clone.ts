@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process";
 import { DECO_UID, DECO_GID } from "../constants";
+import { spawnPty } from "../process/pty-spawn";
 import type { Config } from "../types";
 
 export interface CloneDeps {
@@ -16,24 +16,11 @@ export function spawnClone(deps: CloneDeps): Promise<number> {
   deps.onChunk("setup", `${label}\r\n`);
 
   return new Promise((resolve) => {
-    const opts: Parameters<typeof spawn>[2] = {
-      stdio: ["ignore", "pipe", "pipe"],
-    };
-    if (deps.dropPrivileges) {
-      (opts as { uid: number; gid: number }).uid = DECO_UID;
-      (opts as { uid: number; gid: number }).gid = DECO_GID;
-    }
-    const child = spawn("script", ["-q", "-c", cmd, "/dev/null"], opts);
-    child.stdout?.on("data", (c: Buffer) =>
-      deps.onChunk("setup", c.toString("utf-8")),
-    );
-    child.stderr?.on("data", (c: Buffer) =>
-      deps.onChunk("setup", c.toString("utf-8")),
-    );
-    child.on("error", (err) => {
-      deps.onChunk("setup", `\r\nSpawn failed: ${err.message}\r\n`);
-      resolve(-1);
+    const child = spawnPty({
+      cmd,
+      ...(deps.dropPrivileges ? { uid: DECO_UID, gid: DECO_GID } : {}),
     });
-    child.on("close", (code) => resolve(code ?? -1));
+    child.onData((data) => deps.onChunk("setup", data));
+    child.onExit((code) => resolve(code));
   });
 }

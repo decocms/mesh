@@ -193,8 +193,13 @@ function ShellLayoutContent() {
         return null;
       }
 
-      const { data } = await authClient.organization.setActive({
-        organizationSlug: org,
+      // Fetch org data without persisting it as the session's active org.
+      // Per Better Auth's org plugin docs, persisting active org to the
+      // session breaks multi-tab usage because the session row is shared
+      // across tabs. We rely on the URL slug + per-request x-org-id header
+      // for routing instead.
+      const { data } = await authClient.organization.getFullOrganization({
+        query: { organizationSlug: org },
       });
 
       // Persist for fast redirect on next login (read by homeRoute beforeLoad)

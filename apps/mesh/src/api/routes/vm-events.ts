@@ -38,12 +38,11 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import {
   composeSandboxRef,
-  tryResolveRunnerKindFromEnv,
+  computeHandle,
+  resolveRunnerKindFromEnv,
 } from "@decocms/sandbox/runner";
-import { composeClaimName } from "@decocms/sandbox/runner/agent-sandbox";
-import type { ClaimPhase } from "@decocms/sandbox/runner/agent-sandbox";
+import type { ClaimPhase } from "@decocms/sandbox/runner";
 import {
-  asLifecycleWatchable,
   getOrInitSharedRunner,
   subscribeLifecycle,
 } from "../../sandbox/lifecycle";
@@ -111,25 +110,27 @@ app.get("/", async (c) => {
     virtualMcpId,
     branch,
   });
-  const claimName = composeClaimName({ userId, projectRef }, branch);
+  const runnerKind = resolveRunnerKindFromEnv();
+  // The handle is the same value the runner stored in its state-store when
+  // VM_START provisioned the sandbox, so the daemon-proxy lookup hits.
+  const claimName = computeHandle({ userId, projectRef }, branch);
 
   // Snapshot vmMap from the same metadata read used for the org-ownership
-  // check. Used below to gate the stale-handle probe: we only treat a
-  // missing claim as "evicted" when this user already had a vmMap entry
-  // pointing at this exact claim under the agent-sandbox runner. Without
-  // this gate, an SSE that opens during VM_START's claim-creation window
-  // (~250ms–1.2s before `createSandboxClaim` lands) would observe
-  // alive=false and emit a spurious `gone`.
+  // check. Used below to gate the stale-handle probe: we only run it when
+  // this user already had a vmMap entry pointing at *this exact* claim.
+  // The vmId-match guard avoids racing VM_START's claim-creation window
+  // (~250ms–1.2s for agent-sandbox before `createSandboxClaim` lands;
+  // similar window for host/docker between `runner.ensure` returning and
+  // `setVmMapEntry` writing the row). Without it, an SSE that opens during
+  // that window would observe alive=false and emit a spurious `gone`.
   const existingVmEntry = resolveVm(
     readVmMap(virtualMcp.metadata as Record<string, unknown> | null),
     userId,
     branch,
   );
-  const expectingClaim =
-    existingVmEntry?.runnerKind === "agent-sandbox" &&
-    existingVmEntry.vmId === claimName;
+  const expectingHandle = existingVmEntry?.vmId === claimName;
+  const existingRunnerKind = existingVmEntry?.runnerKind ?? null;
 
-  const runnerKind = tryResolveRunnerKindFromEnv();
   const runner = await getOrInitSharedRunner();
 
   // No runner configured at all → can't proxy daemon SSE. Surface a failed
@@ -147,6 +148,9 @@ app.get("/", async (c) => {
     });
   }
 
+  c.header("X-Accel-Buffering", "no");
+  c.header("Content-Encoding", "identity");
+
   return streamSSE(c, async (stream) => {
     const abortCtl = new AbortController();
     const heartbeat = setInterval(() => {
@@ -160,10 +164,22 @@ app.get("/", async (c) => {
     });
 
     try {
-      if (runnerKind === "agent-sandbox" && expectingClaim) {
+      // Same probe for every runner. `runner.alive` is honest across
+      // host/docker/freestyle/agent-sandbox: each implementation queries
+      // its respective source-of-truth (state-store + pid for host, docker
+      // inspect, K8s API, freestyle daemon HTTP). When the prior vmMap
+      // entry's runner kind differs from the env's current runner, we
+      // route the stale-state cleanup through the *prior* kind so we
+      // don't leave behind rows in the wrong table.
+      if (expectingHandle) {
         const stale = await isStaleHandle(runner, claimName);
         if (stale) {
-          await cleanupStaleEntry({ ctx, userId, projectRef, runnerKind });
+          await cleanupStaleEntry({
+            ctx,
+            userId,
+            projectRef,
+            runnerKind: existingRunnerKind ?? runnerKind,
+          });
           await stream.writeSSE({ event: "gone", data: "" }).catch(() => {});
           return;
         }
@@ -172,7 +188,6 @@ app.get("/", async (c) => {
       // ---- Phase 1: lifecycle (pre-Ready) ---------------------------------
       const lifecycleOk = await emitLifecycle({
         stream,
-        runnerKind,
         claimName,
         runner,
         signal: abortCtl.signal,
@@ -223,7 +238,7 @@ async function isStaleHandle(
  *      `setVmMapEntry` on the same metadata JSON column (read-modify-write
  *      is not atomic; see vm-map.ts). The next VM_START overwrites the
  *      entry with a fresh one anyway — the `vmId` is deterministic
- *      (composeClaimName), so the entry's identity is stable across
+ *      (computeHandle), so the entry's identity is stable across
  *      reprovisions.
  *
  * Failures are logged, not thrown — the user-visible flow (emit `gone` →
@@ -233,7 +248,7 @@ async function cleanupStaleEntry(args: {
   ctx: MeshContext;
   userId: string;
   projectRef: string;
-  runnerKind: "docker" | "freestyle" | "agent-sandbox";
+  runnerKind: "host" | "docker" | "freestyle" | "agent-sandbox";
 }): Promise<void> {
   const { ctx, userId, projectRef, runnerKind } = args;
   try {
@@ -249,45 +264,22 @@ async function cleanupStaleEntry(args: {
 }
 
 /**
- * Drives the lifecycle phase stream (or its no-op equivalent for
- * non-agent-sandbox runners) until a terminal phase. Returns `true` if the
- * terminal phase was `ready` (caller proceeds to daemon proxy), `false`
+ * Drives the lifecycle phase stream until a terminal phase. Returns `true` if
+ * the terminal phase was `ready` (caller proceeds to daemon proxy), `false`
  * otherwise (failed, aborted, or watchdog-tripped).
  *
  * Subscribes via `subscribeLifecycle` so multiple SSE clients for the same
- * claim (multi-tab) share one underlying set of K8s watches.
+ * claim (multi-tab) share one underlying source. For agent-sandbox the source
+ * is the K8s watcher; for host/docker/freestyle the source yields a single
+ * `ready` phase and ends immediately.
  */
 async function emitLifecycle(args: {
   stream: import("hono/streaming").SSEStreamingApi;
-  runnerKind: ReturnType<typeof tryResolveRunnerKindFromEnv>;
   claimName: string;
   runner: NonNullable<Awaited<ReturnType<typeof getOrInitSharedRunner>>>;
   signal: AbortSignal;
 }): Promise<boolean> {
-  const { stream, runnerKind, claimName, runner, signal } = args;
-
-  // Non-agent-sandbox runners (Docker/Freestyle) have no equivalent
-  // pre-Ready window worth surfacing — Docker is local-fast, Freestyle's
-  // setup is end-to-end. Emit a single `ready` and proceed straight to
-  // daemon proxy.
-  if (runnerKind !== "agent-sandbox") {
-    await stream.writeSSE({
-      event: "phase",
-      data: JSON.stringify({ kind: "ready" } satisfies ClaimPhase),
-    });
-    return true;
-  }
-
-  const watchable = asLifecycleWatchable(runner);
-  if (!watchable) {
-    // Runner kind says agent-sandbox but the instance doesn't expose the
-    // watch capability (e.g. older module loaded). Treat as no-op.
-    await stream.writeSSE({
-      event: "phase",
-      data: JSON.stringify({ kind: "ready" } satisfies ClaimPhase),
-    });
-    return true;
-  }
+  const { stream, claimName, runner, signal } = args;
 
   return new Promise<boolean>((resolve) => {
     let settled = false;
@@ -306,7 +298,9 @@ async function emitLifecycle(args: {
     // Watchdog: if the source has only ever surfaced `claiming` after
     // NO_CLAIM_MAX_MS, the SandboxClaim was never posted (VM_START likely
     // failed earlier). Surface `claim-never-created` so the UI shows the
-    // retry affordance instead of stalling.
+    // retry affordance instead of stalling. Only meaningful for
+    // agent-sandbox; other runners go straight to `ready` so the watchdog
+    // never fires.
     const watchdogTimer = setTimeout(() => {
       if (claimSeen || settled) return;
       stream
@@ -326,7 +320,7 @@ async function emitLifecycle(args: {
     const onAbort = () => settle(false);
     signal.addEventListener("abort", onAbort, { once: true });
 
-    handle = subscribeLifecycle(watchable, claimName, (phase) => {
+    handle = subscribeLifecycle(runner, claimName, (phase) => {
       if (settled) return;
       if (phase.kind !== "claiming") claimSeen = true;
       stream

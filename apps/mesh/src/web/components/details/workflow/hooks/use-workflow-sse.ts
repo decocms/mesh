@@ -29,7 +29,10 @@ const WORKFLOW_EVENT_TYPES = [
 ];
 
 const workflowSSE = createSSESubscription({
-  buildUrl: (orgId) => `/org/${orgId}/watch?types=workflow.*`,
+  // EventSource can't set headers, so x-org-id rides as a query param;
+  // authenticateRequest reads it as a fallback when the header is absent.
+  buildUrl: (orgId) =>
+    `/org/${orgId}/watch?types=workflow.*&x-org-id=${encodeURIComponent(orgId)}`,
   eventTypes: WORKFLOW_EVENT_TYPES,
 });
 

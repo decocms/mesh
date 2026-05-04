@@ -1,13 +1,15 @@
 import {
-  getPermissionOptions,
-  getToolsByCategory,
-  type ToolName,
+  BASIC_USAGE_TOOLS,
+  getCapabilitySections,
+  isCapabilityEnabled,
+  toggleCapabilityInTools,
+  type PermissionCapability,
 } from "@/tools/registry-metadata";
 import { DEFAULT_LOGO, PROVIDER_LOGOS } from "@/web/utils/ai-providers-logos";
 import { ToolSetSelector } from "@/web/components/tool-set-selector.tsx";
 import { useMembers } from "@/web/hooks/use-members";
 import { type OrganizationRole } from "@/web/hooks/use-organization-roles";
-import { authClient } from "@/web/lib/auth-client";
+import { useOrgAuthClient } from "@/web/hooks/use-org-auth-client";
 import { KEYS } from "@/web/lib/query-keys";
 import { track } from "@/web/lib/posthog-client";
 import {
@@ -52,9 +54,14 @@ import { SearchInput } from "@deco/ui/components/search-input.tsx";
 import { Page } from "@/web/components/page";
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import {
+  SettingsCard,
+  SettingsCardItem,
+  SettingsSection,
+} from "@/web/components/settings/settings-section";
+import {
+  AlertTriangle,
   ChevronDown,
   ChevronRight,
-  Key01,
   Loading01,
   Lock01,
   Plus,
@@ -66,7 +73,12 @@ import {
 // ============================================================================
 
 export type RoleEditorTarget =
-  | { kind: "builtin"; role: "owner" | "admin" | "user" }
+  | {
+      kind: "builtin";
+      role: "owner" | "admin" | "user";
+      storedId?: string;
+      storedPermission?: Record<string, string[]>;
+    }
   | { kind: "custom"; role: OrganizationRole }
   | { kind: "new" };
 
@@ -160,6 +172,25 @@ interface OrgPermissionsTabProps {
   searchQuery: string;
 }
 
+function makeToggle(checked: boolean, readOnly: boolean, onToggle: () => void) {
+  const sw = (
+    <Switch checked={checked} disabled={readOnly} onCheckedChange={onToggle} />
+  );
+  if (!readOnly) return sw;
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div>{sw}</div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Built-in role permissions cannot be changed</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 function OrgPermissionsTab({
   allowAllStaticPermissions,
   staticPermissions,
@@ -168,159 +199,108 @@ function OrgPermissionsTab({
   readOnly = false,
   searchQuery,
 }: OrgPermissionsTabProps) {
-  const deferredSearchQuery = useDeferredValue(searchQuery);
-  const toolsByCategory = getToolsByCategory();
-  const allPermissions = getPermissionOptions();
+  const deferredQuery = useDeferredValue(searchQuery.trim().toLowerCase());
+  const sections = getCapabilitySections();
 
-  const filteredPermissions = allPermissions.filter((perm) =>
-    perm.label.toLowerCase().includes(deferredSearchQuery.toLowerCase()),
-  );
-
-  const togglePermission = (permission: ToolName) => {
-    if (staticPermissions.includes(permission)) {
-      onPermissionsChange(staticPermissions.filter((p) => p !== permission));
-    } else {
-      const newPermissions = [...staticPermissions, permission];
-      if (newPermissions.length === allPermissions.length) {
-        onAllowAllChange(true);
-        onPermissionsChange([]);
-      } else {
-        onPermissionsChange(newPermissions);
-      }
+  const toggleCapability = (
+    cap: PermissionCapability,
+    currentEnabled: boolean,
+  ) => {
+    if (readOnly) return;
+    if (allowAllStaticPermissions && currentEnabled) {
+      const allTools = sections
+        .flatMap((s) => s.capabilities)
+        .flatMap((c) => c.tools);
+      onAllowAllChange(false);
+      onPermissionsChange(allTools.filter((t) => !cap.tools.includes(t)));
+      return;
     }
+    if (allowAllStaticPermissions) return;
+    onPermissionsChange(
+      toggleCapabilityInTools(cap, staticPermissions, !currentEnabled),
+    );
   };
 
+  const filteredSections = sections
+    .map(({ section, capabilities }) => ({
+      section,
+      capabilities: capabilities.filter(
+        (cap) =>
+          !deferredQuery ||
+          cap.label.toLowerCase().includes(deferredQuery) ||
+          cap.description.toLowerCase().includes(deferredQuery),
+      ),
+    }))
+    .filter((s) => s.capabilities.length > 0);
+
   return (
-    <div className="flex flex-col h-full">
-      <div className="border-b border-border">
-        <div
-          className={cn(
-            "flex items-center justify-between px-4 py-3",
-            !readOnly && "hover:bg-muted/50 cursor-pointer",
-          )}
-          onClick={() => {
-            if (readOnly) return;
-            onAllowAllChange(!allowAllStaticPermissions);
-            onPermissionsChange([]);
-          }}
-        >
-          <span className="text-sm font-medium">
-            All organization permissions
-          </span>
-          <div onClick={(e) => e.stopPropagation()}>
-            {readOnly ? (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div>
-                      <Switch
-                        checked={allowAllStaticPermissions}
-                        disabled
-                        onCheckedChange={() => {}}
-                      />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Built-in role permissions cannot be changed</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            ) : (
-              <Switch
-                checked={allowAllStaticPermissions}
-                onCheckedChange={(checked) => {
-                  onAllowAllChange(checked);
-                  onPermissionsChange([]);
-                }}
-              />
-            )}
-          </div>
-        </div>
-      </div>
-      <div className="flex-1 overflow-auto">
-        {Object.entries(toolsByCategory).map(([category, tools]) => {
-          const categoryPermissions = filteredPermissions.filter((p) =>
-            tools.some((t) => t.name === p.value),
-          );
-          if (categoryPermissions.length === 0) return null;
-          return (
-            <div key={category} className="mb-6 last:mb-0">
-              <h4 className="text-sm font-medium p-3 pb-1.5 text-muted-foreground/75">
-                {category}
-              </h4>
-              <div className="space-y-1">
-                {categoryPermissions.map((permission) => (
-                  <div
-                    key={permission.value}
-                    className={cn(
-                      "flex items-center justify-between gap-3 px-4 py-3",
-                      !readOnly && "hover:bg-muted/50 cursor-pointer",
-                    )}
-                    onClick={() => {
-                      if (readOnly) return;
-                      if (allowAllStaticPermissions) {
-                        onAllowAllChange(false);
-                        onPermissionsChange(
-                          allPermissions
-                            .map((p) => p.value)
-                            .filter((p) => p !== permission.value),
-                        );
-                      } else {
-                        togglePermission(permission.value);
+    <div>
+      <div className="flex flex-col gap-10 py-4">
+        <SettingsSection title="General">
+          <SettingsCard>
+            <SettingsCardItem
+              title="All organization permissions"
+              description="Grant full access to all features below"
+              action={makeToggle(allowAllStaticPermissions, readOnly, () => {
+                onAllowAllChange(!allowAllStaticPermissions);
+                onPermissionsChange([]);
+              })}
+              onClick={
+                readOnly
+                  ? undefined
+                  : () => {
+                      onAllowAllChange(!allowAllStaticPermissions);
+                      onPermissionsChange([]);
+                    }
+              }
+            />
+          </SettingsCard>
+        </SettingsSection>
+
+        {filteredSections.length === 0 && deferredQuery ? (
+          <p className="text-sm text-muted-foreground py-4">
+            No permissions match &ldquo;{searchQuery}&rdquo;
+          </p>
+        ) : (
+          filteredSections.map(({ section, capabilities }) => (
+            <SettingsSection key={section} title={section}>
+              <SettingsCard>
+                {capabilities.map((cap) => {
+                  const enabled = isCapabilityEnabled(
+                    cap,
+                    staticPermissions,
+                    allowAllStaticPermissions,
+                  );
+                  return (
+                    <SettingsCardItem
+                      key={cap.id}
+                      title={
+                        <span className="flex items-center gap-1.5">
+                          {cap.label}
+                          {cap.dangerous && (
+                            <AlertTriangle
+                              size={12}
+                              className="text-amber-500 shrink-0"
+                            />
+                          )}
+                        </span>
                       }
-                    }}
-                  >
-                    <span className="text-sm flex-1 min-w-0">
-                      {permission.label}
-                    </span>
-                    <div onClick={(e) => e.stopPropagation()}>
-                      {readOnly ? (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div>
-                                <Switch
-                                  checked={
-                                    allowAllStaticPermissions ||
-                                    staticPermissions.includes(permission.value)
-                                  }
-                                  disabled
-                                  onCheckedChange={() => {}}
-                                />
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Built-in role permissions cannot be changed</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      ) : (
-                        <Switch
-                          checked={
-                            allowAllStaticPermissions ||
-                            staticPermissions.includes(permission.value)
-                          }
-                          onCheckedChange={() => {
-                            if (allowAllStaticPermissions) {
-                              onAllowAllChange(false);
-                              onPermissionsChange(
-                                allPermissions
-                                  .map((p) => p.value)
-                                  .filter((p) => p !== permission.value),
-                              );
-                            } else {
-                              togglePermission(permission.value);
-                            }
-                          }}
-                        />
+                      description={cap.description}
+                      action={makeToggle(enabled, readOnly, () =>
+                        toggleCapability(cap, enabled),
                       )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
+                      onClick={
+                        readOnly
+                          ? undefined
+                          : () => toggleCapability(cap, enabled)
+                      }
+                    />
+                  );
+                })}
+              </SettingsCard>
+            </SettingsSection>
+          ))
+        )}
       </div>
     </div>
   );
@@ -1056,10 +1036,26 @@ type MemberLike = { id: string; role: string };
 function loadBuiltinRoleIntoForm(
   role: "owner" | "admin" | "user",
   members: Array<{ id: string; role: string }>,
+  storedData?: { id?: string; permission?: Record<string, string[]> },
+  connections?: ConnectionEntity[],
 ): RoleFormData {
+  if (storedData?.permission != null && connections) {
+    return convertRoleToFormData(
+      {
+        id: storedData.id,
+        role,
+        label: role.charAt(0).toUpperCase() + role.slice(1),
+        isBuiltin: true,
+        permission: storedData.permission,
+      },
+      members,
+      connections,
+    );
+  }
   const isOwnerOrAdmin = role === "owner" || role === "admin";
   return {
     role: {
+      id: storedData?.id,
       slug: role,
       label: role.charAt(0).toUpperCase() + role.slice(1),
     },
@@ -1136,8 +1132,10 @@ function buildPermission(
   const permission: Record<string, string[]> = {};
   if (data.allowAllStaticPermissions) {
     permission["self"] = ["*"];
-  } else if (data.staticPermissions.length > 0) {
-    permission["self"] = data.staticPermissions;
+  } else {
+    const tools = new Set(data.staticPermissions);
+    for (const tool of BASIC_USAGE_TOOLS) tools.add(tool);
+    if (tools.size > 0) permission["self"] = Array.from(tools);
   }
   for (const [connectionId, tools] of Object.entries(data.toolSet)) {
     if (tools.length > 0) {
@@ -1169,7 +1167,14 @@ function getInitialFormValues(
   connections: ConnectionEntity[],
 ): RoleFormData {
   if (target.kind === "builtin") {
-    return loadBuiltinRoleIntoForm(target.role, members);
+    return loadBuiltinRoleIntoForm(
+      target.role,
+      members,
+      target.storedId != null
+        ? { id: target.storedId, permission: target.storedPermission }
+        : undefined,
+      connections,
+    );
   }
   if (target.kind === "custom") {
     return convertRoleToFormData(target.role, members, connections);
@@ -1231,11 +1236,12 @@ interface RoleDetailPageProps {
 
 export function RoleDetailPage(props: RoleDetailPageProps) {
   const { locator } = useProjectContext();
+  const orgAuth = useOrgAuthClient();
   const connections = useConnections();
 
   const { data: membersData, isPending: membersPending } = useQuery({
     queryKey: KEYS.members(locator),
-    queryFn: () => authClient.organization.listMembers(),
+    queryFn: () => orgAuth.organization.listMembers(),
   });
 
   if (membersPending || !connections) {
@@ -1269,9 +1275,11 @@ function RoleDetailPageInner({
   connections: ConnectionEntity[];
 }) {
   const { locator } = useProjectContext();
+  const orgAuth = useOrgAuthClient();
   const queryClient = useQueryClient();
 
   const isBuiltin = target.kind === "builtin";
+  const isOwnerBuiltin = target.kind === "builtin" && target.role === "owner";
   const isNew = target.kind === "new";
 
   const [activeTab, setActiveTab] = useState<
@@ -1292,7 +1300,11 @@ function RoleDetailPageInner({
       const roleSlug =
         formData.role.slug ||
         formData.role.label.toLowerCase().replace(/\s+/g, "-");
-      const isBuiltinRole = formData.role.slug && !formData.role.id;
+      const isOwnerBuiltinSave =
+        formData.role.slug === "owner" && !formData.role.id;
+      const isEditableBuiltinFirstSave =
+        (formData.role.slug === "admin" || formData.role.slug === "user") &&
+        !formData.role.id;
 
       const syncMembers = async (currentSlug: string) => {
         const currentIds = members
@@ -1305,7 +1317,7 @@ function RoleDetailPageInner({
           (id: string) => !formData.memberIds.includes(id),
         );
         for (const memberId of toAdd) {
-          const r = await authClient.organization.updateMemberRole({
+          const r = await orgAuth.organization.updateMemberRole({
             memberId,
             role: [currentSlug],
           });
@@ -1313,7 +1325,7 @@ function RoleDetailPageInner({
             throw new Error(r.error.message ?? "Something went wrong");
         }
         for (const memberId of toRemove) {
-          const r = await authClient.organization.updateMemberRole({
+          const r = await orgAuth.organization.updateMemberRole({
             memberId,
             role: ["user"],
           });
@@ -1322,11 +1334,11 @@ function RoleDetailPageInner({
         }
       };
 
-      if (isBuiltinRole) {
-        await syncMembers(formData.role.slug!);
+      if (isOwnerBuiltinSave) {
+        await syncMembers("owner");
         return formData;
       } else if (formData.role.id) {
-        const r = await authClient.organization.updateRole({
+        const r = await orgAuth.organization.updateRole({
           roleId: formData.role.id,
           data: { permission },
         });
@@ -1334,15 +1346,27 @@ function RoleDetailPageInner({
           throw new Error(r.error.message ?? "Something went wrong");
         await syncMembers(formData.role.slug!);
         return formData;
+      } else if (isEditableBuiltinFirstSave) {
+        const r = await orgAuth.organization.createRole({
+          role: formData.role.slug!,
+          permission,
+        });
+        if (r?.error)
+          throw new Error(r.error.message ?? "Something went wrong");
+        await syncMembers(formData.role.slug!);
+        return {
+          ...formData,
+          role: { ...formData.role, id: r.data?.roleData?.id },
+        };
       } else {
-        const r = await authClient.organization.createRole({
+        const r = await orgAuth.organization.createRole({
           role: roleSlug,
           permission,
         });
         if (r?.error)
           throw new Error(r.error.message ?? "Something went wrong");
         for (const memberId of formData.memberIds) {
-          const mr = await authClient.organization.updateMemberRole({
+          const mr = await orgAuth.organization.updateMemberRole({
             memberId,
             role: [roleSlug],
           });
@@ -1364,9 +1388,10 @@ function RoleDetailPageInner({
         queryKey: KEYS.organizationRoles(locator),
       });
       const wasNew = !variables.role.id && !variables.role.slug;
-      const wasBuiltinRole = variables.role.slug && !variables.role.id;
+      const wasOwnerBuiltin =
+        variables.role.slug === "owner" && !variables.role.id;
       track(
-        wasBuiltinRole
+        wasOwnerBuiltin
           ? "role_members_updated"
           : wasNew
             ? "role_created"
@@ -1374,7 +1399,7 @@ function RoleDetailPageInner({
         { role_slug: variables.role.slug ?? null },
       );
       toast.success(
-        wasBuiltinRole
+        wasOwnerBuiltin
           ? "Members updated successfully!"
           : wasNew
             ? "Role created successfully!"
@@ -1399,8 +1424,7 @@ function RoleDetailPageInner({
     saveMutation.mutate(data);
   });
 
-  const showSaveActions =
-    !isBuiltin || (target.kind === "builtin" && target.role !== "owner");
+  const showSaveActions = !isOwnerBuiltin;
 
   const roleName =
     target.kind === "builtin"
@@ -1410,7 +1434,9 @@ function RoleDetailPageInner({
         : "";
 
   const tabs = [
-    ...(!isBuiltin ? [{ id: "mcp" as const, label: "MCP Permissions" }] : []),
+    ...(!isOwnerBuiltin
+      ? [{ id: "mcp" as const, label: "MCP Permissions" }]
+      : []),
     { id: "org" as const, label: "Organization Permissions" },
     { id: "models" as const, label: "Models" },
     { id: "members" as const, label: "Members" },
@@ -1433,7 +1459,12 @@ function RoleDetailPageInner({
 
   return (
     <Page>
-      <Page.Content className="flex flex-col overflow-hidden">
+      <Page.Content
+        className={cn(
+          "flex flex-col",
+          activeTab !== "org" && "overflow-hidden",
+        )}
+      >
         <div className="shrink-0 mx-auto w-full max-w-[1200px] px-4 md:px-10 pt-8 md:pt-12 pb-4">
           <div className="flex flex-col gap-5">
             <Page.Title
@@ -1476,13 +1507,11 @@ function RoleDetailPageInner({
                         : getRoleColor(form.watch("role.label")),
                   )}
                 />
-                {isBuiltin ? (
+                {isOwnerBuiltin && (
                   <Lock01
                     size={16}
                     className="text-muted-foreground shrink-0"
                   />
-                ) : (
-                  <Key01 size={16} className="text-muted-foreground shrink-0" />
                 )}
                 {isNew ? (
                   <input
@@ -1534,15 +1563,21 @@ function RoleDetailPageInner({
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 mx-auto w-full max-w-[1200px] px-4 md:px-10 pb-6">
+        <div
+          className={cn(
+            "mx-auto w-full max-w-[1200px] px-4 md:px-10 pb-6",
+            activeTab !== "org" && "flex-1 min-h-0",
+          )}
+        >
           <div
             className={cn(
-              "h-full overflow-hidden",
+              activeTab !== "org" && "h-full overflow-hidden",
               activeTab !== "models" &&
+                activeTab !== "org" &&
                 "border border-border rounded-xl bg-card",
             )}
           >
-            {activeTab === "mcp" && !isBuiltin && (
+            {activeTab === "mcp" && !isOwnerBuiltin && (
               <ToolSetSelector
                 toolSet={form.watch("toolSet")}
                 onToolSetChange={(newToolSet) =>
@@ -1565,7 +1600,7 @@ function RoleDetailPageInner({
                 onPermissionsChange={(v) =>
                   form.setValue("staticPermissions", v, { shouldDirty: true })
                 }
-                readOnly={isBuiltin}
+                readOnly={isOwnerBuiltin}
                 searchQuery={searchQuery}
               />
             )}
@@ -1579,7 +1614,7 @@ function RoleDetailPageInner({
                 onModelSetChange={(v) =>
                   form.setValue("modelSet", v, { shouldDirty: true })
                 }
-                readOnly={isBuiltin}
+                readOnly={isOwnerBuiltin}
                 searchQuery={searchQuery}
               />
             )}

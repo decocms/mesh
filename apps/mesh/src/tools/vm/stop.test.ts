@@ -7,6 +7,10 @@ import type { SandboxRunner } from "@decocms/sandbox/runner";
 const mockDelete = mock(async (_handle: string): Promise<void> => {});
 const lastRequestedKind: { value: string | null } = { value: null };
 
+async function* readyOnly() {
+  yield { kind: "ready" as const };
+}
+
 function makeMockRunner(kind: "docker" | "freestyle"): SandboxRunner {
   return {
     kind,
@@ -25,6 +29,7 @@ function makeMockRunner(kind: "docker" | "freestyle"): SandboxRunner {
     alive: async () => true,
     getPreviewUrl: async () => null,
     proxyDaemonRequest: async () => new Response(null, { status: 204 }),
+    watchClaimLifecycle: () => readyOnly(),
   };
 }
 

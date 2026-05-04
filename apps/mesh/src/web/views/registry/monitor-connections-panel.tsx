@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { authenticateMcp, isConnectionAuthenticated } from "@decocms/mesh-sdk";
+import {
+  authenticateMcp,
+  isConnectionAuthenticated,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -69,6 +73,7 @@ function ConnectionRow({
 
   const updateAuth = useUpdateMonitorConnectionAuth();
   const { updateMutation } = useRegistryMutations();
+  const { org } = useProjectContext();
   const connectionId = entry.mapping.connection_id;
   const authStatus = entry.mapping.auth_status;
   const title = entry.item?.title ?? entry.mapping.item_id;
@@ -82,6 +87,7 @@ function ConnectionRow({
       isConnectionAuthenticated({
         url: `/mcp/${connectionId}`,
         token: null,
+        orgId: org.id,
       }),
     staleTime: 10_000,
     retry: 1,
@@ -164,7 +170,10 @@ function ConnectionRow({
           `/api/connections/${connectionId}/oauth-token`,
           {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              "x-org-id": org.id,
+            },
             credentials: "include",
             body: JSON.stringify({
               accessToken: authResult.tokenInfo.accessToken,
@@ -202,7 +211,7 @@ function ConnectionRow({
     const res = await fetch("/mcp/self", {
       method: "POST",
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-org-id": org.id },
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 1,

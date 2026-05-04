@@ -1,6 +1,6 @@
 {
   "name": "decocms",
-  "version": "2.293.6",
+  "version": "2.297.5",
   "description": "Deco CMS — Self-hostable MCP Gateway for managing AI connections and tools",
   "author": "Deco team",
   "repository": {
@@ -70,6 +70,7 @@
     "ink": "^6.8.0",
     "kysely": "^0.28.12",
     "nats": "^2.29.3",
+    "node-pty": "^1.0.0",
     "posthog-js": "^1.371.1",
     "posthog-node": "^5.0.0",
     "react": "^19.2.0",

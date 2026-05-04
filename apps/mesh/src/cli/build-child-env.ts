@@ -37,7 +37,6 @@ export function buildChildEnv(
     ENCRYPTION_KEY: settings.encryptionKey,
     MESH_JWT_SECRET: settings.meshJwtSecret,
     DECOCMS_LOCAL_MODE: String(settings.localMode),
-    DECOCMS_ALLOW_LOCAL_PROD: String(settings.allowLocalProd),
     DISABLE_RATE_LIMIT: String(settings.disableRateLimit),
     STUDIO_PROVISION_SECRET_KEY: settings.studioProvisionSecretKey,
 
@@ -48,9 +47,6 @@ export function buildChildEnv(
     ...Object.fromEntries(
       Object.entries(process.env).filter(([k]) => k.startsWith("AUTH_")),
     ),
-
-    // Transport
-    UNSAFE_ALLOW_STDIO_TRANSPORT: String(settings.unsafeAllowStdioTransport),
 
     // AI Gateway
     DECO_AI_GATEWAY_ENABLED: String(settings.aiGatewayEnabled),

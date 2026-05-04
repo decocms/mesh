@@ -121,7 +121,7 @@ function makeClaim(name: string): SandboxClaim {
 describe("createSandboxClaim", () => {
   it("POSTs the claim body verbatim to the plural endpoint", async () => {
     fetchImpl = async () => jsonResponse(201, { kind: "SandboxClaim" });
-    const claim = makeClaim("studio-sb-abc");
+    const claim = makeClaim("myproj-abc");
     await createSandboxClaim(makeKc(), NS, claim);
 
     expect(fetchCalls).toHaveLength(1);
@@ -145,7 +145,7 @@ describe("createSandboxClaim", () => {
     const claim: SandboxClaim = {
       apiVersion: `${K8S_CONSTANTS.CLAIM_API_GROUP}/${K8S_CONSTANTS.CLAIM_API_VERSION}`,
       kind: "SandboxClaim",
-      metadata: { name: "studio-sb-tok", namespace: NS },
+      metadata: { name: "myproj-tok", namespace: NS },
       spec: {
         sandboxTemplateRef: { name: "studio-sandbox" },
         env: [{ name: "DAEMON_TOKEN", value: "abc123" }],
@@ -328,7 +328,7 @@ describe("patchSandboxClaimShutdown", () => {
     await patchSandboxClaimShutdown(
       makeKc(),
       NS,
-      "studio-sb-x",
+      "myproj-x",
       "2026-04-01T12:00:00.000Z",
     );
     expect(fetchCalls).toHaveLength(1);
@@ -384,7 +384,7 @@ describe("patchSandboxClaimShutdown", () => {
 describe("ensureServicePort", () => {
   it("server-side applies the Service ports with field manager + force", async () => {
     fetchImpl = async () => jsonResponse(200, { kind: "Service" });
-    await ensureServicePort(makeKc(), NS, "studio-sb-abc", {
+    await ensureServicePort(makeKc(), NS, "myproj-abc", {
       name: "daemon",
       port: 9000,
       targetPort: 9000,
@@ -393,9 +393,7 @@ describe("ensureServicePort", () => {
     expect(fetchCalls).toHaveLength(1);
     const [call] = fetchCalls;
     const url = new URL(call!.url);
-    expect(url.pathname).toBe(
-      `/api/v1/namespaces/${NS}/services/studio-sb-abc`,
-    );
+    expect(url.pathname).toBe(`/api/v1/namespaces/${NS}/services/myproj-abc`);
     // SSA contract: fieldManager identifies the writer, force=true takes
     // ownership of fields previously owned by another manager (the
     // operator's empty ports[]).
@@ -412,7 +410,7 @@ describe("ensureServicePort", () => {
     expect(JSON.parse(String(call!.init.body))).toEqual({
       apiVersion: "v1",
       kind: "Service",
-      metadata: { name: "studio-sb-abc" },
+      metadata: { name: "myproj-abc" },
       spec: {
         ports: [
           { name: "daemon", port: 9000, targetPort: 9000, protocol: "TCP" },

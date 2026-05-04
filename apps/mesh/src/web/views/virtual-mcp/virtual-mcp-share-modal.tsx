@@ -46,6 +46,7 @@ interface ShareButtonProps {
 
 interface ShareWithNameProps extends ShareButtonProps {
   serverName: string;
+  organizationId: string;
 }
 
 /**
@@ -87,7 +88,12 @@ function CopyUrlButton({ url, agentId }: ShareButtonProps) {
 /**
  * Install on Cursor Button Component
  */
-function InstallCursorButton({ url, serverName, agentId }: ShareWithNameProps) {
+function InstallCursorButton({
+  url,
+  serverName,
+  agentId,
+  organizationId,
+}: ShareWithNameProps) {
   const handleInstall = () => {
     track("agent_connect_action", {
       agent_id: agentId,
@@ -99,6 +105,7 @@ function InstallCursorButton({ url, serverName, agentId }: ShareWithNameProps) {
       url: url,
       headers: {
         "x-mesh-client": "Cursor",
+        "x-org-id": organizationId,
       },
     };
     const base64Config = utf8ToBase64(
@@ -134,7 +141,12 @@ function InstallCursorButton({ url, serverName, agentId }: ShareWithNameProps) {
 /**
  * Install on Claude Code Button Component
  */
-function InstallClaudeButton({ url, serverName, agentId }: ShareWithNameProps) {
+function InstallClaudeButton({
+  url,
+  serverName,
+  agentId,
+  organizationId,
+}: ShareWithNameProps) {
   const [copied, setCopied] = useState(false);
 
   const handleInstall = async () => {
@@ -148,6 +160,7 @@ function InstallClaudeButton({ url, serverName, agentId }: ShareWithNameProps) {
       url: url,
       headers: {
         "x-mesh-client": "Claude Code",
+        "x-org-id": organizationId,
       },
     };
     const configJson = JSON.stringify(connectionConfig, null, 2);
@@ -403,11 +416,13 @@ export function VirtualMCPShareModal({
             url={virtualMcpUrl.href}
             serverName={serverName}
             agentId={virtualMcp.id}
+            organizationId={virtualMcp.organization_id}
           />
           <InstallClaudeButton
             url={virtualMcpUrl.href}
             serverName={serverName}
             agentId={virtualMcp.id}
+            organizationId={virtualMcp.organization_id}
           />
         </div>
       </div>

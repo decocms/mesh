@@ -67,6 +67,7 @@ import {
 import { getInternalUrl } from "@/core/server-constants";
 import { traced, tracer } from "@/observability";
 import { getPodId } from "@/core/pod-identity";
+import { getSharedRunner } from "@/sandbox/lifecycle";
 
 /**
  * Classify a stream error into a small, stable taxonomy for analytics.
@@ -491,6 +492,10 @@ async function streamCoreInner(
                 ? "ephemeral"
                 : (input.branch ?? `thread:${mem.thread.id}`),
               userId: input.userId,
+              // Used by share_with_user to scope artifacts under
+              // model-outputs/<threadId>/. Cannot be derived from the
+              // sandbox row since one ephemeral sandbox serves many threads.
+              threadId: mem.thread.id,
             }
           : null;
 
@@ -678,6 +683,31 @@ async function streamCoreInner(
           });
 
           const mcpUrl = `${getInternalUrl()}/mcp/virtual-mcp/${input.agent.id}`;
+
+          let claudeCodeCwd: string | undefined;
+          if (vmContext && vmMetadata.githubRepo) {
+            const runner = await getSharedRunner(ctx);
+            if (runner.kind === "host") {
+              const { computeHandle, composeSandboxRef } = await import(
+                "@decocms/sandbox/runner"
+              );
+              const projectRef = composeSandboxRef({
+                orgId: organization.id,
+                virtualMcpId: vmContext.virtualMcpId,
+                branch: vmContext.branch,
+              });
+              const handle = computeHandle(
+                { userId: vmContext.userId, projectRef },
+                vmContext.branch,
+              );
+              const hostRunner = runner as unknown as {
+                localWorkdir(h: string): Promise<string | null>;
+              };
+              claudeCodeCwd =
+                (await hostRunner.localWorkdir(handle)) ?? undefined;
+            }
+          }
+
           languageModel = createClaudeCodeModel(
             resolveClaudeCodeModelId(input.models.thinking.id),
             {
@@ -694,6 +724,7 @@ async function streamCoreInner(
               toolApprovalLevel: input.toolApprovalLevel,
               isPlanMode: modeConfig.isPlanMode,
               resume: resumeSessionId,
+              cwd: claudeCodeCwd,
             },
           );
         } else if (isCodex) {

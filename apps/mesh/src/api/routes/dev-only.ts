@@ -1,15 +1,15 @@
 /**
- * Dev-Only Routes Module
+ * Local Object Storage Routes Module
  *
- * This module contains all dev-only routes and handlers that should NEVER
- * be loaded in production. It consolidates:
+ * Mounted whenever the active object storage backend is the DevObjectStorage
+ * filesystem fallback (no S3 configured). Consolidates:
  * - Dev Assets MCP (local filesystem object storage)
  * - Dev Assets file serving (presigned URL handlers)
  * - Connection ID pattern routing for dev-assets
  *
  * USAGE (in app.ts):
  * ```
- * if (process.env.NODE_ENV !== "production") {
+ * if (usesLocalObjectStorage()) {
  *   const { mountDevRoutes } = await import("./routes/dev-only");
  *   mountDevRoutes(app, mcpAuth);
  * }

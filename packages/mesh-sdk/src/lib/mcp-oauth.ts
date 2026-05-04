@@ -718,10 +718,12 @@ function extractConnectionIdFromUrl(url: string): string | null {
  * Check if connection has a stored OAuth token
  * @param connectionId - The connection ID to check
  * @param apiBaseUrl - Base URL for the API call (optional, defaults to relative path)
+ * @param orgId - Organization ID, sent as x-org-id (required by the status endpoint)
  */
 async function checkOAuthTokenStatus(
   connectionId: string,
   apiBaseUrl?: string,
+  orgId?: string,
 ): Promise<{ hasToken: boolean }> {
   try {
     const path = `/api/connections/${connectionId}/oauth-token/status`;
@@ -731,6 +733,7 @@ async function checkOAuthTokenStatus(
       !apiBaseUrl || new URL(apiBaseUrl).origin === currentOrigin;
     const response = await fetch(url, {
       credentials: isSameOrigin ? "include" : "omit", // Don't send cookies for cross-origin
+      headers: orgId ? { "x-org-id": orgId } : undefined,
     });
     if (!response.ok) {
       return { hasToken: false };
@@ -746,15 +749,19 @@ async function checkOAuthTokenStatus(
  * Check if an MCP connection is authenticated and whether it supports OAuth
  * @param params.url - The MCP URL to check
  * @param params.token - Authorization token (optional)
+ * @param params.orgId - Organization ID, sent as x-org-id (required for browser-session calls; the proxy returns 403 without it)
  * @param params.meshUrl - Mesh server URL for API calls (optional, defaults to URL origin)
  */
 export async function isConnectionAuthenticated({
   url,
   token,
+  orgId,
   meshUrl,
 }: {
   url: string;
   token: string | null;
+  /** Organization ID - required for browser-session calls. Sent as x-org-id header. */
+  orgId?: string;
   /** Mesh server URL for API calls - optional, defaults to extracting from url parameter */
   meshUrl?: string;
 }): Promise<McpAuthStatus> {
@@ -764,6 +771,9 @@ export async function isConnectionAuthenticated({
     headers.set("Accept", "application/json, text/event-stream");
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
+    }
+    if (orgId) {
+      headers.set("x-org-id", orgId);
     }
 
     const response = await fetch(url, {
@@ -795,7 +805,7 @@ export async function isConnectionAuthenticated({
     if (response.ok) {
       // Check if we have an OAuth token stored for this connection
       const oauthStatus = connectionId
-        ? await checkOAuthTokenStatus(connectionId, apiBaseUrl)
+        ? await checkOAuthTokenStatus(connectionId, apiBaseUrl, orgId)
         : { hasToken: false };
 
       return {

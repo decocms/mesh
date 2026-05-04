@@ -1,4 +1,4 @@
-import { authClient } from "@/web/lib/auth-client";
+import { useOrgAuthClient } from "@/web/hooks/use-org-auth-client";
 import { KEYS } from "@/web/lib/query-keys";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
@@ -96,6 +96,7 @@ function CompactLogoUpload({
 export function OrganizationForm() {
   const navigate = useNavigate();
   const { org } = useProjectContext();
+  const orgAuth = useOrgAuthClient();
   const queryClient = useQueryClient();
   const [isSaving, setIsSaving] = useState(false);
 
@@ -119,8 +120,7 @@ export function OrganizationForm() {
         updateData.logo = data.logo;
       }
 
-      const result = await authClient.organization.update({
-        organizationId: org.id,
+      const result = await orgAuth.organization.update({
         data: updateData,
       });
 

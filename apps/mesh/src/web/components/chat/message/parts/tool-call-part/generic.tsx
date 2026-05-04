@@ -43,6 +43,7 @@ import {
   RefreshCw01,
   XClose,
 } from "@untitledui/icons";
+import { TOOL_DISPLAY_MAP } from "./tool-display-map.ts";
 import type { DynamicToolUIPart, ToolUIPart } from "ai";
 import type React from "react";
 import { Suspense } from "react";
@@ -213,7 +214,9 @@ export function GenericToolCallPart({
   const meta = toolDef?._meta ?? toolMeta;
   const gatewayClientId = getGatewayClientId(meta);
   const toolName = stripToolNamespace(mcpStrippedName, gatewayClientId);
-  const friendlyName = toolDef?.title ?? toTitleCase(toolName);
+  const toolDisplay = TOOL_DISPLAY_MAP[toolName];
+  const friendlyName =
+    toolDef?.title ?? toolDisplay?.label ?? toTitleCase(toolName);
   const uiResourceUri = getUIResourceUri(meta);
 
   const hasMCPApp = !!uiResourceUri && part.state === "output-available";
@@ -313,15 +316,15 @@ export function GenericToolCallPart({
   return (
     <div>
       <ToolCallShell
-        icon={
-          isCancelled ? (
-            <XClose />
-          ) : hasMCPApp ? (
-            <LayersTwo01 className="size-4 text-muted-foreground" />
-          ) : (
-            <Atom02 className="size-4 text-muted-foreground" />
-          )
-        }
+        icon={(() => {
+          if (isCancelled) return <XClose />;
+          if (hasMCPApp)
+            return <LayersTwo01 className="size-4 text-muted-foreground" />;
+          const MappedIcon = toolDisplay?.icon;
+          if (MappedIcon)
+            return <MappedIcon className="size-4 text-muted-foreground" />;
+          return <Atom02 className="size-4 text-muted-foreground" />;
+        })()}
         iconDestructive={isCancelled}
         trailing={
           <AnnotationBadges annotations={annotations} toolMeta={toolMeta} />

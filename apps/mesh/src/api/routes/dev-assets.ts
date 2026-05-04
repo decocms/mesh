@@ -8,7 +8,7 @@
  * - GET /api/dev-assets/:orgId/* - Download a file
  * - PUT /api/dev-assets/:orgId/* - Upload a file
  *
- * Only available when NODE_ENV !== "production"
+ * Only mounted when DevObjectStorage is the active backend (no S3 configured)
  */
 
 import { Hono } from "hono";

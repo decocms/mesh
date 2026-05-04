@@ -461,7 +461,8 @@ const discoveryCache = new Map<
 
 /**
  * Validate that a URL is safe for server-side fetching (SSRF prevention).
- * Enforces HTTPS in production and blocks private/link-local IP ranges.
+ * Enforces HTTPS and blocks private/link-local IP ranges. Local mode opts
+ * in to HTTP and loopback so developers can point at a local Keycloak/etc.
  */
 function validateOIDCUrl(url: string): void {
   let parsed: URL;
@@ -471,8 +472,8 @@ function validateOIDCUrl(url: string): void {
     throw new Error(`Invalid URL: ${url}`);
   }
 
-  // Enforce HTTPS in production (allow HTTP for local dev)
-  const allowHttp = getSettings().nodeEnv !== "production";
+  // Local mode opts in to HTTP + loopback for local OIDC providers.
+  const allowHttp = getSettings().localMode;
   if (
     parsed.protocol !== "https:" &&
     !(allowHttp && parsed.protocol === "http:")
@@ -483,7 +484,7 @@ function validateOIDCUrl(url: string): void {
   // Block private and link-local IP ranges
   const host = parsed.hostname;
   const privatePatterns = [
-    /^127\./, // loopback (allow in dev below)
+    /^127\./, // loopback (allowed in local mode below)
     /^10\./, // 10.0.0.0/8
     /^172\.(1[6-9]|2\d|3[01])\./, // 172.16.0.0/12
     /^192\.168\./, // 192.168.0.0/16
@@ -495,7 +496,7 @@ function validateOIDCUrl(url: string): void {
     /^localhost$/i, // localhost hostname
   ];
 
-  // Allow loopback in dev for local OIDC providers (e.g. Keycloak)
+  // Allow loopback in local mode for local OIDC providers (e.g. Keycloak)
   const isLoopback = /^127\.|^\[::1\]$|^localhost$/i.test(host);
   if (allowHttp && isLoopback) {
     return;

@@ -9,10 +9,16 @@ the sandbox is provisioned and reached.
 
 ## Runners
 
-Three runner backends live behind the common `SandboxRunner` interface
+Four runner backends live behind the common `SandboxRunner` interface
 (`server/runner/types.ts`):
 
-- **Docker** (`./runner`) — default for local dev. Spawns containers via the
+- **`host`** — local dev / single-tenant self-host. Spawns the same Bun-based
+  daemon as the Docker runner but as a host child process, with a per-branch
+  full git clone in `${DATA_DIR}/sandboxes/<handle>/`. The local
+  `*.localhost:7070` ingress routes browser traffic to the per-branch daemon's
+  host TCP port. No container; no hardening (the daemon runs in the user's
+  trust boundary).
+- **Docker** (`./runner`) — containerized sandboxes. Spawns containers via the
   local Docker CLI and routes browser traffic through an in-process ingress
   bound on `SANDBOX_INGRESS_PORT`.
 - **Freestyle** (`./runner/freestyle`) — hosted VMs. Preview URL is a
@@ -27,16 +33,17 @@ Three runner backends live behind the common `SandboxRunner` interface
 
 ### Selection
 
-The host app calls `resolveRunnerKindFromEnv()` / `tryResolveRunnerKindFromEnv()`
-from `./runner`:
+The host app calls `resolveRunnerKindFromEnv()` to pick the runner. Single rule:
 
-1. `STUDIO_SANDBOX_RUNNER=docker|freestyle|agent-sandbox` wins when set.
-2. Otherwise, `FREESTYLE_API_KEY` present → `freestyle`.
-3. Otherwise, in `NODE_ENV=production` → unresolved (strict variant throws).
-4. Otherwise (dev) → `docker` if the CLI is on `PATH`, else unresolved.
+1. `STUDIO_SANDBOX_RUNNER` is honored if set (one of `host`, `docker`,
+   `freestyle`, `agent-sandbox`).
+2. Otherwise the runner defaults to `host`.
 
-agent-sandbox is **explicit-only** — it's never auto-selected, so docker-only
-deploys don't accidentally need a kubeconfig.
+Preconditions:
+
+- `freestyle` requires `FREESTYLE_API_KEY` to be set; otherwise the call throws
+  at startup.
+- `agent-sandbox` is opt-in only — never auto-selected.
 
 ## URL shape
 
@@ -65,15 +72,15 @@ for this, you can remove them — they're no longer needed.
 
 ## Environment
 
-- `STUDIO_SANDBOX_RUNNER` — pin the runner: `docker`, `freestyle`, or
-  `agent-sandbox`. Leave unset in dev to let auto-detect pick docker.
-- `FREESTYLE_API_KEY` — required for the Freestyle runner. Presence also
-  auto-selects it when `STUDIO_SANDBOX_RUNNER` is unset.
+- `STUDIO_SANDBOX_RUNNER` — pin the runner: `host` (default), `docker`,
+  `freestyle`, or `agent-sandbox`. Setting it explicitly is required for any
+  non-host runner. Auto-detection of Docker has been removed.
+- `FREESTYLE_API_KEY` — required for the Freestyle runner.
 - `STUDIO_SANDBOX_IMAGE` — override the Docker runner image
   (default `studio-sandbox:local`, built from `image/Dockerfile`).
-- `SANDBOX_INGRESS_PORT` (default `7070`) — local Docker ingress bind port.
+- `SANDBOX_INGRESS_PORT` (default `7070`) — local ingress bind port for the
+  host/docker runners. Set to `0` to skip binding entirely (use this if a
+  real reverse proxy fronts `*.localhost` traffic instead).
 - `SANDBOX_ROOT_URL` — production template for the pod URL. Either a bare
   base (`https://sandboxes.example.com` → handle becomes leading subdomain)
   or a `{handle}` template (`https://{handle}.sandboxes.example.com`).
-- `MESH_LOCAL_SANDBOX_INGRESS=1` — force the local forwarder on even when
-  `NODE_ENV=production` (single-tenant self-hosted setups).

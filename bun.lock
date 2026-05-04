@@ -53,7 +53,7 @@
     },
     "apps/mesh": {
       "name": "decocms",
-      "version": "2.293.6",
+      "version": "2.297.5",
       "bin": {
         "deco": "./dist/server/cli.js",
       },
@@ -85,6 +85,7 @@
         "ink": "^6.8.0",
         "kysely": "^0.28.12",
         "nats": "^2.29.3",
+        "node-pty": "^1.0.0",
         "posthog-js": "^1.371.1",
         "posthog-node": "^5.0.0",
         "react": "^19.2.0",
@@ -302,6 +303,7 @@
       "dependencies": {
         "@kubernetes/client-node": "^1.4.0",
         "@opentelemetry/api": "^1.9.0",
+        "node-pty": "^1.0.0",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -399,6 +401,7 @@
     },
   },
   "trustedDependencies": [
+    "node-pty",
     "@duckdb/node-bindings",
     "@duckdb/node-api",
   ],
@@ -2678,6 +2681,8 @@
     "node-gyp-build": ["node-gyp-build@4.8.4", "", { "bin": { "node-gyp-build": "bin.js", "node-gyp-build-optional": "optional.js", "node-gyp-build-test": "build-test.js" } }, "sha512-LA4ZjwlnUblHVgq0oBF3Jl/6h/Nvs5fzBLwdEF4nuxnFdsfajde4WfxtJr3CaiH+F6ewcIB/q4jQ4UzPyid+CQ=="],
 
     "node-mock-http": ["node-mock-http@1.0.4", "", {}, "sha512-8DY+kFsDkNXy1sJglUfuODx1/opAGJGyrTuFqEoN90oRc2Vk0ZbD4K2qmKXBBEhZQzdKHIVfEJpDU8Ak2NJEvQ=="],
+
+    "node-pty": ["node-pty@1.1.0", "", { "dependencies": { "node-addon-api": "^7.1.0" } }, "sha512-20JqtutY6JPXTUnL0ij1uad7Qe1baT46lyolh2sSENDd4sTzKZ4nmAFkeAARDKwmlLjPx6XKRlwRUxwjOy+lUg=="],
 
     "node-releases": ["node-releases@2.0.38", "", {}, "sha512-3qT/88Y3FbH/Kx4szpQQ4HzUbVrHPKTLVpVocKiLfoYvw9XSGOX2FmD2d6DrXbVYyAQTF2HeF6My8jmzx7/CRw=="],
 

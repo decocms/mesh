@@ -14,7 +14,7 @@ import {
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { useCurrentEditor, type Editor } from "@tiptap/react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { AlertTriangle, Attachment01, X } from "@untitledui/icons";
+import { AlertTriangle, Attachment01 } from "@untitledui/icons";
 import { toast } from "sonner";
 import {
   getAcceptedMimeTypesForModel,
@@ -61,7 +61,7 @@ export async function processFile(
       onUnsupportedFile({ fileName: file.name, modelName, accepted });
     } else {
       toast.error(`"${file.name}" can't be attached`, {
-        description: `${modelName} accepts ${accepted}. PowerPoint, Word, and Excel files aren't supported yet.`,
+        description: `${modelName} accepts ${accepted}.`,
       });
     }
     return;
@@ -307,12 +307,6 @@ export function FileUploadButton({
   );
 }
 
-const UNSUPPORTED_EXAMPLES = [
-  "PowerPoint (.pptx)",
-  "Word documents (.docx)",
-  "Excel spreadsheets (.xlsx)",
-] as const;
-
 /**
  * Dialog shown when the user tries to attach a file whose MIME type the
  * selected model doesn't support.
@@ -373,20 +367,6 @@ export function UnsupportedFileDialog({
               <Attachment01 size={14} className="text-muted-foreground" />
               <span className="capitalize">{info?.accepted}</span>
             </div>
-          </div>
-
-          <div className="rounded-xl bg-muted/25 border border-border/50 p-4 space-y-2">
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Not supported yet
-            </div>
-            {UNSUPPORTED_EXAMPLES.map((label) => (
-              <div key={label} className="flex items-center gap-3">
-                <div className="flex items-center justify-center size-5 rounded-full bg-muted shrink-0">
-                  <X size={10} className="text-muted-foreground" />
-                </div>
-                <span className="text-sm text-foreground/80">{label}</span>
-              </div>
-            ))}
           </div>
         </div>
 

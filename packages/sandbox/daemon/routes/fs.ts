@@ -1,9 +1,19 @@
 import fs from "node:fs";
 import path from "node:path";
+import { Readable, Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { spawn } from "node:child_process";
 import { DECO_UID, DECO_GID } from "../constants";
 import { safePath } from "../paths";
 import { parseBase64JsonBody, jsonResponse } from "./body-parser";
+
+/**
+ * Wall-clock cap for fetches in write_from_url / upload_to_url.
+ * Both endpoints only ever talk to mesh-minted presigned S3/R2 URLs,
+ * so the model has no path to influence the destination — the cap is
+ * just defense against a hung S3 endpoint tying up a request slot.
+ */
+const TRANSFER_DEADLINE_MS = 5 * 60_000;
 
 export interface FsDeps {
   appRoot: string;
@@ -23,6 +33,11 @@ function spawnOpts(
 /** Cap on bytes returned for image responses. ~5MB matches Anthropic's
  * vision input ceiling and keeps tool result payloads bounded. */
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/** Cap on bytes for write_from_url / upload_to_url. Matches the share
+ * pipeline's expected file sizes (CSVs, decks, zips). Files past this
+ * are out of scope for the chat artifact flow. */
+const MAX_TRANSFER_BYTES = 500 * 1024 * 1024;
 
 /** Magic-byte sniffer for the image types Claude vision accepts.
  * Returns null for everything else; we don't try to be clever about
@@ -159,7 +174,7 @@ export function makeWriteHandler(deps: FsDeps) {
     if (typeof body.content !== "string")
       return jsonResponse({ error: "content is required" }, 400);
     const filePath = safePath(deps.appRoot, body.path ?? "");
-    if (!filePath) return jsonResponse({ error: "Path escapes /app" }, 400);
+    if (!filePath) return jsonResponse({ error: "Path escapes app root" }, 400);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFileSync(filePath, body.content, "utf-8");
     return jsonResponse({
@@ -183,7 +198,7 @@ export function makeEditHandler(deps: FsDeps) {
       return jsonResponse({ error: (e as Error).message }, 400);
     }
     const filePath = safePath(deps.appRoot, body.path ?? "");
-    if (!filePath) return jsonResponse({ error: "Path escapes /app" }, 400);
+    if (!filePath) return jsonResponse({ error: "Path escapes app root" }, 400);
     if (!body.old_string || typeof body.old_string !== "string")
       return jsonResponse({ error: "old_string is required" }, 400);
     if (typeof body.new_string !== "string")
@@ -240,7 +255,8 @@ export function makeGrepHandler(deps: FsDeps) {
     const searchPath = body.path
       ? safePath(deps.appRoot, body.path)
       : deps.appRoot;
-    if (!searchPath) return jsonResponse({ error: "Path escapes /app" }, 400);
+    if (!searchPath)
+      return jsonResponse({ error: "Path escapes app root" }, 400);
     const args: string[] = [];
     const mode = body.output_mode ?? "files";
     if (mode === "files") args.push("--files-with-matches");
@@ -298,6 +314,200 @@ export function makeGrepHandler(deps: FsDeps) {
   };
 }
 
+/**
+ * GET a remote URL (typically a presigned S3 URL) and stream the bytes to
+ * a path on the sandbox FS. Mesh mints the URL and asks the daemon to
+ * fetch it directly so bytes never round-trip through mesh.
+ *
+ * Body: { path: string; url: string }
+ */
+export function makeWriteFromUrlHandler(deps: FsDeps) {
+  return async (req: Request): Promise<Response> => {
+    let body: { path?: string; url?: string };
+    try {
+      body = (await parseBase64JsonBody(req)) as typeof body;
+    } catch (e) {
+      return jsonResponse({ error: (e as Error).message }, 400);
+    }
+    if (typeof body.url !== "string" || !body.url) {
+      return jsonResponse({ error: "url is required" }, 400);
+    }
+    const filePath = safePath(deps.appRoot, body.path ?? "");
+    if (!filePath) return jsonResponse({ error: "Path escapes app root" }, 400);
+
+    // The URL here is mesh-minted (presigned GET to S3/R2) — the model
+    // can't supply arbitrary URLs through copy_to_sandbox, so SSRF +
+    // DNS-rebinding defenses aren't needed. Plain fetch with a wall-
+    // clock deadline is enough.
+    const abortController = new AbortController();
+    const deadlineTimer = setTimeout(
+      () => abortController.abort(),
+      TRANSFER_DEADLINE_MS,
+    );
+    let resp: Response;
+    try {
+      resp = await fetch(body.url, { signal: abortController.signal });
+    } catch (err) {
+      clearTimeout(deadlineTimer);
+      return jsonResponse(
+        {
+          error: abortController.signal.aborted
+            ? `fetch deadline exceeded (${TRANSFER_DEADLINE_MS}ms)`
+            : `fetch failed: ${(err as Error).message}`,
+        },
+        502,
+      );
+    }
+    if (!resp.ok || !resp.body) {
+      clearTimeout(deadlineTimer);
+      return jsonResponse(
+        { error: `upstream returned HTTP ${resp.status}` },
+        502,
+      );
+    }
+    const contentLengthHeader = resp.headers.get("content-length");
+    const declaredSize = contentLengthHeader
+      ? Number.parseInt(contentLengthHeader, 10)
+      : null;
+    if (declaredSize !== null && declaredSize > MAX_TRANSFER_BYTES) {
+      clearTimeout(deadlineTimer);
+      return jsonResponse(
+        {
+          error: `Payload too large (${declaredSize} > ${MAX_TRANSFER_BYTES})`,
+        },
+        413,
+      );
+    }
+
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+
+    // pipeline() guarantees: backpressure honored, errors propagate
+    // through the chain, all streams destroyed on failure. The Transform
+    // tracks running byte count so we fail fast when a server lies in
+    // (or omits) Content-Length.
+    let written = 0;
+    const cap = new Transform({
+      transform(chunk: Buffer, _enc, cb) {
+        written += chunk.byteLength;
+        if (written > MAX_TRANSFER_BYTES) {
+          cb(new Error(`Stream exceeded ${MAX_TRANSFER_BYTES} bytes`));
+          return;
+        }
+        cb(null, chunk);
+      },
+    });
+    const out = fs.createWriteStream(filePath);
+    try {
+      await pipeline(Readable.fromWeb(resp.body as never), cap, out);
+    } catch (err) {
+      // Any failure (network RST, TLS error, size cap, write fault)
+      // leaves a partial file. Remove it so a later skill step can't
+      // read a half-baked artifact.
+      fs.rmSync(filePath, { force: true });
+      return jsonResponse(
+        {
+          error: abortController.signal.aborted
+            ? `fetch deadline exceeded (${TRANSFER_DEADLINE_MS}ms)`
+            : `stream failed: ${(err as Error).message}`,
+        },
+        502,
+      );
+    } finally {
+      clearTimeout(deadlineTimer);
+    }
+    return jsonResponse({ ok: true, path: body.path, size: written });
+  };
+}
+
+/**
+ * Read a file from the sandbox FS and PUT it to a remote URL (typically
+ * a presigned S3 URL). Mesh mints the URL and asks the daemon to upload
+ * directly so bytes never round-trip through mesh.
+ *
+ * Body: { path: string; url: string; contentType?: string }
+ */
+export function makeUploadToUrlHandler(deps: FsDeps) {
+  return async (req: Request): Promise<Response> => {
+    let body: { path?: string; url?: string; contentType?: string };
+    try {
+      body = (await parseBase64JsonBody(req)) as typeof body;
+    } catch (e) {
+      return jsonResponse({ error: (e as Error).message }, 400);
+    }
+    if (typeof body.url !== "string" || !body.url) {
+      return jsonResponse({ error: "url is required" }, 400);
+    }
+    const filePath = resolveReadPath(deps.appRoot, body.path ?? "");
+    if (!filePath) {
+      return jsonResponse({ error: "Path escapes project root" }, 400);
+    }
+
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(filePath);
+    } catch {
+      return jsonResponse({ error: `File not found: ${body.path}` }, 400);
+    }
+    if (stat.isDirectory()) {
+      return jsonResponse({ error: "Path is a directory" }, 400);
+    }
+    if (stat.size > MAX_TRANSFER_BYTES) {
+      return jsonResponse(
+        { error: `File too large (${stat.size} > ${MAX_TRANSFER_BYTES})` },
+        413,
+      );
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Length": String(stat.size),
+    };
+    if (body.contentType) headers["Content-Type"] = body.contentType;
+
+    // Stream the file body — readFileSync at MAX_TRANSFER_BYTES would peg
+    // ~25% of the daemon's memory cap on a single concurrent upload.
+    // Bun.file().stream() returns a ReadableStream<Uint8Array> that fetch
+    // accepts directly; backpressure stays on the network socket.
+    const abortController = new AbortController();
+    const deadlineTimer = setTimeout(
+      () => abortController.abort(),
+      TRANSFER_DEADLINE_MS,
+    );
+    let resp: Response;
+    try {
+      resp = await fetch(body.url, {
+        method: "PUT",
+        body: Bun.file(filePath).stream(),
+        headers,
+        signal: abortController.signal,
+        // No SSRF revalidation here — the URL is mesh-minted (presigned
+        // PUT to S3/R2), so the model can't influence where bytes go.
+        // upload PUTs don't redirect under S3/R2 semantics anyway.
+      });
+    } catch (err) {
+      return jsonResponse(
+        {
+          error: abortController.signal.aborted
+            ? `upload deadline exceeded (${TRANSFER_DEADLINE_MS}ms)`
+            : `upload failed: ${(err as Error).message}`,
+        },
+        502,
+      );
+    } finally {
+      clearTimeout(deadlineTimer);
+    }
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      return jsonResponse(
+        {
+          error: `upstream returned HTTP ${resp.status}: ${errText.slice(0, 500)}`,
+        },
+        502,
+      );
+    }
+    return jsonResponse({ ok: true, size: stat.size });
+  };
+}
+
 export function makeGlobHandler(deps: FsDeps) {
   return async (req: Request): Promise<Response> => {
     let body: { pattern?: string; path?: string };
@@ -311,7 +521,8 @@ export function makeGlobHandler(deps: FsDeps) {
     const searchPath = body.path
       ? safePath(deps.appRoot, body.path)
       : deps.appRoot;
-    if (!searchPath) return jsonResponse({ error: "Path escapes /app" }, 400);
+    if (!searchPath)
+      return jsonResponse({ error: "Path escapes app root" }, 400);
     const child = spawn(
       "rg",
       ["--files", "--glob", body.pattern, searchPath],

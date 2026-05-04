@@ -24,26 +24,8 @@ const { isServerPath } = await import("./api/utils/paths");
 const { createAssetHandler, resolveClientDir } = await import(
   "@decocms/runtime/asset-server"
 );
-const { red } = await import("./fmt");
 
 const port = settings.port;
-
-// Refuse local mode in production — it disables authentication
-if (
-  settings.localMode &&
-  settings.nodeEnv === "production" &&
-  !settings.allowLocalProd
-) {
-  console.error(
-    red(
-      "Error: Local mode is not allowed in production (NODE_ENV=production).",
-    ),
-  );
-  console.error(
-    "Set DECOCMS_ALLOW_LOCAL_PROD=true to override (not recommended).",
-  );
-  process.exit(1);
-}
 
 // Create asset handler - handles both dev proxy and production static files
 // When running from source (src/index.ts), the "../client" relative path
@@ -107,35 +89,54 @@ const previewProxyDeps = {
   },
 };
 
-// Docker-only boot/dev wiring. Both hooks (boot sweep + local ingress) are
-// intimate with Docker-specific primitives (labels, host-port mappings);
-// other runners manage their own VM/ingress lifecycle.
-const { tryResolveRunnerKindFromEnv } = await import("@decocms/sandbox/runner");
-if (tryResolveRunnerKindFromEnv() === "docker") {
-  const { sweepDockerOrphansOnBoot, startLocalSandboxIngress } = await import(
-    "@decocms/sandbox/runner"
-  );
-  const { asDockerRunner, getSharedRunnerIfInit } = await import(
+// Boot/dev wiring for local runners (docker + host). The boot sweep is
+// Docker-only — host runner's rehydrate() probes /health and discards dead
+// state on its own. The local ingress is shared by both runners.
+const { resolveRunnerKindFromEnv } = await import("@decocms/sandbox/runner");
+const sandboxRunnerKind = resolveRunnerKindFromEnv();
+const ingressEligible =
+  sandboxRunnerKind === "docker" || sandboxRunnerKind === "host";
+
+if (ingressEligible) {
+  const { startLocalSandboxIngress } = await import("@decocms/sandbox/runner");
+  const { getSharedRunnerIfInit, getOrInitSharedRunner } = await import(
     "./sandbox/lifecycle"
   );
 
   // Boot sweep (best-effort). Shutdown cleanup can't cover crashes —
   // SIGTERM races with the parent killing postgres — so the boot sweep is
   // what actually keeps `docker ps` empty between sessions.
-  await sweepDockerOrphansOnBoot();
+  // Host runner's rehydrate() probes /health and discards dead state on its own.
+  if (sandboxRunnerKind === "docker") {
+    const { sweepDockerOrphansOnBoot } = await import(
+      "@decocms/sandbox/runner"
+    );
+    await sweepDockerOrphansOnBoot();
+  }
 
   // Port 7070 default: macOS AirPlay Receiver owns `*:7000` on v4+v6, so a
-  // Chrome Happy-Eyeballs race would hit Apple. Enabled by default in dev;
-  // opt in elsewhere via MESH_LOCAL_SANDBOX_INGRESS=1.
-  const ingressDevEnabled =
-    settings.nodeEnv !== "production" ||
-    process.env.MESH_LOCAL_SANDBOX_INGRESS === "1";
-  if (ingressDevEnabled) {
-    const ingressPort = Number(process.env.SANDBOX_INGRESS_PORT ?? 7070);
-    ingressServers = startLocalSandboxIngress(
-      () => asDockerRunner(getSharedRunnerIfInit()),
-      ingressPort,
-    );
+  // Chrome Happy-Eyeballs race would hit Apple. The ingress is part of the
+  // host/docker runner contract — those runners only expose user dev servers
+  // through `<handle>.localhost:7070`, so the gate is the runner kind, not
+  // NODE_ENV. Set `SANDBOX_INGRESS_PORT=0` to skip binding entirely.
+  const ingressPort = Number(process.env.SANDBOX_INGRESS_PORT ?? 7070);
+  if (ingressPort > 0) {
+    ingressServers = startLocalSandboxIngress(() => {
+      const r = getSharedRunnerIfInit();
+      if (!r) return null;
+      if (r.kind !== "docker" && r.kind !== "host") return null;
+      // Both DockerSandboxRunner and HostSandboxRunner expose
+      // resolveDaemonPort; the structural cast is safe after the kind check.
+      return r as unknown as {
+        resolveDaemonPort(handle: string): Promise<number | null>;
+      };
+    }, ingressPort);
+
+    // Construct the runner up-front. The first preview-iframe request
+    // typically arrives on a page reload with a warm vmMap, before either
+    // VM_START or `/api/vm-events` has touched the runner — without this
+    // eager init the ingress would 503 with "Sandbox Runner Not Initialized".
+    await getOrInitSharedRunner();
   }
 }
 
@@ -152,11 +153,11 @@ if (!settings.isCli) {
 }
 
 // REUSE_PORT is an internal coordination signal set by serve.ts when
-// numThreads > 1 on Linux. It intentionally bypasses the Settings pipeline
-// because it is not a user-facing config — it is set programmatically by the
-// CLI layer immediately before importing this module.
-const reusePort =
-  process.platform === "linux" && process.env.REUSE_PORT === "true";
+// --num-threads > 1. It intentionally bypasses the Settings pipeline because
+// it is not a user-facing config — it is set programmatically by the CLI
+// layer immediately before importing this module. serve.ts owns the
+// platform-eligibility decision; we trust the signal here.
+const reusePort = process.env.REUSE_PORT === "true";
 
 // DECOCMS_IS_WORKER is set by serve.ts on spawned worker processes.
 // Workers skip local-mode seeding to avoid concurrent DB races.
@@ -211,7 +212,7 @@ const server = Bun.serve({
       if (isPreviewWsData(ws.data)) previewWebSocketHandler.close(ws);
     },
   },
-  development: settings.nodeEnv !== "production",
+  development: false,
 });
 
 // Local mode: seed admin user + organization after server is listening
@@ -270,12 +271,8 @@ async function gracefulShutdown(signal: string) {
     //    shouldn't have to wait out our drain.
     for (const s of ingressServers) s.close();
 
-    // 3. Let K8s notice the 503 before we close connections. Skipped in dev
-    //    — no LB draining, and the 2s delay causes "port still in use" on
-    //    rapid restart.
-    if (settings.nodeEnv === "production") {
-      await new Promise((r) => setTimeout(r, 2_000));
-    }
+    // 3. Let K8s notice the 503 before we close connections.
+    await new Promise((r) => setTimeout(r, 2_000));
 
     // 4. Force-close connections (SSE streams are long-lived and would block
     //    graceful drain indefinitely).
@@ -296,15 +293,3 @@ process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 // Bun keeps the process alive after terminal close — without SIGHUP we
 // accumulate zombies still holding port 7070.
 process.on("SIGHUP", () => gracefulShutdown("SIGHUP"));
-
-// Dev-only orphan detection. Prod containers legitimately run with PID 1
-// parentage, so this must stay NODE_ENV-guarded.
-if (settings.nodeEnv !== "production") {
-  const initialPpid = process.ppid;
-  setInterval(() => {
-    if (process.ppid !== initialPpid && process.ppid <= 1) {
-      console.error("[shutdown] Orphaned (ppid=1), force-exiting.");
-      process.exit(130);
-    }
-  }, 2_000).unref();
-}
