@@ -78,10 +78,8 @@ export function ensureOrganization(
  * only [a-zA-Z0-9_.\-:], and be at most 128 characters.
  */
 export function sanitizeToolName(name: string): string {
-  // Replace everything outside [a-zA-Z0-9_] with underscore.
-  // Hyphens are intentionally excluded: many LLMs normalize hyphens to
-  // underscores when invoking tools, causing "unavailable tool" errors.
-  let safe = name.replace(/[^a-zA-Z0-9_]/g, "_");
+  // Replace any character outside the allowed set with an underscore.
+  let safe = name.replace(/[^a-zA-Z0-9_.\-:]/g, "_");
   // Ensure it starts with a letter or underscore
   if (safe.length === 0 || !/^[a-zA-Z_]/.test(safe)) {
     safe = `_${safe}`;
@@ -135,6 +133,15 @@ function stripGatewayPrefix(
 }
 
 /**
+ * Sanitize a tool name for LLM use: same as sanitizeToolName but also
+ * converts hyphens to underscores, since many LLMs normalize hyphens when
+ * invoking tool names, causing "tool not found" errors.
+ */
+function sanitizeForLlm(name: string): string {
+  return sanitizeToolName(name).replace(/-/g, "_");
+}
+
+/**
  * Build a collision-aware name map from MCP tools.
  * Uses the short (un-namespaced) tool name when it's unique across all
  * connections; only prepends the connection prefix when two connections
@@ -149,9 +156,12 @@ function buildShortNameMap(
   // Pass 1: count how many tools share each sanitized short name
   const shortCount = new Map<string, number>();
   for (const t of tools) {
-    const connId = (t._meta?.gatewayClientId as string) ?? "";
+    const connId =
+      typeof t._meta?.gatewayClientId === "string"
+        ? t._meta.gatewayClientId
+        : "";
     const short = connId ? stripGatewayPrefix(t.name, connId) : t.name;
-    const safe = sanitizeToolName(short);
+    const safe = sanitizeForLlm(short);
     shortCount.set(safe, (shortCount.get(safe) ?? 0) + 1);
   }
 
@@ -159,12 +169,17 @@ function buildShortNameMap(
   const used = new Set<string>();
   const map = new Map<string, string>();
   for (const t of tools) {
-    const connId = (t._meta?.gatewayClientId as string) ?? "";
+    const connId =
+      typeof t._meta?.gatewayClientId === "string"
+        ? t._meta.gatewayClientId
+        : "";
     const short = connId ? stripGatewayPrefix(t.name, connId) : t.name;
-    const safeShort = sanitizeToolName(short);
+    const safeShort = sanitizeForLlm(short);
     const unique = (shortCount.get(safeShort) ?? 0) <= 1;
 
-    let safeName = unique ? safeShort : sanitizeToolName(`${connId}_${short}`);
+    // For the collision prefix, normalize the connId too so hyphens in
+    // connection IDs don't produce names the LLM will mangle.
+    let safeName = unique ? safeShort : sanitizeForLlm(`${connId}_${short}`);
 
     // Suffix for any remaining collision (same conn + same tool name)
     if (used.has(safeName)) {
