@@ -20,6 +20,7 @@ const mockParams: BuiltinToolParams = {
   toolOutputMap: new Map(),
   pendingImages: [],
   passthroughClient: {} as never,
+  taskId: "task_test",
 };
 
 const mockCtx = { auth: { user: { id: "user_test" } } } as never;
