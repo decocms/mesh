@@ -40,9 +40,8 @@ describe("logoutCommand", () => {
     const fetchMock = mock(async (url: string, init?: RequestInit) => {
       expect(url).toBe("https://studio.decocms.com/api/auth/cli/revoke");
       expect(init?.method).toBe("POST");
-      expect((init?.headers as Record<string, string>).Authorization).toBe(
-        "Bearer tok_abc",
-      );
+      const headers = (init?.headers ?? {}) as Record<string, string>;
+      expect(headers.Authorization).toBe("Bearer tok_abc");
       return new Response("", { status: 204 });
     });
 
