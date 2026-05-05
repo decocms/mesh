@@ -21,6 +21,7 @@ import type { MeshContext } from "../../core/mesh-context";
 import { MCP_TOOL_CALL_TIMEOUT_MS } from "@/core/constants";
 import { createVirtualClientFrom } from "../../mcp-clients/virtual-mcp";
 import type { Env } from "../hono-env";
+import { guardResponseStream } from "../utils/stream-guard";
 
 // ============================================================================
 // Route Handler (shared between /gateway and /virtual-mcp endpoints for backward compat)
@@ -153,7 +154,11 @@ export async function handleVirtualMcpRequest(
     // Connect server to transport
     await server.connect(transport);
 
-    return await transport.handleRequest(c.req.raw);
+    const response = await transport.handleRequest(c.req.raw);
+    return guardResponseStream(
+      response,
+      `virtual-mcp:${virtualMcp.id ?? "decopilot"}`,
+    );
   } catch (error) {
     const err = error as Error;
     console.error("[virtual-mcp] Error handling virtual MCP request:", err);

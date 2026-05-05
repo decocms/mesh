@@ -17,6 +17,7 @@ import { Context, Hono } from "hono";
 import { endTime, startTime } from "hono/timing";
 import type { MeshContext } from "../../core/mesh-context";
 import { managementMCP } from "../../tools";
+import { guardResponseStream } from "../utils/stream-guard";
 import { handleAuthError } from "./oauth-proxy";
 import { handleVirtualMcpRequest } from "./virtual-mcp";
 export { toServerClient, type MCPProxyClient } from "./mcp-proxy-factory";
@@ -82,7 +83,8 @@ export const createProxyRoutes = () => {
           false,
       });
       await server.connect(transport);
-      return await transport.handleRequest(c.req.raw);
+      const selfResponse = await transport.handleRequest(c.req.raw);
+      return guardResponseStream(selfResponse, `mcp:self:${connectionId}`);
     }
 
     try {
@@ -150,7 +152,7 @@ export const createProxyRoutes = () => {
         startTime(c, "mcp.handle_request");
         const response = await transport.handleRequest(c.req.raw);
         endTime(c, "mcp.handle_request");
-        return response;
+        return guardResponseStream(response, `mcp:${connectionId}`);
       } catch (error) {
         // Check if this is an auth error - if so, return appropriate 401
         // Note: This only applies to HTTP connections
