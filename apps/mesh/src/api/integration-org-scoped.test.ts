@@ -207,4 +207,109 @@ describe("org-scoped API coexistence", () => {
 
     expect(res.status).toBe(403);
   });
+
+  it("well-known prefix discovery for org-scoped MCP resolves the right org", async () => {
+    // The MCP SDK probes /.well-known/oauth-protected-resource{resource-path}
+    // (RFC 9728 Format 2 / Smithery-style) to discover OAuth metadata. With
+    // org-scoped server URLs the probe path is
+    // /.well-known/oauth-protected-resource/api/:org/mcp/:connectionId — this
+    // path lives at the *root* (the well-known prefix is anchored there), not
+    // under the /api/:org sub-app. Without a top-level mount the SDK gets a
+    // 404 here and falls back to treating the mesh root as the auth server,
+    // breaking every OAuth-gated MCP (GitHub import-from-repo, Cursor, etc.).
+
+    // Mock the origin: well-known endpoints 404, but the initialize probe
+    // returns a Bearer challenge with resource_metadata so checkOriginSupports
+    // OAuth resolves true. The handler then synthesizes metadata pointing at
+    // our proxy — and crucially MUST use the org-scoped /api/:org/... path
+    // (not the legacy /mcp/:id shape) for both `resource` and
+    // `authorization_servers`, otherwise the SDK's resource-allowed check
+    // fails.
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((async (
+      _input,
+      init,
+    ) => {
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (method === "POST") {
+        // Origin's MCP `initialize` probe — return an OAuth 401.
+        return new Response(null, {
+          status: 401,
+          headers: {
+            "WWW-Authenticate":
+              'Bearer realm="origin", resource_metadata="https://example.test/.well-known/oauth-protected-resource"',
+          },
+        });
+      }
+      return new Response("not found", { status: 404 });
+    }) as typeof fetch);
+
+    // Use a localhost-shaped host so the handler's `fixProtocol` keeps the
+    // http scheme (it forces https for non-localhost hosts).
+    const reqHost = "http://mesh.localhost";
+    try {
+      const res = await app.fetch(
+        new Request(
+          `${reqHost}/.well-known/oauth-protected-resource/api/org_1/mcp/conn_1`,
+        ),
+      );
+
+      // Route must exist (was 404 before the fix — no route was mounted for
+      // this URL shape outside the /api/:org sub-app).
+      expect(res.status).toBe(200);
+
+      const body = (await res.json()) as {
+        resource: string;
+        authorization_servers: string[];
+      };
+      // Synthetic metadata MUST use the org-scoped /api/:org/... path for
+      // `resource` so resourceUrlFromServerUrl(serverUrl) matches
+      // resourceMetadata.resource (the SDK's checkResourceAllowed check);
+      // otherwise OAuth fails with "Protected resource ... does not match
+      // expected ...".
+      expect(body.resource).toBe(`${reqHost}/api/org_1/mcp/conn_1`);
+      // The auth-server URL stays on the legacy `/oauth-proxy/:id` path so
+      // the SDK's RFC 8414 discovery hits the dedicated auth-server metadata
+      // handler (which proxies the origin's metadata) instead of falling
+      // through to Better Auth's catch-all — that path returns Better Auth's
+      // MCP gateway endpoints and DCR ends with `invalid_client`.
+      expect(body.authorization_servers[0]).toBe(
+        `${reqHost}/oauth-proxy/conn_1`,
+      );
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("well-known prefix discovery 404s when :org doesn't match the connection's org", async () => {
+    // The synthesized PRM URL embeds :org as part of the resource path, so
+    // the handler MUST refuse to vouch for (org, connection) tuples that
+    // don't match — otherwise an attacker could probe a victim's connection
+    // ID under their own org slug and get a credible-looking metadata
+    // document. We don't distinguish "unknown org" from "cross-org" in the
+    // response so we don't leak which slugs exist.
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 200 }) as never);
+
+    try {
+      // Cross-org: org_456 exists (seeded by seedCommonTestFixtures) but
+      // conn_1 belongs to org_1.
+      const crossOrg = await app.fetch(
+        new Request(
+          "http://mesh.localhost/.well-known/oauth-protected-resource/api/org_456/mcp/conn_1",
+        ),
+      );
+      expect(crossOrg.status).toBe(404);
+
+      // Unknown slug: same response shape as cross-org.
+      const unknownSlug = await app.fetch(
+        new Request(
+          "http://mesh.localhost/.well-known/oauth-protected-resource/api/does-not-exist/mcp/conn_1",
+        ),
+      );
+      expect(unknownSlug.status).toBe(404);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
 });

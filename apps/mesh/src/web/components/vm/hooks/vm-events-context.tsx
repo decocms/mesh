@@ -39,7 +39,10 @@ import type {
 export type { ClaimFailureReason, ClaimPhase };
 
 export interface VmStatus {
+  /** Active port answered with 2xx-3xx — content is expected to render. */
   ready: boolean;
+  /** Active port answered any HTTP status — port is up. Use to dismiss boot overlays. */
+  responded: boolean;
   htmlSupport: boolean;
   /** Currently active dev port (pinned `devPort` if responding, otherwise highest-scored discovered). */
   port: number | null;
@@ -96,7 +99,7 @@ export interface VmEventsValue {
 
 const DEFAULT_VALUE: VmEventsValue = {
   phase: null,
-  status: { ready: false, htmlSupport: false, port: null },
+  status: { ready: false, responded: false, htmlSupport: false, port: null },
   suspended: false,
   notFound: false,
   scripts: [],
@@ -161,6 +164,7 @@ export function VmEventsProvider({
   const [phase, setPhase] = useState<ClaimPhase | null>(null);
   const [status, setStatus] = useState<VmStatus>({
     ready: false,
+    responded: false,
     htmlSupport: false,
     port: null,
   });
@@ -191,7 +195,12 @@ export function VmEventsProvider({
   useEffect(() => {
     // Reset on key change so stale data doesn't linger across branches.
     setPhase(null);
-    setStatus({ ready: false, htmlSupport: false, port: null });
+    setStatus({
+      ready: false,
+      responded: false,
+      htmlSupport: false,
+      port: null,
+    });
     setSuspended(false);
     setNotFound(false);
     setScripts([]);
@@ -264,7 +273,12 @@ export function VmEventsProvider({
       // vmEntry exists; the empty "Start Server" state when it doesn't.
       setNotFound(true);
       setPhase(null);
-      setStatus({ ready: false, htmlSupport: false, port: null });
+      setStatus({
+        ready: false,
+        responded: false,
+        htmlSupport: false,
+        port: null,
+      });
       setScripts([]);
       setActiveProcesses([]);
       setAppStatus(null);
@@ -292,6 +306,7 @@ export function VmEventsProvider({
         } else if (e.type === "status") {
           setStatus({
             ready: Boolean(data.ready),
+            responded: Boolean(data.responded),
             htmlSupport: Boolean(data.htmlSupport),
             port: typeof data.port === "number" ? data.port : null,
           });
