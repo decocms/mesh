@@ -143,7 +143,7 @@ function stripGatewayPrefix(
  * Examples (no collision): "search_repositories", "list_objects"
  * Examples (collision):    "conn_togsm0_search_code", "conn_abc_search_code"
  */
-export function buildShortNameMap(
+function buildShortNameMap(
   tools: Array<{ name: string; _meta?: Record<string, unknown> }>,
 ): Map<string, string> {
   // Pass 1: count how many tools share each sanitized short name
