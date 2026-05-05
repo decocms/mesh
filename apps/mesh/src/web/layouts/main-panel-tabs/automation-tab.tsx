@@ -6,13 +6,7 @@ import { Loading01 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { Suspense } from "react";
 
-export function AutomationTab({
-  tabId,
-  virtualMcpId: _virtualMcpId,
-}: {
-  tabId: string;
-  virtualMcpId: string;
-}) {
+export function AutomationTab({ tabId }: { tabId: string }) {
   const parsed = parseAutomationTabId(tabId);
   if (!parsed) return null;
 
