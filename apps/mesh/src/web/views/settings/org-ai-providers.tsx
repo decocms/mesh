@@ -13,6 +13,9 @@ import {
   AlertCircle,
   CheckCircle,
   RefreshCw01,
+  Edit01,
+  Check,
+  X,
 } from "@untitledui/icons";
 import { Page } from "@/web/components/page";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -98,7 +101,49 @@ function KeyList({
   isDeleting: boolean;
 }) {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [editTarget, setEditTarget] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
   const targetKey = keys.find((k) => k.id === deleteTarget);
+
+  const { org } = useProjectContext();
+  const queryClient = useQueryClient();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+    orgSlug: org.slug,
+  });
+
+  const { mutate: updateLabel, isPending: isUpdating } = useMutation({
+    mutationFn: async ({ keyId, label }: { keyId: string; label: string }) => {
+      await client.callTool({
+        name: "AI_PROVIDER_KEY_UPDATE",
+        arguments: { keyId, label },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: KEYS.aiProviderKeys(org.id) });
+      setEditTarget(null);
+    },
+    onError: () => {
+      toast.error("Failed to update key label");
+    },
+  });
+
+  const startEdit = (key: AiProviderKey) => {
+    setEditTarget(key.id);
+    setEditLabel(key.label);
+  };
+
+  const cancelEdit = () => {
+    setEditTarget(null);
+    setEditLabel("");
+  };
+
+  const confirmEdit = (keyId: string) => {
+    const trimmed = editLabel.trim();
+    if (!trimmed) return;
+    updateLabel({ keyId, label: trimmed });
+  };
 
   return (
     <div className="flex flex-col gap-2 mt-4">
@@ -107,24 +152,74 @@ function KeyList({
           key={key.id}
           className="flex items-center justify-between p-2 rounded-md bg-muted/50 text-sm"
         >
-          <div className="flex items-center gap-2 overflow-hidden">
+          <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0">
             <Key01 size={14} className="text-muted-foreground shrink-0" />
-            <span className="font-medium truncate">{key.label}</span>
-            <span className="text-xs text-muted-foreground shrink-0">
-              added {formatDistanceToNow(new Date(key.createdAt))} ago
-            </span>
+            {editTarget === key.id ? (
+              <input
+                autoFocus
+                className="font-medium bg-transparent border-b border-border outline-none flex-1 min-w-0"
+                value={editLabel}
+                onChange={(e) => setEditLabel(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") confirmEdit(key.id);
+                  if (e.key === "Escape") cancelEdit();
+                }}
+              />
+            ) : (
+              <>
+                <span className="font-medium truncate">{key.label}</span>
+                <span className="text-xs text-muted-foreground shrink-0">
+                  added {formatDistanceToNow(new Date(key.createdAt))} ago
+                </span>
+              </>
+            )}
           </div>
-          {/* Stop propagation so trash click doesn't trigger card's onClick */}
-          <div onClick={(e) => e.stopPropagation()}>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-muted-foreground hover:text-destructive"
-              disabled={isDeleting}
-              onClick={() => setDeleteTarget(key.id)}
-            >
-              <Trash01 size={14} />
-            </Button>
+          {/* Stop propagation so clicks don't trigger card's onClick */}
+          <div
+            className="flex items-center gap-0.5 shrink-0"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {editTarget === key.id ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  disabled={isUpdating || !editLabel.trim()}
+                  onClick={() => confirmEdit(key.id)}
+                >
+                  <Check size={14} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  onClick={cancelEdit}
+                >
+                  <X size={14} />
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  onClick={() => startEdit(key)}
+                >
+                  <Edit01 size={14} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                  disabled={isDeleting}
+                  onClick={() => setDeleteTarget(key.id)}
+                >
+                  <Trash01 size={14} />
+                </Button>
+              </>
+            )}
           </div>
         </div>
       ))}
