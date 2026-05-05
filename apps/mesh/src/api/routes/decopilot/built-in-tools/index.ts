@@ -64,6 +64,7 @@ export type VmContext = {
    * thread isn't deducible from the sandbox identity alone.
    */
   threadId: string;
+  hasGithubRepo: boolean;
 };
 
 export interface BuiltinToolParams {
@@ -184,6 +185,7 @@ async function buildAllTools(
         ctx,
         threadId: vmContext.threadId,
         virtualMcpId: vmContext.virtualMcpId,
+        hasGithubRepo: vmContext.hasGithubRepo,
       }),
     );
   }

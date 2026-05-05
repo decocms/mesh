@@ -34,4 +34,5 @@ export interface VmToolsParams {
    * provisioned with the updated workload rather than stale defaults.
    */
   readonly virtualMcpId: string;
+  readonly hasGithubRepo: boolean;
 }

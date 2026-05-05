@@ -10,6 +10,7 @@
  * bytes to disk on first spawn and points `bun run` at the materialized file.
  */
 
+// @ts-ignore - Bun-specific text loader attribute; TS doesn't model `with { type: "text" }`.
 import _cliBundle from "../../../cli/dist/sandbox.js" with { type: "text" };
 
 export const CLI_BUNDLE: string = _cliBundle as unknown as string;

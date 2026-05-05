@@ -12,7 +12,7 @@ import path from "node:path";
 import type { SandboxRunner } from "@decocms/sandbox/runner";
 import { maybeTruncate } from "./common";
 import {
-  BASH_DESCRIPTION,
+  buildBashDescription,
   BashInputSchema,
   COPY_TO_SANDBOX_DESCRIPTION,
   CopyToSandboxInputSchema,
@@ -185,6 +185,7 @@ export function createVmTools(params: VmToolsParams) {
     pendingImages,
     ctx,
     threadId,
+    hasGithubRepo,
   } = params;
   const approvalFor = (mutating: boolean) => (mutating ? needsApproval : false);
   const call = async (
@@ -266,7 +267,7 @@ export function createVmTools(params: VmToolsParams) {
 
   const bash = tool({
     needsApproval: approvalFor(TOOL_APPROVAL.bash),
-    description: BASH_DESCRIPTION,
+    description: buildBashDescription(hasGithubRepo),
     inputSchema: zodSchema(BashInputSchema),
     execute: async (input) => {
       const result = await call("/_decopilot_vm/bash", input);
