@@ -122,7 +122,7 @@ function ConnectionDialogContent({
   const { org } = useProjectContext();
   const deferredSearch = useDeferredValue(search);
   const isSearchStale = search !== deferredSearch;
-  const searchLower = deferredSearch.toLowerCase();
+  const searchLower = deferredSearch.trim().toLowerCase();
 
   const [activeTab, setActiveTab] = useLocalStorage<ConnectionTab>(
     LOCALSTORAGE_KEYS.connectionsTab(org.slug) +
