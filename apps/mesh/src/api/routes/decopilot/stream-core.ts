@@ -71,6 +71,18 @@ import { traced, tracer } from "@/observability";
 import { getPodId } from "@/core/pod-identity";
 import { getSharedRunner } from "@/sandbox/lifecycle";
 
+function stringifyError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error !== null) {
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return "[unserializable object]";
+    }
+  }
+  return String(error);
+}
+
 /**
  * Classify a stream error into a small, stable taxonomy for analytics.
  * Consumers (dashboards) can rely on these values being consistent across
@@ -90,7 +102,7 @@ function classifyStreamError(
   | "unknown" {
   if (error instanceof Error && error.name === "AbortError") return "aborted";
   const msg = (
-    error instanceof Error ? error.message : String(error)
+    error instanceof Error ? error.message : stringifyError(error)
   ).toLowerCase();
   if (
     /insufficient|no credits|out of credits|balance|payment|quota exceeded|402/i.test(
@@ -1055,7 +1067,9 @@ async function streamCoreInner(
             },
             onError: async (error) => {
               const err =
-                error instanceof Error ? error : new Error(String(error));
+                error instanceof Error
+                  ? error
+                  : new Error(stringifyError(error));
               llmSpan.setStatus({
                 code: SpanStatusCode.ERROR,
                 message: err.message,
@@ -1091,7 +1105,9 @@ async function streamCoreInner(
                   durationMs,
                   isError: true,
                   errorMessage:
-                    error instanceof Error ? error.message : String(error),
+                    error instanceof Error
+                      ? error.message
+                      : stringifyError(error),
                   userId: input.userId,
                   requestId: ctx.metadata.requestId,
                   userAgent: ctx.metadata.userAgent ?? null,
@@ -1103,7 +1119,7 @@ async function streamCoreInner(
         } catch (err) {
           llmSpan.setStatus({
             code: SpanStatusCode.ERROR,
-            message: err instanceof Error ? err.message : String(err),
+            message: err instanceof Error ? err.message : stringifyError(err),
           });
           if (err instanceof Error) llmSpan.recordException(err);
           llmSpan.end();
@@ -1333,7 +1349,7 @@ async function streamCoreInner(
             duration_ms: Date.now() - streamStartAt,
             error_category: classifyStreamError(error),
             error_message:
-              error instanceof Error ? error.message : String(error),
+              error instanceof Error ? error.message : stringifyError(error),
             is_resume: input.isResume ?? false,
           },
         });
@@ -1414,7 +1430,7 @@ function sanitizeStreamError(error: unknown): string {
     }
     return error.message;
   }
-  return String(error);
+  return stringifyError(error);
 }
 
 /**
