@@ -47,7 +47,7 @@ import { makeScriptsHandler } from "./routes/scripts";
 import { discoverScripts } from "./process/script-discovery";
 import { SetupOrchestrator } from "./setup/orchestrator";
 import { isResume } from "./setup/resume";
-import type { TenantConfig } from "./types";
+import type { Config, TenantConfig } from "./types";
 import { makeWsUpgrader, type WsProxyData } from "./ws-proxy";
 
 if (!process.env.DAEMON_BOOT_ID) {
@@ -119,6 +119,18 @@ const appService = new ApplicationService({
   },
 });
 
+const branchStatus = new BranchStatusMonitor(
+  {
+    appRoot: bootConfig.appRoot,
+    repoDir: bootConfig.repoDir,
+    daemonToken: bootConfig.daemonToken,
+    daemonBootId: bootConfig.daemonBootId,
+    proxyPort: bootConfig.proxyPort,
+    dropPrivileges: false,
+  } as Config,
+  broadcaster,
+);
+
 const orchestrator = new SetupOrchestrator({
   bootConfig: { appRoot: bootConfig.appRoot, repoDir: bootConfig.repoDir },
   store,
@@ -127,9 +139,9 @@ const orchestrator = new SetupOrchestrator({
   installState,
   logsDir: TMP_DIR,
   phaseManager,
+  branchStatus,
 });
 
-let branchStatus: BranchStatusMonitor | null = null;
 let discoveredScripts: string[] | null = null;
 let lastWrittenProxyPort: number | undefined;
 
@@ -143,29 +155,7 @@ broadcaster.broadcastEvent = (event: string, data: unknown) => {
 
 store.subscribe((event) => {
   orchestrator.handle(event.transition);
-  if (event.transition.kind === "first-bootstrap") {
-    refreshBranchStatusMonitor();
-  }
 });
-
-function refreshBranchStatusMonitor(): void {
-  const enriched = store.read();
-  if (!enriched) {
-    branchStatus = null;
-    return;
-  }
-  // BranchStatusMonitor expects the legacy Config shape; pass a thin proxy.
-  const config = {
-    ...enriched,
-    daemonToken: bootConfig.daemonToken,
-    daemonBootId: bootConfig.daemonBootId,
-    proxyPort: bootConfig.proxyPort,
-    appRoot: bootConfig.appRoot,
-    repoDir: bootConfig.repoDir,
-    dropPrivileges: false,
-  };
-  branchStatus = new BranchStatusMonitor(config, broadcaster);
-}
 
 const excludeFromDiscovery = new Set<number>([bootConfig.proxyPort]);
 const getDiscoveredPorts = () => {
@@ -264,7 +254,7 @@ const eventsH = makeEventsHandler({
   getDiscoveredScripts: () => discoveredScripts,
   getActiveTasks,
   getAppStatus: () => appService.snapshot(),
-  getLastBranchStatus: () => (branchStatus ? branchStatus.getLast() : null),
+  getLastBranchStatus: () => branchStatus.getLast(),
 });
 
 const idleH = makeIdleHandler();
@@ -312,7 +302,6 @@ function hydrate(): void {
   if (!initial) return;
 
   store.hydrate(initial);
-  refreshBranchStatusMonitor();
   // Decide whether this is a fresh first-bootstrap or a resume of an
   // existing clone+install.
   const transitionKind: "resume" | "first-bootstrap" = isResume(
@@ -440,6 +429,7 @@ Bun.serve<WsProxyData, never>({
 process.on("SIGTERM", () => {
   taskManager.shutdown();
   appService.shutdown();
+  branchStatus.stop();
   const branch = store.read()?.git?.repository?.branch;
   if (branch) {
     try {

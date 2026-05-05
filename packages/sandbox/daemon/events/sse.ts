@@ -1,3 +1,4 @@
+import type { BranchStatus } from "../types";
 import type { Broadcaster } from "./broadcast";
 import { sseFormat } from "./sse-format";
 
@@ -12,7 +13,7 @@ export interface SseHandshakeDeps {
   getDiscoveredScripts: () => string[] | null;
   getActiveTasks: () => Array<{ id: string; command: string }>;
   getAppStatus: () => unknown;
-  getLastBranchStatus: () => unknown | null;
+  getLastBranchStatus: () => BranchStatus;
   maxClients: number;
 }
 
@@ -75,14 +76,12 @@ export function makeSseStream(
       );
 
       const lastBranch = deps.getLastBranchStatus();
-      if (lastBranch) {
-        c.enqueue(
-          sseFormat(
-            "branch-status",
-            JSON.stringify({ type: "branch-status", ...lastBranch }),
-          ),
-        );
-      }
+      c.enqueue(
+        sseFormat(
+          "branch-status",
+          JSON.stringify({ type: "branch-status", ...lastBranch }),
+        ),
+      );
 
       deps.broadcaster.register(controller);
 

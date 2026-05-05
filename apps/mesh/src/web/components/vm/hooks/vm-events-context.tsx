@@ -58,7 +58,8 @@ export interface AppStatus {
   lastExitCode: number | null;
 }
 
-export interface BranchStatus {
+export interface BranchStatusReady {
+  kind: "ready";
   branch: string;
   base: string;
   workingTreeDirty: boolean;
@@ -68,6 +69,14 @@ export interface BranchStatus {
   /** HEAD sha (falls back to origin/<branch>). Empty if the daemon couldn't compute it. */
   headSha: string;
 }
+
+export type BranchStatus =
+  | { kind: "initializing" }
+  | { kind: "cloning" }
+  | { kind: "clone-failed"; error: string }
+  | { kind: "checking-out"; to: string }
+  | { kind: "checkout-failed"; error: string }
+  | BranchStatusReady;
 
 export type ChunkHandler = (source: string, data: string) => void;
 export type ReloadHandler = () => void;
@@ -347,15 +356,49 @@ export function VmEventsProvider({
             }
           }
         } else if (e.type === "branch-status") {
-          setBranchStatus({
-            branch: String(data.branch ?? ""),
-            base: String(data.base ?? "main"),
-            workingTreeDirty: Boolean(data.workingTreeDirty),
-            unpushed: Number(data.unpushed ?? 0),
-            aheadOfBase: Number(data.aheadOfBase ?? 0),
-            behindBase: Number(data.behindBase ?? 0),
-            headSha: String(data.headSha ?? ""),
-          });
+          const kind = String(data.kind ?? "initializing");
+          switch (kind) {
+            case "ready":
+              setBranchStatus({
+                kind: "ready",
+                branch: String(data.branch ?? ""),
+                base: String(data.base ?? "main"),
+                workingTreeDirty: Boolean(data.workingTreeDirty),
+                unpushed: Number(data.unpushed ?? 0),
+                aheadOfBase: Number(data.aheadOfBase ?? 0),
+                behindBase: Number(data.behindBase ?? 0),
+                headSha: String(data.headSha ?? ""),
+              });
+              break;
+            case "initializing":
+              setBranchStatus({ kind: "initializing" });
+              break;
+            case "cloning":
+              setBranchStatus({ kind: "cloning" });
+              break;
+            case "clone-failed":
+              setBranchStatus({
+                kind: "clone-failed",
+                error: String(data.error ?? ""),
+              });
+              break;
+            case "checkout-failed":
+              setBranchStatus({
+                kind: "checkout-failed",
+                error: String(data.error ?? ""),
+              });
+              break;
+            case "checking-out":
+              setBranchStatus({
+                kind: "checking-out",
+                to: String(data.to ?? ""),
+              });
+              break;
+            default:
+              console.warn("[vm-events] unknown branch-status kind:", kind);
+              setBranchStatus({ kind: "initializing" });
+              break;
+          }
         }
       } catch {
         // ignore parse errors

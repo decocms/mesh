@@ -103,12 +103,21 @@ export interface SseFrame {
   readonly payload: string;
 }
 
-export interface BranchStatus {
-  branch: string;
-  base: string;
-  workingTreeDirty: boolean;
-  unpushed: number;
-  aheadOfBase: number;
-  behindBase: number;
-  headSha: string;
-}
+export type BranchStatusReady = {
+  readonly kind: "ready";
+  readonly branch: string;
+  readonly base: string;
+  readonly workingTreeDirty: boolean;
+  readonly unpushed: number;
+  readonly aheadOfBase: number;
+  readonly behindBase: number;
+  readonly headSha: string;
+};
+
+export type BranchStatus =
+  | { readonly kind: "initializing" }
+  | { readonly kind: "cloning" }
+  | { readonly kind: "clone-failed"; readonly error: string }
+  | { readonly kind: "checking-out"; readonly to: string }
+  | { readonly kind: "checkout-failed"; readonly error: string }
+  | BranchStatusReady;
