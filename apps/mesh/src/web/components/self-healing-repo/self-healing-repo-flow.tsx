@@ -492,7 +492,6 @@ async function setupSpecialistOrchestration({
       arguments: {
         name: automationName,
         virtual_mcp_id: projectAgentId,
-        agent: { id: projectAgentId },
         messages,
         active: true,
       },

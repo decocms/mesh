@@ -37,7 +37,7 @@ export function AutomationListRow({
   const { remove } = useAutomationActions();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const agent = useVirtualMCP(
-    showAgent ? (automation.agent?.id ?? undefined) : undefined,
+    showAgent ? automation.virtual_mcp_id : undefined,
   );
 
   const handleDelete = () => {

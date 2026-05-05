@@ -280,17 +280,15 @@ function EventTriggerForm({
 export function SettingsTab({
   automationId,
   automation,
-  virtualMcpId,
   onBack,
   onDelete,
 }: {
   automationId: string;
   automation: NonNullable<ReturnType<typeof useAutomation>["data"]>;
-  virtualMcpId: string;
   onBack?: () => void;
   onDelete?: () => void;
 }) {
-  const agentId = automation.agent?.id ?? virtualMcpId;
+  const agentId = automation.virtual_mcp_id;
   const { org } = useProjectContext();
   const { update: updateMutation, triggerAdd: addTrigger } =
     useAutomationActions();
@@ -426,9 +424,6 @@ export function SettingsTab({
         id: automationId,
         name: values.name,
         active: values.active,
-        agent: {
-          id: agentId,
-        },
         models: {
           credentialId: coercedCredentialId,
           thinking: {

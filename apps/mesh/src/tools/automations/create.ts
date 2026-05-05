@@ -27,10 +27,7 @@ export const AUTOMATION_CREATE = defineTool({
   },
   inputSchema: z.object({
     name: z.string().min(1).max(255),
-    virtual_mcp_id: z.string().optional().nullable(),
-    agent: z.object({
-      id: z.string(),
-    }),
+    virtual_mcp_id: z.string(),
     messages: z.union([
       z.string(),
       z.array(
@@ -126,12 +123,11 @@ export const AUTOMATION_CREATE = defineTool({
       organization_id: organization.id,
       created_by: userId,
       name: input.name,
-      agent: JSON.stringify(input.agent),
       messages: JSON.stringify(normalizedMessages),
       models: JSON.stringify(models),
       temperature: input.temperature,
       active: input.active,
-      virtual_mcp_id: input.virtual_mcp_id ?? null,
+      virtual_mcp_id: input.virtual_mcp_id,
     });
 
     posthog.capture({
@@ -141,8 +137,7 @@ export const AUTOMATION_CREATE = defineTool({
       properties: {
         organization_id: organization.id,
         automation_id: automation.id,
-        agent_id: input.agent.id,
-        has_virtual_mcp: !!input.virtual_mcp_id,
+        virtual_mcp_id: input.virtual_mcp_id,
         active: automation.active,
         model_id: models.thinking.id,
       },
