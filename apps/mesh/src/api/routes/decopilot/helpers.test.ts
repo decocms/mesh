@@ -380,4 +380,73 @@ describe("toolNeedsApproval", () => {
       expect(toolNeedsApproval(level, undefined)).toBe(true);
     });
   });
+
+  describe("destructiveHint always requires approval", () => {
+    test("returns true even when level is auto", () => {
+      expect(toolNeedsApproval("auto", false, { destructiveHint: true })).toBe(
+        true,
+      );
+    });
+
+    test("returns true even when readOnlyHint is true", () => {
+      expect(toolNeedsApproval("auto", true, { destructiveHint: true })).toBe(
+        true,
+      );
+    });
+
+    test("returns true for readonly level", () => {
+      expect(
+        toolNeedsApproval("readonly", false, { destructiveHint: true }),
+      ).toBe(true);
+    });
+
+    test("does not affect non-destructive tools", () => {
+      expect(toolNeedsApproval("auto", false, { destructiveHint: false })).toBe(
+        false,
+      );
+    });
+
+    test("does not affect when destructiveHint is undefined", () => {
+      expect(
+        toolNeedsApproval("auto", false, { destructiveHint: undefined }),
+      ).toBe(false);
+    });
+
+    test("plan mode hard-block takes precedence over destructiveHint for non-readOnly tools", () => {
+      expect(
+        toolNeedsApproval("auto", false, {
+          isPlanMode: true,
+          destructiveHint: true,
+        }),
+      ).toBe("hard-block");
+    });
+  });
+
+  describe('approval level: "trust-all"', () => {
+    const level: ToolApprovalLevel = "trust-all";
+
+    test("returns false for read-only tools", () => {
+      expect(toolNeedsApproval(level, true)).toBe(false);
+    });
+
+    test("returns false for non-read-only tools", () => {
+      expect(toolNeedsApproval(level, false)).toBe(false);
+    });
+
+    test("returns false even for destructive tools", () => {
+      expect(toolNeedsApproval(level, false, { destructiveHint: true })).toBe(
+        false,
+      );
+    });
+
+    test("plan mode still hard-blocks non-read-only tools", () => {
+      expect(toolNeedsApproval(level, false, { isPlanMode: true })).toBe(
+        "hard-block",
+      );
+    });
+
+    test("plan mode allows read-only tools", () => {
+      expect(toolNeedsApproval(level, true, { isPlanMode: true })).toBe(false);
+    });
+  });
 });

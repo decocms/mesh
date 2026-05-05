@@ -244,6 +244,7 @@ function PreferencesSection() {
                   {{
                     readonly: "Ask before edit",
                     auto: "Auto approve",
+                    "trust-all": "Trust all",
                   }[preferences.toolApprovalLevel] ?? "Ask before edit"}
                 </span>
               </SelectTrigger>
@@ -259,6 +260,14 @@ function PreferencesSection() {
                 <SelectItem value="auto" textValue="Auto approve">
                   <div className="flex flex-col gap-0.5">
                     <span className="font-medium">Auto approve</span>
+                    <span className="text-xs text-muted-foreground">
+                      Ask before destructive tools
+                    </span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="trust-all" textValue="Trust all">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">Trust all</span>
                     <span className="text-xs text-muted-foreground">
                       Execute all without approval
                     </span>
