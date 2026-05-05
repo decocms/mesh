@@ -78,6 +78,7 @@ import {
 } from "@untitledui/icons";
 import { Suspense, useReducer, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { useDebouncedAutosave } from "@/web/hooks/use-debounced-autosave.ts";
 import { toast } from "sonner";
 import { IconPicker } from "../../components/icon-picker";
 import { SimpleIconPicker } from "../../components/simple-icon-picker";
@@ -1131,8 +1132,6 @@ function VirtualMcpDetailViewWithData({
     createNewTask();
   };
 
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   // Session-based tracking for agent_updated. Auto-saves persist every ~1s but
   // we only emit one PostHog event per edit-session (aggregated fields +
   // save_count + edit_duration_ms). A session ends after 30s of quiet.
@@ -1165,11 +1164,6 @@ function VirtualMcpDetailViewWithData({
   };
 
   const saveForm = async () => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
-
     const dirtyKeys = Object.keys(form.formState.dirtyFields);
     if (dirtyKeys.length === 0) return;
     const instructionsDirty = dirtyKeys.includes("metadata");
@@ -1201,12 +1195,7 @@ function VirtualMcpDetailViewWithData({
     form.reset(data);
   };
 
-  const debouncedSave = () => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      saveForm();
-    }, 1000);
-  };
+  const { schedule: debouncedSave } = useDebouncedAutosave({ save: saveForm });
 
   const watchSubscribedRef = useRef(false);
   if (!watchSubscribedRef.current) {
