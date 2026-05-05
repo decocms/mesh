@@ -923,11 +923,10 @@ export interface AutomationTable {
   name: string;
   active: boolean;
   created_by: string;
-  agent: string; // JSON string: { id, mode }
   messages: string; // JSON string: UIMessage[]
   models: string; // JSON string: { connectionId, thinking, coding?, fast? }
   temperature: number;
-  virtual_mcp_id: string | null;
+  virtual_mcp_id: string;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }
@@ -941,11 +940,10 @@ export interface Automation {
   name: string;
   active: boolean;
   created_by: string;
-  agent: string;
   messages: string;
   models: string;
   temperature: number;
-  virtual_mcp_id: string | null;
+  virtual_mcp_id: string;
   created_at: string;
   updated_at: string;
 }

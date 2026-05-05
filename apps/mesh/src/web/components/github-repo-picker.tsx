@@ -305,7 +305,6 @@ function PickerContent({
       arguments: {
         name: `${repo.name}: auto-respond to issues`,
         virtual_mcp_id: virtualMcpId,
-        agent: { id: virtualMcpId },
         messages: automationInstructions,
         active: true,
       },

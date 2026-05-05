@@ -74,6 +74,7 @@ import * as migration072aiproviderkeypresetid from "./072-ai-provider-key-preset
 import * as migration073backfillbasicusageroles from "./073-backfill-basic-usage-roles.ts";
 import * as migration074sandboxrunnerstatehandlenonunique from "./074-sandbox-runner-state-handle-nonunique.ts";
 import * as migration075threadinflightasyncjobs from "./075-thread-inflight-async-jobs.ts";
+import * as migration076automationsdropagentjson from "./076-automations-drop-agent-json.ts";
 
 /**
  * Core migrations for the Mesh application.
@@ -163,6 +164,7 @@ const migrations: Record<string, Migration> = {
   "074-sandbox-runner-state-handle-nonunique":
     migration074sandboxrunnerstatehandlenonunique,
   "075-thread-inflight-async-jobs": migration075threadinflightasyncjobs,
+  "076-automations-drop-agent-json": migration076automationsdropagentjson,
 };
 
 export default migrations;

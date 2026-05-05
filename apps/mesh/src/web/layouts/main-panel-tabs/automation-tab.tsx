@@ -8,7 +8,7 @@ import { Suspense } from "react";
 
 export function AutomationTab({
   tabId,
-  virtualMcpId,
+  virtualMcpId: _virtualMcpId,
 }: {
   tabId: string;
   virtualMcpId: string;
@@ -30,7 +30,7 @@ export function AutomationTab({
               </div>
             }
           >
-            <AutomationTabInner id={parsed.id} virtualMcpId={virtualMcpId} />
+            <AutomationTabInner id={parsed.id} />
           </Suspense>
         </Page.Body>
       </Page.Content>
@@ -38,13 +38,7 @@ export function AutomationTab({
   );
 }
 
-function AutomationTabInner({
-  id,
-  virtualMcpId,
-}: {
-  id: string;
-  virtualMcpId: string;
-}) {
+function AutomationTabInner({ id }: { id: string }) {
   const navigate = useNavigate();
   const { data: automation, isLoading } = useAutomation(id);
 
@@ -78,7 +72,6 @@ function AutomationTabInner({
     <AutomationInlineDetail
       automationId={id}
       automation={automation}
-      virtualMcpId={virtualMcpId}
       onBack={onBack}
     />
   );

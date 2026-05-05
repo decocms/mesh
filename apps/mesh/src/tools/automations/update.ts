@@ -26,11 +26,6 @@ export const AUTOMATION_UPDATE = defineTool({
     id: z.string(),
     name: z.string().min(1).max(255).optional(),
     active: z.boolean().optional(),
-    agent: z
-      .object({
-        id: z.string(),
-      })
-      .optional(),
     messages: z
       .union([
         z.string(),
@@ -106,8 +101,6 @@ export const AUTOMATION_UPDATE = defineTool({
     const updateData: Record<string, unknown> = {};
     if (input.name !== undefined) updateData.name = input.name;
     if (input.active !== undefined) updateData.active = input.active;
-    if (input.agent !== undefined)
-      updateData.agent = JSON.stringify(input.agent);
     if (input.messages !== undefined) {
       const normalizedMessages = normalizeMessages(input.messages);
       updateData.messages = JSON.stringify(normalizedMessages);

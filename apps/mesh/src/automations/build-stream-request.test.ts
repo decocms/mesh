@@ -9,7 +9,6 @@ function makeAutomation(overrides?: Partial<Automation>): Automation {
     name: "Test",
     active: true,
     created_by: "user_1",
-    agent: JSON.stringify({ id: "agent_1" }),
     messages: JSON.stringify([
       { id: "m1", role: "user", parts: [{ type: "text", text: "hello" }] },
     ]),
@@ -18,7 +17,7 @@ function makeAutomation(overrides?: Partial<Automation>): Automation {
       credentialId: "cred_1",
     }),
     temperature: 0.7,
-    virtual_mcp_id: null,
+    virtual_mcp_id: "agent_1",
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     ...overrides,
@@ -105,14 +104,9 @@ describe("buildStreamRequest", () => {
     expect(result.mode).toBe("default");
   });
 
-  it("extracts agent id from stored JSON", () => {
-    const automation = makeAutomation({
-      agent: JSON.stringify({
-        id: "agent_1",
-        mode: "smart_tool_selection",
-      }),
-    });
+  it("uses virtual_mcp_id as the agent id", () => {
+    const automation = makeAutomation({ virtual_mcp_id: "vir_xyz" });
     const result = buildStreamRequest(automation, null, "thrd_1");
-    expect(result.agent).toEqual({ id: "agent_1" });
+    expect(result.agent).toEqual({ id: "vir_xyz" });
   });
 });

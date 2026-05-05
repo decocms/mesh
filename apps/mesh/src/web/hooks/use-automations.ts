@@ -114,7 +114,7 @@ export interface AutomationListItem {
   created_by: string;
   created_at: string;
   trigger_count: number;
-  agent: { id: string } | null;
+  virtual_mcp_id: string;
   nearest_next_run_at: string | null;
 }
 
@@ -137,7 +137,7 @@ export interface AutomationDetail {
   created_by: string;
   created_at: string;
   updated_at: string;
-  agent: { id: string };
+  virtual_mcp_id: string;
   messages: unknown[];
   models: {
     credentialId: string;
@@ -211,10 +211,9 @@ export function useAutomation(id: string) {
 // Helpers
 // ============================================================================
 
-export function buildDefaultAutomationInput(virtualMcpId?: string) {
+export function buildDefaultAutomationInput(virtualMcpId: string) {
   return {
     name: "New Automation",
-    agent: virtualMcpId ? { id: virtualMcpId } : undefined,
     messages: [],
     models: { credentialId: "", thinking: { id: "" } },
     temperature: 0.5,

@@ -25,13 +25,12 @@ export default function SettingsAutomationsPage() {
   const filtered = automations.filter((a) => {
     if (!lowerSearch) return true;
     if (a.name.toLowerCase().includes(lowerSearch)) return true;
-    const agent = a.agent ? agentMap.get(a.agent.id) : undefined;
+    const agent = agentMap.get(a.virtual_mcp_id);
     if (agent && agent.title.toLowerCase().includes(lowerSearch)) return true;
     return false;
   });
 
-  const handleRowClick = (automationId: string, agentId: string | null) => {
-    if (!agentId) return;
+  const handleRowClick = (automationId: string, agentId: string) => {
     track("automations_list_row_clicked", {
       automation_id: automationId,
       agent_id: agentId,
@@ -92,7 +91,7 @@ export default function SettingsAutomationsPage() {
                   key={a.id}
                   automation={a}
                   showAgent
-                  onClick={() => handleRowClick(a.id, a.agent?.id ?? null)}
+                  onClick={() => handleRowClick(a.id, a.virtual_mcp_id)}
                 />
               ))}
             </div>
