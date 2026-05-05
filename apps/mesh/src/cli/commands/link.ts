@@ -207,15 +207,39 @@ function defaultEnsureSession(dataDir: string): () => Promise<Session | null> {
   };
 }
 
+// The Warp tunnel server still expects the legacy shared key — it does not
+// yet verify OAuth bearer tokens. Until that lands, fall back to this
+// hardcoded value (overridable via DECO_TUNNEL_SERVER_TOKEN) so `link`
+// works end-to-end. The session's OAuth access token from `params.apiKey`
+// is intentionally ignored here for now; we keep storing it on the
+// session so we can flip the source back in one line once Warp is ready.
+const LEGACY_TUNNEL_TOKEN = "c309424a-2dc4-46fe-bfc7-a7c10df59477";
+
+// If `tunnel.registered` doesn't resolve within this window, the Warp
+// server most likely silently rejected the auth. Surface that as an
+// error instead of hanging indefinitely.
+const REGISTRATION_TIMEOUT_MS = 15_000;
+
 const defaultTunnelOpener: TunnelOpener = async (params) => {
   const { connect } = await import("@deco-cx/warp-node");
   const tunnel = await connect({
     domain: params.domain,
     localAddr: params.localAddr,
     server: params.server,
-    apiKey: params.apiKey,
+    apiKey: process.env.DECO_TUNNEL_SERVER_TOKEN ?? LEGACY_TUNNEL_TOKEN,
   });
-  await tunnel.registered;
+  await Promise.race([
+    tunnel.registered,
+    new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(
+          new Error(
+            `Tunnel registration timed out after ${REGISTRATION_TIMEOUT_MS / 1000}s — Warp server may have rejected the auth. Try upgrading the CLI.`,
+          ),
+        );
+      }, REGISTRATION_TIMEOUT_MS);
+    }),
+  ]);
   return {
     // Connected.closed resolves with Error | undefined; we discard the value
     // to satisfy TunnelHandle.closed: Promise<void>.

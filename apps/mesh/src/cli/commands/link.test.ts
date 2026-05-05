@@ -154,6 +154,58 @@ describe("linkCommand", () => {
     await result.cancel();
   });
 
+  it("logs and retries when tunnelOpener throws (e.g. registration timeout)", async () => {
+    cwdDir = await makeProject("my-app");
+    await writeSession(dir, {
+      target: "https://studio.decocms.com",
+      clientId: "client_x",
+      user: { sub: "u", email: "u@x" },
+      accessToken: "tok",
+      createdAt: "2026-05-04T00:00:00.000Z",
+    });
+
+    const errMessages: string[] = [];
+    const errSpy = spyOn(console, "error").mockImplementation(
+      (msg: unknown) => {
+        errMessages.push(String(msg));
+      },
+    );
+
+    let openCount = 0;
+    const tunnelOpener = mock<TunnelOpener>(async () => {
+      openCount += 1;
+      if (openCount === 1) {
+        throw new Error("Tunnel registration timed out after 15s");
+      }
+      return { closed: new Promise<void>(() => {}), close: () => {} };
+    });
+
+    const result = linkCommand({
+      cwd: cwdDir,
+      dataDir: dir,
+      port: 8787,
+      env: "BASE_URL",
+      runCommand: [],
+      tunnelOpener,
+      portWaiter: async () => "127.0.0.1",
+      copyClipboard: async () => false,
+      ensureSession: async () => null,
+      reconnectDelayMs: 5,
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(openCount).toBeGreaterThanOrEqual(2);
+    expect(
+      errMessages.some((m) =>
+        m.includes(
+          "Tunnel connect failed, retrying: Tunnel registration timed out",
+        ),
+      ),
+    ).toBe(true);
+    await result.cancel();
+    errSpy.mockRestore();
+  });
+
   it("returns non-zero when package.json is missing a name", async () => {
     cwdDir = await mkdtemp(join(tmpdir(), "deco-link-noname-"));
     await writeFile(join(cwdDir, "package.json"), "{}");
