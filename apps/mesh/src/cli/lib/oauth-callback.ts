@@ -5,6 +5,7 @@ export interface OAuthCallback {
 export interface OAuthCallbackServer {
   url: string;
   waitForCallback: () => Promise<OAuthCallback>;
+  /** Always call this after waitForCallback resolves or rejects (e.g., via try/finally). */
   close: () => void;
 }
 
@@ -26,23 +27,30 @@ export async function startOAuthCallbackServer(
   // Suppress unhandled-rejection warnings; callers consume via waitForCallback().
   callbackPromise.catch(() => {});
 
+  let settled = false;
   const server = Bun.serve({
     port: options.port ?? 0,
     hostname: "127.0.0.1",
     fetch(req) {
+      if (settled) {
+        return new Response("", { status: 204 });
+      }
       const url = new URL(req.url);
       const code = url.searchParams.get("code");
       const state = url.searchParams.get("state");
       if (state !== options.expectedState) {
+        settled = true;
         rejectCallback(new Error("OAuth state mismatch"));
         return new Response("State mismatch — close this tab.", {
           status: 400,
         });
       }
       if (!code) {
+        settled = true;
         rejectCallback(new Error("OAuth callback missing code"));
         return new Response("Missing code — close this tab.", { status: 400 });
       }
+      settled = true;
       resolveCallback({ code });
       return new Response(SUCCESS_PAGE, {
         headers: { "content-type": "text/html; charset=utf-8" },

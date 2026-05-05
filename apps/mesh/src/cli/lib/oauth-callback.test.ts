@@ -36,4 +36,19 @@ describe("startOAuthCallbackServer", () => {
       server.close();
     }
   });
+
+  it("returns 204 to follow-up requests after the promise has settled", async () => {
+    const server = await startOAuthCallbackServer({ expectedState: "nonce-1" });
+    try {
+      await fetch(`${server.url}/?code=abc&state=nonce-1`);
+      const callback = await server.waitForCallback();
+      expect(callback).toEqual({ code: "abc" });
+
+      // A second request (e.g. browser favicon prefetch) should be ignored.
+      const followUp = await fetch(`${server.url}/?code=other&state=nonce-1`);
+      expect(followUp.status).toBe(204);
+    } finally {
+      server.close();
+    }
+  });
 });
