@@ -24,11 +24,12 @@ interface RegisterResponse {
 interface TokenResponse {
   access_token: string;
   refresh_token?: string;
+  id_token?: string;
   expires_in?: number;
   token_type?: string;
 }
 
-interface UserInfoResponse {
+interface IdTokenClaims {
   sub: string;
   email?: string;
   name?: string;
@@ -68,7 +69,7 @@ export async function loginCommand(options: LoginOptions): Promise<number> {
     // 3. Wait for the browser to redirect back with an authorization code.
     const { code } = await server.waitForCallback();
 
-    // 4. Exchange the code for an access token at the standard token endpoint.
+    // 4. Exchange the code for an access + id token.
     const token = await exchangeToken(
       fetchImpl,
       target,
@@ -78,13 +79,17 @@ export async function loginCommand(options: LoginOptions): Promise<number> {
       pkce.verifier,
     );
 
-    // 5. Fetch the user profile with the new access token.
-    const user = await fetchUserInfo(fetchImpl, target, token.access_token);
+    // 5. Read the user from the id_token (the OIDC standard way — userinfo
+    //    endpoint is advertised but not implemented upstream).
+    if (!token.id_token) {
+      throw new Error("Token endpoint returned no id_token");
+    }
+    const claims = decodeIdToken(token.id_token);
 
     const session: Session = {
       target,
       clientId,
-      user: { sub: user.sub, email: user.email, name: user.name },
+      user: { sub: claims.sub, email: claims.email, name: claims.name },
       accessToken: token.access_token,
       refreshToken: token.refresh_token,
       expiresAt: token.expires_in
@@ -94,7 +99,7 @@ export async function loginCommand(options: LoginOptions): Promise<number> {
     };
     await writeSession(options.dataDir, session);
 
-    console.log(`Logged in as ${user.email ?? user.sub}.`);
+    console.log(`Logged in as ${claims.email ?? claims.sub}.`);
     return 0;
   } catch (err) {
     console.error(
@@ -167,24 +172,22 @@ async function exchangeToken(
   return data;
 }
 
-async function fetchUserInfo(
-  fetchImpl: (input: string, init?: RequestInit) => Promise<Response>,
-  target: string,
-  accessToken: string,
-): Promise<UserInfoResponse> {
-  const res = await fetchImpl(`${target}/api/auth/mcp/userinfo`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!res.ok) {
-    throw new Error(
-      `Userinfo failed: HTTP ${res.status} ${await res.text().catch(() => "")}`,
-    );
+function decodeIdToken(idToken: string): IdTokenClaims {
+  const parts = idToken.split(".");
+  if (parts.length !== 3 || !parts[1]) {
+    throw new Error("id_token is not a valid JWT");
   }
-  const data = (await res.json()) as UserInfoResponse;
-  if (typeof data?.sub !== "string") {
-    throw new Error("Userinfo returned no sub");
+  const payload = JSON.parse(
+    Buffer.from(parts[1], "base64url").toString("utf8"),
+  ) as Record<string, unknown>;
+  if (typeof payload.sub !== "string") {
+    throw new Error("id_token has no sub claim");
   }
-  return data;
+  return {
+    sub: payload.sub,
+    email: typeof payload.email === "string" ? payload.email : undefined,
+    name: typeof payload.name === "string" ? payload.name : undefined,
+  };
 }
 
 async function defaultOpenBrowser(url: string): Promise<void> {

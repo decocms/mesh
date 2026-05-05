@@ -59,24 +59,21 @@ function mockTarget(target: string) {
       expect(body.get("grant_type")).toBe("authorization_code");
       expect(body.get("code")).toBe(issuedCode ?? "");
       expect(body.get("client_id")).toBe(issuedClientId ?? "");
+      const idTokenPayload = Buffer.from(
+        JSON.stringify({
+          sub: "user-123",
+          email: "tlgimenes@gmail.com",
+          name: "TL Gimenes",
+        }),
+      ).toString("base64url");
+      const idToken = `header.${idTokenPayload}.signature`;
       return new Response(
         JSON.stringify({
           access_token: issuedAccessToken,
           token_type: "Bearer",
           expires_in: 3600,
           refresh_token: "rt_xyz",
-        }),
-        { status: 200, headers: { "content-type": "application/json" } },
-      );
-    }
-    if (url === `${target}/api/auth/mcp/userinfo`) {
-      const auth = (init?.headers as Record<string, string>)?.Authorization;
-      expect(auth).toBe(`Bearer ${issuedAccessToken}`);
-      return new Response(
-        JSON.stringify({
-          sub: "user-123",
-          email: "tlgimenes@gmail.com",
-          name: "TL Gimenes",
+          id_token: idToken,
         }),
         { status: 200, headers: { "content-type": "application/json" } },
       );
