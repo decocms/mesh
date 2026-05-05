@@ -76,11 +76,13 @@ if (values.help) {
 Deco CMS — Open-source control plane for your AI agents
 
 Usage:
-  deco [options]                  Start server with Ink UI
-  deco dev [options]              Start dev server (Vite + hot reload)
-  deco services <up|down|status>  Manage services (Postgres, NATS)
-  deco init <directory>           Scaffold a new MCP app
-  deco completion [shell]         Install shell completions
+  deco [options]                     Start server with Ink UI
+  deco dev [options]                 Start dev server (Vite + hot reload)
+  deco services <up|down|status>     Manage services (Postgres, NATS)
+  deco init <directory>              Scaffold a new MCP app
+  deco auth <login|whoami|logout>    Manage CLI authentication
+  deco link [options] [-- <cmd>]     Tunnel a local port to a stable deco.host URL
+  deco completion [shell]            Install shell completions
 
 Server Options:
   -p, --port <port>     Port to listen on (default: 3000, or PORT env var)
@@ -97,6 +99,15 @@ Dev Options:
   --vite-port <port>    Vite dev server port (default: 4000)
   --base-url <url>      Base URL for the server
 
+Auth Options:
+  --target <url>        Decocms target (default: https://studio.decocms.com)
+
+Link Options:
+  -p, --port <port>     Local port to tunnel (default: 8787)
+  -e, --env <name>      Env var to inject the tunnel URL into when spawning
+                        a child command (default: BASE_URL)
+  -- <command>          Optional command to spawn after the tunnel opens
+
 Environment Variables:
   PORT                  Port to listen on (default: 3000)
   DATA_DIR              Data directory (default: ~/deco/)
@@ -108,15 +119,12 @@ Environment Variables:
 Examples:
   deco                            Start with defaults (~/deco/)
   deco -p 8080                    Start on port 8080
-  deco --home ~/my-project        Custom data directory
-  deco --no-local-mode             Disable auto-login (production)
   deco dev                        Start dev server
-  deco dev --vite-port 5000       Dev server with custom Vite port
-  deco services up                Start Postgres and NATS
-  deco services status            Show service status
-  deco services down              Stop services
   deco init my-app                Scaffold a new MCP app
-  deco --no-tui                   Start without terminal UI
+  deco auth login                 Log in to studio.decocms.com
+  deco auth whoami                Show current session
+  deco link -p 3000 -- bun dev    Tunnel localhost:3000, run "bun dev"
+  deco link -p 8787               Tunnel an already-running service on 8787
 
 Documentation:
   https://decocms.com/studio
