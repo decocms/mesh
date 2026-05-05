@@ -66,6 +66,8 @@ export function buildChildEnv(
     // Observability
     OTEL_SERVICE_NAME: settings.otelServiceName,
     CLICKHOUSE_URL: settings.clickhouseUrl,
+    OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+    OTEL_EXPORTER_OTLP_PROTOCOL: process.env.OTEL_EXPORTER_OTLP_PROTOCOL,
 
     // External service credentials
     DECO_SUPABASE_URL: settings.decoSupabaseUrl,
