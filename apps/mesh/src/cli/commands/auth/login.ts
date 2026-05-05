@@ -13,7 +13,7 @@ export interface LoginOptions {
   fetch?: (input: string, init?: RequestInit) => Promise<Response>;
 }
 
-export const DEFAULT_TARGET = "https://studio.decocms.com";
+const DEFAULT_TARGET = "https://studio.decocms.com";
 
 const SCOPES = "openid profile email offline_access";
 
