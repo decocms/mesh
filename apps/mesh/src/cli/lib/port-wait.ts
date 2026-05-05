@@ -36,7 +36,9 @@ export async function waitForPort(
 function isInUse(host: string, port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const srv = createServer();
-    srv.once("error", () => resolve(true));
+    srv.once("error", (err: NodeJS.ErrnoException) => {
+      resolve(err.code === "EADDRINUSE");
+    });
     srv.listen(port, host, () => {
       srv.close(() => resolve(false));
     });

@@ -43,6 +43,32 @@ describe("findRunningAddr", () => {
     await listenOn("127.0.0.1", port);
     expect(await findRunningAddr(port)).toBe("127.0.0.1");
   });
+
+  it("returns null when bind fails for a non-EADDRINUSE reason", async () => {
+    // Privileged port < 1024 returns EACCES for non-root users on POSIX.
+    // On platforms where this somehow succeeds (e.g., macOS recent versions
+    // allow port 80 in some configs), skip the test.
+    if (process.platform === "win32" || process.getuid?.() === 0) {
+      return; // skip on Windows or when running as root
+    }
+    // Probe all localhost-flavoured addresses that findRunningAddr probes.
+    // If ANY of them allow binding port 80 without EACCES, this environment
+    // doesn't restrict privileged ports — skip to avoid false failures.
+    const hosts = ["localhost", "127.0.0.1", "0.0.0.0"];
+    for (const host of hosts) {
+      const code = await new Promise<string | undefined>((resolve) => {
+        const probe = createServer();
+        probe.once("error", (err: NodeJS.ErrnoException) => {
+          resolve(err.code);
+        });
+        probe.listen(80, host, () => {
+          probe.close(() => resolve(undefined));
+        });
+      });
+      if (code !== "EACCES") return; // platform allows binding or different error; skip
+    }
+    expect(await findRunningAddr(80)).toBeNull();
+  });
 });
 
 describe("waitForPort", () => {
