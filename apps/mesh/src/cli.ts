@@ -64,6 +64,8 @@ const { values, positionals } = parseArgs({
       type: "boolean",
       default: false,
     },
+    target: { type: "string" },
+    env: { type: "string", short: "e" },
   },
   allowPositionals: true,
 });
@@ -185,6 +187,75 @@ if (command === "services") {
   process.exit(0);
 }
 
+// ── Auth / Link helpers ────────────────────────────────────────────────
+function resolveDataDir(): string {
+  return (
+    values.home ||
+    process.env.DATA_DIR ||
+    process.env.DECOCMS_HOME ||
+    join(homedir(), "deco")
+  );
+}
+
+// ── Auth command ───────────────────────────────────────────────────────
+if (command === "auth") {
+  const sub = positionals[1];
+  const dataDir = resolveDataDir();
+
+  if (sub === "login") {
+    const { loginCommand } = await import("./cli/commands/auth/login");
+    const code = await loginCommand({
+      dataDir,
+      target: values.target,
+    });
+    process.exit(code);
+  }
+  if (sub === "whoami") {
+    const { whoamiCommand } = await import("./cli/commands/auth/whoami");
+    const code = await whoamiCommand({ dataDir });
+    process.exit(code);
+  }
+  if (sub === "logout") {
+    const { logoutCommand } = await import("./cli/commands/auth/logout");
+    const code = await logoutCommand({ dataDir });
+    process.exit(code);
+  }
+  console.error(`Usage: decocms auth <login|whoami|logout>`);
+  process.exit(1);
+}
+
+// ── Link command ───────────────────────────────────────────────────────
+if (command === "link") {
+  const dataDir = resolveDataDir();
+  const port = Number(values.port);
+  if (!Number.isInteger(port) || port <= 0) {
+    console.error(`Invalid --port value: ${values.port}`);
+    process.exit(1);
+  }
+  const env = values.env ?? "BASE_URL";
+
+  // Trailing args after `--` are the run command. parseArgs gives us positionals
+  // including everything after `--`; we re-derive the boundary from the raw argv.
+  const dashDashIdx = process.argv.indexOf("--");
+  const runCommand =
+    dashDashIdx >= 0 ? process.argv.slice(dashDashIdx + 1) : [];
+
+  const { linkCommand } = await import("./cli/commands/link");
+  const result = linkCommand({
+    cwd: process.cwd(),
+    dataDir,
+    port,
+    env,
+    runCommand,
+  });
+
+  // Forward Ctrl-C to the link command for graceful shutdown.
+  process.on("SIGINT", () => void result.cancel());
+  process.on("SIGTERM", () => void result.cancel());
+
+  process.exit(await result.exit);
+}
+
 // ── Dev command (Ink TUI + dev servers) ─────────────────────────────────
 if (command === "dev") {
   const decoHome =
@@ -249,7 +320,10 @@ if (command === "dev") {
   }
 }
 
-if (command && !["init", "completion", "dev", "services"].includes(command)) {
+if (
+  command &&
+  !["init", "completion", "dev", "services", "auth", "link"].includes(command)
+) {
   console.error(`Unknown command: ${command}`);
   process.exit(1);
 }
