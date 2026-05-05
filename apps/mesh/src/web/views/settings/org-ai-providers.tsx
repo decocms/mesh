@@ -594,7 +594,7 @@ function ProviderCard({
           providerId: provider.id,
           code,
           stateToken,
-          label: "Connected via OAuth",
+          label: provider.name,
         },
       })) as { isError?: boolean; content?: { text?: string }[] };
       if (result?.isError) {
