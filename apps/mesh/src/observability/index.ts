@@ -42,7 +42,7 @@ import {
 // Constants
 const DEBUG_QS = "__d";
 const REQUEST_CONTEXT_KEY = createContextKey("Current request");
-const HEAD_SAMPLER_RATIO = 0.1; // 10% sampling by default
+const HEAD_SAMPLER_RATIO = 1.0; // 100% sampling — all errors must reach HyperDX
 
 // Sampler types - inline to avoid module resolution issues
 interface Sampler {
@@ -243,6 +243,15 @@ export function initObservability(): void {
         exportIntervalMillis: 60_000,
       })
     : null;
+
+  if (
+    !process.env.OTEL_RESOURCE_ATTRIBUTES?.includes("deployment.environment")
+  ) {
+    const env = process.env.STUDIO_ENV ?? process.env.NODE_ENV ?? "unknown";
+    process.env.OTEL_RESOURCE_ATTRIBUTES = process.env.OTEL_RESOURCE_ATTRIBUTES
+      ? `${process.env.OTEL_RESOURCE_ATTRIBUTES},deployment.environment=${env}`
+      : `deployment.environment=${env}`;
+  }
 
   const sdk = new NodeSDK({
     serviceName: _settings.otelServiceName,
