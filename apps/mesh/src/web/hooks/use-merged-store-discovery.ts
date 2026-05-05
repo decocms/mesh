@@ -248,7 +248,11 @@ export function useMergedStoreDiscovery(
   );
   const communityRegistries = registries.filter((r) => isCommunityRegistry(r));
 
-  // Query 1: all non-community registries in parallel (always enabled)
+  // Both groups load in parallel. Non-community items render before community
+  // items in the merged list (we push nc first), but the cQuery is no longer
+  // gated on nc exhaustion — gating made community results invisible whenever
+  // the previous-data hasMore was true (e.g. while typing a search, or while
+  // any nc page was still pending).
   const ncQuery = useRegistryGroupQuery(
     nonCommunityRegistries,
     org.id,
@@ -256,25 +260,18 @@ export function useMergedStoreDiscovery(
     true,
     search,
   );
-
-  // Query 2: community registries, deferred until non-community is exhausted
-  const allNonCommunityExhausted =
-    !ncQuery.hasMore && !ncQuery.isInitialLoading;
   const cQuery = useRegistryGroupQuery(
     communityRegistries,
     org.id,
     org.slug,
-    allNonCommunityExhausted,
+    true,
     search,
   );
 
   // Collect all available items in priority order, deduplicating by registry+id
   const seen = new Set<string>();
   const items: RegistryItem[] = [];
-  const allAvailable: RegistryItem[] = [...ncQuery.items];
-  if (allNonCommunityExhausted) {
-    allAvailable.push(...cQuery.items);
-  }
+  const allAvailable: RegistryItem[] = [...ncQuery.items, ...cQuery.items];
   for (const item of allAvailable) {
     const itemKey = `${item._registryId}:${item.id}`;
     if (!seen.has(itemKey)) {
@@ -283,26 +280,13 @@ export function useMergedStoreDiscovery(
     }
   }
 
-  const isInitialLoading = ncQuery.isInitialLoading;
+  const isInitialLoading = ncQuery.isInitialLoading || cQuery.isInitialLoading;
   const isLoadingMore = ncQuery.isLoadingMore || cQuery.isLoadingMore;
-
-  const hasMore = (() => {
-    if (ncQuery.hasMore) return true;
-    if (communityRegistries.length > 0) {
-      if (!allNonCommunityExhausted) return true;
-      return cQuery.hasMore;
-    }
-    return false;
-  })();
+  const hasMore = ncQuery.hasMore || cQuery.hasMore;
 
   const loadMore = () => {
-    if (ncQuery.hasMore) {
-      ncQuery.fetchNextPage();
-      return;
-    }
-    if (cQuery.hasMore) {
-      cQuery.fetchNextPage();
-    }
+    if (ncQuery.hasMore) ncQuery.fetchNextPage();
+    if (cQuery.hasMore) cQuery.fetchNextPage();
   };
 
   return {
