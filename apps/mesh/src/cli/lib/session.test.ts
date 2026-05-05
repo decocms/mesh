@@ -22,9 +22,9 @@ afterEach(async () => {
 
 const sample: Session = {
   target: "https://studio.decocms.com",
-  workspace: "tlgimenes",
-  user: { id: "u_1", email: "tlgimenes@gmail.com" },
-  token: "tok_abc",
+  clientId: "client_abc",
+  user: { sub: "u_1", email: "tlgimenes@gmail.com" },
+  accessToken: "tok_abc",
   createdAt: "2026-05-04T12:00:00.000Z",
 };
 

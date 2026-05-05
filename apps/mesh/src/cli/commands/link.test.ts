@@ -43,13 +43,13 @@ describe("linkCommand", () => {
     cwdDir = await makeProject("my-app");
     await writeSession(dir, {
       target: "https://studio.decocms.com",
-      workspace: "tlgimenes",
-      user: { id: "u_1", email: "u@x" },
-      token: "tok_link",
+      clientId: "client_abc",
+      user: { sub: "u_1", email: "u@x" },
+      accessToken: "tok_link",
       createdAt: "2026-05-04T00:00:00.000Z",
     });
 
-    const expectedDomain = computeAppDomain("tlgimenes", "my-app");
+    const expectedDomain = computeAppDomain("u_1", "my-app");
     const tunnelOpener = mock<TunnelOpener>(async (params) => {
       expect(params.domain).toBe(expectedDomain);
       expect(params.localAddr).toBe("http://127.0.0.1:8787");
@@ -87,9 +87,9 @@ describe("linkCommand", () => {
     cwdDir = await makeProject("my-app");
     const ensureSession = mock(async () => ({
       target: "https://studio.decocms.com",
-      workspace: "ws",
-      user: { id: "u", email: "u@x" },
-      token: "tok",
+      clientId: "client_x",
+      user: { sub: "u", email: "u@x" },
+      accessToken: "tok",
       createdAt: "2026-05-04T00:00:00.000Z",
     }));
     const tunnelOpener = mock<TunnelOpener>(async () => ({
@@ -119,9 +119,9 @@ describe("linkCommand", () => {
     cwdDir = await makeProject("my-app");
     await writeSession(dir, {
       target: "https://studio.decocms.com",
-      workspace: "ws",
-      user: { id: "u", email: "u@x" },
-      token: "tok",
+      clientId: "client_x",
+      user: { sub: "u", email: "u@x" },
+      accessToken: "tok",
       createdAt: "2026-05-04T00:00:00.000Z",
     });
 
@@ -159,9 +159,9 @@ describe("linkCommand", () => {
     await writeFile(join(cwdDir, "package.json"), "{}");
     await writeSession(dir, {
       target: "https://studio.decocms.com",
-      workspace: "ws",
-      user: { id: "u", email: "u@x" },
-      token: "tok",
+      clientId: "client_x",
+      user: { sub: "u", email: "u@x" },
+      accessToken: "tok",
       createdAt: "2026-05-04T00:00:00.000Z",
     });
 
@@ -188,9 +188,9 @@ describe("linkCommand", () => {
     cwdDir = await makeProject("my-app");
     await writeSession(dir, {
       target: "https://studio.decocms.com",
-      workspace: "ws",
-      user: { id: "u", email: "u@x" },
-      token: "tok",
+      clientId: "client_x",
+      user: { sub: "u", email: "u@x" },
+      accessToken: "tok",
       createdAt: "2026-05-04T00:00:00.000Z",
     });
 
@@ -235,9 +235,9 @@ describe("linkCommand", () => {
     cwdDir = await makeProject("my-app");
     await writeSession(dir, {
       target: "https://studio.decocms.com",
-      workspace: "ws",
-      user: { id: "u", email: "u@x" },
-      token: "tok",
+      clientId: "client_x",
+      user: { sub: "u", email: "u@x" },
+      accessToken: "tok",
       createdAt: "2026-05-04T00:00:00.000Z",
     });
 

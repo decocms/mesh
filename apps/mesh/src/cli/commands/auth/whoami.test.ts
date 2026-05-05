@@ -31,9 +31,9 @@ describe("whoamiCommand", () => {
   it("prints session details and exits 0 when logged in", async () => {
     await writeSession(dir, {
       target: "https://studio.decocms.com",
-      workspace: "tlgimenes",
-      user: { id: "u_1", email: "tlgimenes@gmail.com" },
-      token: "tok",
+      clientId: "client_abc",
+      user: { sub: "u_1", email: "tlgimenes@gmail.com" },
+      accessToken: "tok",
       createdAt: "2026-05-04T00:00:00.000Z",
     });
 
@@ -42,7 +42,6 @@ describe("whoamiCommand", () => {
 
     expect(code).toBe(0);
     expect(joined).toContain("https://studio.decocms.com");
-    expect(joined).toContain("tlgimenes");
     expect(joined).toContain("tlgimenes@gmail.com");
   });
 

@@ -1,23 +1,27 @@
 import { createHash } from "node:crypto";
 
 /**
- * Legacy-compatible app hash. Returns the first 8 hex characters of
- * sha1(`${workspace}-${app}`). Preserved exactly from packages/cli's
- * getAppUUID so existing tunnel subdomains remain valid.
+ * Stable app hash for tunnel subdomains. Returns the first 8 hex
+ * characters of sha1(`${principal}-${app}`).
  *
- * (Yes, the legacy function was named md5Hash but used sha1.)
+ * `principal` is the per-user identifier from the OAuth session
+ * (typically the OIDC `sub` claim); `app` is the local project name.
+ * Same inputs always produce the same subdomain so tunnel registrations
+ * are stable across reconnects.
  *
- * The hyphen separator is intentional legacy behavior — the hash collides
- * for inputs like ("a-b", "c") and ("a", "b-c"). Do not change the
- * separator; doing so would invalidate existing tunnel registrations.
+ * The algorithm is preserved exactly from the legacy `getAppUUID`
+ * (which was misleadingly named `md5Hash` but used sha1) so the
+ * subdomain shape stays consistent. The hyphen separator means inputs
+ * like ("a-b", "c") and ("a", "b-c") collide — keep the separator
+ * unchanged so existing registrations remain valid.
  */
-export function computeAppHash(workspace: string, app: string): string {
+export function computeAppHash(principal: string, app: string): string {
   return createHash("sha1")
-    .update(`${workspace}-${app}`)
+    .update(`${principal}-${app}`)
     .digest("hex")
     .slice(0, 8);
 }
 
-export function computeAppDomain(workspace: string, app: string): string {
-  return `localhost-${computeAppHash(workspace, app)}.deco.host`;
+export function computeAppDomain(principal: string, app: string): string {
+  return `localhost-${computeAppHash(principal, app)}.deco.host`;
 }

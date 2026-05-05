@@ -7,7 +7,7 @@ import {
   mock,
   spyOn,
 } from "bun:test";
-import { rm, mkdtemp } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readSession } from "../../lib/session";
@@ -29,90 +29,153 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-describe("loginCommand", () => {
-  it("opens the target login URL and exchanges the callback code for a session", async () => {
-    let openedUrl: string | undefined;
-    const openBrowser = mock(async (url: string) => {
-      openedUrl = url;
-      // Simulate the browser hitting the callback once the CLI has started its listener.
-      const parsed = new URL(url);
-      const callback = parsed.searchParams.get("callback")!;
-      const state = parsed.searchParams.get("state")!;
-      // Race condition guard: small delay so the CLI is past startOAuthCallbackServer.
-      await new Promise((r) => setTimeout(r, 10));
-      await fetch(`${callback}?code=code-xyz&state=${state}`);
-    });
+/**
+ * Stand up a fake decocms server that handles dynamic registration, the
+ * authorize redirect (back to the CLI's callback with a code), the token
+ * exchange, and userinfo. The mock simulates the browser by hitting the
+ * CLI's callback URL inside `openBrowser`.
+ */
+function mockTarget(target: string) {
+  let issuedClientId: string | undefined;
+  let issuedAccessToken: string | undefined;
+  let issuedCode: string | undefined;
+  let pkceVerifier: string | undefined;
 
-    const fetchMock = mock(async (url: string, init?: RequestInit) => {
-      expect(url).toBe("https://studio.decocms.com/api/auth/cli/exchange");
-      expect(init?.method).toBe("POST");
-      const body = JSON.parse(init?.body as string) as { code: string };
-      expect(body.code).toBe("code-xyz");
+  const fetchMock = mock(async (url: string, init?: RequestInit) => {
+    if (url === `${target}/api/auth/mcp/register`) {
+      issuedClientId = `client_${Math.random().toString(36).slice(2, 8)}`;
       return new Response(
         JSON.stringify({
-          token: "tok_new",
-          workspace: "tlgimenes",
-          user: { id: "u_1", email: "tlgimenes@gmail.com" },
+          client_id: issuedClientId,
+          redirect_uris: ["http://127.0.0.1:0/"],
         }),
         { status: 200, headers: { "content-type": "application/json" } },
       );
-    });
+    }
+    if (url === `${target}/api/auth/mcp/token`) {
+      const body = new URLSearchParams(init?.body as string);
+      pkceVerifier = body.get("code_verifier") ?? undefined;
+      issuedAccessToken = `at_${Math.random().toString(36).slice(2, 10)}`;
+      expect(body.get("grant_type")).toBe("authorization_code");
+      expect(body.get("code")).toBe(issuedCode ?? "");
+      expect(body.get("client_id")).toBe(issuedClientId ?? "");
+      return new Response(
+        JSON.stringify({
+          access_token: issuedAccessToken,
+          token_type: "Bearer",
+          expires_in: 3600,
+          refresh_token: "rt_xyz",
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+    if (url === `${target}/api/auth/mcp/userinfo`) {
+      const auth = (init?.headers as Record<string, string>)?.Authorization;
+      expect(auth).toBe(`Bearer ${issuedAccessToken}`);
+      return new Response(
+        JSON.stringify({
+          sub: "user-123",
+          email: "tlgimenes@gmail.com",
+          name: "TL Gimenes",
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+    throw new Error(`Unexpected fetch: ${url}`);
+  });
+
+  const openBrowser = mock(async (url: string) => {
+    const parsed = new URL(url);
+    const redirectUri = parsed.searchParams.get("redirect_uri")!;
+    const state = parsed.searchParams.get("state")!;
+    expect(parsed.searchParams.get("client_id")).toBe(issuedClientId ?? "");
+    expect(parsed.searchParams.get("response_type")).toBe("code");
+    expect(parsed.searchParams.get("code_challenge_method")).toBe("S256");
+    expect(parsed.searchParams.get("code_challenge")).toMatch(
+      /^[A-Za-z0-9_-]+$/,
+    );
+    issuedCode = `code_${Math.random().toString(36).slice(2, 8)}`;
+    // Simulate the browser hitting the CLI callback after auth.
+    await new Promise((r) => setTimeout(r, 10));
+    await fetch(`${redirectUri}?code=${issuedCode}&state=${state}`);
+  });
+
+  return {
+    fetchMock,
+    openBrowser,
+    getIssuedAccessToken: () => issuedAccessToken,
+    getIssuedClientId: () => issuedClientId,
+    getPkceVerifier: () => pkceVerifier,
+  };
+}
+
+describe("loginCommand", () => {
+  it("performs the full OAuth flow and persists a session", async () => {
+    const target = "https://studio.decocms.com";
+    const m = mockTarget(target);
 
     const code = await loginCommand({
       dataDir: dir,
-      target: "https://studio.decocms.com",
-      openBrowser,
-      fetch: fetchMock,
+      target,
+      openBrowser: m.openBrowser,
+      fetch: m.fetchMock,
     });
 
     expect(code).toBe(0);
-    expect(openedUrl).toMatch(
-      /^https:\/\/studio\.decocms\.com\/auth\/cli\?callback=http%3A%2F%2F127\.0\.0\.1%3A\d+&state=/,
-    );
+
     const session = await readSession(dir);
-    expect(session?.target).toBe("https://studio.decocms.com");
-    expect(session?.workspace).toBe("tlgimenes");
+    expect(session?.target).toBe(target);
+    expect(session?.clientId).toBe(m.getIssuedClientId());
+    expect(session?.accessToken).toBe(m.getIssuedAccessToken());
+    expect(session?.refreshToken).toBe("rt_xyz");
+    expect(session?.user.sub).toBe("user-123");
     expect(session?.user.email).toBe("tlgimenes@gmail.com");
-    expect(session?.token).toBe("tok_new");
+    expect(session?.expiresAt).toBeGreaterThan(0);
+
+    // PKCE verifier was actually sent to the token endpoint.
+    expect(m.getPkceVerifier()).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 
   it("defaults the target to https://studio.decocms.com", async () => {
+    const m = mockTarget("https://studio.decocms.com");
     let openedUrl: string | undefined;
-    const openBrowser = mock(async (url: string) => {
+    const captureOpen = mock(async (url: string) => {
       openedUrl = url;
-      const parsed = new URL(url);
-      const callback = parsed.searchParams.get("callback")!;
-      const state = parsed.searchParams.get("state")!;
-      await new Promise((r) => setTimeout(r, 10));
-      await fetch(`${callback}?code=c&state=${state}`);
+      await m.openBrowser(url);
     });
-    const fetchMock = mock(
-      async () =>
-        new Response(
-          JSON.stringify({
-            token: "t",
-            workspace: "w",
-            user: { id: "u", email: "u@x" },
-          }),
-          { status: 200, headers: { "content-type": "application/json" } },
-        ),
-    );
-    await loginCommand({ dataDir: dir, openBrowser, fetch: fetchMock });
-    expect(openedUrl).toMatch(/^https:\/\/studio\.decocms\.com\//);
+
+    await loginCommand({
+      dataDir: dir,
+      openBrowser: captureOpen,
+      fetch: m.fetchMock,
+    });
+    expect(openedUrl).toMatch(/^https:\/\/studio\.decocms\.com\/login\?/);
   });
 
-  it("returns non-zero and writes no session when exchange fails", async () => {
+  it("returns non-zero and writes no session when token exchange fails", async () => {
+    const target = "https://studio.decocms.com";
+    const fetchMock = mock(async (url: string) => {
+      if (url.endsWith("/register")) {
+        return new Response(JSON.stringify({ client_id: "client_x" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (url.endsWith("/token")) {
+        return new Response("invalid_grant", { status: 400 });
+      }
+      throw new Error(`Unexpected: ${url}`);
+    });
     const openBrowser = mock(async (url: string) => {
       const parsed = new URL(url);
-      const callback = parsed.searchParams.get("callback")!;
+      const callback = parsed.searchParams.get("redirect_uri")!;
       const state = parsed.searchParams.get("state")!;
       await new Promise((r) => setTimeout(r, 10));
       await fetch(`${callback}?code=c&state=${state}`);
     });
-    const fetchMock = mock(async () => new Response("nope", { status: 401 }));
     const code = await loginCommand({
       dataDir: dir,
-      target: "https://studio.decocms.com",
+      target,
       openBrowser,
       fetch: fetchMock,
     });
@@ -120,21 +183,16 @@ describe("loginCommand", () => {
     expect(await readSession(dir)).toBeNull();
   });
 
-  it("returns non-zero and writes no session when exchange returns incomplete data", async () => {
-    const openBrowser = mock(async (url: string) => {
-      const parsed = new URL(url);
-      const callback = parsed.searchParams.get("callback")!;
-      const state = parsed.searchParams.get("state")!;
-      await new Promise((r) => setTimeout(r, 10));
-      await fetch(`${callback}?code=c&state=${state}`);
+  it("returns non-zero when client registration fails", async () => {
+    const fetchMock = mock(async (url: string) => {
+      if (url.endsWith("/register")) {
+        return new Response("forbidden", { status: 403 });
+      }
+      throw new Error(`Unexpected: ${url}`);
     });
-    const fetchMock = mock(
-      async () =>
-        new Response(JSON.stringify({}), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        }),
-    );
+    const openBrowser = mock(async () => {
+      throw new Error("openBrowser should not be called");
+    });
     const code = await loginCommand({
       dataDir: dir,
       target: "https://studio.decocms.com",

@@ -10,8 +10,7 @@ export async function whoamiCommand(options: WhoamiOptions): Promise<number> {
     console.error("Not logged in. Run `decocms auth login` to authenticate.");
     return 1;
   }
-  console.log(`Target:    ${session.target}`);
-  console.log(`Workspace: ${session.workspace}`);
-  console.log(`User:      ${session.user.email}`);
+  console.log(`Target: ${session.target}`);
+  console.log(`User:   ${session.user.email ?? session.user.sub}`);
   return 0;
 }

@@ -9,10 +9,19 @@ import {
 import { dirname, join } from "node:path";
 
 export interface Session {
+  /** OAuth issuer / decocms target (e.g. https://studio.decocms.com). */
   target: string;
-  workspace: string;
-  user: { id: string; email: string };
-  token: string;
+  /** Dynamically-registered OAuth client id for this CLI install. */
+  clientId: string;
+  /** OIDC subject identifier (stable per user). */
+  user: { sub: string; email?: string; name?: string };
+  /** Bearer token used for API + Warp tunnel auth. */
+  accessToken: string;
+  /** Refresh token for renewing the access token (when granted). */
+  refreshToken?: string;
+  /** Unix epoch (seconds) when accessToken expires, when known. */
+  expiresAt?: number;
+  /** ISO timestamp when this session was minted. */
   createdAt: string;
 }
 
@@ -52,14 +61,16 @@ export async function clearSession(dataDir: string): Promise<void> {
 function isSession(value: unknown): value is Session {
   if (!value || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
-  return (
-    typeof v.target === "string" &&
-    typeof v.workspace === "string" &&
-    typeof v.token === "string" &&
-    typeof v.createdAt === "string" &&
-    typeof v.user === "object" &&
-    v.user !== null &&
-    typeof (v.user as Record<string, unknown>).id === "string" &&
-    typeof (v.user as Record<string, unknown>).email === "string"
-  );
+  if (
+    typeof v.target !== "string" ||
+    typeof v.clientId !== "string" ||
+    typeof v.accessToken !== "string" ||
+    typeof v.createdAt !== "string"
+  ) {
+    return false;
+  }
+  if (!v.user || typeof v.user !== "object") return false;
+  const u = v.user as Record<string, unknown>;
+  if (typeof u.sub !== "string") return false;
+  return true;
 }

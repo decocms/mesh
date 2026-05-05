@@ -1,7 +1,8 @@
-import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { startOAuthCallbackServer } from "../../lib/oauth-callback";
-import { writeSession, type Session } from "../../lib/session";
+import { generatePkcePair } from "../../lib/pkce";
+import { type Session, writeSession } from "../../lib/session";
 
 export interface LoginOptions {
   dataDir: string;
@@ -14,60 +15,86 @@ export interface LoginOptions {
 
 export const DEFAULT_TARGET = "https://studio.decocms.com";
 
+const SCOPES = "openid profile email offline_access";
+
+interface RegisterResponse {
+  client_id: string;
+}
+
+interface TokenResponse {
+  access_token: string;
+  refresh_token?: string;
+  expires_in?: number;
+  token_type?: string;
+}
+
+interface UserInfoResponse {
+  sub: string;
+  email?: string;
+  name?: string;
+}
+
 export async function loginCommand(options: LoginOptions): Promise<number> {
   const target = (options.target ?? DEFAULT_TARGET).replace(/\/$/, "");
   const fetchImpl = options.fetch ?? fetch;
   const openImpl = options.openBrowser ?? defaultOpenBrowser;
 
   const state = randomUUID();
+  const pkce = generatePkcePair();
+
   const server = await startOAuthCallbackServer({ expectedState: state });
   try {
-    const callback = encodeURIComponent(server.url);
-    const url = `${target}/auth/cli?callback=${callback}&state=${state}`;
+    const redirectUri = `${server.url}/`;
+
+    // 1. Dynamically register this CLI install as an OAuth client.
+    const clientId = await registerClient(fetchImpl, target, redirectUri);
+
+    // 2. Build the /login URL — this triggers the existing OAuth-aware login UI,
+    //    which routes to /api/auth/mcp/authorize after the user signs in.
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: "code",
+      state,
+      scope: SCOPES,
+      code_challenge: pkce.challenge,
+      code_challenge_method: "S256",
+    });
+    const url = `${target}/login?${params.toString()}`;
+
     console.log(`Opening ${url} in your browser...`);
     await openImpl(url);
 
+    // 3. Wait for the browser to redirect back with an authorization code.
     const { code } = await server.waitForCallback();
 
-    const exchangeRes = await fetchImpl(`${target}/api/auth/cli/exchange`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ code }),
-    });
-    if (!exchangeRes.ok) {
-      console.error(
-        `Token exchange failed: HTTP ${exchangeRes.status} ${await exchangeRes.text().catch(() => "")}`,
-      );
-      return 1;
-    }
-    const data = (await exchangeRes.json()) as {
-      token: string;
-      workspace: string;
-      user: { id: string; email: string };
-    };
+    // 4. Exchange the code for an access token at the standard token endpoint.
+    const token = await exchangeToken(
+      fetchImpl,
+      target,
+      clientId,
+      code,
+      redirectUri,
+      pkce.verifier,
+    );
 
-    if (
-      typeof data?.token !== "string" ||
-      typeof data?.workspace !== "string" ||
-      typeof data?.user?.id !== "string" ||
-      typeof data?.user?.email !== "string"
-    ) {
-      console.error(
-        "Token exchange failed: server returned incomplete response",
-      );
-      return 1;
-    }
+    // 5. Fetch the user profile with the new access token.
+    const user = await fetchUserInfo(fetchImpl, target, token.access_token);
 
     const session: Session = {
       target,
-      workspace: data.workspace,
-      user: data.user,
-      token: data.token,
+      clientId,
+      user: { sub: user.sub, email: user.email, name: user.name },
+      accessToken: token.access_token,
+      refreshToken: token.refresh_token,
+      expiresAt: token.expires_in
+        ? Math.floor(Date.now() / 1000) + token.expires_in
+        : undefined,
       createdAt: new Date().toISOString(),
     };
     await writeSession(options.dataDir, session);
 
-    console.log(`Logged in as ${data.user.email} (${data.workspace}).`);
+    console.log(`Logged in as ${user.email ?? user.sub}.`);
     return 0;
   } catch (err) {
     console.error(
@@ -77,6 +104,87 @@ export async function loginCommand(options: LoginOptions): Promise<number> {
   } finally {
     server.close();
   }
+}
+
+async function registerClient(
+  fetchImpl: (input: string, init?: RequestInit) => Promise<Response>,
+  target: string,
+  redirectUri: string,
+): Promise<string> {
+  const res = await fetchImpl(`${target}/api/auth/mcp/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      client_name: "decocms-cli",
+      redirect_uris: [redirectUri],
+      grant_types: ["authorization_code", "refresh_token"],
+      response_types: ["code"],
+      token_endpoint_auth_method: "none",
+      application_type: "native",
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Client registration failed: HTTP ${res.status} ${await res.text().catch(() => "")}`,
+    );
+  }
+  const data = (await res.json()) as RegisterResponse;
+  if (typeof data?.client_id !== "string") {
+    throw new Error("Client registration returned no client_id");
+  }
+  return data.client_id;
+}
+
+async function exchangeToken(
+  fetchImpl: (input: string, init?: RequestInit) => Promise<Response>,
+  target: string,
+  clientId: string,
+  code: string,
+  redirectUri: string,
+  verifier: string,
+): Promise<TokenResponse> {
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    code,
+    redirect_uri: redirectUri,
+    client_id: clientId,
+    code_verifier: verifier,
+  });
+  const res = await fetchImpl(`${target}/api/auth/mcp/token`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Token exchange failed: HTTP ${res.status} ${await res.text().catch(() => "")}`,
+    );
+  }
+  const data = (await res.json()) as TokenResponse;
+  if (typeof data?.access_token !== "string") {
+    throw new Error("Token endpoint returned no access_token");
+  }
+  return data;
+}
+
+async function fetchUserInfo(
+  fetchImpl: (input: string, init?: RequestInit) => Promise<Response>,
+  target: string,
+  accessToken: string,
+): Promise<UserInfoResponse> {
+  const res = await fetchImpl(`${target}/api/auth/mcp/userinfo`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Userinfo failed: HTTP ${res.status} ${await res.text().catch(() => "")}`,
+    );
+  }
+  const data = (await res.json()) as UserInfoResponse;
+  if (typeof data?.sub !== "string") {
+    throw new Error("Userinfo returned no sub");
+  }
+  return data;
 }
 
 async function defaultOpenBrowser(url: string): Promise<void> {

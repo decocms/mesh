@@ -98,7 +98,7 @@ export function linkCommand(options: LinkOptions): LinkRunResult {
         return;
       }
 
-      const domain = computeAppDomain(session.workspace, appName);
+      const domain = computeAppDomain(session.user.sub, appName);
       const publicUrl = `https://${domain}`;
 
       const spawnImpl: SpawnFn = options.spawn ?? nodeSpawn;
@@ -144,7 +144,7 @@ export function linkCommand(options: LinkOptions): LinkRunResult {
           tunnel = await opener({
             domain,
             localAddr: `http://${host}:${options.port}`,
-            apiKey: session.token,
+            apiKey: session.accessToken,
             server: `wss://${domain}`,
           });
         } catch (err) {
