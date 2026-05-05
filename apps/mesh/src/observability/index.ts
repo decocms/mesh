@@ -30,7 +30,11 @@ import { NDJSONTraceExporter } from "../monitoring/ndjson-trace-exporter";
 import { getLogsDir, getMetricsDir, getTracesDir } from "../monitoring/schema";
 import { getSettings } from "../settings";
 
-import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
+import {
+  BatchLogRecordProcessor,
+  type LogRecordProcessor,
+  type SdkLogRecord,
+} from "@opentelemetry/sdk-logs";
 import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import {
@@ -43,6 +47,35 @@ import {
 const DEBUG_QS = "__d";
 const REQUEST_CONTEXT_KEY = createContextKey("Current request");
 const HEAD_SAMPLER_RATIO = 1.0; // 100% sampling — all errors must reach HyperDX
+
+// Wraps a LogRecordProcessor and samples non-error records at `ratio`.
+// ERROR/FATAL severity always passes through regardless of ratio.
+class SampledLogRecordProcessor implements LogRecordProcessor {
+  constructor(
+    private inner: LogRecordProcessor,
+    private ratio: number,
+  ) {}
+
+  onEmit(
+    record: SdkLogRecord,
+    context?: import("@opentelemetry/api").Context,
+  ): void {
+    const isError =
+      record.severityNumber !== undefined &&
+      record.severityNumber >= SeverityNumber.ERROR;
+    if (isError || Math.random() < this.ratio) {
+      this.inner.onEmit(record, context);
+    }
+  }
+
+  forceFlush(): Promise<void> {
+    return this.inner.forceFlush();
+  }
+
+  shutdown(): Promise<void> {
+    return this.inner.shutdown();
+  }
+}
 
 // Sampler types - inline to avoid module resolution issues
 interface Sampler {
@@ -274,7 +307,14 @@ export function initObservability(): void {
     ],
     logRecordProcessors: [
       ...(_settings.clickhouseUrl
-        ? [new BatchLogRecordProcessor(new OTLPLogExporter())]
+        ? (() => {
+            const isProd =
+              (process.env.STUDIO_ENV ?? process.env.NODE_ENV) === "prod" ||
+              process.env.NODE_ENV === "production";
+            const logSampleRatio = isProd ? 1.0 : 0.1;
+            const batch = new BatchLogRecordProcessor(new OTLPLogExporter());
+            return [new SampledLogRecordProcessor(batch, logSampleRatio)];
+          })()
         : []),
       ...(monitoringLogExporter
         ? [
