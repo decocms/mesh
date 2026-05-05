@@ -208,7 +208,6 @@ function defaultEnsureSession(dataDir: string): () => Promise<Session | null> {
 }
 
 const defaultTunnelOpener: TunnelOpener = async (params) => {
-  // @ts-expect-error — @deco-cx/warp-node has no types
   const { connect } = await import("@deco-cx/warp-node");
   const tunnel = await connect({
     domain: params.domain,
@@ -218,11 +217,12 @@ const defaultTunnelOpener: TunnelOpener = async (params) => {
   });
   await tunnel.registered;
   return {
-    closed: tunnel.closed,
+    // Connected.closed resolves with Error | undefined; we discard the value
+    // to satisfy TunnelHandle.closed: Promise<void>.
+    closed: tunnel.closed.then(() => undefined),
     close: () => {
-      try {
-        tunnel.close?.();
-      } catch {}
+      // @deco-cx/warp-node Connected has no close() method; the connection
+      // closes on its own when the server drops it.
     },
   };
 };
