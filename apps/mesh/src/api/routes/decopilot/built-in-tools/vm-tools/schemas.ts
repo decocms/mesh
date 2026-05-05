@@ -167,8 +167,6 @@ export function buildBashDescription(hasGithubRepo: boolean): string {
   );
 }
 
-export const BASH_DESCRIPTION = buildBashDescription(true);
-
 export const COPY_TO_SANDBOX_DESCRIPTION =
   "Copy a chat-attached or org-storage file into the sandbox filesystem " +
   "at `target`. Use this BEFORE running format-specific skills " +
