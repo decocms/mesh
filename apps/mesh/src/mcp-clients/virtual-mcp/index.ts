@@ -69,7 +69,7 @@ export async function createVirtualClientFrom(
   _strategy: "passthrough",
   superUser = false,
   options?: { listTimeoutMs?: number },
-): Promise<Client> {
+): Promise<PassthroughClient> {
   // Inclusion mode: use only the connections specified in virtual MCP
   const connectionIds = virtualMcp.connections.map((c) => c.connection_id);
 
