@@ -230,4 +230,65 @@ describe("linkCommand", () => {
     expect(envSeen?.BASE_URL).toBeUndefined();
     await result.cancel();
   });
+
+  it("stops reconnecting when the spawned child exits", async () => {
+    cwdDir = await makeProject("my-app");
+    await writeSession(dir, {
+      target: "https://studio.decocms.com",
+      workspace: "ws",
+      user: { id: "u", email: "u@x" },
+      token: "tok",
+      createdAt: "2026-05-04T00:00:00.000Z",
+    });
+
+    const childExitHandlers: Array<(code: number | null) => void> = [];
+    const childSpawn: SpawnFn = mock(() => {
+      const fakeChild = {
+        on: (event: string, handler: (code: number | null) => void) => {
+          if (event === "exit") childExitHandlers.push(handler);
+        },
+        kill: () => {},
+        exitCode: null,
+      };
+      return fakeChild as unknown as import("node:child_process").ChildProcess;
+    });
+
+    let openCount = 0;
+    const tunnelOpener: TunnelOpener = mock(async () => {
+      openCount += 1;
+      let resolveClosed!: () => void;
+      const closed = new Promise<void>((r) => {
+        resolveClosed = r;
+      });
+      return { closed, close: () => resolveClosed() };
+    });
+
+    const result = linkCommand({
+      cwd: cwdDir,
+      dataDir: dir,
+      port: 8787,
+      env: "BASE_URL",
+      runCommand: ["node", "server.js"],
+      tunnelOpener,
+      portWaiter: async () => "127.0.0.1",
+      copyClipboard: async () => false,
+      ensureSession: async () => null,
+      spawn: childSpawn,
+      reconnectDelayMs: 5,
+    });
+
+    // Wait for the first tunnel to open.
+    await new Promise((r) => setTimeout(r, 30));
+    expect(openCount).toBe(1);
+    expect(childExitHandlers.length).toBe(1);
+
+    // Simulate child crash.
+    childExitHandlers[0]?.(42);
+
+    // The tunnel should close, the reconnect loop should NOT iterate again,
+    // and the exit code should be the child's exit code.
+    expect(await result.exit).toBe(42);
+    // Confirm we did not re-open after the child died.
+    expect(openCount).toBe(1);
+  });
 });

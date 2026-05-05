@@ -10,6 +10,8 @@ import { loginCommand } from "./auth/login";
 export interface TunnelHandle {
   closed: Promise<void>;
   close: () => void;
+  // TODO: surface auth failure separately so the caller can show the
+  // "session may be expired" hint described in the spec.
 }
 
 export type TunnelOpener = (params: {
@@ -115,7 +117,12 @@ export function linkCommand(options: LinkOptions): LinkRunResult {
         });
         child = spawned;
         spawned.on("exit", (code) => {
-          if (!cancelled) resolveExit(code ?? 0);
+          if (cancelled) return;
+          cancelled = true;
+          try {
+            tunnel?.close();
+          } catch {}
+          resolveExit(code ?? 0);
         });
       } else {
         console.log(
