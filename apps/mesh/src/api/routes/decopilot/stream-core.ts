@@ -844,17 +844,6 @@ async function streamCoreInner(
           },
         });
 
-        const requestDebug = {
-          threadId: mem.thread.id,
-          system: systemPrompts.map((p) => ({
-            chars: p.length,
-            preview: p.slice(0, 80).replace(/\s+/g, " "),
-          })),
-          tools: Object.keys(tools).length,
-          activeStep0: builtInToolNames.length + 1 + enabledTools.size,
-        };
-        console.log("[decopilot:turn]", JSON.stringify(requestDebug));
-
         let result;
         try {
           result = streamText({
