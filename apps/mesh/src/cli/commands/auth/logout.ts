@@ -3,7 +3,7 @@ import { clearSession, readSession } from "../../lib/session";
 export interface LogoutOptions {
   dataDir: string;
   /** Injectable for tests. */
-  fetch?: typeof fetch;
+  fetch?: (input: string, init?: RequestInit) => Promise<Response>;
 }
 
 export async function logoutCommand(options: LogoutOptions): Promise<number> {

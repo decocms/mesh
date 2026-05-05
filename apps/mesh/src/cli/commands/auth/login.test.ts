@@ -15,14 +15,17 @@ import { loginCommand } from "./login";
 
 let dir: string;
 let logSpy: ReturnType<typeof spyOn>;
+let errSpy: ReturnType<typeof spyOn>;
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "deco-login-"));
   logSpy = spyOn(console, "log").mockImplementation(() => {});
+  errSpy = spyOn(console, "error").mockImplementation(() => {});
 });
 
 afterEach(async () => {
   logSpy.mockRestore();
+  errSpy.mockRestore();
   await rm(dir, { recursive: true, force: true });
 });
 
@@ -107,6 +110,31 @@ describe("loginCommand", () => {
       await fetch(`${callback}?code=c&state=${state}`);
     });
     const fetchMock = mock(async () => new Response("nope", { status: 401 }));
+    const code = await loginCommand({
+      dataDir: dir,
+      target: "https://studio.decocms.com",
+      openBrowser,
+      fetch: fetchMock,
+    });
+    expect(code).not.toBe(0);
+    expect(await readSession(dir)).toBeNull();
+  });
+
+  it("returns non-zero and writes no session when exchange returns incomplete data", async () => {
+    const openBrowser = mock(async (url: string) => {
+      const parsed = new URL(url);
+      const callback = parsed.searchParams.get("callback")!;
+      const state = parsed.searchParams.get("state")!;
+      await new Promise((r) => setTimeout(r, 10));
+      await fetch(`${callback}?code=c&state=${state}`);
+    });
+    const fetchMock = mock(
+      async () =>
+        new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    );
     const code = await loginCommand({
       dataDir: dir,
       target: "https://studio.decocms.com",

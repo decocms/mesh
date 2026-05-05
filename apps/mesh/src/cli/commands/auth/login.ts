@@ -9,7 +9,7 @@ export interface LoginOptions {
   /** Injectable for tests. Defaults to opening the user's default browser. */
   openBrowser?: (url: string) => Promise<void>;
   /** Injectable for tests. */
-  fetch?: typeof fetch;
+  fetch?: (input: string, init?: RequestInit) => Promise<Response>;
 }
 
 export const DEFAULT_TARGET = "https://studio.decocms.com";
@@ -45,6 +45,18 @@ export async function loginCommand(options: LoginOptions): Promise<number> {
       workspace: string;
       user: { id: string; email: string };
     };
+
+    if (
+      typeof data?.token !== "string" ||
+      typeof data?.workspace !== "string" ||
+      typeof data?.user?.id !== "string" ||
+      typeof data?.user?.email !== "string"
+    ) {
+      console.error(
+        "Token exchange failed: server returned incomplete response",
+      );
+      return 1;
+    }
 
     const session: Session = {
       target,
