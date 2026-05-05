@@ -6,6 +6,10 @@ import { createHash } from "node:crypto";
  * getAppUUID so existing tunnel subdomains remain valid.
  *
  * (Yes, the legacy function was named md5Hash but used sha1.)
+ *
+ * The hyphen separator is intentional legacy behavior — the hash collides
+ * for inputs like ("a-b", "c") and ("a", "b-c"). Do not change the
+ * separator; doing so would invalidate existing tunnel registrations.
  */
 export function computeAppHash(workspace: string, app: string): string {
   return createHash("sha1")
