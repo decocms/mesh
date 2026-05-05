@@ -22,7 +22,9 @@ import {
   createUIMessageStream,
   stepCountIs,
   streamText,
+  tool,
 } from "ai";
+import { z } from "zod";
 import { getBuiltInTools, type PendingImage } from "./built-in-tools";
 import { createEnableToolsTool } from "./built-in-tools/enable-tools";
 import {
@@ -461,11 +463,16 @@ async function streamCoreInner(
       execute: async ({ writer }) => {
         const modeConfig = resolveModeConfig(input.mode, { isCliAgent });
 
+        // superUser=true: the user is already authenticated as an org member,
+        // the virtual MCP enforces which connections are in scope, and the
+        // per-tool AuthTransport check would block every non-public connection
+        // tool (GitHub, Slack, etc.) for users who don't have explicit per-tool
+        // permissions configured — the wrong enforcement layer for chat.
         const passthroughClient = await createVirtualClientFrom(
           virtualMcp,
           ctx,
           "passthrough",
-          false,
+          true,
           { listTimeoutMs: 1_000 },
         );
 
@@ -564,14 +571,29 @@ async function streamCoreInner(
           }
         }
 
+        // Build connection title map once — used by catalog, list_connection_tools, and enable_tools.
+        const connectionTitleMap = isCliAgent
+          ? new Map<string, string>()
+          : passthroughClient.getConnectionTitleMap();
+
+        // Declared before tools so enable_tools can close over it.
+        // Populated after buildToolCatalog runs below (before streamText starts).
+        const connectionToolsMap = new Map<string, string[]>();
+
         const tools = isCliAgent
           ? {}
           : {
               ...passthroughTools,
               ...builtInTools,
+              list_connection_tools: createListConnectionToolsTool(
+                passthroughClient,
+                passthroughNameMap,
+                connectionTitleMap,
+              ),
               enable_tools: createEnableToolsTool(
                 enabledTools,
                 passthroughToolNames,
+                connectionToolsMap,
                 {
                   isPlanMode: modeConfig.isPlanMode,
                   toolAnnotations,
@@ -582,10 +604,21 @@ async function streamCoreInner(
         // Build composable system prompt array
         const basePrompt = buildBasePlatformPrompt();
 
-        const [toolCatalog, promptCatalog] = await Promise.all([
-          buildToolCatalog(passthroughClient, enabledTools, passthroughNameMap),
+        const [catalogResult, promptCatalog] = await Promise.all([
+          buildToolCatalog(
+            passthroughClient,
+            enabledTools,
+            passthroughNameMap,
+            connectionTitleMap,
+          ),
           buildPromptCatalog(passthroughClient),
         ]);
+
+        // Populate connectionToolsMap in-place so enable_tools closure sees it
+        for (const [k, v] of catalogResult.connectionToolsMap.entries()) {
+          connectionToolsMap.set(k, v);
+        }
+        const toolCatalog = catalogResult.catalog;
 
         // Agent prompt: decopilot-specific or custom agent instructions
         const serverInstructions = passthroughClient.getInstructions();
@@ -603,6 +636,19 @@ async function streamCoreInner(
         const repoEnvironmentPrompt = vmMetadata?.githubRepo
           ? buildRepoEnvironmentPrompt(vmMetadata.githubRepo)
           : null;
+
+        // Step-0 system prompt: includes the tool catalog for initial discovery.
+        // The catalog is built once before streamText runs — it's already stale by step 1
+        // (doesn't reflect tools the model enables mid-turn), so subsequent steps use
+        // systemPromptsBase which omits it to keep context lean.
+        const systemPromptsBase = [
+          basePrompt,
+          planModePrompt,
+          webSearchPrompt,
+          repoEnvironmentPrompt,
+          promptCatalog,
+          agentPrompt,
+        ].filter((s): s is string => Boolean(s?.trim()));
 
         const systemPrompts = [
           basePrompt,
@@ -880,6 +926,7 @@ async function streamCoreInner(
 
                       let activeToolNames = [
                         ...builtInToolNames,
+                        "list_connection_tools",
                         "enable_tools",
                         ...enabledTools,
                       ];
@@ -891,7 +938,8 @@ async function streamCoreInner(
                           // Built-in tools and enable_tools are always allowed
                           if (
                             builtInToolNames.includes(name) ||
-                            name === "enable_tools"
+                            name === "enable_tools" ||
+                            name === "list_connection_tools"
                           ) {
                             return true;
                           }
@@ -916,6 +964,18 @@ async function streamCoreInner(
                             type: "tool" as const,
                             toolName: forcedToolName as never,
                           },
+                        }),
+                        // From step 1 onwards, drop the tool catalog from the system
+                        // prompt. The catalog is already in the model's context from
+                        // step 0, and is stale (built before this turn started).
+                        ...(!isFirstStep && {
+                          system: [
+                            ...systemPromptsBase.map((content) => ({
+                              role: "system" as const,
+                              content,
+                            })),
+                            ...processedSystemMessages,
+                          ],
                         }),
                       };
                     };
@@ -1070,6 +1130,14 @@ async function streamCoreInner(
                   },
                 },
                 created_at: new Date(),
+                _request: {
+                  systemSections: systemPrompts.map((p) => ({
+                    chars: p.length,
+                    preview: p.slice(0, 80).replace(/\s+/g, " "),
+                  })),
+                  tools: Object.keys(tools).length,
+                  activeTools: builtInToolNames.length + 1 + enabledTools.size,
+                },
                 thread_id: mem.thread.id,
               };
             }
@@ -1370,7 +1438,12 @@ function reconstructEnabledTools(
         const result = part.result as { enabled?: string[] };
         if (Array.isArray(result.enabled)) {
           for (const name of result.enabled) {
-            if (availableToolNames.has(name)) {
+            // Normalize stored names: old threads may have hyphenated names
+            // (e.g. conn-togsm0..._tool) while current safe names use underscores.
+            const normalized = name.replace(/[^a-zA-Z0-9_]/g, "_");
+            if (availableToolNames.has(normalized)) {
+              enabled.add(normalized);
+            } else if (availableToolNames.has(name)) {
               enabled.add(name);
             }
           }
@@ -1381,23 +1454,14 @@ function reconstructEnabledTools(
   return enabled;
 }
 
-const REDUNDANT_PREFIXES =
-  /^(this tool |use this to |allows you to |a tool that |a tool to |tool to |tool that )/i;
-
-function trimToolDescription(desc: string, maxLen = 80): string {
-  let trimmed = desc.replace(REDUNDANT_PREFIXES, "").trim();
-  if (trimmed.length > 0) {
-    trimmed = trimmed[0]!.toUpperCase() + trimmed.slice(1);
-  }
-  if (trimmed.length > maxLen) {
-    return trimmed.slice(0, maxLen - 1) + "…";
-  }
-  return trimmed;
-}
+const CATALOG_PREVIEW_COUNT = 5;
 
 /**
- * Build a compact tool catalog for the system prompt, grouped by connection.
- * Format: <available-connections><connection name="..." id="...">TOOL|desc</connection></available-connections>
+ * Build a compact connection-level catalog for the system prompt.
+ * Shows each connection's name, id, tool count, and up to 5 representative
+ * tool names so the model can route to the right connection without needing
+ * a list_connection_tools round trip.
+ * Also returns connectionToolsMap for enable_tools({ connections }) expansion.
  */
 async function buildToolCatalog(
   client: {
@@ -1411,41 +1475,147 @@ async function buildToolCatalog(
   },
   enabledTools: Set<string>,
   nameMap: Map<string, string>,
-): Promise<string | null> {
+  connectionTitleMap: Map<string, string>,
+): Promise<{
+  catalog: string | null;
+  connectionToolsMap: Map<string, string[]>;
+}> {
   const { tools } = await client.listTools();
 
   const connections = new Map<
     string,
-    { name: string; id: string; lines: string[] }
+    { name: string; totalCount: number; preview: string[] }
   >();
+  const connectionToolsMap = new Map<string, string[]>();
 
   for (const t of tools) {
     const safeName = nameMap.get(t.name);
-    if (!safeName || enabledTools.has(safeName)) continue;
+    if (!safeName) continue;
     if (!isToolVisibleToModel(t)) continue;
 
-    const connId = (t._meta?.connectionId as string) ?? "unknown";
-    const connName = connId;
-    const desc = trimToolDescription(t.description ?? "");
+    const connId = (t._meta?.gatewayClientId as string) ?? "unknown";
+    const prefix = `${connId}_`;
+    const shortName = safeName.startsWith(prefix)
+      ? safeName.slice(prefix.length)
+      : safeName;
+
+    // Track all tools per connection for enable_tools expansion
+    let toolList = connectionToolsMap.get(connId);
+    if (!toolList) {
+      toolList = [];
+      connectionToolsMap.set(connId, toolList);
+    }
+    toolList.push(safeName);
+
+    // Only include in catalog if not already enabled
+    if (enabledTools.has(safeName)) continue;
 
     let group = connections.get(connId);
     if (!group) {
-      group = { name: connName, id: connId, lines: [] };
+      group = {
+        name: connectionTitleMap.get(connId) ?? connId,
+        totalCount: 0,
+        preview: [],
+      };
       connections.set(connId, group);
     }
-    group.lines.push(`${safeName}|${desc}`);
+    group.totalCount++;
+    if (group.preview.length < CATALOG_PREVIEW_COUNT) {
+      group.preview.push(shortName);
+    }
   }
 
-  if (connections.size === 0) return null;
+  const pending = [...connections.entries()].filter(
+    ([, g]) => g.totalCount > 0,
+  );
+  if (pending.length === 0) return { catalog: null, connectionToolsMap };
 
-  const sections: string[] = [];
-  for (const { name, id, lines } of connections.values()) {
-    sections.push(
-      `<connection name="${escapeXmlAttr(name)}" id="${escapeXmlAttr(id)}">\n${lines.join("\n")}\n</connection>`,
-    );
-  }
+  const lines = pending.map(([id, { name, totalCount, preview }]) => {
+    const more = totalCount - preview.length;
+    const hint = preview.join(", ") + (more > 0 ? `, +${more} more` : "");
+    return `<connection name="${escapeXmlAttr(name)}" id="${escapeXmlAttr(id)}" tools="${totalCount}">${escapeXmlAttr(hint)}</connection>`;
+  });
 
-  return `\n\n<available-connections>\n${sections.join("\n")}\n</available-connections>`;
+  return {
+    catalog: `\n\n<available-connections>\n${lines.join("\n")}\n</available-connections>`,
+    connectionToolsMap,
+  };
+}
+
+/**
+ * Creates the list_connection_tools built-in tool.
+ * Returns tool names and descriptions for a given connection ID so the model
+ * can discover what's available before deciding what to enable.
+ */
+function createListConnectionToolsTool(
+  client: {
+    listTools(): Promise<{
+      tools: Array<{
+        name: string;
+        description?: string;
+        _meta?: Record<string, unknown>;
+      }>;
+    }>;
+  },
+  nameMap: Map<string, string>,
+  connectionTitleMap: Map<string, string>,
+) {
+  return tool({
+    description:
+      "List the tools available in a specific connection, including their names and descriptions. " +
+      "Call this to discover what a connection can do before enabling tools with enable_tools.",
+    inputSchema: z.object({
+      connection_id: z
+        .string()
+        .describe("The connection id from <available-connections>"),
+    }),
+    execute: async ({ connection_id }) => {
+      const { tools } = await client.listTools();
+      const result: { name: string; safe_name: string; description: string }[] =
+        [];
+      // The model may pass a normalized (underscore) version of the connection
+      // id, but _meta.gatewayClientId still has the original (hyphenated) form.
+      // Build a lookup that matches either form.
+      const normalizedInput = connection_id
+        .replace(/[^a-zA-Z0-9_]/g, "_")
+        .toLowerCase();
+      for (const t of tools) {
+        const safeName = nameMap.get(t.name);
+        if (!safeName) continue;
+        if (!isToolVisibleToModel(t)) continue;
+        const connId = (t._meta?.gatewayClientId as string) ?? "unknown";
+        const normalizedConnId = connId
+          .replace(/[^a-zA-Z0-9_]/g, "_")
+          .toLowerCase();
+        if (normalizedConnId !== normalizedInput && connId !== connection_id) {
+          continue;
+        }
+        // Use the safe name's prefix to derive the short name
+        const safePrefix = `${normalizedConnId}_`;
+        const shortName = safeName.toLowerCase().startsWith(safePrefix)
+          ? safeName.slice(safePrefix.length)
+          : safeName;
+        result.push({
+          name: shortName,
+          safe_name: safeName,
+          description: t.description ?? "",
+        });
+      }
+      // Resolve connection name: try original id first, then normalized lookup
+      const connName =
+        connectionTitleMap.get(connection_id) ??
+        [...connectionTitleMap.entries()].find(
+          ([id]) =>
+            id.replace(/[^a-zA-Z0-9_]/g, "_").toLowerCase() === normalizedInput,
+        )?.[1] ??
+        connection_id;
+      return {
+        connection: connName,
+        connection_id,
+        tools: result,
+      };
+    },
+  });
 }
 
 function escapeXmlAttr(s: string): string {
