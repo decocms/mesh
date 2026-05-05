@@ -284,38 +284,12 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     }
   };
 
-  // Well-known starters (dev/start) are owned by the daemon's ApplicationService,
-  // not JobManager — toggling them goes through application.intent so the
-  // orchestrator handles start/stop and failure-stickiness consistently.
-  const setIntent = async (intent: "running" | "paused") => {
-    if (execInFlight || !vmData || !virtualMcpId || !currentBranch) return;
-    setExecInFlight(true);
-    try {
-      const qs = new URLSearchParams({
-        virtualMcpId,
-        branch: currentBranch,
-      }).toString();
-      const res = await fetch(`/api/vm-config?${qs}`, {
-        method: "PUT",
-        headers: { "content-type": "application/json", "x-org-id": org.id },
-        body: JSON.stringify({ application: { intent } }),
-      });
-      if (!res.ok) throw new Error(`Intent update failed: ${res.statusText}`);
-    } finally {
-      setExecInFlight(false);
-    }
-  };
-
   const handleAddScript = (scriptName: string) => {
     if (!openScriptTabs.includes(scriptName)) {
       setOpenScriptTabs((prev) => [...prev, scriptName]);
     }
     setActiveTab(scriptName);
-    if (WELL_KNOWN_STARTERS.includes(scriptName)) {
-      setIntent("running");
-    } else {
-      handleExec(scriptName);
-    }
+    handleExec(scriptName);
   };
 
   const handleStart = async () => {
@@ -642,10 +616,8 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
                   ? appActive
                   : vmEvents.activeProcesses.includes(activeTab) &&
                     !killedProcesses.has(activeTab);
-                const onRun = () =>
-                  isStarter ? setIntent("running") : handleExec(activeTab);
-                const onStop = () =>
-                  isStarter ? setIntent("paused") : handleKill(activeTab);
+                const onRun = () => handleExec(activeTab);
+                const onStop = () => handleKill(activeTab);
                 return (
                   <div className="flex items-center">
                     <button
@@ -721,11 +693,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
                       variant="outline"
                       size="sm"
                       disabled={execInFlight}
-                      onClick={() =>
-                        WELL_KNOWN_STARTERS.includes(tab)
-                          ? setIntent("running")
-                          : handleExec(tab)
-                      }
+                      onClick={() => handleExec(tab)}
                     >
                       {execInFlight ? (
                         <Loading01 size={14} className="animate-spin" />

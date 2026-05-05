@@ -10,7 +10,11 @@ import { Broadcaster } from "./events/broadcast";
 import { BranchStatusMonitor } from "./git/branch-status";
 import { gitSync } from "./git/git-sync";
 import { InstallState } from "./install/install-state";
-import { CONFIG_FILENAME, readConfig } from "./persistence";
+import {
+  CONFIG_FILENAME,
+  CONFIG_TMP_FILENAME,
+  readConfig,
+} from "./persistence";
 import { discoverDescendantListeningPorts } from "./process/port-discovery";
 import { TaskManager } from "./process/task-manager";
 import { PhaseManager } from "./process/phase-manager";
@@ -62,27 +66,26 @@ if (!process.env.DAEMON_BOOT_ID) {
 process.env.COREPACK_ENABLE_STRICT = "0";
 
 const APP_ROOT = process.env.WORKDIR ?? process.env.APP_ROOT ?? "/";
+const resolvedDaemonPort =
+  process.env.DAEMON_PORT ?? process.env.PROXY_PORT ?? "9000";
+process.env.DAEMON_PORT = resolvedDaemonPort;
 const bootConfig = {
   daemonToken: process.env.DAEMON_TOKEN ?? "",
   daemonBootId: process.env.DAEMON_BOOT_ID ?? "",
   appRoot: APP_ROOT,
   repoDir: join(APP_ROOT, "repo"),
-  proxyPort: parseInt(
-    process.env.DAEMON_PORT ?? process.env.PROXY_PORT ?? "9000",
-    10,
-  ),
+  proxyPort: parseInt(resolvedDaemonPort, 10),
 };
 // Ensure repoDir exists so bash commands with the default cwd don't fail with
 // ENOENT when no repo has been cloned yet (tool-only sandboxes, no-repo agents).
 mkdirSync(bootConfig.repoDir, { recursive: true });
-// Workspace layout: <appRoot>/config.json (tenant config), <appRoot>/repo
-// (cloned source), <appRoot>/tmp/{app,taskN} (log tees). Everything inside
-// appRoot is reachable by fs/bash routes (clamped to appRoot via safePath).
-const CONFIG_DIR = process.env.DAEMON_CONFIG_DIR ?? APP_ROOT;
+// Workspace layout: <appRoot>/repo/.decocms/daemon.json (tenant config, git-tracked),
+// <appRoot>/repo (cloned source), <appRoot>/tmp/{app,taskN} (log tees).
+// Everything inside appRoot is reachable by fs/bash routes (clamped to appRoot).
 const TMP_DIR = join(APP_ROOT, "tmp");
 
 const broadcaster = new Broadcaster(REPLAY_BYTES);
-const store = new TenantConfigStore({ storageDir: CONFIG_DIR });
+const store = new TenantConfigStore({ storageDir: bootConfig.repoDir });
 const installState = new InstallState();
 const phaseManager = new PhaseManager({
   onChange: (phases) =>
@@ -153,8 +156,40 @@ broadcaster.broadcastEvent = (event: string, data: unknown) => {
   origEvent(event, data);
 };
 
+// Debounced git sync: 2 s after the last config change, commit + push
+// daemon.json to the current branch. Best-effort — never throws.
+let _syncTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleSyncCommit(): void {
+  if (_syncTimer) clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(() => {
+    _syncTimer = null;
+    try {
+      gitSync(["-c", "safe.directory=*", "add", CONFIG_FILENAME], {
+        cwd: bootConfig.repoDir,
+      });
+      gitSync(
+        [
+          "-c",
+          "safe.directory=*",
+          "commit",
+          "--allow-empty",
+          "-m",
+          "[daemon] sync config",
+        ],
+        { cwd: bootConfig.repoDir },
+      );
+      gitSync(["-c", "safe.directory=*", "push"], { cwd: bootConfig.repoDir });
+    } catch {
+      /* git may not be ready yet (pre-clone) — ignore */
+    }
+  }, 2000);
+}
+
 store.subscribe((event) => {
   orchestrator.handle(event.transition);
+  if (event.transition.kind !== "no-op") {
+    scheduleSyncCommit();
+  }
 });
 
 const excludeFromDiscovery = new Set<number>([bootConfig.proxyPort]);
@@ -285,13 +320,14 @@ const configUpdateH = makeConfigUpdateHandler({
   store,
   setDaemonToken: (next) => {
     bootConfig.daemonToken = next;
+    process.env.DAEMON_TOKEN = next;
   },
 });
 
 function hydrate(): void {
   let envTenant: TenantConfig | null = null;
 
-  const diskOutcome = readConfig(CONFIG_DIR);
+  const diskOutcome = readConfig(bootConfig.repoDir);
   let initial: TenantConfig | null = null;
   if (diskOutcome.kind === "valid") {
     initial = diskOutcome.config;
@@ -443,10 +479,10 @@ process.on("SIGTERM", () => {
     }
   }
   try {
-    if (existsSync(join(CONFIG_DIR, CONFIG_FILENAME))) {
-      // Leave config.json in place — it's the persistent record. Just exit.
+    if (existsSync(join(bootConfig.repoDir, CONFIG_FILENAME))) {
+      // Leave .decocms/daemon.json in place — git-tracked persistent record.
     }
-    unlinkSync(join(CONFIG_DIR, "config.json.tmp"));
+    unlinkSync(join(bootConfig.repoDir, CONFIG_TMP_FILENAME));
   } catch {
     /* ignore */
   }

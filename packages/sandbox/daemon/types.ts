@@ -76,7 +76,7 @@ export interface Application {
 
 /**
  * User-intent state for a sandboxed application. Persisted in
- * `<configDir>/config.json`. Derived fields (e.g. runtime pathPrefix,
+ * `<repoDir>/.decocms/daemon.json` (git-tracked). Derived fields (e.g. runtime pathPrefix,
  * proxy probe state) live in memory and are never persisted.
  */
 export interface TenantConfig {

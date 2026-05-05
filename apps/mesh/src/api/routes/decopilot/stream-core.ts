@@ -537,6 +537,7 @@ async function streamCoreInner(
               // model-outputs/<threadId>/. Cannot be derived from the
               // sandbox row since one ephemeral sandbox serves many threads.
               threadId: mem.thread.id,
+              hasGithubRepo: !isEphemeralAgent,
             }
           : null;
 

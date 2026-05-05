@@ -1,5 +1,6 @@
 import { existsSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
+import { CONFIG_FILENAME, readConfig } from "../persistence";
 import type { ApplicationService } from "../app/application-service";
 import type { TenantConfigStore } from "../config-store";
 import type { Transition } from "../config-store/types";
@@ -242,7 +243,11 @@ export class SetupOrchestrator {
     await this.gitSetup(config);
     this.deps.branchStatus.markReady();
 
-    if (config.application?.intent === "running") {
+    // On resume (container restart), absent intent means the server was
+    // running before the crash — default to starting it again. Only an
+    // explicit "paused" suppresses startup.
+    const shouldStart = config.application?.intent !== "paused";
+    if (shouldStart && config.application?.packageManager?.name) {
       if (
         !this.deps.installState.isInstalledFor(config, this.currentBranchHead)
       ) {
@@ -492,6 +497,16 @@ export class SetupOrchestrator {
   private async checkoutBranch(branch: string): Promise<void> {
     const repoDir = this.deps.bootConfig.repoDir;
     if (!repoDir) return;
+
+    // Remove daemon.json before checkout so git doesn't abort with
+    // "untracked working tree files would be overwritten by checkout".
+    // The checkout itself will write the branch's committed version (if any).
+    try {
+      unlinkSync(join(repoDir, CONFIG_FILENAME));
+    } catch {
+      /* file absent — nothing to remove */
+    }
+
     let onRemote = false;
     try {
       gitSync(
@@ -514,14 +529,23 @@ export class SetupOrchestrator {
     }
     if (onRemote) {
       gitSync(["-c", "safe.directory=*", "checkout", branch], { cwd: repoDir });
-      return;
+    } else {
+      try {
+        gitSync(["-c", "safe.directory=*", "checkout", branch], {
+          cwd: repoDir,
+        });
+      } catch {
+        gitSync(["-c", "safe.directory=*", "checkout", "-b", branch], {
+          cwd: repoDir,
+        });
+      }
     }
-    try {
-      gitSync(["-c", "safe.directory=*", "checkout", branch], { cwd: repoDir });
-    } catch {
-      gitSync(["-c", "safe.directory=*", "checkout", "-b", branch], {
-        cwd: repoDir,
-      });
+
+    // Re-apply the config that the new branch committed (if any).
+    // This lets branch-specific daemon.json drive pm-change, intent-change, etc.
+    const outcome = readConfig(repoDir);
+    if (outcome.kind === "valid") {
+      await this.deps.store.apply(outcome.config);
     }
   }
 }

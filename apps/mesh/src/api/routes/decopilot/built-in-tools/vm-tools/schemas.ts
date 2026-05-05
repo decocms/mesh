@@ -145,17 +145,27 @@ export const GLOB_DESCRIPTION =
   "Find files by name pattern in the VM's project directory. " +
   "Uses ripgrep for gitignore-aware matching. Returns relative file paths.";
 
-export const BASH_DESCRIPTION =
-  "Execute a shell command in the VM's project directory. " +
-  "Working directory is the project root. Timeout default 30s, max 2min.\n\n" +
-  "Pre-installed skills live at `/mnt/skills/public/<name>/SKILL.md`. " +
-  "Run `ls /mnt/skills/public/` for the index and " +
-  "`cat /mnt/skills/public/<name>/SKILL.md` before using one. " +
-  "Skills cover common file operations: pptx (PowerPoint), docx (Word), " +
-  "xlsx (Excel), pdf, file-reading (router).\n\n" +
-  "To bring chat attachments / presigned URLs into the sandbox FS use " +
-  "`copy_to_sandbox` (NOT bash + curl). To deliver a file you produced " +
-  "back to the user as a download chip, use `share_with_user`.";
+const SANDBOX_CLI_SECTION =
+  "Sandbox control — use the `sandbox` CLI (always available):\n" +
+  "  sandbox app start|stop|status\n" +
+  "  sandbox config show\n" +
+  "  sandbox config update --pm pnpm --path apps/web --runtime node --port 3000\n\n";
+
+export function buildBashDescription(hasGithubRepo: boolean): string {
+  return (
+    "Execute a shell command in the VM's project directory. " +
+    "Working directory is the project root. Timeout default 30s, max 2min.\n\n" +
+    (hasGithubRepo ? SANDBOX_CLI_SECTION : "") +
+    "Pre-installed skills live at `/mnt/skills/public/<name>/SKILL.md`. " +
+    "Run `ls /mnt/skills/public/` for the index and " +
+    "`cat /mnt/skills/public/<name>/SKILL.md` before using one. " +
+    "Skills cover common file operations: pptx (PowerPoint), docx (Word), " +
+    "xlsx (Excel), pdf, file-reading (router).\n\n" +
+    "To bring chat attachments / presigned URLs into the sandbox FS use " +
+    "`copy_to_sandbox` (NOT bash + curl). To deliver a file you produced " +
+    "back to the user as a download chip, use `share_with_user`."
+  );
+}
 
 export const COPY_TO_SANDBOX_DESCRIPTION =
   "Copy a chat-attached or org-storage file into the sandbox filesystem " +

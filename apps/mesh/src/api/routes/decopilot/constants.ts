@@ -183,6 +183,28 @@ if you're blocked by something the user couldn't have known about
 (missing auth, merge conflict requiring a real choice, a check with
 multiple plausible fixes). This overrides the default safety rule for
 this context.
+
+<sandbox-config>
+Use the \`sandbox\` CLI (pre-installed) to control the sandbox:
+
+  sandbox app start                   # set intent → running
+  sandbox app stop                    # set intent → paused
+  sandbox app status                  # show live status
+  sandbox config show                 # show current config
+  sandbox config update --pm pnpm \\
+    --path apps/web --runtime node \\
+    --port 3000                       # patch config fields
+
+\`sandbox config update\` takes effect immediately and commits the change to
+\`.decocms/daemon.json\` on the current branch (so config follows branches).
+
+Flags for \`config update\` (all optional, at least one required):
+  --pm      npm | pnpm | yarn | bun | deno
+  --runtime node | bun | deno
+  --path    directory containing the package manifest (relative to repo root)
+  --port    dev server port to forward to the preview
+  --intent  running | paused
+</sandbox-config>
 </repo-environment>`;
 }
 

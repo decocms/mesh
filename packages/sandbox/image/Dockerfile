@@ -72,13 +72,17 @@ RUN apt-get update \
   && apt-get purge -y --auto-remove build-essential
 
 COPY --chown=sandbox:sandbox daemon/dist/daemon.js /opt/sandbox-daemon/daemon.js
+COPY --chown=sandbox:sandbox cli/dist/sandbox.js /opt/sandbox-daemon/sandbox.js
 COPY --chown=sandbox:sandbox image/skills /mnt/skills/public
 
 # Expose skill helper scripts as bare commands. Wrappers in skills/_bin/
 # are tiny shell shims; symlinking them into /usr/local/bin lets the model
 # run e.g. `pptx-thumbnail deck.pptx` instead of typing the full python path.
 RUN chmod +x /mnt/skills/public/_bin/* \
-  && ln -s /mnt/skills/public/_bin/* /usr/local/bin/
+  && ln -s /mnt/skills/public/_bin/* /usr/local/bin/ \
+  && printf '#!/bin/sh\nexec bun /opt/sandbox-daemon/sandbox.js "$@"\n' \
+       > /usr/local/bin/sandbox \
+  && chmod +x /usr/local/bin/sandbox
 
 ENV IS_SANDBOX=1
 USER sandbox

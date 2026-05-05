@@ -88,6 +88,10 @@ export class AccessControl implements Disposable {
     this.organizationId = organizationId;
   }
 
+  getOrganizationId(): string | undefined {
+    return this.organizationId;
+  }
+
   /**
    * Set the user's role within the path-resolved organization.
    * Without this, `checkResource` would use the role baked in at construction
@@ -97,6 +101,10 @@ export class AccessControl implements Disposable {
    */
   setRole(role: string | undefined): void {
     this.role = role;
+  }
+
+  getRole(): string | undefined {
+    return this.role;
   }
 
   /**
