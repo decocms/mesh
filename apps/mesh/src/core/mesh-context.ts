@@ -206,6 +206,14 @@ export interface OrganizationScope {
   id: string;
   slug?: string;
   name?: string;
+  /**
+   * Caller's role within this organization (e.g. "owner", "admin", "member").
+   * Set by `resolveOrgFromPath` when the org is resolved from the URL slug,
+   * so downstream code (notably AuthTransport, which constructs a fresh
+   * AccessControl per proxied tool call) can use the path-resolved role
+   * instead of the session's active-org role — they may differ.
+   */
+  role?: string;
 }
 
 // ============================================================================
