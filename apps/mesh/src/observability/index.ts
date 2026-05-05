@@ -335,8 +335,8 @@ export function initObservability(): void {
   // The module-level `meter` and `tracer` were evaluated before sdk.start()
   // and point to NoopMeter/NoopTracer. Reassigning ensures all callers that
   // import these get working instruments.
-  meter = metrics.getMeter("mesh", "1.0.0");
-  tracer = trace.getTracer("mesh", "1.0.0");
+  meter = metrics.getMeter("studio", "1.0.0");
+  tracer = trace.getTracer("studio", "1.0.0");
 
   // Enable custom Bun fetch instrumentation (must be after SDK start)
   // This wraps global fetch with tracing since Bun's fetch doesn't use undici
@@ -348,7 +348,7 @@ export function initObservability(): void {
 /**
  * Get tracer instance
  */
-export let tracer = trace.getTracer("mesh", "1.0.0");
+export let tracer = trace.getTracer("studio", "1.0.0");
 
 /**
  * Get meter instance.
@@ -357,12 +357,12 @@ export let tracer = trace.getTracer("mesh", "1.0.0");
  * The module-level call returns a NoopMeter when evaluated before the SDK
  * starts; the reassignment ensures all subsequent callers get a real meter.
  */
-export let meter = metrics.getMeter("mesh", "1.0.0");
+export let meter = metrics.getMeter("studio", "1.0.0");
 
 /**
  * Get logger instance
  */
-const logger = logs.getLogger("mesh", "1.0.0");
+const logger = logs.getLogger("studio", "1.0.0");
 
 /**
  * Helper to emit a log record with current trace context
