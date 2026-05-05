@@ -144,6 +144,36 @@ describe("resolveOrgFromPath", () => {
     expect(body.orgSlug).toBe("acme");
   });
 
+  it("exposes the caller's path-resolved role on ctx.organization", async () => {
+    // AuthTransport constructs a fresh AccessControl per proxied tool call
+    // and reads the role from ctx.organization?.role to decide the
+    // admin/owner bypass — without this, owners 403 on every proxied tool
+    // when the session's active org differs from the URL org.
+    const app = new Hono<{ Variables: Variables }>();
+    app.use("*", async (c, next) => {
+      c.set("meshContext", {
+        auth: { user: { id: "user-1" } },
+        db: db.db,
+        baseUrl: "http://test",
+        access: {
+          setOrganizationId: () => {},
+          setRole: () => {},
+        },
+        storage: { threads: { setOrganizationId: () => {} } },
+        objectStorage: null,
+      } as unknown as MeshContext);
+      await next();
+    });
+    app.use("/api/:org/*", resolveOrgFromPath);
+    app.get("/api/:org/role", (c) => {
+      const ctx = c.get("meshContext");
+      return c.json({ role: ctx.organization?.role });
+    });
+    const res = await app.request("/api/acme/role");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ role: "member" });
+  });
+
   it("passes unauthenticated requests through with org set (so MCP OAuth discovery works)", async () => {
     // Cursor/Claude rely on mcpAuth returning 401 with a WWW-Authenticate header
     // pointing at the protected-resource metadata URL. If this middleware blocks
