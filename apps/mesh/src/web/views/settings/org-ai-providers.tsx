@@ -184,6 +184,7 @@ function ConnectApiKeyForm({
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
+    orgSlug: org.slug,
   });
   const queryClient = useQueryClient();
   const [showKey, setShowKey] = useState(false);
@@ -303,6 +304,7 @@ function ConnectOpenAICompatibleForm({
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
+    orgSlug: org.slug,
   });
   const queryClient = useQueryClient();
   const [showKey, setShowKey] = useState(false);
@@ -453,6 +455,7 @@ function ProviderCard({
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
+    orgSlug: org.slug,
   });
   const queryClient = useQueryClient();
   const [isConnectFormOpen, setIsConnectFormOpen] = useState(false);
@@ -826,6 +829,7 @@ function OpenAICompatiblePresetCard({
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
+    orgSlug: org.slug,
   });
   const queryClient = useQueryClient();
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -1030,6 +1034,7 @@ function QuickTopUp() {
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
+    orgSlug: org.slug,
   });
   const [customOpen, setCustomOpen] = useState(false);
 
@@ -1165,6 +1170,7 @@ function DecoCreditsHero() {
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
+    orgSlug: org.slug,
   });
   const queryClient = useQueryClient();
   const allKeys = useAiProviderKeys();
@@ -1320,6 +1326,7 @@ const filterImageModels = (m: AiProviderModel) =>
   m.capabilities?.includes("image") === true;
 
 const filterWebResearchModels = (m: AiProviderModel) => {
+  if (m.asyncResearch === true) return true;
   const n = m.modelId.toLowerCase().replace(/[^a-z0-9]/g, "");
   return n.includes("sonar") || n.includes("deepresearch");
 };

@@ -627,6 +627,10 @@ export class FreestyleSandboxRunner implements SandboxRunner {
           APP_ROOT: APP_WORKDIR,
           PROXY_PORT: String(PROXY_PORT),
           DAEMON_DROP_PRIVILEGES: "1",
+          // Auto-start when a workload is set; tool sandboxes (no workload)
+          // never reach this branch because the freestyle runner only
+          // attaches the daemon when there's a repo to clone.
+          INTENT: "running",
         },
       });
 

@@ -11,6 +11,7 @@ import { tool, zodSchema } from "ai";
 import path from "node:path";
 import type { SandboxRunner } from "@decocms/sandbox/runner";
 import { maybeTruncate } from "./common";
+import { createConfigTools, normalizePackageManagerPath } from "./config-tools";
 import {
   BASH_DESCRIPTION,
   BashInputSchema,
@@ -103,22 +104,36 @@ function toFileDownloadUrl(
 
 export type { VmToolsParams } from "./types";
 
-async function daemonRequest(
+/**
+ * Exported because the config tools (`get_vm_config` / `set_vm_config`) live
+ * in a sibling file but speak the same `/_decopilot_vm/*` wire — base64
+ * JSON bodies, identical error mapping, identical "sandbox is not running"
+ * surface. Keeping one helper avoids drift between the two callers.
+ */
+export async function daemonRequest(
   runner: SandboxRunner,
   handle: string,
   path: string,
-  body: Record<string, unknown>,
+  body: Record<string, unknown> | null,
+  method: "GET" | "POST" | "PUT" = "POST",
 ): Promise<unknown> {
   let res: Response;
   try {
-    const b64Body = Buffer.from(JSON.stringify(body), "utf-8").toString(
-      "base64",
-    );
-    res = await runner.proxyDaemonRequest(handle, path, {
-      method: "POST",
+    const init: {
+      method: string;
+      headers: Headers;
+      body: string | null;
+    } = {
+      method,
       headers: new Headers({ "content-type": "application/json" }),
-      body: b64Body,
-    });
+      body: null,
+    };
+    // GET/HEAD must not carry a body; the runners' proxy strips it anyway,
+    // but constructing it is wasteful and obscures intent.
+    if (method !== "GET" && body !== null) {
+      init.body = Buffer.from(JSON.stringify(body), "utf-8").toString("base64");
+    }
+    res = await runner.proxyDaemonRequest(handle, path, init);
   } catch {
     throw new Error(
       "The sandbox is not running. Ask the user to start it by clicking the server button (left side of the header bar).",
@@ -171,11 +186,16 @@ export function createVmTools(params: VmToolsParams) {
     pendingImages,
     ctx,
     threadId,
+    virtualMcpId,
   } = params;
   const approvalFor = (mutating: boolean) => (mutating ? needsApproval : false);
-  const call = async (daemonPath: string, input: Record<string, unknown>) => {
+  const call = async (
+    daemonPath: string,
+    input: Record<string, unknown>,
+    method: "POST" | "PUT" = "POST",
+  ) => {
     const handle = await ensureHandle();
-    return daemonRequest(runner, handle, daemonPath, input);
+    return daemonRequest(runner, handle, daemonPath, input, method);
   };
 
   const read = tool({
@@ -300,6 +320,42 @@ export function createVmTools(params: VmToolsParams) {
     },
   });
 
+  // Config tools (`get_vm_config` / `set_vm_config`) live in a sibling file
+  // because the schema-to-daemon mapping is non-trivial and bloats this
+  // file. Approval mirrors the file-mutation tools — `set_vm_config` can
+  // pause the dev server, switch package managers, etc., which has the
+  // same blast radius as `bash`.
+  const { get_vm_config, set_vm_config } = createConfigTools({
+    runner,
+    ensureHandle,
+    needsApproval: vmConfigNeedsApproval(needsApproval),
+    onSaved: async (input) => {
+      if (
+        input.packageManager === undefined &&
+        input.packageManagerPath === undefined
+      )
+        return;
+      const userId = ctx.auth?.user?.id;
+      if (!userId) return;
+      const virtualMcp = await ctx.storage.virtualMcps.findById(virtualMcpId);
+      if (!virtualMcp) return;
+      const meta = (virtualMcp.metadata ?? {}) as Record<string, unknown>;
+      const existing = (meta.runtime as Record<string, unknown>) ?? {};
+      const runtime: Record<string, unknown> = { ...existing };
+      if (input.packageManager !== undefined)
+        runtime.selected = input.packageManager;
+      if (input.packageManagerPath !== undefined) {
+        const normalized = normalizePackageManagerPath(
+          input.packageManagerPath,
+        );
+        runtime.path = normalized ?? null;
+      }
+      await ctx.storage.virtualMcps.update(virtualMcpId, userId, {
+        metadata: { ...meta, runtime },
+      });
+    },
+  });
+
   return {
     read,
     write,
@@ -309,5 +365,18 @@ export function createVmTools(params: VmToolsParams) {
     bash,
     copy_to_sandbox,
     share_with_user,
+    get_vm_config,
+    set_vm_config,
   };
+}
+
+/**
+ * `set_vm_config` is mutating. Today this is a pass-through of the
+ * caller's needsApproval flag, mirroring `write`/`edit`/`bash`. Factored
+ * out so a future approval refinement (e.g. always-gate config writes
+ * regardless of the user's auto-approve preference) has one place to
+ * change.
+ */
+function vmConfigNeedsApproval(callerNeedsApproval: boolean): boolean {
+  return callerNeedsApproval;
 }

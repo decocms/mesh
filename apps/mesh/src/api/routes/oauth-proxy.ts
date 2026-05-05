@@ -23,8 +23,6 @@ type Variables = {
 
 type HonoEnv = { Variables: Variables };
 
-const app = new Hono<HonoEnv>();
-
 // ============================================================================
 // Constants
 // ============================================================================
@@ -275,6 +273,45 @@ export interface HandleAuthErrorOptions {
   connectionUrl: string;
   /** Headers to use when checking the origin server */
   headers: Record<string, string>;
+  /**
+   * Optional org slug. When set, the WWW-Authenticate `resource_metadata`
+   * URL is built under `/api/:orgSlug/mcp/...` instead of the legacy
+   * `/mcp/...`. Set this when the request was served via the new
+   * `/api/:org/mcp/...` mount so OAuth clients discover the correct
+   * metadata URL.
+   */
+  orgSlug?: string;
+}
+
+/**
+ * Build the URL prefix for OAuth-related URLs based on org slug.
+ * - With slug: `/api/${slug}` (new path shape)
+ * - Without slug: `` (legacy path shape — `/mcp/...` and `/oauth-proxy/...`
+ *   live at the root)
+ */
+function buildPathPrefix(orgSlug: string | undefined): string {
+  return orgSlug ? `/api/${orgSlug}` : "";
+}
+
+/**
+ * Detect the org slug from a request path of the form `/api/:slug/...`.
+ * Returns the slug or undefined if the path is not under `/api/:slug/`.
+ *
+ * Note: `/api/auth/...` and other non-org-scoped `/api/...` routes are
+ * filtered out by checking that the path matches the expected org-scoped
+ * MCP/well-known shapes. Callers should also rely on `ctx.organization?.slug`
+ * (set by `resolveOrgFromPath`) when available — this helper is a fallback.
+ */
+function detectOrgSlugFromPath(path: string): string | undefined {
+  const m = path.match(/^\/api\/([^/]+)\//);
+  const slug = m?.[1];
+  if (!slug) return undefined;
+  // Filter out non-org `/api/...` segments. The full list of these lives in
+  // app.ts; we only care about the ones that could host MCP or oauth-proxy
+  // routes. None of those collide with org slugs in practice.
+  const reserved = new Set(["auth", "tools", "plugins", "deco-sites"]);
+  if (reserved.has(slug)) return undefined;
+  return slug;
 }
 
 /**
@@ -291,6 +328,7 @@ export async function handleAuthError({
   connectionId,
   connectionUrl,
   headers,
+  orgSlug,
 }: HandleAuthErrorOptions): Promise<Response | null> {
   const message = error.message?.toLowerCase() ?? "";
   const isAuthError =
@@ -313,10 +351,11 @@ export async function handleAuthError({
   );
 
   if (originSupportsOAuth) {
+    const prefix = buildPathPrefix(orgSlug);
     return new Response(null, {
       status: 401,
       headers: {
-        "WWW-Authenticate": `Bearer realm="mcp",resource_metadata="${reqUrl.origin}/mcp/${connectionId}/.well-known/oauth-protected-resource"`,
+        "WWW-Authenticate": `Bearer realm="mcp",resource_metadata="${reqUrl.origin}${prefix}/mcp/${connectionId}/.well-known/oauth-protected-resource"`,
       },
     });
   }
@@ -368,8 +407,16 @@ const protectedResourceMetadataHandler = async (c: {
   }
 
   const requestUrl = fixProtocol(new URL(c.req.url));
-  const proxyResourceUrl = `${requestUrl.origin}/mcp/${connectionId}`;
-  const proxyAuthServer = `${requestUrl.origin}/oauth-proxy/${connectionId}`;
+  // Determine the path prefix from the request. When called via the new
+  // `/api/:org/mcp/...` mount, `ctx.organization?.slug` is set by
+  // `resolveOrgFromPath`. Fall back to detecting the slug from the request
+  // path so callers that bypass meshContext still get correct URLs. Legacy
+  // callers (no `/api/:slug` prefix in the path) get legacy URLs back.
+  const orgSlug =
+    ctx.organization?.slug ?? detectOrgSlugFromPath(requestUrl.pathname);
+  const prefix = buildPathPrefix(orgSlug);
+  const proxyResourceUrl = `${requestUrl.origin}${prefix}/mcp/${connectionId}`;
+  const proxyAuthServer = `${requestUrl.origin}${prefix}/oauth-proxy/${connectionId}`;
 
   try {
     // Fetch from origin, trying both well-known URL formats
@@ -474,15 +521,30 @@ const protectedResourceMetadataHandler = async (c: {
   }
 };
 
-// Route 1: /.well-known/oauth-protected-resource/mcp/:connectionId
-app.get("/.well-known/oauth-protected-resource/mcp/:connectionId", (c) =>
-  protectedResourceMetadataHandler(c),
-);
-
-// Route 2: /mcp/:connectionId/.well-known/oauth-protected-resource
-app.get("/mcp/:connectionId/.well-known/oauth-protected-resource", (c) =>
-  protectedResourceMetadataHandler(c),
-);
+/**
+ * Factory for the two `.well-known/oauth-protected-resource` routes.
+ *
+ * Two URL shapes are supported by MCP clients in the wild:
+ * 1. `/.well-known/oauth-protected-resource/mcp/:connectionId` (well-known
+ *    prefix, used by some clients)
+ * 2. `/mcp/:connectionId/.well-known/oauth-protected-resource` (resource-
+ *    relative, the more common shape)
+ *
+ * When mounted under `/api/:org/`, both expand to
+ * `/api/:org/<original>` and the handler picks up the org slug from
+ * `ctx.organization` (set by `resolveOrgFromPath`) so issued metadata
+ * URLs point at the new path. Legacy mount uses the legacy URLs.
+ */
+export const createWellKnownProtectedResourceRoutes = () => {
+  const app = new Hono<HonoEnv>();
+  app.get("/.well-known/oauth-protected-resource/mcp/:connectionId", (c) =>
+    protectedResourceMetadataHandler(c),
+  );
+  app.get("/mcp/:connectionId/.well-known/oauth-protected-resource", (c) =>
+    protectedResourceMetadataHandler(c),
+  );
+  return app;
+};
 
 // ============================================================================
 // Authorization Server Metadata Proxy
@@ -576,62 +638,98 @@ export async function fetchAuthorizationServerMetadata(
  * Proxy authorization server metadata to avoid CORS issues
  * Rewrites OAuth endpoint URLs to go through our proxy
  */
-app.get(
-  "/.well-known/oauth-authorization-server/oauth-proxy/:connectionId",
-  async (c) => {
-    const connectionId = c.req.param("connectionId");
-    const ctx = await ensureContext(c);
+const authServerMetadataHandler = async (c: {
+  req: { param: (key: string) => string; raw: Request; url: string };
+  get: (key: "meshContext") => MeshContext | undefined;
+  set: (key: "meshContext", value: MeshContext) => void;
+  json: (data: unknown, status?: number) => Response;
+}) => {
+  const connectionId = c.req.param("connectionId");
+  const ctx = await ensureContext(c);
 
-    const originAuthServer = await getOriginAuthServer(connectionId, ctx);
-    if (!originAuthServer) {
-      return c.json({ error: "Connection not found or no auth server" }, 404);
-    }
+  const originAuthServer = await getOriginAuthServer(connectionId, ctx);
+  if (!originAuthServer) {
+    return c.json({ error: "Connection not found or no auth server" }, 404);
+  }
 
-    try {
-      // Fetch auth server metadata, trying all well-known URL formats
-      const response = await fetchAuthorizationServerMetadata(originAuthServer);
+  try {
+    // Fetch auth server metadata, trying all well-known URL formats
+    const response = await fetchAuthorizationServerMetadata(originAuthServer);
 
-      if (!response.ok) {
-        return new Response(response.body, {
-          status: response.status,
-          statusText: response.statusText,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-
-      // Parse and rewrite URLs to point to our proxy
-      const data = (await response.json()) as Record<string, unknown>;
-      const requestUrl = fixProtocol(new URL(c.req.url));
-      const proxyBase = `${requestUrl.origin}/oauth-proxy/${connectionId}`;
-
-      // Rewrite OAuth endpoint URLs to go through our proxy
-      const rewrittenData = {
-        ...data,
-        authorization_endpoint: data.authorization_endpoint
-          ? `${proxyBase}/authorize`
-          : undefined,
-        token_endpoint: data.token_endpoint ? `${proxyBase}/token` : undefined,
-        registration_endpoint: data.registration_endpoint
-          ? `${proxyBase}/register`
-          : undefined,
-      };
-
-      return new Response(JSON.stringify(rewrittenData), {
-        status: 200,
+    if (!response.ok) {
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
         headers: { "Content-Type": "application/json" },
       });
-    } catch (error) {
-      const err = error as Error;
-      console.error("[oauth-proxy] Failed to proxy auth server metadata:", err);
-      return c.json(
-        { error: "Failed to proxy auth server metadata", message: err.message },
-        502,
-      );
     }
-  },
-);
+
+    // Parse and rewrite URLs to point to our proxy
+    const data = (await response.json()) as Record<string, unknown>;
+    const requestUrl = fixProtocol(new URL(c.req.url));
+    // Auth-server metadata stays at the legacy global path
+    // (`/.well-known/oauth-authorization-server/oauth-proxy/:connectionId`).
+    // Third-party OAuth providers may have these URLs registered as
+    // redirect_uri bases — we keep them stable. The rewritten endpoint URLs
+    // therefore continue to point at the legacy `/oauth-proxy/:connectionId`
+    // path. (Both the legacy `/oauth-proxy/...` and the new
+    // `/api/:org/oauth-proxy/...` mounts share the same handler in app.ts.)
+    const proxyBase = `${requestUrl.origin}/oauth-proxy/${connectionId}`;
+
+    // Rewrite OAuth endpoint URLs to go through our proxy
+    const rewrittenData = {
+      ...data,
+      authorization_endpoint: data.authorization_endpoint
+        ? `${proxyBase}/authorize`
+        : undefined,
+      token_endpoint: data.token_endpoint ? `${proxyBase}/token` : undefined,
+      registration_endpoint: data.registration_endpoint
+        ? `${proxyBase}/register`
+        : undefined,
+    };
+
+    return new Response(JSON.stringify(rewrittenData), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    const err = error as Error;
+    console.error("[oauth-proxy] Failed to proxy auth server metadata:", err);
+    return c.json(
+      { error: "Failed to proxy auth server metadata", message: err.message },
+      502,
+    );
+  }
+};
+
+/**
+ * Factory for the auth-server metadata route. This stays at the legacy
+ * RFC-mandated path `/.well-known/oauth-authorization-server/oauth-proxy/:connectionId`
+ * — third-party OAuth providers may have this URL registered as a
+ * redirect_uri base, so we keep it global indefinitely.
+ */
+export const createWellKnownAuthServerRoutes = () => {
+  const app = new Hono<HonoEnv>();
+  app.get(
+    "/.well-known/oauth-authorization-server/oauth-proxy/:connectionId",
+    authServerMetadataHandler,
+  );
+  return app;
+};
 
 // Note: The /oauth-proxy/:connectionId/:endpoint route is defined directly in app.ts
 // because app.route() doesn't properly register routes with dynamic segments at root level
 
+/**
+ * Default export: a Hono app that mounts every route in this file.
+ *
+ * Kept for backward compatibility with `oauth-proxy.test.ts` (which mounts
+ * the whole module under `/`) and as an escape hatch for any other caller
+ * that wants the full surface in one go. Production code (`app.ts`) uses
+ * the individual factories so it can apply `logDeprecatedRoute` to the
+ * legacy mounts and dual-mount under `/api/:org/...`.
+ */
+const app = new Hono<HonoEnv>();
+app.route("/", createWellKnownProtectedResourceRoutes());
+app.route("/", createWellKnownAuthServerRoutes());
 export default app;

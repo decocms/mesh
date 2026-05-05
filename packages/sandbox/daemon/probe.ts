@@ -1,32 +1,51 @@
 import { FAST_PROBE_LIMIT, FAST_PROBE_MS, SLOW_PROBE_MS } from "./constants";
+import type { DiscoveredPort } from "./process/port-discovery";
+
+export interface ProbePort {
+  port: number;
+  ready: boolean;
+  isHtml: boolean;
+  /** Score from `score(root, viteClient)`. Higher = better preview match. */
+  score: number;
+  /** Tracked process name (e.g. `"dev"`) when port is owned by a known root. */
+  commandName: string | null;
+}
 
 export interface ProbeState {
   ready: boolean;
   htmlSupport: boolean;
-  /** The port that last responded to HEAD `/`, or null if none yet. */
+  /** The currently-active dev port: pinned `devPort` if set & responding,
+   * otherwise the highest-scored discovered descendant port. */
   port: number | null;
+  /** Every descendant-discovered port plus (when pinned) the pinned port,
+   * each with an HTTP HEAD result. The UI uses this to show "switch to
+   * port N" affordances. */
+  ports: ProbePort[];
 }
 
 export interface ProbeDeps {
   upstreamHost: string;
   /**
-   * Ports owned by descendants of the daemon's managed dev process, per
-   * /proc inspection. The discovery list picks the candidate port (so the
-   * preview reverse-proxy lands on the right socket), but `ready` is still
-   * gated on at least one HEAD response — a process that's bound the port
-   * but isn't accepting yet (early bind during framework bootstrap, lazy
-   * compile that times out the HEAD) shouldn't read as ready.
+   * Ports owned by descendants of the daemon's managed processes, with the
+   * root pid each socket traces back to. Used to attribute ports to a named
+   * command via `getCommandName`. `ready` is still gated on at least one HEAD
+   * response — a process that's bound the port but isn't accepting yet
+   * (early bind during framework bootstrap, lazy compile that times out the
+   * HEAD) shouldn't read as ready.
    */
-  getDiscoveredPorts: () => number[];
+  getDiscoveredPorts: () => DiscoveredPort[];
   /**
-   * Env-hint fallback (DEV_PORT). Used only when no descendant ports
-   * have been discovered yet — typically the brief window between
-   * daemon boot and the dev process binding, or in tests where there's
-   * no managed dev process at all. Treated as untrusted: gated on a
-   * successful HEAD probe.
+   * Pinned port from tenant config. When non-null, this port is the ONLY
+   * thing surfaced as the active `port` (gated on a HEAD response). The
+   * discovered list still appears in `ports` — the pin overrides selection,
+   * not visibility. Null = auto-pick the highest-scored descendant.
    */
-  getFallbackPort: () => number;
+  getPinnedPort: () => number | null;
+  /** Map a root pid back to the tracked process name, or null if unknown. */
+  getCommandName: (rootPid: number) => string | null;
   onChange: (state: ProbeState) => void;
+  /** Called with human-readable log messages (port discovery, ready state). */
+  onLog?: (msg: string) => void;
 }
 
 interface ProbeResult {
@@ -63,7 +82,12 @@ function score(root: HeadResult | null, viteClient: HeadResult | null): number {
 
 /** Kicks off the probe loop; returns the current state (live-updated). */
 export function startUpstreamProbe(deps: ProbeDeps): ProbeState {
-  const state: ProbeState = { ready: false, htmlSupport: false, port: null };
+  const state: ProbeState = {
+    ready: false,
+    htmlSupport: false,
+    port: null,
+    ports: [],
+  };
   let count = 0;
 
   // First-request compile in Next/Vite/etc. can run 8–20s on big apps; the
@@ -111,40 +135,123 @@ export function startUpstreamProbe(deps: ProbeDeps): ProbeState {
     const prevReady = state.ready;
     const prevPort = state.port;
     const prevHtml = state.htmlSupport;
+    const prevPortsKey = portsKey(state.ports);
 
     const discovered = deps.getDiscoveredPorts();
+    const pinned = deps.getPinnedPort();
 
-    if (discovered.length > 0) {
-      const results = await Promise.all(discovered.map(probeOne));
-      const responded = results.filter((r) => r.responded);
-      const best = responded.sort((a, b) => b.score - a.score)[0] ?? results[0];
+    // Probe every descendant we found, plus the pin (when set and not already
+    // a descendant). The pin probe lets users target a server they started
+    // outside the daemon's tracked process tree, and lets PUT /config retarget
+    // the proxy without restarting anything.
+    const targets = new Map<number, number | null>(); // port → rootPid
+    for (const d of discovered) targets.set(d.port, d.rootPid);
+    if (pinned !== null && !targets.has(pinned)) targets.set(pinned, null);
+
+    const probedAll: Array<ProbeResult & { rootPid: number | null }> =
+      await Promise.all(
+        Array.from(targets.entries()).map(async ([port, rootPid]) => ({
+          ...(await probeOne(port)),
+          rootPid,
+        })),
+      );
+
+    state.ports = probedAll.map((r) => ({
+      port: r.port,
+      ready: r.ready,
+      isHtml: r.htmlSupport,
+      score: r.score,
+      commandName: r.rootPid !== null ? deps.getCommandName(r.rootPid) : null,
+    }));
+
+    if (pinned !== null) {
+      // Pinned: prefer the pinned port when responding. If the pin is stale
+      // (e.g., dev process restarted and bound a different port), fall back
+      // to the highest-scored discovered port so the proxy self-heals across
+      // pause/resume — entry.ts's writeback then updates the pin.
+      const pinnedResult = probedAll.find((r) => r.port === pinned);
+      if (pinnedResult && pinnedResult.responded) {
+        state.port = pinnedResult.port;
+        state.ready = pinnedResult.ready;
+        state.htmlSupport = pinnedResult.htmlSupport;
+      } else {
+        const responded = probedAll.filter(
+          (r) => r.responded && r.port !== pinned,
+        );
+        const best = responded.sort((a, b) => b.score - a.score)[0];
+        if (best) {
+          state.port = best.port;
+          state.ready = best.ready;
+          state.htmlSupport = best.htmlSupport;
+        } else {
+          state.port = null;
+          state.ready = false;
+          state.htmlSupport = false;
+        }
+      }
+    } else if (probedAll.length > 0) {
+      const responded = probedAll.filter((r) => r.responded);
+      const best =
+        responded.sort((a, b) => b.score - a.score)[0] ?? probedAll[0];
       state.port = best.port;
       state.ready = responded.length > 0;
       state.htmlSupport = best.htmlSupport;
     } else {
-      // Untrusted fallback: env-hint port only, gated on a successful HEAD.
-      const result = await probeOne(deps.getFallbackPort());
-      if (result.responded) {
-        state.port = result.port;
-        state.ready = result.ready;
-        state.htmlSupport = result.htmlSupport;
-      } else {
-        state.port = null;
-        state.ready = false;
-        state.htmlSupport = false;
+      // No discovered descendants and no pin: nothing to surface. Don't fall
+      // back to a default like 3000 — on dev machines that's often the
+      // outer mesh, which would nest the studio UI inside its own iframe.
+      state.port = null;
+      state.ready = false;
+      state.htmlSupport = false;
+    }
+
+    const newPortsKey = portsKey(state.ports);
+    const portsChanged = prevPortsKey !== newPortsKey;
+    const readyChanged = prevReady !== state.ready;
+    const portChanged = prevPort !== state.port;
+
+    if (portsChanged && state.ports.length > 0) {
+      const portList = state.ports
+        .map((p) => `${p.port}${p.ready ? " (ready)" : ""}`)
+        .join(", ");
+      deps.onLog?.(`[probe] discovered port(s): ${portList}\r\n`);
+    }
+    if (readyChanged) {
+      if (state.ready) {
+        deps.onLog?.(`[probe] server ready on port ${state.port}\r\n`);
+      } else if (prevReady) {
+        deps.onLog?.(`[probe] server no longer ready\r\n`);
       }
+    } else if (portChanged && state.port !== null) {
+      deps.onLog?.(`[probe] active port changed to ${state.port}\r\n`);
     }
 
     if (
-      prevReady !== state.ready ||
-      prevPort !== state.port ||
-      prevHtml !== state.htmlSupport
+      readyChanged ||
+      portChanged ||
+      prevHtml !== state.htmlSupport ||
+      portsChanged
     ) {
-      deps.onChange({ ...state });
+      deps.onChange({
+        ready: state.ready,
+        htmlSupport: state.htmlSupport,
+        port: state.port,
+        ports: state.ports.slice(),
+      });
     }
     count++;
     setTimeout(tick, count < FAST_PROBE_LIMIT ? FAST_PROBE_MS : SLOW_PROBE_MS);
   };
+
+  function portsKey(ports: ProbePort[]): string {
+    // Order-independent dedupe key: changes when any port enters/leaves or
+    // flips ready/isHtml. Used to drive SSE `status` updates so the UI can
+    // refresh the port list without polling.
+    return [...ports]
+      .sort((a, b) => a.port - b.port)
+      .map((p) => `${p.port}:${p.ready ? 1 : 0}:${p.isHtml ? 1 : 0}`)
+      .join(",");
+  }
 
   setTimeout(tick, 1000);
   return state;

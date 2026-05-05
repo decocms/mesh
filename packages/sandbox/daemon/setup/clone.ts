@@ -1,6 +1,5 @@
-import { DECO_UID, DECO_GID } from "../constants";
-import { spawnPty } from "../process/pty-spawn";
 import type { Config } from "../types";
+import { spawnSetupStep } from "./spawn-step";
 
 export interface CloneDeps {
   config: Config;
@@ -11,16 +10,21 @@ export interface CloneDeps {
 /** Resolves to exit code (0 on success). Emits chunks via `onChunk`. */
 export function spawnClone(deps: CloneDeps): Promise<number> {
   const { config } = deps;
-  const cmd = `git clone --depth 1 ${config.cloneUrl} ${config.appRoot}`;
-  const label = `$ git clone --depth 1 ${config.repoName} ${config.appRoot}`;
+  const cloneUrl = config.git?.repository?.cloneUrl;
+  const repoLabel = config.git?.repository?.repoName ?? cloneUrl ?? "<repo>";
+  if (!cloneUrl) {
+    return Promise.resolve(1);
+  }
+  if (!config.repoDir || !config.repoDir.startsWith("/")) {
+    deps.onChunk(
+      "setup",
+      `\r\n[clone] repoDir is not an absolute path (got: ${String(config.repoDir)}) — aborting clone to prevent relative-path mishap\r\n`,
+    );
+    return Promise.resolve(1);
+  }
+  const cmd = `git -c safe.directory='*' -c credential.helper= clone --depth 1 ${cloneUrl} ${config.repoDir}`;
+  const label = `$ git clone --depth 1 ${repoLabel} ${config.repoDir}`;
   deps.onChunk("setup", `${label}\r\n`);
 
-  return new Promise((resolve) => {
-    const child = spawnPty({
-      cmd,
-      ...(deps.dropPrivileges ? { uid: DECO_UID, gid: DECO_GID } : {}),
-    });
-    child.onData((data) => deps.onChunk("setup", data));
-    child.onExit((code) => resolve(code));
-  });
+  return spawnSetupStep(cmd, deps.onChunk, deps.dropPrivileges);
 }

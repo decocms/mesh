@@ -162,7 +162,7 @@ interface AuthenticatedUser {
 // Type for the hasPermission API (from @decocms/better-auth organization plugin)
 type HasPermissionAPI = (params: {
   headers: Headers;
-  body: { permission: Permission };
+  body: { permission: Permission; organizationId?: string };
 }) => Promise<{ success?: boolean; error?: unknown } | null>;
 
 /**
@@ -245,6 +245,7 @@ export function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
   return {
     hasPermission: async (
       requestedPermission: Permission,
+      options?: { organizationId?: string },
     ): Promise<boolean> => {
       // Built-in roles bypass all permission checks
       if (
@@ -265,11 +266,19 @@ export function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
         return false;
       }
 
+      // When organizationId is provided (e.g. via path-resolved org middleware),
+      // pass it to Better Auth so it overrides the session-based active org.
+      // Without this, signup races in CI cause "No active organization" 403s
+      // even when the path slug points at a valid org the user belongs to.
+      const orgIdOverride = options?.organizationId
+        ? { organizationId: options.organizationId }
+        : {};
+
       try {
         // Check exact permission first: { resource: [tool] }
         const exactResult = await hasPermissionApi({
           headers,
-          body: { permission: requestedPermission },
+          body: { permission: requestedPermission, ...orgIdOverride },
         });
 
         if (exactResult?.success === true) {
@@ -285,7 +294,7 @@ export function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
 
         const wildcardResult = await hasPermissionApi({
           headers,
-          body: { permission: wildcardPermission },
+          body: { permission: wildcardPermission, ...orgIdOverride },
         });
 
         return wildcardResult?.success === true;
@@ -1074,6 +1083,8 @@ export async function createMeshContextFactory(
       boundAuth, // Bound auth client for permission checks
       authResult.role, // Role from session (for built-in role bypass)
       "self", // Default connectionId for management APIs (matches permission resource key)
+      undefined, // getToolMeta set later by defineTool
+      organization?.id, // Path-resolved/auth-resolved org for permission checks
     );
 
     const storage = {

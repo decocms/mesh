@@ -268,6 +268,28 @@ async function streamCoreInner(
       );
     }
 
+    // Guard: async-research-only models (e.g. Gemini Deep Research) cannot
+    // drive `streamText`. They only work via the AsyncResearchProvider path
+    // routed through the `web_search` tool. Detect early and surface a clear
+    // error instead of letting Google's opaque "This model only supports
+    // Interactions API" bubble up from deep inside the agent loop.
+    if (provider?.asyncResearch) {
+      const slots: Array<["thinking" | "coding" | "fast" | "image", string]> = [
+        ["thinking", input.models.thinking.id],
+      ];
+      if (input.models.coding) slots.push(["coding", input.models.coding.id]);
+      if (input.models.fast) slots.push(["fast", input.models.fast.id]);
+      if (input.models.image) slots.push(["image", input.models.image.id]);
+      for (const [slot, modelId] of slots) {
+        if (provider.asyncResearch.canHandle(modelId)) {
+          throw new Error(
+            `Model "${modelId}" can only be used as a Deep Research model. ` +
+              `It is not usable as the ${slot} model — set it in the Deep Research slot instead.`,
+          );
+        }
+      }
+    }
+
     const saveMessagesToThread = async (
       ...messages: (ChatMessage | undefined)[]
     ) => {
@@ -513,6 +535,7 @@ async function streamCoreInner(
                 pendingImages,
                 passthroughClient,
                 vmContext,
+                taskId: mem.thread.id,
               },
               ctx,
             );
