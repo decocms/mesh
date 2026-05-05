@@ -41,14 +41,20 @@ const NO_METADATA_STATUSES = [404, 401, 406];
 // ============================================================================
 
 /**
- * Get connection URL from storage by connection ID
- * Does not require organization ID - connections are globally unique
+ * Get connection URL from storage by connection ID, optionally scoped to an
+ * organization. Connection IDs are globally unique, but callers that have an
+ * org slug in scope should pass `organizationId` so cross-org lookups return
+ * null instead of a connection from another org.
  */
 async function getConnectionUrl(
   connectionId: string,
   ctx: MeshContext,
+  organizationId?: string,
 ): Promise<string | null> {
-  const connection = await ctx.storage.connections.findById(connectionId);
+  const connection = await ctx.storage.connections.findById(
+    connectionId,
+    organizationId,
+  );
   return connection?.connection_url ?? null;
 }
 
@@ -385,11 +391,6 @@ export const protectedResourceMetadataHandler = async (c: {
   const connectionId = c.req.param("connectionId");
   const ctx = await ensureContext(c);
 
-  const connectionUrl = await getConnectionUrl(connectionId, ctx);
-  if (!connectionUrl) {
-    return c.json({ error: "Connection not found" }, 404);
-  }
-
   const requestUrl = fixProtocol(new URL(c.req.url));
   // Org slug sources (in priority order):
   // 1. `ctx.organization?.slug` — set by `resolveOrgFromPath` for routes
@@ -401,6 +402,36 @@ export const protectedResourceMetadataHandler = async (c: {
   //    `/.well-known/.../mcp/:id`) have no slug; the prefix is empty and
   //    we issue legacy-shape metadata URLs.
   const orgSlug = ctx.organization?.slug ?? c.req.param("org");
+
+  // When :org is in scope, the connection MUST belong to that org. Resolve
+  // the slug to an org id so the connection lookup filters on it; otherwise
+  // we'd hand back metadata claiming the connection is served at a path it
+  // doesn't actually resolve from. `resolveOrgFromPath` already cached the id
+  // for the sub-app mount; the top-level well-known prefix route resolves
+  // the slug here. Unknown slug or cross-org connection → 404 (we don't
+  // distinguish, to avoid leaking which slugs exist).
+  let scopedOrgId: string | undefined;
+  if (orgSlug) {
+    if (ctx.organization?.id && ctx.organization.slug === orgSlug) {
+      scopedOrgId = ctx.organization.id;
+    } else {
+      const org = await ctx.db
+        .selectFrom("organization")
+        .select("id")
+        .where("slug", "=", orgSlug)
+        .executeTakeFirst();
+      if (!org) {
+        return c.json({ error: "Connection not found" }, 404);
+      }
+      scopedOrgId = org.id;
+    }
+  }
+
+  const connectionUrl = await getConnectionUrl(connectionId, ctx, scopedOrgId);
+  if (!connectionUrl) {
+    return c.json({ error: "Connection not found" }, 404);
+  }
+
   const prefix = buildPathPrefix(orgSlug);
   const proxyResourceUrl = `${requestUrl.origin}${prefix}/mcp/${connectionId}`;
   // Auth-server URL stays on the legacy `/oauth-proxy/:connectionId` path

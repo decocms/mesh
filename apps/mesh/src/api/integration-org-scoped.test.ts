@@ -279,4 +279,37 @@ describe("org-scoped API coexistence", () => {
       fetchSpy.mockRestore();
     }
   });
+
+  it("well-known prefix discovery 404s when :org doesn't match the connection's org", async () => {
+    // The synthesized PRM URL embeds :org as part of the resource path, so
+    // the handler MUST refuse to vouch for (org, connection) tuples that
+    // don't match — otherwise an attacker could probe a victim's connection
+    // ID under their own org slug and get a credible-looking metadata
+    // document. We don't distinguish "unknown org" from "cross-org" in the
+    // response so we don't leak which slugs exist.
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 200 }) as never);
+
+    try {
+      // Cross-org: org_456 exists (seeded by seedCommonTestFixtures) but
+      // conn_1 belongs to org_1.
+      const crossOrg = await app.fetch(
+        new Request(
+          "http://mesh.localhost/.well-known/oauth-protected-resource/api/org_456/mcp/conn_1",
+        ),
+      );
+      expect(crossOrg.status).toBe(404);
+
+      // Unknown slug: same response shape as cross-org.
+      const unknownSlug = await app.fetch(
+        new Request(
+          "http://mesh.localhost/.well-known/oauth-protected-resource/api/does-not-exist/mcp/conn_1",
+        ),
+      );
+      expect(unknownSlug.status).toBe(404);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
 });
