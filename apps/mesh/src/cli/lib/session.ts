@@ -1,4 +1,11 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 export interface Session {
@@ -30,7 +37,12 @@ export async function writeSession(
 ): Promise<void> {
   const path = sessionPath(dataDir);
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, JSON.stringify(session, null, 2), { mode: 0o600 });
+  // Write to a temp path, force mode 0600 (writeFile's `mode` is ignored when
+  // overwriting an existing file), then atomically rename into place.
+  const tmp = `${path}.tmp`;
+  await writeFile(tmp, JSON.stringify(session, null, 2), { mode: 0o600 });
+  await chmod(tmp, 0o600);
+  await rename(tmp, path);
 }
 
 export async function clearSession(dataDir: string): Promise<void> {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtemp, rm, writeFile, stat } from "node:fs/promises";
+import { chmod, mkdtemp, rm, writeFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -51,6 +51,21 @@ describe("writeSession + readSession", () => {
     const s = await stat(sessionPath(dir));
     // Mask off the file-type bits and compare permission bits.
     expect(s.mode & 0o777).toBe(0o600);
+  });
+
+  it("forces mode 0600 even when overwriting an existing file with looser permissions", async () => {
+    const path = sessionPath(dir);
+    // Pre-create the file with mode 0644 to simulate a broken prior state.
+    await writeFile(path, "{}", { mode: 0o644 });
+    await chmod(path, 0o644); // ensure 0644 even if writeFile honored mode
+    const before = await stat(path);
+    expect(before.mode & 0o777).toBe(0o644);
+
+    await writeSession(dir, sample);
+
+    const after = await stat(path);
+    expect(after.mode & 0o777).toBe(0o600);
+    expect(await readSession(dir)).toEqual(sample);
   });
 });
 
