@@ -148,6 +148,10 @@ export const GLOB_DESCRIPTION =
 export const BASH_DESCRIPTION =
   "Execute a shell command in the VM's project directory. " +
   "Working directory is the project root. Timeout default 30s, max 2min.\n\n" +
+  "Sandbox control — use the `sandbox` CLI (always available):\n" +
+  "  sandbox app start|stop|status\n" +
+  "  sandbox config show\n" +
+  "  sandbox config update --pm pnpm --path apps/web --runtime node --port 3000\n\n" +
   "Pre-installed skills live at `/mnt/skills/public/<name>/SKILL.md`. " +
   "Run `ls /mnt/skills/public/` for the index and " +
   "`cat /mnt/skills/public/<name>/SKILL.md` before using one. " +

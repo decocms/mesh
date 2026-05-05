@@ -43,7 +43,6 @@ import { resolveOrgFromPath } from "./middleware/resolve-org-from-path";
 import { createOrgScopedApi } from "./routes/org-scoped";
 import { createVmEventsRoutes } from "./routes/vm-events";
 import { vmExecRoutes } from "./routes/vm-exec";
-import { vmConfigRoutes } from "./routes/vm-config";
 import {
   createDecoSitesOrgRoutes,
   createDecoSitesUserRoutes,
@@ -1743,10 +1742,6 @@ export async function createApp(options: CreateAppOptions = {}) {
   // mutating routes; mesh holds the token, so the env panel routes script
   // start/stop here instead of hitting the daemon previewUrl directly.
   app.route("/api/vm-exec", vmExecRoutes);
-
-  // Browser-facing read of the daemon's live tenantConfig. PUT will land
-  // alongside in a follow-up.
-  app.route("/api/vm-config", vmConfigRoutes);
 
   // ============================================================================
   // Server Plugin Routes

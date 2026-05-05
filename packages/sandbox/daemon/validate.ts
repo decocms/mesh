@@ -19,9 +19,12 @@ export type ValidationOk = { kind: "ok" };
 export type ValidationResult = ValidationOk | ValidationError;
 
 /**
- * Validate a fully-merged TenantConfig (post-merge, pre-persist). Patch
- * merging happens upstream in the config store; by the time we reach here,
- * what we have should be a complete, internally consistent shape.
+ * Validate a fully-merged TenantConfig (post-merge, pre-persist).
+ *
+ * All application fields are optional — partial configs are valid so callers
+ * can patch one field at a time. We only validate field *values* when the
+ * field is present. The orchestrator is responsible for gating "start" on a
+ * sufficiently complete config.
  */
 export function validateTenantConfig(config: TenantConfig): ValidationResult {
   if (config.git !== undefined) {
@@ -68,29 +71,40 @@ function validateGit(git: NonNullable<TenantConfig["git"]>): ValidationResult {
 function validateApplication(
   app: NonNullable<TenantConfig["application"]>,
 ): ValidationResult {
-  if (!VALID_RUNTIMES.has(app.runtime)) {
+  if (app.runtime !== undefined && !VALID_RUNTIMES.has(app.runtime)) {
     return { kind: "invalid", reason: `runtime invalid: ${app.runtime}` };
   }
-  if (!app.packageManager || typeof app.packageManager.name !== "string") {
-    return {
-      kind: "invalid",
-      reason: "application.packageManager.name is required",
-    };
-  }
-  if (!VALID_PMS.has(app.packageManager.name)) {
-    return {
-      kind: "invalid",
-      reason: `packageManager invalid: ${app.packageManager.name}`,
-    };
+  if (app.packageManager !== undefined) {
+    if (app.packageManager.name !== undefined) {
+      if (typeof app.packageManager.name !== "string") {
+        return {
+          kind: "invalid",
+          reason: "application.packageManager.name must be a string",
+        };
+      }
+      if (!VALID_PMS.has(app.packageManager.name)) {
+        return {
+          kind: "invalid",
+          reason: `packageManager invalid: ${app.packageManager.name}`,
+        };
+      }
+    }
+    if (
+      app.packageManager.path !== undefined &&
+      (typeof app.packageManager.path !== "string" ||
+        app.packageManager.path.length === 0)
+    ) {
+      return {
+        kind: "invalid",
+        reason: "packageManager.path must be non-empty",
+      };
+    }
   }
   if (
-    app.packageManager.path !== undefined &&
-    (typeof app.packageManager.path !== "string" ||
-      app.packageManager.path.length === 0)
+    app.intent !== undefined &&
+    app.intent !== "running" &&
+    app.intent !== "paused"
   ) {
-    return { kind: "invalid", reason: "packageManager.path must be non-empty" };
-  }
-  if (app.intent !== "running" && app.intent !== "paused") {
     return { kind: "invalid", reason: `intent invalid: ${app.intent}` };
   }
   if (app.desiredPort !== undefined && !isValidPort(app.desiredPort)) {

@@ -7,7 +7,7 @@ import { deepMerge } from "./merge";
 import { REJECTION_REASONS, type ApplyEvent, type ApplyResult } from "./types";
 
 export interface TenantConfigStoreDeps {
-  /** Where config.json lives on disk. */
+  /** Repo directory. Config is written to <storageDir>/.decocms/daemon.json. */
   storageDir: string;
 }
 
@@ -20,7 +20,7 @@ interface QueueEntry {
  * Single-writer store for tenant config.
  *
  * - In-memory state is the source of truth for *reads*.
- * - Disk (`config.json`) is the durable source of truth — every successful
+ * - Disk (`.decocms/daemon.json`) is the durable source of truth — every successful
  *   write fsyncs the merged result before mutating memory.
  * - All mutations go through `apply()`. An internal FIFO worker drains
  *   pending applies one at a time, so two concurrent PUT /config requests
@@ -52,7 +52,7 @@ export class TenantConfigStore {
 
   /**
    * Drop in-memory state. Used on orchestrator failure to reset to
-   * "awaiting fresh bootstrap." Does NOT delete config.json — caller is
+   * "awaiting fresh bootstrap." Does NOT delete .decocms/daemon.json — caller is
    * responsible for that if needed.
    */
   clear(): void {

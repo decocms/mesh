@@ -575,6 +575,53 @@ function resolveSourceDaemonPath(): string {
   );
 }
 
+function resolveSourceCliPath(): string {
+  return resolve(
+    fileURLToPath(new URL("../../../cli/dist/sandbox.js", import.meta.url)),
+  );
+}
+
+async function materializeCliBundle(homeDir: string): Promise<string> {
+  const { CLI_BUNDLE } = await import("./cli-asset");
+  const hash = createHash("sha256")
+    .update(CLI_BUNDLE)
+    .digest("hex")
+    .slice(0, 16);
+  const cacheDir = join(homeDir, ".deco", "cache");
+  const cachePath = join(cacheDir, `sandbox-cli-${hash}.js`);
+  if (existsSync(cachePath)) return cachePath;
+  await mkdir(cacheDir, { recursive: true });
+  const tmpPath = `${cachePath}.${process.pid}.tmp`;
+  await writeFile(tmpPath, CLI_BUNDLE);
+  await rename(tmpPath, cachePath);
+  return cachePath;
+}
+
+async function resolveSandboxCliExec(homeDir: string): Promise<string> {
+  const sourcePath = resolveSourceCliPath();
+  if (existsSync(sourcePath)) return sourcePath;
+  return materializeCliBundle(homeDir);
+}
+
+/**
+ * Creates `<homeDir>/.deco/bin/sandbox` — a shell shim that delegates to the
+ * resolved CLI bundle via `bun`. Returns the bin directory so the caller can
+ * prepend it to PATH. Overwrites the shim on every call so stale pointers
+ * (e.g. after a CLI bundle hash change) are always corrected.
+ */
+async function ensureSandboxShim(
+  homeDir: string,
+  cliPath: string,
+): Promise<string> {
+  const binDir = join(homeDir, ".deco", "bin");
+  await mkdir(binDir, { recursive: true });
+  const shimPath = join(binDir, "sandbox");
+  await writeFile(shimPath, `#!/bin/sh\nexec bun "${cliPath}" "$@"\n`, {
+    mode: 0o755,
+  });
+  return binDir;
+}
+
 function resolveNodePtyNodeModulesDir(): string {
   // node-pty is a peer of the parent process (decocms ships it as a direct
   // dep; in dev it lives in packages/sandbox/node_modules). We resolve from
@@ -620,18 +667,24 @@ async function resolveDaemonExec(homeDir: string): Promise<string> {
 
 function createDefaultSpawn(homeDir: string): SpawnFn {
   return async (args) => {
-    const daemonExec = await resolveDaemonExec(homeDir);
+    const [daemonExec, cliExec] = await Promise.all([
+      resolveDaemonExec(homeDir),
+      resolveSandboxCliExec(homeDir),
+    ]);
+    const shimBinDir = await ensureSandboxShim(homeDir, cliExec);
     const ptyNodeModulesDir = resolveNodePtyNodeModulesDir();
     const existingNodePath = process.env.NODE_PATH;
     const nodePath = existingNodePath
       ? `${ptyNodeModulesDir}:${existingNodePath}`
       : ptyNodeModulesDir;
+    const existingPath = process.env.PATH ?? "";
     const proc = Bun.spawn({
       cmd: ["bun", "run", daemonExec],
       // cwd is intentionally inherited from the parent — daemon resolves
       // its own paths relative to the entry file.
       env: {
         ...process.env,
+        PATH: `${shimBinDir}:${existingPath}`,
         NODE_PATH: nodePath,
         ...args.env,
       },
