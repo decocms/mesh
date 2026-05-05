@@ -98,7 +98,12 @@ async function defaultOpenBrowser(url: string): Promise<void> {
   }
   await new Promise<void>((resolve) => {
     const child = spawn(command, args, { stdio: "ignore", detached: true });
-    child.on("error", () => resolve());
+    child.on("error", () => {
+      console.log(
+        `Could not open browser automatically. Please open this URL manually:\n  ${url}`,
+      );
+      resolve();
+    });
     child.on("spawn", () => {
       child.unref();
       resolve();
