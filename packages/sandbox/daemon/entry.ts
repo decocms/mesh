@@ -469,11 +469,16 @@ process.on("SIGTERM", () => {
   const branch = store.read()?.git?.repository?.branch;
   if (branch) {
     try {
-      gitSync(["add", "-A"], { cwd: bootConfig.repoDir });
-      gitSync(["commit", "--allow-empty", "-m", "autosave"], {
+      gitSync(["-c", "safe.directory=*", "add", "-A"], {
         cwd: bootConfig.repoDir,
       });
-      gitSync(["push", "origin", branch], { cwd: bootConfig.repoDir });
+      gitSync(
+        ["-c", "safe.directory=*", "commit", "--allow-empty", "-m", "autosave"],
+        { cwd: bootConfig.repoDir },
+      );
+      gitSync(["-c", "safe.directory=*", "push", "origin", branch], {
+        cwd: bootConfig.repoDir,
+      });
     } catch {
       // best-effort
     }
