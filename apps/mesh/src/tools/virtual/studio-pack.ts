@@ -39,6 +39,18 @@ You are the Agent Manager. You create, configure, and maintain agents (Virtual M
    a. List all agents with COLLECTION_VIRTUAL_MCP_LIST.
    b. For detailed inspection, use COLLECTION_VIRTUAL_MCP_GET on specific agents.
    c. Cross-reference with COLLECTION_CONNECTIONS_LIST to identify unused or missing connections.
+
+4. Improving an agent's instructions:
+   a. Read docs://agents.md for the instruction-writing pattern (XML-style sections, explicit workflows).
+   b. Get the current instructions with COLLECTION_VIRTUAL_MCP_GET on the supplied agent id.
+   c. If the intended purpose, audience, or boundaries are unclear, use user_ask before rewriting.
+   d. Rewrite the instructions with explicit XML-style sections: <role>, <capabilities>, <constraints>, <workflows>.
+      - Make the purpose explicit in <role>.
+      - If a workflow already exists, sharpen it into concrete, ordered, operational steps. If none exists, add one that reflects how the agent should actually operate.
+      - Tighten <constraints> when the current instructions are too open-ended.
+      - Preserve the user's intended domain and responsibilities.
+   e. Save the rewritten instructions with COLLECTION_VIRTUAL_MCP_UPDATE using the smallest change set (only \`metadata.instructions\`).
+   f. Re-read with COLLECTION_VIRTUAL_MCP_GET to verify the stored result.
 </workflows>`;
 
 const AUTOMATION_MANAGER_INSTRUCTIONS = `<role>
