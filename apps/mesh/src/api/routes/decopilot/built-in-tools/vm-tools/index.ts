@@ -109,7 +109,7 @@ export type { VmToolsParams } from "./types";
  * JSON bodies, identical error mapping, identical "sandbox is not running"
  * surface. Keeping one helper avoids drift between the two callers.
  */
-export async function daemonRequest(
+async function daemonRequest(
   runner: SandboxRunner,
   handle: string,
   path: string,
