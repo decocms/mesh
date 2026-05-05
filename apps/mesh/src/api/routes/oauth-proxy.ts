@@ -294,27 +294,6 @@ function buildPathPrefix(orgSlug: string | undefined): string {
 }
 
 /**
- * Detect the org slug from a request path of the form `/api/:slug/...`.
- * Returns the slug or undefined if the path is not under `/api/:slug/`.
- *
- * Note: `/api/auth/...` and other non-org-scoped `/api/...` routes are
- * filtered out by checking that the path matches the expected org-scoped
- * MCP/well-known shapes. Callers should also rely on `ctx.organization?.slug`
- * (set by `resolveOrgFromPath`) when available — this helper is a fallback.
- */
-function detectOrgSlugFromPath(path: string): string | undefined {
-  const m = path.match(/^\/api\/([^/]+)\//);
-  const slug = m?.[1];
-  if (!slug) return undefined;
-  // Filter out non-org `/api/...` segments. The full list of these lives in
-  // app.ts; we only care about the ones that could host MCP or oauth-proxy
-  // routes. None of those collide with org slugs in practice.
-  const reserved = new Set(["auth", "tools", "plugins", "deco-sites"]);
-  if (reserved.has(slug)) return undefined;
-  return slug;
-}
-
-/**
  * Handles 401 auth errors from MCP origin servers.
  *
  * Checks if the origin server supports OAuth by looking for WWW-Authenticate header.
@@ -392,8 +371,13 @@ const fixProtocol = (url: URL) => {
  * to our OAuth proxy. This enables OAuth flows for servers like Apify that use WWW-Authenticate
  * but don't expose .well-known/oauth-protected-resource.
  */
-const protectedResourceMetadataHandler = async (c: {
-  req: { param: (key: string) => string; raw: Request; url: string };
+export const protectedResourceMetadataHandler = async (c: {
+  req: {
+    param: ((key: "connectionId") => string) &
+      ((key: "org") => string | undefined);
+    raw: Request;
+    url: string;
+  };
   get: (key: "meshContext") => MeshContext | undefined;
   set: (key: "meshContext", value: MeshContext) => void;
   json: (data: unknown, status?: number) => Response;
@@ -407,16 +391,26 @@ const protectedResourceMetadataHandler = async (c: {
   }
 
   const requestUrl = fixProtocol(new URL(c.req.url));
-  // Determine the path prefix from the request. When called via the new
-  // `/api/:org/mcp/...` mount, `ctx.organization?.slug` is set by
-  // `resolveOrgFromPath`. Fall back to detecting the slug from the request
-  // path so callers that bypass meshContext still get correct URLs. Legacy
-  // callers (no `/api/:slug` prefix in the path) get legacy URLs back.
-  const orgSlug =
-    ctx.organization?.slug ?? detectOrgSlugFromPath(requestUrl.pathname);
+  // Org slug sources (in priority order):
+  // 1. `ctx.organization?.slug` — set by `resolveOrgFromPath` for routes
+  //    inside the `/api/:org` sub-app.
+  // 2. `c.req.param("org")` — present on the top-level well-known prefix
+  //    route `/.well-known/oauth-protected-resource/api/:org/mcp/:id`, which
+  //    sits outside the sub-app so `resolveOrgFromPath` never runs.
+  // 3. undefined — legacy routes (`/mcp/:id/.well-known/...`,
+  //    `/.well-known/.../mcp/:id`) have no slug; the prefix is empty and
+  //    we issue legacy-shape metadata URLs.
+  const orgSlug = ctx.organization?.slug ?? c.req.param("org");
   const prefix = buildPathPrefix(orgSlug);
   const proxyResourceUrl = `${requestUrl.origin}${prefix}/mcp/${connectionId}`;
-  const proxyAuthServer = `${requestUrl.origin}${prefix}/oauth-proxy/${connectionId}`;
+  // Auth-server URL stays on the legacy `/oauth-proxy/:connectionId` path
+  // regardless of the resource path family. The well-known auth-server
+  // metadata route (`createWellKnownAuthServerRoutes`) only exists at the
+  // legacy URL, and third-party OAuth providers may have it registered as a
+  // redirect_uri base — moving it to `/api/:org/...` would land the SDK on
+  // Better Auth's catch-all metadata handler (which returns Better Auth's
+  // own MCP gateway endpoints) and break DCR with `invalid_client`.
+  const proxyAuthServer = `${requestUrl.origin}/oauth-proxy/${connectionId}`;
 
   try {
     // Fetch from origin, trying both well-known URL formats
@@ -522,24 +516,44 @@ const protectedResourceMetadataHandler = async (c: {
 };
 
 /**
- * Factory for the two `.well-known/oauth-protected-resource` routes.
+ * Legacy `.well-known/oauth-protected-resource` routes for the pre-org-scoped
+ * server URL shape (`/mcp/:id`). Mounted at the URL root with a deprecation
+ * log; will be removed once the deprecation window closes.
  *
- * Two URL shapes are supported by MCP clients in the wild:
- * 1. `/.well-known/oauth-protected-resource/mcp/:connectionId` (well-known
- *    prefix, used by some clients)
- * 2. `/mcp/:connectionId/.well-known/oauth-protected-resource` (resource-
- *    relative, the more common shape)
- *
- * When mounted under `/api/:org/`, both expand to
- * `/api/:org/<original>` and the handler picks up the org slug from
- * `ctx.organization` (set by `resolveOrgFromPath`) so issued metadata
- * URLs point at the new path. Legacy mount uses the legacy URLs.
+ * Two URL shapes are served (both probed by MCP clients in the wild):
+ *  1. `/.well-known/oauth-protected-resource/mcp/:connectionId` — RFC 9728
+ *     Format 2 (well-known prefix), what `@modelcontextprotocol/sdk` probes.
+ *  2. `/mcp/:connectionId/.well-known/oauth-protected-resource` — RFC 9728
+ *     Format 1 (resource-relative), what the proxy's WWW-Authenticate
+ *     `resource_metadata` header points to.
  */
-export const createWellKnownProtectedResourceRoutes = () => {
+export const createLegacyWellKnownProtectedResourceRoutes = () => {
   const app = new Hono<HonoEnv>();
   app.get("/.well-known/oauth-protected-resource/mcp/:connectionId", (c) =>
     protectedResourceMetadataHandler(c),
   );
+  app.get("/mcp/:connectionId/.well-known/oauth-protected-resource", (c) =>
+    protectedResourceMetadataHandler(c),
+  );
+  return app;
+};
+
+/**
+ * Org-scoped resource-relative `.well-known/oauth-protected-resource` route.
+ * Mounted inside the `/api/:org` sub-app; expands to
+ * `/api/:org/mcp/:connectionId/.well-known/oauth-protected-resource`. This is
+ * the URL the proxy's WWW-Authenticate `resource_metadata` points to under
+ * the new path family — `resolveOrgFromPath` runs first, so the handler picks
+ * up `ctx.organization?.slug` directly.
+ *
+ * The well-known *prefix* shape for org-scoped server URLs
+ * (`/.well-known/oauth-protected-resource/api/:org/mcp/:connectionId`) is
+ * registered separately at the URL root in `app.ts` — RFC 9728 Format 2
+ * anchors the well-known prefix at the origin, so it must live outside any
+ * `/api/:org` sub-app.
+ */
+export const createOrgScopedWellKnownProtectedResourceRoutes = () => {
+  const app = new Hono<HonoEnv>();
   app.get("/mcp/:connectionId/.well-known/oauth-protected-resource", (c) =>
     protectedResourceMetadataHandler(c),
   );
@@ -730,6 +744,6 @@ export const createWellKnownAuthServerRoutes = () => {
  * legacy mounts and dual-mount under `/api/:org/...`.
  */
 const app = new Hono<HonoEnv>();
-app.route("/", createWellKnownProtectedResourceRoutes());
+app.route("/", createLegacyWellKnownProtectedResourceRoutes());
 app.route("/", createWellKnownAuthServerRoutes());
 export default app;

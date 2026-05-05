@@ -50,10 +50,11 @@ import {
 } from "./routes/deco-sites";
 import { createVirtualMcpRoutes } from "./routes/virtual-mcp";
 import {
+  createLegacyWellKnownProtectedResourceRoutes,
   createWellKnownAuthServerRoutes,
-  createWellKnownProtectedResourceRoutes,
   fetchAuthorizationServerMetadata,
   fetchProtectedResourceMetadata,
+  protectedResourceMetadataHandler,
 } from "./routes/oauth-proxy";
 import openaiCompatRoutes from "./routes/openai-compat";
 import { createProxyRoutes } from "./routes/proxy";
@@ -965,13 +966,25 @@ export async function createApp(options: CreateAppOptions = {}) {
   // ============================================================================
 
   // OAuth Protected-Resource discovery metadata — proxied from the origin MCP
-  // server. Two URL shapes (well-known prefix vs resource-relative) are wired
-  // by the factory. Legacy mount gets the deprecation log; the new canonical
-  // mount under `/api/:org/...` is added inside `createOrgScopedApi` below.
+  // server. The legacy server-URL shape (`/mcp/:id`) gets a deprecation log;
+  // the resource-relative shape for the new `/api/:org/mcp/:id` family is
+  // mounted via `createOrgScopedApi` below.
   const legacyWellKnownProtectedResource =
-    createWellKnownProtectedResourceRoutes();
+    createLegacyWellKnownProtectedResourceRoutes();
   legacyWellKnownProtectedResource.use("*", logDeprecatedRoute);
   app.route("/", legacyWellKnownProtectedResource);
+
+  // Well-known *prefix* discovery for the new org-scoped server URL shape.
+  // RFC 9728 Format 2 anchors `/.well-known/oauth-protected-resource` at the
+  // origin and appends the resource path, so the SDK probes
+  // `/.well-known/oauth-protected-resource/api/:org/mcp/:connectionId` — that
+  // path lives at the URL root, NOT under the `/api/:org` sub-app, and must
+  // not be tagged as a deprecated route. The handler reads the org slug from
+  // the path via `detectOrgSlugFromPath`.
+  app.get(
+    "/.well-known/oauth-protected-resource/api/:org/mcp/:connectionId",
+    protectedResourceMetadataHandler,
+  );
 
   // Auth-server metadata stays at the legacy global path indefinitely —
   // third-party OAuth providers may have this URL registered as a

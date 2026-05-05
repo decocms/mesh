@@ -10,7 +10,7 @@ import { createDecoSitesOrgRoutes } from "./deco-sites";
 import { createDevAssetsRoutes } from "./dev-assets";
 import { createDownstreamTokenRoutes } from "./downstream-token";
 import { createKVRoutes } from "./kv";
-import { createWellKnownProtectedResourceRoutes } from "./oauth-proxy";
+import { createOrgScopedWellKnownProtectedResourceRoutes } from "./oauth-proxy";
 import { createSsoRoutes } from "./org-sso";
 import { createProxyRoutes } from "./proxy";
 import { createSelfRoutes } from "./self";
@@ -84,12 +84,13 @@ export const createOrgScopedApi = (deps: OrgScopedDeps) => {
   app.use("/mcp/virtual-mcp/:virtualMcpId?", deps.mcpAuth);
   app.use("/mcp/self", deps.mcpAuth);
 
-  // OAuth Protected-Resource discovery for connection MCPs. Both URL shapes
-  // get mounted; the handler picks `ctx.organization?.slug` (set by
-  // `resolveOrgFromPath` above) so issued metadata URLs point at the new
-  // `/api/:org/...` path. Must mount BEFORE the catch-all proxy routes so
-  // the well-known suffix wins.
-  app.route("/", createWellKnownProtectedResourceRoutes());
+  // OAuth Protected-Resource discovery for connection MCPs (resource-relative
+  // shape). Expands to
+  // `/api/:org/mcp/:connectionId/.well-known/oauth-protected-resource`, which
+  // is what the proxy's WWW-Authenticate `resource_metadata` header points to.
+  // The well-known *prefix* shape lives outside this sub-app — see app.ts.
+  // Must mount BEFORE the catch-all proxy routes so the well-known suffix wins.
+  app.route("/", createOrgScopedWellKnownProtectedResourceRoutes());
 
   // Better-Auth Protected Resource Metadata for the gateway-style URL family.
   // Mounted BEFORE the proxy routes for the same reason.
