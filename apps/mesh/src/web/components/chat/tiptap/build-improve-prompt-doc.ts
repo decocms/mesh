@@ -1,4 +1,4 @@
-import type { JSONContent } from "@tiptap/core";
+import type { TiptapDoc } from "../types";
 
 export interface ImprovePromptDocInput {
   managerAgentId: string;
@@ -16,9 +16,7 @@ export interface ImprovePromptDocInput {
  * `[DELEGATE TO AGENT: ...]` directive that Decopilot's SUBTASK tool
  * picks up. The XML payload carries the entity context for the manager.
  */
-export function buildImprovePromptDoc(
-  input: ImprovePromptDocInput,
-): JSONContent {
+export function buildImprovePromptDoc(input: ImprovePromptDocInput): TiptapDoc {
   const { managerAgentId, managerName, kind, id, instructions } = input;
 
   const xmlPayload =

@@ -1,9 +1,11 @@
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import type { VirtualMCPEntity } from "@/tools/virtual/schema";
 import { getUIResourceUri } from "@/mcp-apps/types.ts";
-import { useChatPrefs, useChatTask } from "@/web/components/chat/context";
+import { useChatBridge } from "@/web/components/chat/context";
+import { buildImprovePromptDoc } from "@/web/components/chat/tiptap/build-improve-prompt-doc";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
+import { useEnsureStudioPack } from "@/web/components/home/use-ensure-studio-pack";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { User } from "@/web/components/user/user";
@@ -53,8 +55,8 @@ import {
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   type ConnectionEntity,
-  getDecopilotId,
   SELF_MCP_ALIAS_ID,
+  StudioPackAgentId,
   useConnection,
   useConnectionActions,
   useConnections,
@@ -1096,11 +1098,11 @@ function VirtualMcpDetailViewWithData({
   });
 
   const [instructionsFullscreen, setInstructionsFullscreen] = useState(false);
-  const { createTaskWithMessage } = useChatTask();
-  const { setChatMode } = useChatPrefs();
-  const { createNewTask } = usePanelActions();
+  const { createNewTask, setChatOpen } = usePanelActions();
+  const { sendMessage } = useChatBridge();
+  const ensureStudioPack = useEnsureStudioPack();
 
-  const handleImprovePrompt = () => {
+  const handleImprovePrompt = async () => {
     const currentInstructions = form.getValues("metadata.instructions");
     if (!currentInstructions?.trim()) return;
 
@@ -1110,18 +1112,18 @@ function VirtualMcpDetailViewWithData({
       instructions_length: currentInstructions.length,
     });
 
-    setChatMode("plan");
+    await ensureStudioPack(["studio-agent-manager"]);
 
-    createTaskWithMessage({
-      virtualMcpId: getDecopilotId(org.id),
-      message: {
-        parts: [
-          {
-            type: "text",
-            text: `/writing-prompts ${virtualMcp.id}\n\n<instructions>\n${currentInstructions}\n</instructions>`,
-          },
-        ],
-      },
+    setChatOpen(true);
+
+    await sendMessage({
+      tiptapDoc: buildImprovePromptDoc({
+        managerAgentId: StudioPackAgentId.AGENT_MANAGER(org.id),
+        managerName: "Agent Manager",
+        kind: "agent",
+        id: virtualMcp.id,
+        instructions: currentInstructions,
+      }),
     });
   };
 
