@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Page } from "@/web/components/page";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
@@ -13,50 +12,52 @@ import {
   ToggleGroupItem,
 } from "@deco/ui/components/toggle-group.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
-import { Button } from "@deco/ui/components/button.tsx";
 import { Moon01, Monitor01, Play, Sun } from "@untitledui/icons";
+import { Controller, useForm } from "react-hook-form";
 import { authClient } from "@/web/lib/auth-client";
 import {
   usePreferences,
   type ThemeMode,
   type ToolApprovalLevel,
 } from "@/web/hooks/use-preferences.ts";
+import { useDebouncedAutosave } from "@/web/hooks/use-debounced-autosave.ts";
 import { playSound } from "@deco/ui/lib/sound-engine.ts";
 import { question004Sound } from "@deco/ui/lib/question-004.ts";
 import { toast } from "@deco/ui/components/sonner.js";
 import { track } from "@/web/lib/posthog-client";
 import {
   SettingsCard,
-  SettingsCardActions,
   SettingsCardItem,
   SettingsPage,
   SettingsSection,
 } from "@/web/components/settings/settings-section";
 
+interface ProfileFormValues {
+  name: string;
+}
+
 function ProfileSection() {
   const { data: session, isPending } = authClient.useSession();
   const user = session?.user;
   const userImage = (user as { image?: string } | undefined)?.image;
-  const [editedName, setEditedName] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
 
-  const name = editedName ?? user?.name ?? "";
-  const isDirty = editedName !== null && editedName !== (user?.name ?? "");
+  const form = useForm<ProfileFormValues>({
+    values: { name: user?.name ?? "" },
+  });
 
-  const handleSave = async () => {
-    if (!isDirty) return;
-    setSaving(true);
-    try {
-      await authClient.updateUser({ name });
-      track("profile_updated", { fields: ["name"] });
-      setEditedName(null);
-      toast.success("Profile updated");
-    } catch {
-      toast.error("Failed to update profile");
-    } finally {
-      setSaving(false);
-    }
-  };
+  const { schedule: scheduleSave, flush: flushAndSave } = useDebouncedAutosave({
+    save: async () => {
+      if (!form.formState.isDirty) return;
+      const { name } = form.getValues();
+      try {
+        await authClient.updateUser({ name });
+        track("profile_updated", { fields: ["name"] });
+        form.reset({ name });
+      } catch {
+        toast.error("Failed to update profile");
+      }
+    },
+  });
 
   if (isPending) return null;
 
@@ -77,15 +78,28 @@ function ProfileSection() {
         <SettingsCardItem
           title="Display name"
           action={
-            <Input
-              id="display-name"
-              value={name}
-              onChange={(e) => setEditedName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void handleSave();
-              }}
-              placeholder="Your name"
-              className="w-[280px]"
+            <Controller
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <Input
+                  id="display-name"
+                  {...field}
+                  onChange={(e) => {
+                    field.onChange(e);
+                    scheduleSave();
+                  }}
+                  onBlur={() => {
+                    field.onBlur();
+                    flushAndSave();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void flushAndSave();
+                  }}
+                  placeholder="Your name"
+                  className="w-[280px]"
+                />
+              )}
             />
           }
         />
@@ -95,21 +109,6 @@ function ProfileSection() {
             <span className="text-sm text-muted-foreground">{user?.email}</span>
           }
         />
-        {isDirty && (
-          <SettingsCardActions>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setEditedName(null)}
-              disabled={saving}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleSave} disabled={saving} size="sm">
-              {saving ? "Saving…" : "Save"}
-            </Button>
-          </SettingsCardActions>
-        )}
       </SettingsCard>
     </SettingsSection>
   );
