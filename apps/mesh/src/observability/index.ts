@@ -27,7 +27,13 @@ import { enableFetchInstrumentation } from "./instrumentations/fetch";
 import { NDJSONLogExporter } from "../monitoring/ndjson-log-exporter";
 import { NDJSONMetricExporter } from "../monitoring/ndjson-metric-exporter";
 import { NDJSONTraceExporter } from "../monitoring/ndjson-trace-exporter";
-import { getLogsDir, getMetricsDir, getTracesDir } from "../monitoring/schema";
+import {
+  getLogsDir,
+  getMetricsDir,
+  getTracesDir,
+  MONITORING_LOG_ATTR,
+} from "../monitoring/schema";
+import { truncateString } from "../monitoring/truncate-string";
 import { getSettings } from "../settings";
 
 import {
@@ -64,6 +70,44 @@ class SampledLogRecordProcessor implements LogRecordProcessor {
       record.severityNumber !== undefined &&
       record.severityNumber >= SeverityNumber.ERROR;
     if (isError || Math.random() < this.ratio) {
+      this.inner.onEmit(record, context);
+    }
+  }
+
+  forceFlush(): Promise<void> {
+    return this.inner.forceFlush();
+  }
+
+  shutdown(): Promise<void> {
+    return this.inner.shutdown();
+  }
+}
+
+// Truncates mesh.monitoring.output to 500 bytes before forwarding to the
+// wrapped exporter (OTLP/HyperDX). The NDJSON local exporter receives the
+// full value because it wraps a different inner processor.
+class TruncateMonitoringOutputProcessor implements LogRecordProcessor {
+  constructor(
+    private inner: LogRecordProcessor,
+    private maxBytes: number,
+  ) {}
+
+  onEmit(
+    record: SdkLogRecord,
+    context?: import("@opentelemetry/api").Context,
+  ): void {
+    const outputKey = MONITORING_LOG_ATTR.OUTPUT;
+    const output = record.attributes?.[outputKey];
+    if (typeof output === "string" && output.length > this.maxBytes) {
+      const truncated = truncateString(output, this.maxBytes);
+      this.inner.onEmit(
+        {
+          ...record,
+          attributes: { ...record.attributes, [outputKey]: truncated },
+        } as SdkLogRecord,
+        context,
+      );
+    } else {
       this.inner.onEmit(record, context);
     }
   }
@@ -313,7 +357,11 @@ export function initObservability(): void {
               process.env.NODE_ENV === "production";
             const logSampleRatio = isProd ? 1.0 : 0.1;
             const batch = new BatchLogRecordProcessor(new OTLPLogExporter());
-            return [new SampledLogRecordProcessor(batch, logSampleRatio)];
+            const truncated = new TruncateMonitoringOutputProcessor(
+              batch,
+              8_000,
+            );
+            return [new SampledLogRecordProcessor(truncated, logSampleRatio)];
           })()
         : []),
       ...(monitoringLogExporter
