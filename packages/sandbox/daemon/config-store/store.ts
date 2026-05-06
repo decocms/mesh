@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { writeConfig } from "../persistence";
 import type { EnrichedTenantConfig, TenantConfig } from "../types";
 import { validateTenantConfig } from "../validate";
@@ -121,13 +123,15 @@ export class TenantConfigStore {
       };
     }
 
-    try {
-      writeConfig(merged, this.deps.storageDir);
-    } catch {
-      return {
-        kind: "rejected",
-        reason: REJECTION_REASONS.PERSISTENCE_FAILED,
-      };
+    if (existsSync(join(this.deps.storageDir, ".git"))) {
+      try {
+        writeConfig(merged, this.deps.storageDir);
+      } catch {
+        return {
+          kind: "rejected",
+          reason: REJECTION_REASONS.PERSISTENCE_FAILED,
+        };
+      }
     }
 
     this.current = enrich(merged);

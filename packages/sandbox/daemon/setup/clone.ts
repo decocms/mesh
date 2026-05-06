@@ -54,7 +54,7 @@ export function spawnClone(deps: CloneDeps): Promise<number> {
       `${gc} -C ${dir} init`,
       `${gc} -C ${dir} remote add origin ${cloneUrl}`,
       `${gc} -C ${dir} fetch --depth 1 origin HEAD`,
-      `${gc} -C ${dir} checkout FETCH_HEAD`,
+      `${gc} -C ${dir} checkout -f FETCH_HEAD`,
     ].join(" && ");
     return spawnSetupStep(cmd, deps.onChunk, deps.dropPrivileges);
   }

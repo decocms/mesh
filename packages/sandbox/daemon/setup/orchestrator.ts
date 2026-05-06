@@ -498,9 +498,9 @@ export class SetupOrchestrator {
     const repoDir = this.deps.bootConfig.repoDir;
     if (!repoDir) return;
 
-    // Remove daemon.json before checkout so git doesn't abort with
-    // "untracked working tree files would be overwritten by checkout".
-    // The checkout itself will write the branch's committed version (if any).
+    // Remove daemon.json before checkout so git doesn't treat it as a
+    // conflicting local change. The -f flag on the checkout below handles
+    // any remaining tracked-but-modified or untracked state.
     try {
       unlinkSync(join(repoDir, CONFIG_FILENAME));
     } catch {
@@ -528,10 +528,12 @@ export class SetupOrchestrator {
       /* not on remote — fall through to local create */
     }
     if (onRemote) {
-      gitSync(["-c", "safe.directory=*", "checkout", branch], { cwd: repoDir });
+      gitSync(["-c", "safe.directory=*", "checkout", "-f", branch], {
+        cwd: repoDir,
+      });
     } else {
       try {
-        gitSync(["-c", "safe.directory=*", "checkout", branch], {
+        gitSync(["-c", "safe.directory=*", "checkout", "-f", branch], {
           cwd: repoDir,
         });
       } catch {
