@@ -82,10 +82,13 @@ export class TenantConfigStore {
         if (!entry) break;
         try {
           entry.resolve(await this.runOne(entry.patch));
-        } catch {
+        } catch (err) {
+          const detail = err instanceof Error ? err.message : String(err);
+          console.warn(`[config-store] apply threw: ${detail}`);
           entry.resolve({
             kind: "rejected",
             reason: REJECTION_REASONS.APPLY_FAILED,
+            detail,
           });
         }
       }
@@ -100,7 +103,18 @@ export class TenantConfigStore {
 
     const validation = validateTenantConfig(merged);
     if (validation.kind === "invalid") {
-      return { kind: "rejected", reason: REJECTION_REASONS.INVALID };
+      // Surface the field-level reason from `validateTenantConfig` instead of
+      // the bare "invalid" constant — the wire response becomes
+      // `{"error":"invalid: <reason>"}` and pod logs get the same line, so a
+      // 400 from /config can be diagnosed without re-running with a debugger.
+      console.warn(
+        `[config-store] rejected payload as invalid: ${validation.reason}`,
+      );
+      return {
+        kind: "rejected",
+        reason: REJECTION_REASONS.INVALID,
+        detail: validation.reason,
+      };
     }
 
     const transition = classify(before, merged);
