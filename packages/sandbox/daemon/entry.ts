@@ -146,7 +146,6 @@ const orchestrator = new SetupOrchestrator({
 });
 
 let discoveredScripts: string[] | null = null;
-let lastWrittenProxyPort: number | undefined;
 
 const origEvent = broadcaster.broadcastEvent.bind(broadcaster);
 broadcaster.broadcastEvent = (event: string, data: unknown) => {
@@ -217,19 +216,6 @@ const lastStatus = startUpstreamProbe({
     broadcaster.broadcastEvent("status", { type: "status", ...s });
     if (s.ready && s.port !== null) {
       appService.markUp();
-    }
-    // Probe writeback: when discovery resolves a port owned by the app
-    // service, persist it as proxy.targetPort so tenants see what we're
-    // forwarding to. Dedupe to avoid spamming `apply()` every tick.
-    if (
-      s.port !== null &&
-      s.port !== lastWrittenProxyPort &&
-      appService.pid() !== undefined
-    ) {
-      lastWrittenProxyPort = s.port;
-      void store.apply({
-        application: { proxy: { targetPort: s.port } },
-      } as Partial<TenantConfig>);
     }
   },
 });
