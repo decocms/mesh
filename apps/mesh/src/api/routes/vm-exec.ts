@@ -11,10 +11,8 @@
 
 import { Hono, type Context } from "hono";
 import { composeSandboxRef } from "@decocms/sandbox/runner";
-import {
-  computeClaimHandle,
-  getOrInitSharedRunner,
-} from "../../sandbox/lifecycle";
+import { computeClaimHandle } from "../../sandbox/claim-handle";
+import { getOrInitSharedRunner } from "../../sandbox/lifecycle";
 import {
   getUserId,
   requireAuth,

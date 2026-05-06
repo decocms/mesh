@@ -8,12 +8,10 @@
 
 import type { MeshContext } from "@/core/mesh-context";
 import {
-  computeHandle,
   DockerSandboxRunner,
   resolveRunnerKindFromEnv,
   type RunnerKind,
   type SandboxRunner,
-  type SandboxId,
 } from "@decocms/sandbox/runner";
 import type { ClaimPhase } from "@decocms/sandbox/runner/agent-sandbox";
 import { getDb } from "@/database";
@@ -438,25 +436,6 @@ async function pumpLifecycleSource(
       sharedLifecycles.delete(claimName);
     }
   }
-}
-
-/**
- * Compute the claim handle for a sandbox, using the correct hashLen for the
- * current runner kind. agent-sandbox uses hashLen=16 (preview URLs are
- * public hostnames; shorter hashes are brute-forceable). All other runners
- * use the default hashLen=5.
- *
- * Use this everywhere a claimName must match what a runner stored — vm-events,
- * vm-exec, etc. Centralising it prevents the hashLen mismatch that causes
- * "sandbox not found" when the wrong length is used.
- */
-export function computeClaimHandle(id: SandboxId, branch: string): string {
-  const runnerKind = resolveRunnerKindFromEnv();
-  return computeHandle(
-    id,
-    branch,
-    runnerKind === "agent-sandbox" ? { hashLen: 16 } : {},
-  );
 }
 
 /**

@@ -41,8 +41,8 @@ import {
   resolveRunnerKindFromEnv,
 } from "@decocms/sandbox/runner";
 import type { ClaimPhase } from "@decocms/sandbox/runner";
+import { computeClaimHandle } from "../../sandbox/claim-handle";
 import {
-  computeClaimHandle,
   getOrInitSharedRunner,
   subscribeLifecycle,
 } from "../../sandbox/lifecycle";
