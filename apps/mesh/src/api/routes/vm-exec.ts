@@ -10,8 +10,11 @@
  */
 
 import { Hono, type Context } from "hono";
-import { composeSandboxRef, computeHandle } from "@decocms/sandbox/runner";
-import { getOrInitSharedRunner } from "../../sandbox/lifecycle";
+import { composeSandboxRef } from "@decocms/sandbox/runner";
+import {
+  computeClaimHandle,
+  getOrInitSharedRunner,
+} from "../../sandbox/lifecycle";
 import {
   getUserId,
   requireAuth,
@@ -54,7 +57,7 @@ async function proxy(c: Context<Env>, daemonPath: string) {
     virtualMcpId,
     branch,
   });
-  const claimName = computeHandle({ userId, projectRef }, branch);
+  const claimName = computeClaimHandle({ userId, projectRef }, branch);
 
   const runner = await getOrInitSharedRunner();
   if (!runner) {
