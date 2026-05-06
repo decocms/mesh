@@ -494,6 +494,19 @@ export class AgentSandboxRunner implements SandboxRunner {
     init: ProxyRequestInit,
   ): Promise<Response> {
     const rec = await this.getRecord(handle);
+
+    // rehydrate failed (port-forward is pod-local); route via in-cluster Service instead.
+    if (!rec && this.previewUrlPattern && this.stateStore) {
+      const row = await this.stateStore.getByHandle(RUNNER_KIND, handle);
+      const state = row?.state as Partial<PersistedK8sState> | undefined;
+      const token = state?.token;
+      if (row && token) {
+        const adoptedName = state?.adoptedSandboxName ?? handle;
+        const daemonUrl = `http://${adoptedName}.${this.namespace}.svc.cluster.local:${DAEMON_CONTAINER_PORT}`;
+        return proxyDaemonRequest(daemonUrl, token, path, init);
+      }
+    }
+
     if (!rec) {
       return new Response(JSON.stringify({ error: "sandbox not found" }), {
         status: 404,
