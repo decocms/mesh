@@ -19,7 +19,7 @@ describe("buildImprovePromptDoc", () => {
 
     const [leading, mention, trailing] = para?.content ?? [];
     expect(leading?.type).toBe("text");
-    expect(leading?.text).toBe("Subtask to ");
+    expect(leading?.text).toBe("Use ");
 
     expect(mention?.type).toBe("mention");
     expect(mention?.attrs).toMatchObject({
@@ -33,7 +33,7 @@ describe("buildImprovePromptDoc", () => {
     expect(trailing?.text).toContain(
       'to improve the instructions of agent "vmcp_abc"',
     );
-    expect(trailing?.text).toContain("Here's the current instructions");
+    expect(trailing?.text).toContain("Here are its current instructions.");
     expect(trailing?.text).toContain(
       "<current_instructions>Help users with onboarding.\nBe concise.</current_instructions>",
     );
@@ -48,7 +48,7 @@ describe("buildImprovePromptDoc", () => {
       .filter((p): p is { type: "text"; text: string } => p.type === "text")
       .map((p) => p.text)
       .join("\n");
-    expect(text).toContain("Subtask to @Agent Manager");
+    expect(text).toContain("Use @Agent Manager to improve the instructions");
     expect(text).toContain(
       "[DELEGATE TO AGENT: Agent Manager (agent_id: agent_mgr_123)]",
     );

@@ -10,8 +10,8 @@ export interface ImprovePromptDocInput {
 
 /**
  * Build a tiptap document that, when sent through the chat, reads as:
- *   Subtask to @<Manager>, to improve the instructions of <kind> "<id>".
- *   Here's the current instructions
+ *   Use @<Manager> to improve the instructions of <kind> "<id>".
+ *   Here are its current instructions.
  *   <current_instructions>{instructions}</current_instructions>
  *
  * The mention is shaped so derivePartsFromTiptapDoc emits the standard
@@ -22,8 +22,8 @@ export function buildImprovePromptDoc(input: ImprovePromptDocInput): TiptapDoc {
   const { managerAgentId, managerName, kind, id, instructions } = input;
 
   const trailing =
-    `, to improve the instructions of ${kind} "${id}". ` +
-    `Here's the current instructions\n` +
+    ` to improve the instructions of ${kind} "${id}". ` +
+    `Here are its current instructions.\n` +
     `<current_instructions>${instructions}</current_instructions>`;
 
   return {
@@ -32,7 +32,7 @@ export function buildImprovePromptDoc(input: ImprovePromptDocInput): TiptapDoc {
       {
         type: "paragraph",
         content: [
-          { type: "text", text: "Subtask to " },
+          { type: "text", text: "Use " },
           {
             type: "mention",
             attrs: {
