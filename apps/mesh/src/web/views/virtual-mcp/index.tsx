@@ -1098,33 +1098,40 @@ function VirtualMcpDetailViewWithData({
   });
 
   const [instructionsFullscreen, setInstructionsFullscreen] = useState(false);
+  const [isImproving, setIsImproving] = useState(false);
   const { createNewTask, setChatOpen } = usePanelActions();
   const { sendMessage } = useChatBridge();
   const ensureStudioPack = useEnsureStudioPack();
 
   const handleImprovePrompt = async () => {
+    if (isImproving) return;
     const currentInstructions = form.getValues("metadata.instructions");
     if (!currentInstructions?.trim()) return;
 
-    flushEditSession();
-    track("agent_instructions_improve_clicked", {
-      agent_id: virtualMcp.id,
-      instructions_length: currentInstructions.length,
-    });
+    setIsImproving(true);
+    try {
+      flushEditSession();
+      track("agent_instructions_improve_clicked", {
+        agent_id: virtualMcp.id,
+        instructions_length: currentInstructions.length,
+      });
 
-    await ensureStudioPack(["studio-agent-manager"]);
+      await ensureStudioPack(["studio-agent-manager"]);
 
-    setChatOpen(true);
+      setChatOpen(true);
 
-    await sendMessage({
-      tiptapDoc: buildImprovePromptDoc({
-        managerAgentId: StudioPackAgentId.AGENT_MANAGER(org.id),
-        managerName: "Agent Manager",
-        kind: "agent",
-        id: virtualMcp.id,
-        instructions: currentInstructions,
-      }),
-    });
+      await sendMessage({
+        tiptapDoc: buildImprovePromptDoc({
+          managerAgentId: StudioPackAgentId.AGENT_MANAGER(org.id),
+          managerName: "Agent Manager",
+          kind: "agent",
+          id: virtualMcp.id,
+          instructions: currentInstructions,
+        }),
+      });
+    } finally {
+      setIsImproving(false);
+    }
   };
 
   const handleTestAgent = () => {
@@ -1715,7 +1722,10 @@ Define step-by-step how the agent should handle requests.
                     <Button
                       variant="outline"
                       size="sm"
-                      disabled={!form.watch("metadata.instructions")?.trim()}
+                      disabled={
+                        isImproving ||
+                        !form.watch("metadata.instructions")?.trim()
+                      }
                       onClick={handleImprovePrompt}
                     >
                       <Stars01 size={13} />

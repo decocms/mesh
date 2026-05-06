@@ -16,7 +16,11 @@ import {
   useTriggerList,
   type TriggerDefinition,
 } from "@/web/hooks/use-automations";
-import { useChatTask, useChatPrefs } from "@/web/components/chat/context";
+import {
+  useChatTask,
+  useChatPrefs,
+  useChatBridge,
+} from "@/web/components/chat/context";
 import { usePreferences } from "@/web/hooks/use-preferences";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
@@ -31,7 +35,6 @@ import {
   useConnections,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { useChatBridge } from "@/web/components/chat/context";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { useEnsureStudioPack } from "@/web/components/home/use-ensure-studio-pack";
 import { buildImprovePromptDoc } from "@/web/components/chat/tiptap/build-improve-prompt-doc";
@@ -319,6 +322,7 @@ export function SettingsTab({
   const [showCustomCron, setShowCustomCron] = useState(false);
   const [cronInput, setCronInput] = useState("");
   const [showEventForm, setShowEventForm] = useState(false);
+  const [isImproving, setIsImproving] = useState(false);
   const editorInitializedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tiptapDirtyRef = useRef(false);
@@ -328,6 +332,7 @@ export function SettingsTab({
   const tiptapDocRef = useRef<Metadata["tiptapDoc"]>(initialTiptapDoc);
 
   const handleImprovePrompt = async () => {
+    if (isImproving) return;
     const parts = derivePartsFromTiptapDoc(tiptapDoc);
     const instructionsText = parts
       .filter((p): p is { type: "text"; text: string } => p.type === "text")
@@ -335,26 +340,31 @@ export function SettingsTab({
       .join("\n");
     if (!instructionsText.trim()) return;
 
-    flushEditSession();
-    track("automation_improve_clicked", {
-      automation_id: automationId,
-      agent_id: agentId,
-      instructions_length: instructionsText.length,
-    });
+    setIsImproving(true);
+    try {
+      flushEditSession();
+      track("automation_improve_clicked", {
+        automation_id: automationId,
+        agent_id: agentId,
+        instructions_length: instructionsText.length,
+      });
 
-    await ensureStudioPack(["studio-automation-manager"]);
+      await ensureStudioPack(["studio-automation-manager"]);
 
-    setChatOpen(true);
+      setChatOpen(true);
 
-    await sendMessage({
-      tiptapDoc: buildImprovePromptDoc({
-        managerAgentId: StudioPackAgentId.AUTOMATION_MANAGER(org.id),
-        managerName: "Automation Manager",
-        kind: "automation",
-        id: automationId,
-        instructions: instructionsText,
-      }),
-    });
+      await sendMessage({
+        tiptapDoc: buildImprovePromptDoc({
+          managerAgentId: StudioPackAgentId.AUTOMATION_MANAGER(org.id),
+          managerName: "Automation Manager",
+          kind: "automation",
+          id: automationId,
+          instructions: instructionsText,
+        }),
+      });
+    } finally {
+      setIsImproving(false);
+    }
   };
 
   const defaultCredentialId =
@@ -768,7 +778,7 @@ export function SettingsTab({
               variant="outline"
               size="sm"
               className="h-7 gap-1.5 px-2 text-xs"
-              disabled={!tiptapDoc}
+              disabled={isImproving || !tiptapDoc}
               onClick={handleImprovePrompt}
             >
               <Stars01 size={13} />
