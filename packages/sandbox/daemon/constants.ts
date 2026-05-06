@@ -53,7 +53,7 @@ export const PACKAGE_MANAGER_DAEMON_CONFIG: Record<
   },
   deno: {
     runPrefix: "deno task",
-    manifests: ["deno.json", "deno.jsonc", "package.json"],
+    manifests: ["deno.json", "deno.jsonc"],
   },
 };
 
@@ -66,6 +66,7 @@ export function buildDevEnv(
   const env: Record<string, string> = {
     HOST: "0.0.0.0",
     HOSTNAME: "0.0.0.0",
+    COREPACK_ENABLE_DOWNLOAD_PROMPT: "0",
     ...(overrides ?? {}),
   };
   const desired = config.application?.desiredPort;

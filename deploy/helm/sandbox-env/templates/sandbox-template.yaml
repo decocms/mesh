@@ -78,6 +78,36 @@ spec:
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
+      {{- if .Values.nodeCache.hostPath }}
+      initContainers:
+        - name: cache-init
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p {{ .Values.nodeCache.hostPath }}/bun \
+                       {{ .Values.nodeCache.hostPath }}/npm \
+                       {{ .Values.nodeCache.hostPath }}/yarn \
+                       {{ .Values.nodeCache.hostPath }}/pnpm \
+                       {{ .Values.nodeCache.hostPath }}/deno \
+                       {{ .Values.nodeCache.hostPath }}/modules \
+                       {{ .Values.nodeCache.hostPath }}/git && \
+              chmod 777 {{ .Values.nodeCache.hostPath }} \
+                        {{ .Values.nodeCache.hostPath }}/bun \
+                        {{ .Values.nodeCache.hostPath }}/npm \
+                        {{ .Values.nodeCache.hostPath }}/yarn \
+                        {{ .Values.nodeCache.hostPath }}/pnpm \
+                        {{ .Values.nodeCache.hostPath }}/deno \
+                        {{ .Values.nodeCache.hostPath }}/modules \
+                        {{ .Values.nodeCache.hostPath }}/git
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
+          volumeMounts:
+            - name: node-cache
+              mountPath: {{ .Values.nodeCache.hostPath }}
+      {{- end }}
       containers:
         - name: sandbox
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
@@ -105,6 +135,20 @@ spec:
             - name: GIT_CONFIG_VALUE_0
               value: "*"
             {{- end }}
+            {{- if .Values.nodeCache.hostPath }}
+            - name: NODE_CACHE_DIR
+              value: {{ .Values.nodeCache.hostPath }}
+            - name: BUN_INSTALL_CACHE_DIR
+              value: {{ .Values.nodeCache.hostPath }}/bun
+            - name: npm_config_cache
+              value: {{ .Values.nodeCache.hostPath }}/npm
+            - name: YARN_CACHE_FOLDER
+              value: {{ .Values.nodeCache.hostPath }}/yarn
+            {{- end }}
+            {{- if .Values.nodeCache.denoDir }}
+            - name: DENO_DIR
+              value: {{ .Values.nodeCache.denoDir }}
+            {{- end }}
           ports:
             - name: daemon
               containerPort: 9000
@@ -128,6 +172,10 @@ spec:
             {{- end }}
             - name: home
               mountPath: /home/sandbox
+            {{- if .Values.nodeCache.hostPath }}
+            - name: node-cache
+              mountPath: {{ .Values.nodeCache.hostPath }}
+            {{- end }}
       volumes:
         {{- if .Values.readOnlyRootFilesystem }}
         # Sized to match the per-container ephemeral-storage limit shape;
@@ -142,3 +190,9 @@ spec:
         - name: home
           emptyDir:
             sizeLimit: 2Gi
+        {{- if .Values.nodeCache.hostPath }}
+        - name: node-cache
+          hostPath:
+            path: {{ .Values.nodeCache.hostPath }}
+            type: DirectoryOrCreate
+        {{- end }}

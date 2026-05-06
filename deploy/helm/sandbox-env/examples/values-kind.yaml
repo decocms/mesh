@@ -51,6 +51,12 @@ previewGateway:
 warmPool:
   enabled: false
 
+# ── node-local package cache L1 ───────────────────────────────────────
+# All sandbox pods on the same kind node share this directory.
+# Subdirs: bun/ npm/ yarn/ pnpm/ deno/
+nodeCache:
+  hostPath: /var/cache/deco
+
 # ── mesh cross-references (point at the kind studio install) ───────────
 # studio kind install conventionally lands in `deco-studio` namespace
 # with release name `deco-studio`. Override here if you `helm install`

@@ -50,6 +50,8 @@ import {
 import { makeScriptsHandler } from "./routes/scripts";
 import { discoverScripts } from "./process/script-discovery";
 import { SetupOrchestrator } from "./setup/orchestrator";
+import { createS3Store } from "./cache/s3-store";
+import type { S3Store } from "./cache/s3-store";
 import { isResume } from "./setup/resume";
 import type { Config, TenantConfig } from "./types";
 import { makeWsUpgrader, type WsProxyData } from "./ws-proxy";
@@ -134,6 +136,16 @@ const branchStatus = new BranchStatusMonitor(
   broadcaster,
 );
 
+const s3Store: S3Store | undefined = process.env.SANDBOX_CACHE_BUCKET
+  ? createS3Store({
+      bucket: process.env.SANDBOX_CACHE_BUCKET,
+      region: process.env.SANDBOX_CACHE_REGION ?? "us-east-1",
+      endpoint: process.env.SANDBOX_CACHE_ENDPOINT,
+      accessKeyId: process.env.SANDBOX_CACHE_ACCESS_KEY,
+      secretAccessKey: process.env.SANDBOX_CACHE_SECRET_KEY,
+    })
+  : undefined;
+
 const orchestrator = new SetupOrchestrator({
   bootConfig: { appRoot: bootConfig.appRoot, repoDir: bootConfig.repoDir },
   store,
@@ -143,6 +155,7 @@ const orchestrator = new SetupOrchestrator({
   logsDir: TMP_DIR,
   phaseManager,
   branchStatus,
+  s3Store,
 });
 
 let discoveredScripts: string[] | null = null;
@@ -217,6 +230,7 @@ const lastStatus = startUpstreamProbe({
     broadcaster.broadcastEvent("status", { type: "status", ...s });
     if (s.ready && s.port !== null) {
       appService.markUp();
+      orchestrator.notifyServerReady();
     }
     // Probe writeback: when discovery resolves a port owned by the app
     // service, persist it as proxy.targetPort so tenants see what we're

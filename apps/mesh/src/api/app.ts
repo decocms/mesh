@@ -27,6 +27,7 @@ import type { MeshContext } from "../core/mesh-context";
 import { closeDatabase, getDb, type MeshDatabase } from "../database";
 import { asDockerRunner, getSharedRunnerIfInit } from "../sandbox/lifecycle";
 import { createEventBus, type EventBus } from "../event-bus";
+import { context as otelContext, trace as otelTrace } from "@opentelemetry/api";
 import {
   flushMonitoringData,
   meter,
@@ -1415,29 +1416,41 @@ export async function createApp(options: CreateAppOptions = {}) {
       },
     };
 
-    const meshCtx = await ContextFactory.create(c.req.raw, { timings });
-    meshCtx.automationRunner = automationRunner;
-    c.set("meshContext", meshCtx);
+    // Explicitly run inside the HTTP span's OTel context.
+    // tracingMiddleware sets c.get("rootSpan") but relies on AsyncLocalStorage
+    // to propagate the active context — Bun doesn't guarantee this across
+    // Hono's middleware chain. We pin it here so all child spans (mesh.auth,
+    // virtual_mcp.*, etc.) are correctly parented to the HTTP span.
+    const rootSpan = c.get("rootSpan");
+    const spanContext = rootSpan
+      ? otelTrace.setSpan(otelContext.active(), rootSpan)
+      : otelContext.active();
 
-    try {
-      await next();
-    } finally {
-      // Fire-and-forget: await pending SWR revalidations with a timeout.
-      // Keeps ctx (and its client pool) alive via closure while revalidations complete.
-      // No pool disposal — pool was never disposed and SSE/streaming connections depend on it.
-      const revalidations = meshCtx.pendingRevalidations;
-      if (revalidations.length > 0) {
-        const REVALIDATION_TIMEOUT_MS = 30_000;
-        void Promise.race([
-          Promise.allSettled(revalidations),
-          new Promise((resolve) =>
-            setTimeout(resolve, REVALIDATION_TIMEOUT_MS),
-          ),
-        ]).catch((err) =>
-          console.error("[mesh] revalidation cleanup error:", err),
-        );
+    return otelContext.with(spanContext, async () => {
+      const meshCtx = await ContextFactory.create(c.req.raw, { timings });
+      meshCtx.automationRunner = automationRunner;
+      c.set("meshContext", meshCtx);
+
+      try {
+        await next();
+      } finally {
+        // Fire-and-forget: await pending SWR revalidations with a timeout.
+        // Keeps ctx (and its client pool) alive via closure while revalidations complete.
+        // No pool disposal — pool was never disposed and SSE/streaming connections depend on it.
+        const revalidations = meshCtx.pendingRevalidations;
+        if (revalidations.length > 0) {
+          const REVALIDATION_TIMEOUT_MS = 30_000;
+          void Promise.race([
+            Promise.allSettled(revalidations),
+            new Promise((resolve) =>
+              setTimeout(resolve, REVALIDATION_TIMEOUT_MS),
+            ),
+          ]).catch((err) =>
+            console.error("[mesh] revalidation cleanup error:", err),
+          );
+        }
       }
-    }
+    });
   });
 
   // Apply path-based org resolution to the pre-existing org-scoped routes

@@ -23,6 +23,9 @@ import type { Config } from "../types";
 import { spawnClone } from "./clone";
 import { configureGitIdentity } from "./identity";
 import { spawnInstall } from "./install";
+import { snapshotModules, restoreModules } from "./module-cache";
+import type { S3Store } from "../cache/s3-store";
+import { restoreFromMirror, snapshotMirror } from "./repo-cache";
 import { installProtectedBranchHook } from "../git/protect-branch";
 import { isResume } from "./resume";
 
@@ -39,6 +42,7 @@ export interface SetupOrchestratorDeps {
   /** When provided, setup phases are tracked via the phase manager. */
   phaseManager?: PhaseManager;
   branchStatus: BranchStatusMonitor;
+  s3Store?: S3Store;
 }
 
 /**
@@ -54,6 +58,25 @@ export class SetupOrchestrator {
   private currentBranchHead: string | undefined;
 
   constructor(private readonly deps: SetupOrchestratorDeps) {}
+
+  /**
+   * Called by the probe when the dev server first becomes ready.
+   * For Deno, this is the earliest safe moment to snapshot DENO_DIR —
+   * the runtime has already fetched and compiled all modules.
+   */
+  notifyServerReady(): void {
+    const config = this.currentConfig();
+    if (!config) return;
+    if (config.application?.packageManager?.name !== "deno") return;
+    const nodeCacheDir = process.env.NODE_CACHE_DIR;
+    if (!nodeCacheDir) return;
+    void snapshotModules({
+      config,
+      nodeCacheDir,
+      onChunk: (_src, data) => this.chunk(data),
+      s3Store: this.deps.s3Store,
+    });
+  }
 
   /** Fire-and-forget enqueue. */
   handle(transition: Transition): void {
@@ -178,6 +201,9 @@ export class SetupOrchestrator {
     if (!config) return;
 
     const cloneUrl = config.git?.repository?.cloneUrl;
+    const nodeCacheDir = process.env.NODE_CACHE_DIR;
+    let snapshotMirrorAfterSetup = false;
+
     if (cloneUrl && !isResume(config.repoDir)) {
       this.deps.branchStatus.setPhase({ kind: "cloning" });
       const cloneTaskId = this.deps.phaseManager?.begin("clone");
@@ -188,34 +214,50 @@ export class SetupOrchestrator {
         /* not present */
       }
       const cloneTee = new LogTee(cloneLogPath, INSTALL_LOG_MAX_BYTES);
-      let code: number;
-      try {
-        code = await spawnClone({
-          config,
-          onChunk: (_src, data) => {
-            this.chunk(data);
-            cloneTee.write(data);
-          },
-        });
-      } catch (e) {
+      const onCloneChunk = (_src: "setup", data: string) => {
+        this.chunk(data);
+        cloneTee.write(data);
+      };
+
+      const mirrorHit =
+        nodeCacheDir &&
+        (await restoreFromMirror({
+          repoUrl: cloneUrl,
+          repoDir: config.repoDir,
+          nodeCacheDir,
+          onChunk: onCloneChunk,
+        }));
+
+      if (!mirrorHit) {
+        let code: number;
+        try {
+          code = await spawnClone({ config, onChunk: onCloneChunk });
+        } catch (e) {
+          cloneTee.close();
+          const error = (e as Error).message;
+          this.chunk(`\r\n[orchestrator] clone failed: ${error}\r\n`);
+          if (cloneTaskId) this.deps.phaseManager?.fail(cloneTaskId, error);
+          this.deps.branchStatus.setPhase({ kind: "clone-failed", error });
+          return;
+        }
         cloneTee.close();
-        const error = (e as Error).message;
-        this.chunk(`\r\n[orchestrator] clone failed: ${error}\r\n`);
-        if (cloneTaskId) this.deps.phaseManager?.fail(cloneTaskId, error);
-        this.deps.branchStatus.setPhase({ kind: "clone-failed", error });
-        return;
+        if (code !== 0) {
+          this.chunk(`\r\n[orchestrator] clone failed (exit ${code})\r\n`);
+          if (cloneTaskId)
+            this.deps.phaseManager?.fail(cloneTaskId, `exit ${code}`);
+          this.deps.branchStatus.setPhase({
+            kind: "clone-failed",
+            error: `exit ${code}`,
+          });
+          return;
+        }
+        // Defer mirror snapshot to after gitSetup — concurrent git fetch/checkout
+        // in gitSetup races the bare clone and causes it to fail.
+        if (nodeCacheDir) snapshotMirrorAfterSetup = true;
+      } else {
+        cloneTee.close();
       }
-      cloneTee.close();
-      if (code !== 0) {
-        this.chunk(`\r\n[orchestrator] clone failed (exit ${code})\r\n`);
-        if (cloneTaskId)
-          this.deps.phaseManager?.fail(cloneTaskId, `exit ${code}`);
-        this.deps.branchStatus.setPhase({
-          kind: "clone-failed",
-          error: `exit ${code}`,
-        });
-        return;
-      }
+
       if (cloneTaskId) this.deps.phaseManager?.done(cloneTaskId);
     } else if (cloneUrl) {
       this.chunk(`[orchestrator] repo already cloned, resuming\r\n`);
@@ -226,6 +268,15 @@ export class SetupOrchestrator {
     // exec, and repoDir doesn't exist until clone returns).
     await this.gitSetup(config);
     this.deps.branchStatus.markReady();
+
+    if (snapshotMirrorAfterSetup && cloneUrl && nodeCacheDir) {
+      void snapshotMirror({
+        repoUrl: cloneUrl,
+        repoDir: config.repoDir,
+        nodeCacheDir,
+        onChunk: (_src, data) => this.chunk(data),
+      });
+    }
 
     if (config.application?.intent === "running") {
       const installed = await this.runInstall();
@@ -383,13 +434,30 @@ export class SetupOrchestrator {
       /* not present */
     }
     const installTee = new LogTee(installLogPath, INSTALL_LOG_MAX_BYTES);
-    const installPromise = spawnInstall({
-      config,
-      onChunk: (_src, data) => {
-        this.chunk(data);
-        installTee.write(data);
-      },
-    });
+    const onInstallChunk = (_src: "setup", data: string) => {
+      this.chunk(data);
+      installTee.write(data);
+    };
+
+    const nodeCacheDir = process.env.NODE_CACHE_DIR;
+
+    // Try node-local snapshot before running the full install.
+    if (nodeCacheDir) {
+      const restored = await restoreModules({
+        config,
+        nodeCacheDir,
+        onChunk: onInstallChunk,
+        s3Store: this.deps.s3Store,
+      });
+      if (restored) {
+        installTee.close();
+        this.markInstallSucceeded(config);
+        if (installTaskId) this.deps.phaseManager?.done(installTaskId);
+        return true;
+      }
+    }
+
+    const installPromise = spawnInstall({ config, onChunk: onInstallChunk });
     // null = no install step needed (e.g. deno auto-fetches; or no manifest
     // present yet). Treat as success so the caller proceeds to start; mark
     // the install fingerprint so resume doesn't retry on every boot.
@@ -411,6 +479,16 @@ export class SetupOrchestrator {
       if (installTaskId)
         this.deps.phaseManager?.fail(installTaskId, `exit ${code}`);
       return false;
+    }
+    // Snapshot before marking install done so the dev server hasn't started
+    // yet — tar sees no concurrent file changes and exits 0.
+    if (nodeCacheDir) {
+      await snapshotModules({
+        config,
+        nodeCacheDir,
+        onChunk: onInstallChunk,
+        s3Store: this.deps.s3Store,
+      });
     }
     this.markInstallSucceeded(config);
     if (installTaskId) this.deps.phaseManager?.done(installTaskId);

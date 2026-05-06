@@ -155,6 +155,26 @@ hostUsers: false
 # dev server start) on staging before merging an override.
 readOnlyRootFilesystem: true
 
+# ── node-local package cache (L1) ─────────────────────────────────────
+# hostPath on the node's disk shared by all sandbox pods on that node.
+# Acts as L1 in front of S3 (L2) and the public registry (L3).
+# Each package manager gets its own subdirectory:
+#   <hostPath>/bun   → BUN_INSTALL_CACHE_DIR
+#   <hostPath>/npm   → npm_config_cache
+#   <hostPath>/yarn  → YARN_CACHE_FOLDER
+#   <hostPath>/pnpm  → pnpm store-dir (written to .npmrc by the daemon)
+#   <hostPath>/deno  → DENO_DIR
+#
+# Leave empty to disable (default). On kind set to /var/cache/deco.
+# On multi-node clusters this is per-node; pods on the same node share it,
+# pods on different nodes do not. Spot reclaims wipe that node's cache.
+nodeCache:
+  hostPath: ""
+  # denoDir: set only on Linux nodes (EKS). Deno's SQLite caches
+  # (v8_code_cache, dep_analysis_cache) break on macOS bind mounts
+  # (Docker Desktop / kind on Mac). Leave empty on kind.
+  denoDir: ""
+
 # ── sentinel token ─────────────────────────────────────────────────────
 sentinel:
   # Optional: supply an explicit token so CI can pass the same value to
