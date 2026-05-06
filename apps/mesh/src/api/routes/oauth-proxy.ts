@@ -393,15 +393,22 @@ export const protectedResourceMetadataHandler = async (c: {
 
   const requestUrl = fixProtocol(new URL(c.req.url));
   // Org slug sources (in priority order):
-  // 1. `ctx.organization?.slug` — set by `resolveOrgFromPath` for routes
-  //    inside the `/api/:org` sub-app.
-  // 2. `c.req.param("org")` — present on the top-level well-known prefix
-  //    route `/.well-known/oauth-protected-resource/api/:org/mcp/:id`, which
-  //    sits outside the sub-app so `resolveOrgFromPath` never runs.
-  // 3. undefined — legacy routes (`/mcp/:id/.well-known/...`,
-  //    `/.well-known/.../mcp/:id`) have no slug; the prefix is empty and
+  // 1. `c.req.param("org")` — present on the top-level well-known prefix
+  //    route `/.well-known/oauth-protected-resource/api/:org/mcp/:id` and
+  //    on the `/api/:org`-mounted variant. The path slug is the source of
+  //    truth: the URL literally names which org's connection the SDK is
+  //    asking metadata for. The path-mounted variant lives outside the
+  //    sub-app so `resolveOrgFromPath` never runs there — without honoring
+  //    the path param first, `ctx.organization` falls back to the session's
+  //    `activeOrganizationId`, and multi-org users hitting another org's URL
+  //    silently lookup against their active org and 404.
+  // 2. `ctx.organization?.slug` — set by `resolveOrgFromPath` for routes
+  //    inside the `/api/:org` sub-app, or by the meshContext factory from
+  //    the session's active org. Used only when the path doesn't carry a
+  //    slug (legacy `/mcp/:id/.well-known/...` mount).
+  // 3. undefined — legacy routes have no slug; the prefix is empty and
   //    we issue legacy-shape metadata URLs.
-  const orgSlug = ctx.organization?.slug ?? c.req.param("org");
+  const orgSlug = c.req.param("org") ?? ctx.organization?.slug;
 
   // When :org is in scope, the connection MUST belong to that org. Resolve
   // the slug to an org id so the connection lookup filters on it; otherwise

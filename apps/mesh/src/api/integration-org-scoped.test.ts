@@ -280,6 +280,52 @@ describe("org-scoped API coexistence", () => {
     }
   });
 
+  it("well-known prefix discovery uses the path slug, not the session's active org", async () => {
+    // Regression for #3272 fallout: multi-org users hitting another org's
+    // URL would 404 here because the handler resolved `orgSlug` as
+    // `ctx.organization?.slug ?? c.req.param("org")`. The well-known prefix
+    // route is mounted at the URL root (outside `/api/:org`), so
+    // `resolveOrgFromPath` doesn't run — `ctx.organization` falls through to
+    // the session's `activeOrganizationId`, which silently overrode the path
+    // slug. For a user whose active org is `org_456`, a discovery probe at
+    // `/api/org_1/mcp/conn_1` would scope the lookup to `org_456` and 404
+    // even though the path AND the connection both belong to `org_1`. Fix:
+    // path param takes priority — `c.req.param("org") ?? ctx.organization?.slug`.
+    mockApiKey("user_1", "org_456", "org_456");
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((async (
+      _input,
+      init,
+    ) => {
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (method === "POST") {
+        return new Response(null, {
+          status: 401,
+          headers: {
+            "WWW-Authenticate":
+              'Bearer realm="origin", resource_metadata="https://example.test/.well-known/oauth-protected-resource"',
+          },
+        });
+      }
+      return new Response("not found", { status: 404 });
+    }) as typeof fetch);
+
+    try {
+      const res = await app.fetch(
+        new Request(
+          "http://mesh.localhost/.well-known/oauth-protected-resource/api/org_1/mcp/conn_1",
+          { headers: { Authorization: "Bearer test-key" } },
+        ),
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { resource: string };
+      expect(body.resource).toBe("http://mesh.localhost/api/org_1/mcp/conn_1");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("well-known prefix discovery 404s when :org doesn't match the connection's org", async () => {
     // The synthesized PRM URL embeds :org as part of the resource path, so
     // the handler MUST refuse to vouch for (org, connection) tuples that
