@@ -4,3 +4,4 @@ export { WebSearchPart } from "./web-search.tsx";
 export { UserAskPart } from "./user-ask.tsx";
 export { SubtaskPart } from "./subtask.tsx";
 export { ProposePlanPart } from "./propose-plan.tsx";
+export { RenderHtmlPart } from "./render-html.tsx";
