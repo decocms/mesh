@@ -146,19 +146,23 @@ export function startUpstreamProbe(deps: ProbeDeps): ProbeState {
     port: null,
     ports: [],
   };
-  let count = 0;
 
-  // First-request compile in Next/Vite/etc. can run 8–20s on big apps; the
-  // probe blocks on it because HEAD `/` triggers the same lazy-compile path
-  // as GET. A short timeout here false-negatives the htmlSupport check for
-  // the entire compile window. 30s comfortably absorbs typical first-compiles
-  // without reacting to dead-server ECONNREFUSED any slower (that fails fast).
+  // Ports that have ever returned any HTTP response get the long timeout so a
+  // slow first-compile (Next/Vite can block HEAD `/` for 8-20s) is absorbed.
+  // Cold ports that have never replied use a short timeout and re-probe on the
+  // next fast tick — they are not worth blocking other ports for 30s.
   const HEAD_TIMEOUT_MS = 30_000;
-  const head = async (url: string): Promise<HeadResult | null> => {
+  const HEAD_COLD_TIMEOUT_MS = 1_500;
+  const everResponded = new Set<number>();
+
+  const head = async (
+    url: string,
+    timeoutMs: number,
+  ): Promise<HeadResult | null> => {
     try {
       const res = await fetch(url, {
         method: "HEAD",
-        signal: AbortSignal.timeout(HEAD_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       const ct = (res.headers.get("content-type") ?? "").toLowerCase();
       return {
@@ -172,13 +176,15 @@ export function startUpstreamProbe(deps: ProbeDeps): ProbeState {
   };
 
   const probeOne = async (port: number): Promise<ProbeResult> => {
+    const timeout = everResponded.has(port)
+      ? HEAD_TIMEOUT_MS
+      : HEAD_COLD_TIMEOUT_MS;
     const base = `http://${deps.upstreamHost}:${port}`;
-    // Probe `/` first; only ask `/@vite/client` if root looks like a real
-    // HTML responder. Avoids hammering ports that don't speak HTTP.
-    const root = await head(`${base}/`);
+    const root = await head(`${base}/`, timeout);
+    if (root !== null) everResponded.add(port);
     let viteClient: HeadResult | null = null;
-    if (root && root.ok && root.isHtml) {
-      viteClient = await head(`${base}/@vite/client`);
+    if (root?.ok && root.isHtml) {
+      viteClient = await head(`${base}/@vite/client`, timeout);
     }
     return {
       port,
@@ -189,31 +195,31 @@ export function startUpstreamProbe(deps: ProbeDeps): ProbeState {
     };
   };
 
-  const tick = async () => {
-    const prevReady = state.ready;
-    const prevPort = state.port;
-    const prevHtml = state.htmlSupport;
-    const prevResponded = state.responded;
-    const prevPortsKey = portsKey(state.ports);
+  // Per-port results and active loop handles.
+  const portResults = new Map<
+    number,
+    ProbeResult & { rootPid: number | null }
+  >();
+  const portLoops = new Map<number, () => void>();
 
-    const discovered = deps.getDiscoveredPorts();
+  let prev = {
+    ready: false,
+    port: null as number | null,
+    htmlSupport: false,
+    responded: false,
+    portsKey: "",
+  };
+
+  function portsKey(ports: ProbePort[]): string {
+    return [...ports]
+      .sort((a, b) => a.port - b.port)
+      .map((p) => `${p.port}:${p.ready ? 1 : 0}:${p.isHtml ? 1 : 0}`)
+      .join(",");
+  }
+
+  function reconcile() {
     const pinned = deps.getPinnedPort();
-
-    // Probe every descendant we found, plus the pin (when set and not already
-    // a descendant). The pin probe lets users target a server they started
-    // outside the daemon's tracked process tree, and lets PUT /config retarget
-    // the proxy without restarting anything.
-    const targets = new Map<number, number | null>(); // port → rootPid
-    for (const d of discovered) targets.set(d.port, d.rootPid);
-    if (pinned !== null && !targets.has(pinned)) targets.set(pinned, null);
-
-    const probedAll: Array<ProbeResult & { rootPid: number | null }> =
-      await Promise.all(
-        Array.from(targets.entries()).map(async ([port, rootPid]) => ({
-          ...(await probeOne(port)),
-          rootPid,
-        })),
-      );
+    const probedAll = Array.from(portResults.values());
 
     state.ports = probedAll.map((r) => ({
       port: r.port,
@@ -230,22 +236,20 @@ export function startUpstreamProbe(deps: ProbeDeps): ProbeState {
     state.htmlSupport = active.htmlSupport;
 
     const newPortsKey = portsKey(state.ports);
-    const portsChanged = prevPortsKey !== newPortsKey;
-    const readyChanged = prevReady !== state.ready;
-    const portChanged = prevPort !== state.port;
+    const portsChanged = prev.portsKey !== newPortsKey;
+    const readyChanged = prev.ready !== state.ready;
+    const portChanged = prev.port !== state.port;
 
     if (portsChanged && state.ports.length > 0) {
-      const portList = state.ports
+      const list = state.ports
         .map((p) => `${p.port}${p.ready ? " (ready)" : ""}`)
         .join(", ");
-      deps.onLog?.(`[probe] discovered port(s): ${portList}\r\n`);
+      deps.onLog?.(`[probe] discovered port(s): ${list}\r\n`);
     }
     if (readyChanged) {
-      if (state.ready) {
+      if (state.ready)
         deps.onLog?.(`[probe] server ready on port ${state.port}\r\n`);
-      } else if (prevReady) {
-        deps.onLog?.(`[probe] server no longer ready\r\n`);
-      }
+      else if (prev.ready) deps.onLog?.(`[probe] server no longer ready\r\n`);
     } else if (portChanged && state.port !== null) {
       deps.onLog?.(`[probe] active port changed to ${state.port}\r\n`);
     }
@@ -253,8 +257,8 @@ export function startUpstreamProbe(deps: ProbeDeps): ProbeState {
     if (
       readyChanged ||
       portChanged ||
-      prevHtml !== state.htmlSupport ||
-      prevResponded !== state.responded ||
+      prev.htmlSupport !== state.htmlSupport ||
+      prev.responded !== state.responded ||
       portsChanged
     ) {
       deps.onChange({
@@ -265,20 +269,77 @@ export function startUpstreamProbe(deps: ProbeDeps): ProbeState {
         ports: state.ports.slice(),
       });
     }
-    count++;
-    setTimeout(tick, count < FAST_PROBE_LIMIT ? FAST_PROBE_MS : SLOW_PROBE_MS);
-  };
 
-  function portsKey(ports: ProbePort[]): string {
-    // Order-independent dedupe key: changes when any port enters/leaves or
-    // flips ready/isHtml. Used to drive SSE `status` updates so the UI can
-    // refresh the port list without polling.
-    return [...ports]
-      .sort((a, b) => a.port - b.port)
-      .map((p) => `${p.port}:${p.ready ? 1 : 0}:${p.isHtml ? 1 : 0}`)
-      .join(",");
+    prev = {
+      ready: state.ready,
+      port: state.port,
+      htmlSupport: state.htmlSupport,
+      responded: state.responded,
+      portsKey: newPortsKey,
+    };
   }
 
-  setTimeout(tick, 1000);
+  function startPortLoop(port: number, rootPid: number | null) {
+    if (portLoops.has(port)) return;
+    let cancelled = false;
+    let count = 0;
+
+    portLoops.set(port, () => {
+      cancelled = true;
+    });
+
+    (async () => {
+      try {
+        while (!cancelled) {
+          const result = await probeOne(port);
+          if (!cancelled) {
+            portResults.set(port, { ...result, rootPid });
+            reconcile();
+          }
+          count++;
+          await new Promise<void>((res) =>
+            setTimeout(
+              res,
+              count < FAST_PROBE_LIMIT ? FAST_PROBE_MS : SLOW_PROBE_MS,
+            ),
+          );
+        }
+      } finally {
+        portLoops.delete(port);
+      }
+    })();
+  }
+
+  function stopPortLoop(port: number) {
+    portLoops.get(port)?.(); // sets cancelled=true; loop removes itself from portLoops on exit
+    portResults.delete(port);
+  }
+
+  // Lightweight discovery loop: starts/stops per-port probe loops as ports
+  // appear and disappear. Each port probes independently so a slow compile on
+  // one port never delays detecting another.
+  const discoveryTick = () => {
+    const discovered = deps.getDiscoveredPorts();
+    const pinned = deps.getPinnedPort();
+
+    const targets = new Map<number, number | null>();
+    for (const d of discovered) targets.set(d.port, d.rootPid);
+    if (pinned !== null && !targets.has(pinned)) targets.set(pinned, null);
+
+    for (const [port, rootPid] of targets) startPortLoop(port, rootPid);
+
+    let removed = false;
+    for (const port of portLoops.keys()) {
+      if (!targets.has(port)) {
+        stopPortLoop(port);
+        removed = true;
+      }
+    }
+    if (removed) reconcile();
+
+    setTimeout(discoveryTick, FAST_PROBE_MS);
+  };
+
+  setTimeout(discoveryTick, 1_000);
   return state;
 }
