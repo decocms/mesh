@@ -251,8 +251,8 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
         branch: currentBranch,
       }).toString();
       const res = await fetch(
-        `/api/vm-exec/exec/${encodeURIComponent(scriptName)}?${qs}`,
-        { method: "POST", headers: { "x-org-id": org.id } },
+        `/api/${encodeURIComponent(org.slug)}/vm-exec/exec/${encodeURIComponent(scriptName)}?${qs}`,
+        { method: "POST" },
       );
       if (!res.ok) throw new Error(`Exec failed: ${res.statusText}`);
       setKilledProcesses((prev) => {
@@ -274,8 +274,8 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
         branch: currentBranch,
       }).toString();
       const res = await fetch(
-        `/api/vm-exec/kill/${encodeURIComponent(scriptName)}?${qs}`,
-        { method: "POST", headers: { "x-org-id": org.id } },
+        `/api/${encodeURIComponent(org.slug)}/vm-exec/kill/${encodeURIComponent(scriptName)}?${qs}`,
+        { method: "POST" },
       );
       if (!res.ok) throw new Error(`Kill failed: ${res.statusText}`);
       setKilledProcesses((prev) => new Set(prev).add(scriptName));

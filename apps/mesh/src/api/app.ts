@@ -42,7 +42,6 @@ import { logDeprecatedRoute } from "./middleware/log-deprecated-route";
 import { resolveOrgFromPath } from "./middleware/resolve-org-from-path";
 import { createOrgScopedApi } from "./routes/org-scoped";
 import { createVmEventsRoutes } from "./routes/vm-events";
-import { vmExecRoutes } from "./routes/vm-exec";
 import {
   createDecoSitesOrgRoutes,
   createDecoSitesUserRoutes,
@@ -1732,11 +1731,6 @@ export async function createApp(options: CreateAppOptions = {}) {
     betterAuthProtectedResourceHandler,
   });
   app.route("/api/:org", orgScopedApi);
-
-  // Browser-facing /exec and /kill proxy. Daemon enforces a bearer token on
-  // mutating routes; mesh holds the token, so the env panel routes script
-  // start/stop here instead of hitting the daemon previewUrl directly.
-  app.route("/api/vm-exec", vmExecRoutes);
 
   // ============================================================================
   // Server Plugin Routes

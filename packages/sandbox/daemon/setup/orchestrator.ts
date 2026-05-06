@@ -8,6 +8,7 @@ import {
   PACKAGE_MANAGER_DAEMON_CONFIG,
   WELL_KNOWN_STARTERS,
   buildDevEnv,
+  isSyntheticBranch,
   pmRunCommand,
 } from "../constants";
 import type { Broadcaster } from "../events/broadcast";
@@ -435,12 +436,11 @@ export class SetupOrchestrator {
         );
       }
     }
-    if (config.git?.repository?.branch) {
-      this.chunk(
-        `[orchestrator] checking out branch: ${config.git.repository.branch}\r\n`,
-      );
+    const branch = config.git?.repository?.branch;
+    if (branch && !isSyntheticBranch(branch)) {
+      this.chunk(`[orchestrator] checking out branch: ${branch}\r\n`);
       try {
-        await this.checkoutBranch(config.git.repository.branch);
+        await this.checkoutBranch(branch);
       } catch (e) {
         this.chunk(
           `\r\n[orchestrator] warning: branch checkout failed: ${(e as Error).message}\r\n`,

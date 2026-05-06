@@ -1,3 +1,4 @@
+import { isSyntheticBranch } from "./constants";
 import type { PackageManager, RuntimeName, TenantConfig } from "./types";
 
 const VALID_RUNTIMES: ReadonlySet<RuntimeName> = new Set([
@@ -47,7 +48,12 @@ function validateGit(git: NonNullable<TenantConfig["git"]>): ValidationResult {
   }
   if (git.repository.branch !== undefined) {
     const b = git.repository.branch;
-    if (typeof b !== "string" || !BRANCH_RE.test(b) || b.startsWith("-")) {
+    // Synthetic branches (e.g. "thread:<id>", "ephemeral") are sandbox
+    // isolation keys, not real git refs — skip format validation for them.
+    if (
+      !isSyntheticBranch(b) &&
+      (typeof b !== "string" || !BRANCH_RE.test(b) || b.startsWith("-"))
+    ) {
       return { kind: "invalid", reason: `git.repository.branch invalid: ${b}` };
     }
   }

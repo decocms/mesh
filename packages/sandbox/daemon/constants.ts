@@ -13,6 +13,14 @@ export const FAST_PROBE_MS = 3000;
 export const SLOW_PROBE_MS = 30000;
 export const FAST_PROBE_LIMIT = 20;
 
+/**
+ * Synthetic branches are sandbox isolation keys, not real git refs.
+ * They must be accepted by the daemon but never checked out.
+ */
+export function isSyntheticBranch(branch: string): boolean {
+  return branch === "ephemeral" || branch.startsWith("thread:");
+}
+
 /** HTML injected before </body> so the preview iframe can talk to the parent. */
 export const BOOTSTRAP_SCRIPT = IFRAME_BOOTSTRAP_SCRIPT;
 
