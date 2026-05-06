@@ -81,7 +81,7 @@ export class BranchStatusMonitor {
 
   private ensureWatch(): void {
     if (this.watcher || this.pollFallback) return;
-    const gitDir = `${this.config.appRoot}/.git`;
+    const gitDir = `${this.config.repoDir}/.git`;
     try {
       this.watcher = fs.watch(gitDir, { recursive: true }, () =>
         this.schedule(),
@@ -99,7 +99,13 @@ export class BranchStatusMonitor {
   private compute(): BranchStatusReady | null {
     const run = (args: string[]) => {
       try {
-        return gitSync(args, { cwd: this.config.appRoot });
+        return gitSync(args, {
+          cwd: this.config.repoDir,
+          // Pin discovery to repoDir so a parent .git (e.g. the host's
+          // workspace tree containing .deco/sandboxes/<handle>/repo) can't
+          // hijack the lookup and report the wrong branch.
+          env: { ...process.env, GIT_CEILING_DIRECTORIES: this.config.repoDir },
+        });
       } catch {
         return "";
       }

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Broadcaster } from "../events/broadcast";
@@ -118,5 +118,61 @@ describe("BranchStatusMonitor", () => {
     m.setPhase({ kind: "clone-failed", error: "x" });
     m.setPhase({ kind: "cloning" });
     expect(m.getLast()).toEqual({ kind: "cloning" });
+  });
+
+  // Regression: when appRoot != repoDir AND appRoot is nested inside another
+  // git worktree (e.g. host runner: <project>/.deco/sandboxes/<handle>/repo
+  // sits under the project's own .git), git's parent-directory walk used to
+  // hijack the lookup and report the outer repo's branch. The monitor must
+  // resolve git from repoDir and refuse to escape it.
+  it("compute() uses repoDir, not appRoot, and does not walk into a parent git repo", () => {
+    const outer = mkdtempSync(join(tmpdir(), "branch-status-outer-"));
+    try {
+      gitSync(["init", "-b", "outer-branch"], { cwd: outer, asUser: false });
+      gitSync(["config", "user.email", "outer@example.com"], {
+        cwd: outer,
+        asUser: false,
+      });
+      gitSync(["config", "user.name", "Outer"], { cwd: outer, asUser: false });
+      gitSync(["commit", "--allow-empty", "-m", "outer"], {
+        cwd: outer,
+        asUser: false,
+      });
+
+      const appRoot = join(outer, "sandbox-app");
+      const repoDir = join(appRoot, "repo");
+      mkdirSync(repoDir, { recursive: true });
+      gitSync(["init", "-b", "inner-branch"], { cwd: repoDir, asUser: false });
+      gitSync(["config", "user.email", "inner@example.com"], {
+        cwd: repoDir,
+        asUser: false,
+      });
+      gitSync(["config", "user.name", "Inner"], {
+        cwd: repoDir,
+        asUser: false,
+      });
+      gitSync(["commit", "--allow-empty", "-m", "inner"], {
+        cwd: repoDir,
+        asUser: false,
+      });
+
+      const config = {
+        appRoot,
+        repoDir,
+        daemonToken: "",
+        daemonBootId: "",
+        proxyPort: 0,
+        dropPrivileges: false,
+      } as never;
+      const monitor = new BranchStatusMonitor(config, broadcaster);
+      monitor.markReady();
+
+      const last = monitor.getLast();
+      if (last?.kind !== "ready")
+        throw new Error(`expected ready, got ${last?.kind}`);
+      expect(last.branch).toBe("inner-branch");
+    } finally {
+      rmSync(outer, { recursive: true, force: true });
+    }
   });
 });
