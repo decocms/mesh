@@ -230,10 +230,13 @@ function buildDecoOAuthParams(projectLocator: string | null): URLSearchParams {
 /**
  * Handle OAuth-proxy requests for an MCP connection.
  *
- * Resolves the org from the path (when mounted under `/api/:org/...`) and
- * enforces that the connection's `organization_id` matches that org. When
- * mounted at the legacy `/oauth-proxy/...` path (no org in URL) the check
- * is skipped — the legacy path remains org-agnostic.
+ * On the org-scoped mount (`/api/:org/oauth-proxy/...`) `resolveOrgFromPath`
+ * has populated `ctx.organization`; we scope the connection lookup to it so
+ * slug-spoofing (asking under org A for a connection that belongs to org B)
+ * returns null. The legacy `/oauth-proxy/...` mount has no org in the URL and
+ * does an unscoped lookup — using the session's `activeOrganizationId` there
+ * would silently 404 multi-org users whose active session org differs from
+ * the connection's owner.
  */
 const oauthProxyHandler: MiddlewareHandler<Env> = async (c) => {
   const connectionId = c.req.param("connectionId");
@@ -252,20 +255,12 @@ const oauthProxyHandler: MiddlewareHandler<Env> = async (c) => {
     c.set("meshContext", ctx);
   }
 
-  // Get connection URL
-  const connection = await ctx.storage.connections.findById(connectionId);
+  const orgScope = c.req.param("org") ? ctx.organization?.id : undefined;
+  const connection = await ctx.storage.connections.findById(
+    connectionId,
+    orgScope,
+  );
   if (!connection?.connection_url) {
-    return c.json({ error: "Connection not found" }, 404);
-  }
-
-  // Cross-org enforcement on the new `/api/:org/oauth-proxy/...` mount.
-  // Prevents slug-spoofing: a member of org A cannot proxy OAuth for a
-  // connection that belongs to org B by asking under org A's slug. The
-  // legacy `/oauth-proxy/:connectionId/*` path skips this (no org in URL).
-  if (
-    ctx.organization?.id &&
-    connection.organization_id !== ctx.organization.id
-  ) {
     return c.json({ error: "Connection not found" }, 404);
   }
 

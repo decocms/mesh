@@ -504,4 +504,33 @@ describe("org-scoped API coexistence", () => {
       fetchSpy.mockRestore();
     }
   });
+
+  it("oauth-proxy refuses slug-spoofing on the org-scoped mount", async () => {
+    // Member of both org_1 and org_456 asks for an org_1 connection under
+    // org_456's slug. The path-resolved org scopes the connection lookup, so
+    // findById returns null and the handler 404s — preventing OAuth proxying
+    // for connections that don't belong to the URL's org.
+    const now = new Date().toISOString();
+    await sql`
+      INSERT INTO "member" (id, "userId", "organizationId", role, "createdAt")
+      VALUES ('mem_1_456_spoof', 'user_1', 'org_456', 'member', ${now})
+      ON CONFLICT (id) DO NOTHING
+    `.execute(database.db);
+
+    const res = await app.fetch(
+      new Request(
+        "http://mesh.localhost/api/org_456/oauth-proxy/conn_1/register",
+        {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer test-key",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ client_name: "test" }),
+        },
+      ),
+    );
+
+    expect(res.status).toBe(404);
+  });
 });
