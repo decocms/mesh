@@ -214,12 +214,8 @@ export async function fetchProtectedResourceMetadata(
  * since many servers (like Apify) expose /.well-known/oauth-authorization-server at the root.
  */
 async function getOriginAuthServer(
-  connectionId: string,
-  ctx: MeshContext,
+  connectionUrl: string,
 ): Promise<string | null> {
-  const connectionUrl = await getConnectionUrl(connectionId, ctx);
-  if (!connectionUrl) return null;
-
   // Parse URL upfront - if invalid, bail early
   let origin: string;
   try {
@@ -710,7 +706,7 @@ const authServerMetadataHandler = async (c: {
     return c.json({ error: "Connection not found or no auth server" }, 404);
   }
 
-  const originAuthServer = await getOriginAuthServer(connectionId, ctx);
+  const originAuthServer = await getOriginAuthServer(connection.connection_url);
   if (!originAuthServer) {
     return c.json({ error: "Connection not found or no auth server" }, 404);
   }
