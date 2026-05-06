@@ -15,6 +15,7 @@
  */
 
 import { createServerFromClient, getDecopilotId } from "@decocms/mesh-sdk";
+import { SpanStatusCode } from "@opentelemetry/api";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
@@ -68,9 +69,28 @@ export async function handleVirtualMcpRequest(
       return c.json({ error: "Agent ID or organization ID is required" }, 400);
     }
 
-    const virtualMcp = await ctx.storage.virtualMcps.findById(
-      virtualId,
-      organizationId ?? undefined,
+    const virtualMcp = await ctx.tracer.startActiveSpan(
+      "mesh.virtual_mcp.lookup",
+      { attributes: { "virtual_mcp.id": virtualId } },
+      async (span) => {
+        try {
+          const result = await ctx.storage.virtualMcps.findById(
+            virtualId,
+            organizationId ?? undefined,
+          );
+          span.setStatus({ code: SpanStatusCode.OK });
+          return result;
+        } catch (err) {
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: (err as Error).message,
+          });
+          span.recordException(err as Error);
+          throw err;
+        } finally {
+          span.end();
+        }
+      },
     );
 
     if (!virtualMcp) {
@@ -120,10 +140,29 @@ export async function handleVirtualMcpRequest(
     }
 
     // Create client from entity (always passthrough)
-    const client = await createVirtualClientFrom(
-      virtualMcp,
-      ctx,
-      "passthrough",
+    const client = await ctx.tracer.startActiveSpan(
+      "mesh.virtual_mcp.create_client",
+      { attributes: { "virtual_mcp.id": virtualMcp.id ?? "decopilot" } },
+      async (span) => {
+        try {
+          const result = await createVirtualClientFrom(
+            virtualMcp,
+            ctx,
+            "passthrough",
+          );
+          span.setStatus({ code: SpanStatusCode.OK });
+          return result;
+        } catch (err) {
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: (err as Error).message,
+          });
+          span.recordException(err as Error);
+          throw err;
+        } finally {
+          span.end();
+        }
+      },
     );
 
     // Build ImplementationSchema-compatible server info

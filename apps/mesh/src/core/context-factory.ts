@@ -9,7 +9,7 @@
  * - Base URL derivation
  */
 
-import type { Meter, Tracer } from "@opentelemetry/api";
+import { SpanStatusCode, type Meter, type Tracer } from "@opentelemetry/api";
 import type { Kysely } from "kysely";
 import { verifyMeshToken } from "../auth/jwt";
 import { CredentialVault } from "../encryption/credential-vault";
@@ -1027,12 +1027,30 @@ export async function createMeshContextFactory(
     const clientPool = createClientPool();
     // Authenticate request (OAuth session or API key)
     const authResult = req
-      ? await authenticateRequest(
-          req,
-          config.auth,
-          config.db,
-          timings,
-          config.memberRoleCache,
+      ? await config.observability.tracer.startActiveSpan(
+          "mesh.auth",
+          async (span) => {
+            try {
+              const result = await authenticateRequest(
+                req,
+                config.auth,
+                config.db,
+                timings,
+                config.memberRoleCache,
+              );
+              span.setStatus({ code: SpanStatusCode.OK });
+              return result;
+            } catch (err) {
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: (err as Error).message,
+              });
+              span.recordException(err as Error);
+              throw err;
+            } finally {
+              span.end();
+            }
+          },
         )
       : { user: undefined };
 

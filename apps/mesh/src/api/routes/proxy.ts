@@ -12,6 +12,7 @@
  */
 
 import { clientFromConnection, serverFromConnection } from "@/mcp-clients";
+import { SpanStatusCode } from "@opentelemetry/api";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { Context, Hono } from "hono";
 import { endTime, startTime } from "hono/timing";
@@ -96,12 +97,31 @@ export const createProxyRoutes = () => {
         }
 
         // Fetch connection scoped to the caller's organization
-        startTime(c, "mcp.find_connection");
-        const connection = await ctx.storage.connections.findById(
-          connectionId,
-          ctx.organization.id,
+        const connection = await ctx.tracer.startActiveSpan(
+          "mesh.connection.lookup",
+          { attributes: { "connection.id": connectionId } },
+          async (span) => {
+            startTime(c, "mcp.find_connection");
+            try {
+              const result = await ctx.storage.connections.findById(
+                connectionId,
+                ctx.organization!.id,
+              );
+              span.setStatus({ code: SpanStatusCode.OK });
+              return result;
+            } catch (err) {
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: (err as Error).message,
+              });
+              span.recordException(err as Error);
+              throw err;
+            } finally {
+              endTime(c, "mcp.find_connection");
+              span.end();
+            }
+          },
         );
-        endTime(c, "mcp.find_connection");
         if (!connection) {
           throw new Error("Connection not found");
         }
@@ -126,9 +146,32 @@ export const createProxyRoutes = () => {
         // On success this also warms the per-request client pool, so the
         // lazy client reuses the same connection instead of double-connecting.
         if (connection.connection_url) {
-          startTime(c, "mcp.client_handshake");
-          await clientFromConnection(connection, ctx, false);
-          endTime(c, "mcp.client_handshake");
+          await ctx.tracer.startActiveSpan(
+            "mesh.connection.handshake",
+            {
+              attributes: {
+                "connection.id": connectionId,
+                "connection.url": connection.connection_url,
+              },
+            },
+            async (span) => {
+              startTime(c, "mcp.client_handshake");
+              try {
+                await clientFromConnection(connection, ctx, false);
+                span.setStatus({ code: SpanStatusCode.OK });
+              } catch (err) {
+                span.setStatus({
+                  code: SpanStatusCode.ERROR,
+                  message: (err as Error).message,
+                });
+                span.recordException(err as Error);
+                throw err;
+              } finally {
+                endTime(c, "mcp.client_handshake");
+                span.end();
+              }
+            },
+          );
         }
 
         // Create enhanced server directly (no need for bridge - server is used directly!)
