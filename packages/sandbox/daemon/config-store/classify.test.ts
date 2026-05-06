@@ -5,7 +5,6 @@ import { classify } from "./classify";
 const baseApp: NonNullable<TenantConfig["application"]> = {
   packageManager: { name: "npm" },
   runtime: "node",
-  intent: "paused",
   proxy: {},
 };
 
@@ -14,16 +13,16 @@ describe("classify", () => {
     expect(classify(null, {}).kind).toBe("no-op");
   });
 
-  it("null → meaningful (cloneUrl) = first-bootstrap", () => {
+  it("null → meaningful (cloneUrl) = bootstrap", () => {
     const after: TenantConfig = {
       git: { repository: { cloneUrl: "https://x.git" } },
     };
-    expect(classify(null, after).kind).toBe("first-bootstrap");
+    expect(classify(null, after).kind).toBe("bootstrap");
   });
 
-  it("null → meaningful (application only) = first-bootstrap", () => {
+  it("null → meaningful (application only) = bootstrap", () => {
     const after: TenantConfig = { application: baseApp };
-    expect(classify(null, after).kind).toBe("first-bootstrap");
+    expect(classify(null, after).kind).toBe("bootstrap");
   });
 
   it("cloneUrl mismatch (different repo) = identity-conflict", () => {
@@ -98,20 +97,6 @@ describe("classify", () => {
       },
     };
     expect(classify(before, after).kind).toBe("pm-change");
-  });
-
-  it("intent change = intent-change", () => {
-    const before: TenantConfig = {
-      application: { ...baseApp, intent: "paused" },
-    };
-    const after: TenantConfig = {
-      application: { ...baseApp, intent: "running" },
-    };
-    const t = classify(before, after);
-    expect(t.kind).toBe("intent-change");
-    if (t.kind === "intent-change") {
-      expect(t.to).toBe("running");
-    }
   });
 
   it("desired port change = desired-port-change", () => {

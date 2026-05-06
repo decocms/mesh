@@ -1,7 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { beforeEach, describe, expect, it } from "bun:test";
 import { TenantConfigStore } from "../config-store";
 import { makeConfigReadHandler, makeConfigUpdateHandler } from "./config";
 import type { TenantConfig } from "../types";
@@ -24,35 +21,28 @@ const SEED: TenantConfig = {
   application: {
     packageManager: { name: "npm" },
     runtime: "node",
-    intent: "paused",
     desiredPort: 3000,
     proxy: {},
   },
 };
 
 describe("makeConfigUpdateHandler", () => {
-  let storageDir: string;
   let store: TenantConfigStore;
 
   beforeEach(() => {
-    storageDir = mkdtempSync(join(tmpdir(), "config-route-"));
-    store = new TenantConfigStore({ storageDir });
-  });
-
-  afterEach(() => {
-    rmSync(storageDir, { recursive: true, force: true });
+    store = new TenantConfigStore();
   });
 
   function handler() {
     return makeConfigUpdateHandler({ daemonBootId: BOOT_ID, store });
   }
 
-  it("first POST writes config and emits first-bootstrap", async () => {
+  it("first POST emits bootstrap", async () => {
     const h = handler();
     const res = await h(buildReq("POST", SEED));
     expect(res.status).toBe(200);
     const body = (await res.json()) as { transition: string };
-    expect(body.transition).toBe("first-bootstrap");
+    expect(body.transition).toBe("bootstrap");
   });
 
   it("PUT branch=feature emits branch-change after seed", async () => {
@@ -75,17 +65,6 @@ describe("makeConfigUpdateHandler", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { transition: string };
     expect(body.transition).toBe("desired-port-change");
-  });
-
-  it("PUT intent=running emits intent-change", async () => {
-    await store.apply(SEED);
-    const h = handler();
-    const res = await h(
-      buildReq("PUT", { application: { intent: "running" } }),
-    );
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { transition: string };
-    expect(body.transition).toBe("intent-change");
   });
 
   it("rejects mismatched cloneUrl with 409", async () => {
@@ -172,16 +151,10 @@ describe("makeConfigUpdateHandler", () => {
 });
 
 describe("makeConfigReadHandler", () => {
-  let storageDir: string;
   let store: TenantConfigStore;
 
   beforeEach(() => {
-    storageDir = mkdtempSync(join(tmpdir(), "config-route-read-"));
-    store = new TenantConfigStore({ storageDir });
-  });
-
-  afterEach(() => {
-    rmSync(storageDir, { recursive: true, force: true });
+    store = new TenantConfigStore();
   });
 
   it("returns 200 with null config when no tenant config set", async () => {

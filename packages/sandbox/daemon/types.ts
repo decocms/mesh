@@ -54,30 +54,20 @@ export interface ProxyConfig {
   readonly targetPort?: number;
 }
 
-/**
- * Tenant intent for the managed dev server.
- *
- * - "running": the daemon installs deps if needed and keeps the dev script
- *   alive. If the dev script exits non-zero, intent flips to "paused"
- *   automatically (failure is sticky — tenant must re-set "running" to
- *   retry).
- * - "paused": the daemon does not auto-start anything.
- */
-export type ApplicationIntent = "running" | "paused";
-
 export interface Application {
-  readonly packageManager: PackageManagerConfig;
-  readonly runtime: RuntimeName;
-  readonly intent: ApplicationIntent;
+  readonly packageManager?: PackageManagerConfig;
+  readonly runtime?: RuntimeName;
   /** PORT env hint for the dev script. Daemon picks a default if unset. */
   readonly desiredPort?: number;
-  readonly proxy: ProxyConfig;
+  readonly proxy?: ProxyConfig;
 }
 
 /**
- * User-intent state for a sandboxed application. Persisted in
- * `<repoDir>/.decocms/daemon.json` (git-tracked). Derived fields (e.g. runtime pathPrefix,
- * proxy probe state) live in memory and are never persisted.
+ * User-intent state for a sandboxed application. The daemon never writes this
+ * file — `<repoDir>/.decocms/daemon.json` is read at boot as a fallback for
+ * fields the mesh didn't supply, and any further refinements (lockfile-based
+ * package manager / runtime detection) happen in memory only. The file lives
+ * in the repo iff a tenant chose to commit it themselves.
  */
 export interface TenantConfig {
   readonly git?: GitConfig;

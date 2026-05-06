@@ -40,8 +40,9 @@ describe("SetupOrchestrator branch-status integration", () => {
             git: {
               repository: { cloneUrl: "https://invalid.example.invalid/x.git" },
             },
-            application: { intent: "paused" },
+            application: {},
           }),
+          hydrate: () => {},
         } as never,
         appService: { stop: async () => {}, snapshot: () => ({}) } as never,
         broadcaster,
@@ -51,7 +52,7 @@ describe("SetupOrchestrator branch-status integration", () => {
       });
 
       orchestrator.handle({
-        kind: "first-bootstrap",
+        kind: "bootstrap",
         config: {} as never,
       });
 
@@ -91,8 +92,9 @@ describe("SetupOrchestrator branch-status integration", () => {
         store: {
           read: () => ({
             git: { repository: { cloneUrl: "" } },
-            application: { intent: "paused" },
+            application: {},
           }),
+          hydrate: () => {},
         } as never,
         appService: { stop: async () => {}, snapshot: () => ({}) } as never,
         broadcaster,

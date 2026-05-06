@@ -8,7 +8,7 @@ describe("deepMerge", () => {
       application: {
         packageManager: { name: "npm" },
         runtime: "node",
-        intent: "paused",
+
         proxy: {},
       },
     };
@@ -22,7 +22,7 @@ describe("deepMerge", () => {
       application: {
         packageManager: { name: "npm" },
         runtime: "node",
-        intent: "paused",
+
         proxy: {},
       },
     };
@@ -30,7 +30,7 @@ describe("deepMerge", () => {
       application: {
         packageManager: { name: "pnpm" },
         runtime: "node",
-        intent: "paused",
+
         proxy: {},
       },
     };
@@ -44,7 +44,7 @@ describe("deepMerge", () => {
       application: {
         packageManager: { name: "npm" },
         runtime: "node",
-        intent: "paused",
+
         proxy: {},
       },
     };
@@ -52,7 +52,7 @@ describe("deepMerge", () => {
       application: {
         packageManager: { name: "npm" },
         runtime: "node",
-        intent: "paused",
+
         proxy: { targetPort: 5173 },
       },
     };
@@ -65,7 +65,7 @@ describe("deepMerge", () => {
       application: {
         packageManager: { name: "npm" },
         runtime: "node",
-        intent: "running",
+
         desiredPort: 3000,
         proxy: { targetPort: 4000 },
       },
@@ -74,7 +74,7 @@ describe("deepMerge", () => {
       application: {
         packageManager: { name: "pnpm" },
         runtime: "node",
-        intent: "running",
+
         proxy: {},
       },
     };

@@ -1,6 +1,6 @@
 import { existsSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
-import { CONFIG_FILENAME, readConfig } from "../persistence";
+import { readConfig } from "../persistence";
 import type { ApplicationService } from "../app/application-service";
 import type { TenantConfigStore } from "../config-store";
 import type { Transition } from "../config-store/types";
@@ -20,12 +20,12 @@ import { LogTee } from "../process/log-tee";
 import { appLogPath, hasGitRepo, resolvePmRoot } from "../paths";
 import { discoverScripts } from "../process/script-discovery";
 import type { PhaseManager } from "../process/phase-manager";
-import type { Config } from "../types";
+import type { Config, TenantConfig } from "../types";
+import { autodetectApplication } from "./autodetect";
 import { spawnClone } from "./clone";
 import { configureGitIdentity } from "./identity";
 import { spawnInstall } from "./install";
 import { installProtectedBranchHook } from "../git/protect-branch";
-import { isResume } from "./resume";
 
 const INSTALL_LOG_MAX_BYTES = 10 * 1024 * 1024;
 
@@ -84,7 +84,6 @@ export class SetupOrchestrator {
       "pm-change",
       "runtime-change",
       "desired-port-change",
-      "intent-change",
       "proxy-retarget",
     ]);
     if (collapsable.has(t.kind)) {
@@ -133,10 +132,8 @@ export class SetupOrchestrator {
 
   private async run(t: Transition): Promise<void> {
     switch (t.kind) {
-      case "first-bootstrap":
-        return this.firstBootstrap();
-      case "resume":
-        return this.resumeFlow();
+      case "bootstrap":
+        return this.bootstrap();
       case "branch-change":
         return this.branchChange(t.to);
       case "pm-change":
@@ -144,9 +141,6 @@ export class SetupOrchestrator {
         return this.reinstallAndMaybeStart();
       case "desired-port-change":
         return this.maybeRestartDev();
-      case "intent-change":
-        if (t.to === "paused") return this.deps.appService.stop();
-        return this.startIfReady();
       case "proxy-retarget":
         return; // probe pin reads from store; nothing for the reducer to do
       case "no-op":
@@ -174,12 +168,12 @@ export class SetupOrchestrator {
     this.deps.broadcaster.broadcastChunk("setup", data);
   }
 
-  private async firstBootstrap(): Promise<void> {
-    const config = this.currentConfig();
-    if (!config) return;
+  private async bootstrap(): Promise<void> {
+    const initial = this.currentConfig();
+    if (!initial) return;
 
-    const cloneUrl = config.git?.repository?.cloneUrl;
-    if (cloneUrl && !isResume(config.repoDir)) {
+    const cloneUrl = initial.git?.repository?.cloneUrl;
+    if (cloneUrl && !hasGitRepo(initial.repoDir)) {
       this.deps.branchStatus.setPhase({ kind: "cloning" });
       const cloneTaskId = this.deps.phaseManager?.begin("clone");
       const cloneLogPath = appLogPath(this.deps.logsDir, "clone");
@@ -192,7 +186,7 @@ export class SetupOrchestrator {
       let code: number;
       try {
         code = await spawnClone({
-          config,
+          config: initial,
           onChunk: (_src, data) => {
             this.chunk(data);
             cloneTee.write(data);
@@ -219,54 +213,59 @@ export class SetupOrchestrator {
       }
       if (cloneTaskId) this.deps.phaseManager?.done(cloneTaskId);
     } else if (cloneUrl) {
-      this.chunk(`[orchestrator] repo already cloned, resuming\r\n`);
-    } else {
-      const branch = config.git?.repository?.branch ?? "none";
-      console.log(
-        `[daemon] no-repo sandbox (branch=${branch}), skipping clone`,
-      );
+      this.chunk(`[orchestrator] repo already cloned\r\n`);
     }
 
     // Identity has to run after clone so `git config` has a repo to write
     // into — earlier order tripped posix_spawn ENOENT (it reads cwd before
     // exec, and repoDir doesn't exist until clone returns).
-    await this.gitSetup(config);
+    await this.gitSetup(initial);
+    this.fillApplicationDefaults(initial.repoDir);
     this.deps.branchStatus.markReady();
 
-    if (config.application?.intent === "running") {
-      const installed = await this.runInstall();
-      if (installed) await this.startIfReady();
-    } else if (!config.application?.packageManager?.name) {
-      this.chunk(
-        "\r\n[orchestrator] no package manager configured — call set_vm_config to install dependencies and start a dev server\r\n",
-      );
-    }
-  }
-
-  private async resumeFlow(): Promise<void> {
     const config = this.currentConfig();
     if (!config) return;
-    await this.gitSetup(config);
-    this.deps.branchStatus.markReady();
 
-    // On resume (container restart), absent intent means the server was
-    // running before the crash — default to starting it again. Only an
-    // explicit "paused" suppresses startup.
-    const shouldStart = config.application?.intent !== "paused";
-    if (shouldStart && config.application?.packageManager?.name) {
-      if (
-        !this.deps.installState.isInstalledFor(config, this.currentBranchHead)
-      ) {
-        const ok = await this.runInstall();
-        if (!ok) return;
-      } else {
-        // Skipping runInstall on resume means the SSE `scripts` event from
-        // that path doesn't fire — broadcast directly so the UI's Dev/Start
-        // tabs reappear after a daemon restart.
-        this.broadcastDiscoveredScripts(config);
-      }
-      await this.startIfReady();
+    if (
+      !this.deps.installState.isInstalledFor(config, this.currentBranchHead)
+    ) {
+      const ok = await this.runInstall();
+      if (!ok) return;
+    } else {
+      this.broadcastDiscoveredScripts(config);
     }
+    await this.startIfReady();
+  }
+
+  /**
+   * Fill missing application fields (packageManager, runtime, desiredPort)
+   * from `.decocms/daemon.json` then from lockfile autodetect. Mesh-supplied
+   * config always wins; this only patches gaps. Bypasses `store.apply` so we
+   * don't emit a redundant pm-change transition during bootstrap.
+   */
+  private fillApplicationDefaults(repoDir: string): void {
+    const before = this.deps.store.read();
+    if (!before) return;
+
+    const outcome = readConfig(repoDir);
+    const diskApp =
+      outcome.kind === "valid" ? outcome.config.application : undefined;
+
+    const detected = autodetectApplication(repoDir, {
+      ...diskApp,
+      ...before.application,
+    });
+
+    const merged: TenantConfig = {
+      git: before.git,
+      application: {
+        ...diskApp,
+        ...detected,
+        ...before.application,
+      },
+    };
+
+    this.deps.store.hydrate(merged);
   }
 
   private async branchChange(to: string): Promise<void> {
@@ -300,15 +299,13 @@ export class SetupOrchestrator {
   }
 
   /**
-   * Start the dev script iff intent=running, install fingerprint matches,
-   * and we have a discovered start script. Otherwise nothing — the daemon
-   * will not auto-retry; tenant must flip intent to (paused→running) or
-   * change pm/runtime/branch to nudge another attempt.
+   * Start the dev script iff the install fingerprint matches and we have a
+   * discovered starter script. No retry on failure — the dev process must be
+   * (re)launched by a config change (pm, runtime, branch, or desiredPort).
    */
   private async startIfReady(): Promise<void> {
     const config = this.currentConfig();
     if (!config) return;
-    if (config.application?.intent !== "running") return;
     if (
       !this.deps.installState.isInstalledFor(config, this.currentBranchHead)
     ) {
@@ -503,15 +500,6 @@ export class SetupOrchestrator {
     const repoDir = this.deps.bootConfig.repoDir;
     if (!repoDir) return;
 
-    // Remove daemon.json before checkout so git doesn't treat it as a
-    // conflicting local change. The -f flag on the checkout below handles
-    // any remaining tracked-but-modified or untracked state.
-    try {
-      unlinkSync(join(repoDir, CONFIG_FILENAME));
-    } catch {
-      /* file absent — nothing to remove */
-    }
-
     let onRemote = false;
     try {
       gitSync(
@@ -546,13 +534,6 @@ export class SetupOrchestrator {
           cwd: repoDir,
         });
       }
-    }
-
-    // Re-apply the config that the new branch committed (if any).
-    // This lets branch-specific daemon.json drive pm-change, intent-change, etc.
-    const outcome = readConfig(repoDir);
-    if (outcome.kind === "valid") {
-      await this.deps.store.apply(outcome.config);
     }
   }
 }

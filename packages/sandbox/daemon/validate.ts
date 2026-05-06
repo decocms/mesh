@@ -106,13 +106,6 @@ function validateApplication(
       };
     }
   }
-  if (
-    app.intent !== undefined &&
-    app.intent !== "running" &&
-    app.intent !== "paused"
-  ) {
-    return { kind: "invalid", reason: `intent invalid: ${app.intent}` };
-  }
   if (app.desiredPort !== undefined && !isValidPort(app.desiredPort)) {
     return {
       kind: "invalid",
