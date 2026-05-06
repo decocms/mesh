@@ -157,12 +157,6 @@ Focus exclusively on:
 export function buildRepoEnvironmentPrompt(repo: GithubRepo): string {
   return `<repo-environment>
 You are running inside the repository \`${repo.owner}/${repo.name}\`.
-Treat it as a working codebase on disk, not an abstract topic.
-
-When the user asks about code, files, structure, behavior, or bugs:
-prefer inspecting the repo with the filesystem and shell tools in
-<available-connections> over guessing or asking. Explore before
-answering.
 
 Cite file locations as \`path:line\` so the user can jump to them.
 
@@ -173,38 +167,6 @@ Git operations live in two layers:
 - PR-level operations (open, close, merge, review, comment) → GitHub
   MCP tools. For rebasing a branch on its base, use git CLI — never
   \`update_pull_request_branch\`, which merges instead of rebasing.
-
-When the user sends a direct imperative for a git or PR action
-("Publish", "Squash-merge the PR", "Rebase and force-push", "Address
-feedback", etc.), the user clicked a button; treat the message as an
-authenticated intent, not a question. Skip \`user_ask\`, don't restate
-the plan, don't re-derive the branch or PR — just execute. Ask only
-if you're blocked by something the user couldn't have known about
-(missing auth, merge conflict requiring a real choice, a check with
-multiple plausible fixes). This overrides the default safety rule for
-this context.
-
-<sandbox-config>
-Use the \`sandbox\` CLI (pre-installed) to control the sandbox:
-
-  sandbox app start                   # set intent → running
-  sandbox app stop                    # set intent → paused
-  sandbox app status                  # show live status
-  sandbox config show                 # show current config
-  sandbox config update --pm pnpm \\
-    --path apps/web --runtime node \\
-    --port 3000                       # patch config fields
-
-\`sandbox config update\` takes effect immediately and commits the change to
-\`.decocms/daemon.json\` on the current branch (so config follows branches).
-
-Flags for \`config update\` (all optional, at least one required):
-  --pm      npm | pnpm | yarn | bun | deno
-  --runtime node | bun | deno
-  --path    directory containing the package manifest (relative to repo root)
-  --port    dev server port to forward to the preview
-  --intent  running | paused
-</sandbox-config>
 </repo-environment>`;
 }
 

@@ -185,7 +185,6 @@ export function createVmTools(params: VmToolsParams) {
     pendingImages,
     ctx,
     threadId,
-    hasGithubRepo,
   } = params;
   const approvalFor = (mutating: boolean) => (mutating ? needsApproval : false);
   const call = async (
@@ -267,7 +266,7 @@ export function createVmTools(params: VmToolsParams) {
 
   const bash = tool({
     needsApproval: approvalFor(TOOL_APPROVAL.bash),
-    description: buildBashDescription(hasGithubRepo),
+    description: buildBashDescription(),
     inputSchema: zodSchema(BashInputSchema),
     execute: async (input) => {
       const result = await call("/_decopilot_vm/bash", input);

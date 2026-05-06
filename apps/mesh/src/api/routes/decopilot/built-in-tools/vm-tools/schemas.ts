@@ -145,17 +145,10 @@ export const GLOB_DESCRIPTION =
   "Find files by name pattern in the VM's project directory. " +
   "Uses ripgrep for gitignore-aware matching. Returns relative file paths.";
 
-const SANDBOX_CLI_SECTION =
-  "Sandbox control — use the `sandbox` CLI (always available):\n" +
-  "  sandbox app start|stop|status\n" +
-  "  sandbox config show\n" +
-  "  sandbox config update --pm pnpm --path apps/web --runtime node --port 3000\n\n";
-
-export function buildBashDescription(hasGithubRepo: boolean): string {
+export function buildBashDescription(): string {
   return (
     "Execute a shell command in the VM's project directory. " +
     "Working directory is the project root. Timeout default 30s, max 2min.\n\n" +
-    (hasGithubRepo ? SANDBOX_CLI_SECTION : "") +
     "Pre-installed skills live at `/mnt/skills/public/<name>/SKILL.md`. " +
     "Run `ls /mnt/skills/public/` for the index and " +
     "`cat /mnt/skills/public/<name>/SKILL.md` before using one. " +

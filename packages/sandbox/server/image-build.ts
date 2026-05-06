@@ -19,7 +19,6 @@ const IMAGE_DIR = resolve(fileURLToPath(import.meta.url), "../../image");
 /** Root of the sandbox package; used as docker build context. */
 const SANDBOX_ROOT = resolve(fileURLToPath(import.meta.url), "../..");
 const DAEMON_BUNDLE = resolve(SANDBOX_ROOT, "daemon/dist/daemon.js");
-const CLI_BUNDLE = resolve(SANDBOX_ROOT, "cli/dist/sandbox.js");
 const DOCKERFILE = resolve(IMAGE_DIR, "Dockerfile");
 /** Static skills tree COPY'd into the image at /mnt/skills/public. */
 const SKILLS_DIR = resolve(IMAGE_DIR, "skills");
@@ -83,23 +82,8 @@ async function computeExpectedHash(): Promise<string> {
     }
     throw err;
   }
-  let cli: Buffer;
-  try {
-    cli = await readFile(CLI_BUNDLE);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(
-        `sandbox CLI bundle missing at ${CLI_BUNDLE}. ` +
-          `Run \`bun run --cwd=packages/sandbox build\` first.`,
-      );
-    }
-    throw err;
-  }
   const dockerfile = await readFile(DOCKERFILE);
-  const hash = createHash("sha256")
-    .update(daemon)
-    .update(cli)
-    .update(dockerfile);
+  const hash = createHash("sha256").update(daemon).update(dockerfile);
   await hashDirectory(hash, SKILLS_DIR);
   return hash.digest("hex").slice(0, 16);
 }
