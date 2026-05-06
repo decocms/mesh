@@ -27,10 +27,14 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import {
-  getDecopilotId,
+  StudioPackAgentId,
   useConnections,
   useProjectContext,
 } from "@decocms/mesh-sdk";
+import { useChatBridge } from "@/web/components/chat/context";
+import { usePanelActions } from "@/web/layouts/shell-layout";
+import { useEnsureStudioPack } from "@/web/components/home/use-ensure-studio-pack";
+import { buildImprovePromptDoc } from "@/web/components/chat/tiptap/build-improve-prompt-doc";
 import {
   ArrowLeft,
   ArrowUp,
@@ -301,8 +305,10 @@ export function SettingsTab({
     setModel,
     credentialId: chatCredentialId,
     selectedModel: chatModel,
-    setChatMode,
   } = useChatPrefs();
+  const { setChatOpen } = usePanelActions();
+  const { sendMessage } = useChatBridge();
+  const ensureStudioPack = useEnsureStudioPack();
   const [preferences, setPreferences] = usePreferences();
   const initialTiptapDoc =
     (automation.messages?.[0] as { metadata?: Metadata } | undefined)?.metadata
@@ -321,7 +327,7 @@ export function SettingsTab({
   // not the latest keystroke — that's how trailing characters got lost.
   const tiptapDocRef = useRef<Metadata["tiptapDoc"]>(initialTiptapDoc);
 
-  const handleImprovePrompt = () => {
+  const handleImprovePrompt = async () => {
     const parts = derivePartsFromTiptapDoc(tiptapDoc);
     const instructionsText = parts
       .filter((p): p is { type: "text"; text: string } => p.type === "text")
@@ -336,18 +342,18 @@ export function SettingsTab({
       instructions_length: instructionsText.length,
     });
 
-    setChatMode("plan");
+    await ensureStudioPack(["studio-automation-manager"]);
 
-    createTaskWithMessage({
-      virtualMcpId: getDecopilotId(org.id),
-      message: {
-        parts: [
-          {
-            type: "text",
-            text: `/writing-prompts for automation with id ${automationId}. The current message is\n\n<message>\n${instructionsText}\n</message>`,
-          },
-        ],
-      },
+    setChatOpen(true);
+
+    await sendMessage({
+      tiptapDoc: buildImprovePromptDoc({
+        managerAgentId: StudioPackAgentId.AUTOMATION_MANAGER(org.id),
+        managerName: "Automation Manager",
+        kind: "automation",
+        id: automationId,
+        instructions: instructionsText,
+      }),
     });
   };
 
