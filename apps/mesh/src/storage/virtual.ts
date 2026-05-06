@@ -183,9 +183,12 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
       .where("dependency_mode", "=", "direct")
       .execute();
 
+    const lastUsedMap = await this.fetchLastUsed([id]);
+
     return this.deserializeVirtualMCPEntity(
       row as unknown as RawConnectionRow,
       aggregationRows as RawAggregationRow[],
+      lastUsedMap.get(id),
     );
   }
 
@@ -227,10 +230,13 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
       aggregationsByParent.set(agg.parent_connection_id, existing);
     }
 
+    const lastUsedMap = await this.fetchLastUsed(virtualMcpIds);
+
     return rows.map((row) =>
       this.deserializeVirtualMCPEntity(
         row as unknown as RawConnectionRow,
         aggregationsByParent.get(row.id) ?? [],
+        lastUsedMap.get(row.id),
       ),
     );
   }
@@ -484,11 +490,46 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
   }
 
   /**
+   * Returns the most recent thread per agent (by created_at) with the user who started it.
+   */
+  private async fetchLastUsed(
+    ids: string[],
+  ): Promise<Map<string, { last_used_at: string; last_used_by: string }>> {
+    if (ids.length === 0) return new Map();
+
+    const rows = await this.db
+      .selectFrom("threads")
+      .distinctOn("virtual_mcp_id")
+      .select(["virtual_mcp_id", "created_by", "created_at"])
+      .where("virtual_mcp_id", "in", ids)
+      .orderBy("virtual_mcp_id")
+      .orderBy("created_at", "desc")
+      .execute();
+
+    const result = new Map<
+      string,
+      { last_used_at: string; last_used_by: string }
+    >();
+    for (const row of rows) {
+      const at =
+        row.created_at instanceof Date
+          ? row.created_at.toISOString()
+          : String(row.created_at);
+      result.set(row.virtual_mcp_id, {
+        last_used_at: at,
+        last_used_by: row.created_by,
+      });
+    }
+    return result;
+  }
+
+  /**
    * Deserialize connection row with aggregations to VirtualMCPEntity
    */
   private deserializeVirtualMCPEntity(
     row: RawConnectionRow,
     aggregationRows: RawAggregationRow[],
+    lastUsed?: { last_used_at: string; last_used_by: string },
   ): VirtualMCPEntity {
     // Convert Date to ISO string if needed
     const createdAt =
@@ -518,6 +559,8 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
       updated_at: updatedAt,
       created_by: row.created_by,
       updated_by: row.updated_by ?? undefined,
+      last_used_at: lastUsed?.last_used_at,
+      last_used_by: lastUsed?.last_used_by,
       metadata: {
         ...metadata,
         instructions: metadata?.instructions ?? null,

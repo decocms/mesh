@@ -196,6 +196,14 @@ export const VirtualMCPEntitySchema = z.object({
     .string()
     .optional()
     .describe("User ID who last updated this item"),
+  last_used_at: z
+    .string()
+    .optional()
+    .describe("Timestamp of most recent thread creation for this agent"),
+  last_used_by: z
+    .string()
+    .optional()
+    .describe("User ID who most recently used this agent"),
 
   // Entity-specific fields
   organization_id: z.string().describe("Organization ID this item belongs to"),

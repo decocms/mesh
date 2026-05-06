@@ -1,3 +1,4 @@
+import { formatDistanceToNow } from "date-fns";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import type { VirtualMCPEntity } from "@/tools/virtual/schema";
 import { getUIResourceUri } from "@/mcp-apps/types.ts";
@@ -1548,19 +1549,26 @@ Define step-by-step how the agent should handle requests.
             </div>
 
             {/* Creator metadata */}
-            <div className="flex items-center gap-2 -mt-6 text-muted-foreground">
+            <div className="flex items-center gap-2 -mt-6 text-sm text-muted-foreground">
               <User
                 id={virtualMcp.created_by}
                 size="2xs"
                 className="text-sm text-muted-foreground"
               />
-              <span className="text-muted-foreground/50 text-sm">·</span>
-              <span className="text-sm">
+              <span className="text-muted-foreground/50">·</span>
+              <span>
+                Created{" "}
                 {new Date(virtualMcp.created_at).toLocaleDateString("en-US", {
                   month: "short",
                   day: "numeric",
                   year: "numeric",
                 })}
+              </span>
+              <span className="text-muted-foreground/50">·</span>
+              <span>
+                {virtualMcp.last_used_at
+                  ? `Last used ${formatDistanceToNow(new Date(virtualMcp.last_used_at), { addSuffix: true })}`
+                  : "Never used"}
               </span>
             </div>
 
