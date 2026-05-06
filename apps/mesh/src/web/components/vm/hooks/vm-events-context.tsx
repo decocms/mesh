@@ -190,6 +190,7 @@ export function VmEventsProvider({
   const buffers = useRef(new Map<string, ChunkBuffer>());
   const chunkHandlers = useRef(new Set<ChunkHandler>());
   const reloadHandlers = useRef(new Set<ReloadHandler>());
+  const prevPortRef = useRef<number | null>(null);
 
   const getOrCreateBuffer = (source: string) => {
     let buf = buffers.current.get(source);
@@ -210,6 +211,7 @@ export function VmEventsProvider({
       htmlSupport: false,
       port: null,
     });
+    prevPortRef.current = null;
     setSuspended(false);
     setNotFound(false);
     setScripts([]);
@@ -313,12 +315,26 @@ export function VmEventsProvider({
           }
           setLogTick((t) => t + 1);
         } else if (e.type === "status") {
+          const newPort = typeof data.port === "number" ? data.port : null;
+          const prevPort = prevPortRef.current;
+          prevPortRef.current = newPort;
           setStatus({
             ready: Boolean(data.ready),
             responded: Boolean(data.responded),
             htmlSupport: Boolean(data.htmlSupport),
-            port: typeof data.port === "number" ? data.port : null,
+            port: newPort,
           });
+          // Proxy retargeted to a different active port — the iframe is stuck on
+          // whatever page it last loaded. Force-reload so it picks up the new backend.
+          if (prevPort !== null && newPort !== null && prevPort !== newPort) {
+            for (const fn of reloadHandlers.current) {
+              try {
+                fn();
+              } catch {
+                // swallow
+              }
+            }
+          }
         } else if (e.type === "scripts") {
           setScripts(data.scripts ?? []);
         } else if (e.type === "processes") {

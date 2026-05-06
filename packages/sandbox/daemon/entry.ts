@@ -432,6 +432,17 @@ Bun.serve<WsProxyData, never>({
       if (p === "/_decopilot_vm/write_from_url") return writeFromUrlH(req);
       if (p === "/_decopilot_vm/upload_to_url") return uploadToUrlH(req);
       if (p === "/_decopilot_vm/bash") return bashH(req);
+      if (p.endsWith("/kill") && p.startsWith("/_decopilot_vm/exec/")) {
+        const rawName = p.slice("/_decopilot_vm/exec/".length, -"/kill".length);
+        let name: string;
+        try {
+          name = decodeURIComponent(rawName);
+        } catch {
+          return jsonResponse({ error: "invalid script name" }, 400);
+        }
+        const killed = taskManager.killByLogName(name);
+        return jsonResponse({ killed });
+      }
       if (p.startsWith("/_decopilot_vm/exec/")) return execH(req);
     }
 

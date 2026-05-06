@@ -183,6 +183,19 @@ export class TaskManager {
     return true;
   }
 
+  killByLogName(logName: string, signal: NodeJS.Signals = "SIGTERM"): number {
+    let count = 0;
+    for (const t of this.tasks.values()) {
+      if (t.status !== "running" || t.spec.logName !== logName) continue;
+      t.kill(signal);
+      setTimeout(() => {
+        if (t.status === "running") t.kill("SIGKILL");
+      }, 3000);
+      count++;
+    }
+    return count;
+  }
+
   killAll(): number {
     let count = 0;
     for (const t of this.tasks.values()) {
