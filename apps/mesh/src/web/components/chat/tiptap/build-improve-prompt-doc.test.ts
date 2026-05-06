@@ -11,31 +11,32 @@ const baseInput = {
 };
 
 describe("buildImprovePromptDoc", () => {
-  test("produces a doc whose first inline node is an agent mention", () => {
+  test("starts with leading text, then the manager mention, then the trailing payload", () => {
     const doc = buildImprovePromptDoc(baseInput);
     expect(doc.type).toBe("doc");
     const para = doc.content?.[0];
     expect(para?.type).toBe("paragraph");
-    const first = para?.content?.[0];
-    expect(first?.type).toBe("mention");
-    expect(first?.attrs).toMatchObject({
+
+    const [leading, mention, trailing] = para?.content ?? [];
+    expect(leading?.type).toBe("text");
+    expect(leading?.text).toBe("Subtask to ");
+
+    expect(mention?.type).toBe("mention");
+    expect(mention?.attrs).toMatchObject({
       id: "agent_mgr_123",
       name: "Agent Manager",
       char: "@",
       metadata: { agentId: "agent_mgr_123", title: "Agent Manager" },
     });
-  });
 
-  test("includes XML payload after the mention", () => {
-    const doc = buildImprovePromptDoc(baseInput);
-    const text = doc.content?.[0]?.content?.[1];
-    expect(text?.type).toBe("text");
-    expect(text?.text).toContain("<task>improve_instructions</task>");
-    expect(text?.text).toContain('<entity kind="agent" id="vmcp_abc"');
-    expect(text?.text).toContain("<current_instructions>");
-    expect(text?.text).toContain("Help users with onboarding.");
-    expect(text?.text).toContain("Be concise.");
-    expect(text?.text).toContain("</current_instructions>");
+    expect(trailing?.type).toBe("text");
+    expect(trailing?.text).toContain(
+      'to improve the instructions of agent "vmcp_abc"',
+    );
+    expect(trailing?.text).toContain("Here's the current instructions");
+    expect(trailing?.text).toContain(
+      "<current_instructions>Help users with onboarding.\nBe concise.</current_instructions>",
+    );
   });
 
   test("compiles through derivePartsFromTiptapDoc into a DELEGATE directive", () => {
@@ -47,11 +48,12 @@ describe("buildImprovePromptDoc", () => {
       .filter((p): p is { type: "text"; text: string } => p.type === "text")
       .map((p) => p.text)
       .join("\n");
+    expect(text).toContain("Subtask to @Agent Manager");
     expect(text).toContain(
       "[DELEGATE TO AGENT: Agent Manager (agent_id: agent_mgr_123)]",
     );
     expect(text).toContain("subtask tool");
-    expect(text).toContain("<task>improve_instructions</task>");
+    expect(text).toContain("<current_instructions>");
   });
 
   test("handles automation kind", () => {
@@ -62,7 +64,12 @@ describe("buildImprovePromptDoc", () => {
       id: "auto_42",
       instructions: "ping every minute",
     });
-    const text = doc.content?.[0]?.content?.[1]?.text ?? "";
-    expect(text).toContain('<entity kind="automation" id="auto_42"');
+    const trailing = doc.content?.[0]?.content?.[2]?.text ?? "";
+    expect(trailing).toContain(
+      'to improve the instructions of automation "auto_42"',
+    );
+    expect(trailing).toContain(
+      "<current_instructions>ping every minute</current_instructions>",
+    );
   });
 });

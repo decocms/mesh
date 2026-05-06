@@ -9,20 +9,22 @@ export interface ImprovePromptDocInput {
 }
 
 /**
- * Build a tiptap document that, when sent through the chat, becomes:
- *   [@<Manager> chip][XML payload]
+ * Build a tiptap document that, when sent through the chat, reads as:
+ *   Subtask to @<Manager>, to improve the instructions of <kind> "<id>".
+ *   Here's the current instructions
+ *   <current_instructions>{instructions}</current_instructions>
  *
  * The mention is shaped so derivePartsFromTiptapDoc emits the standard
  * `[DELEGATE TO AGENT: ...]` directive that Decopilot's SUBTASK tool
- * picks up. The XML payload carries the entity context for the manager.
+ * picks up.
  */
 export function buildImprovePromptDoc(input: ImprovePromptDocInput): TiptapDoc {
   const { managerAgentId, managerName, kind, id, instructions } = input;
 
-  const xmlPayload =
-    `\n<task>improve_instructions</task>\n` +
-    `<entity kind="${kind}" id="${id}" />\n` +
-    `<current_instructions>\n${instructions}\n</current_instructions>`;
+  const trailing =
+    `, to improve the instructions of ${kind} "${id}". ` +
+    `Here's the current instructions\n` +
+    `<current_instructions>${instructions}</current_instructions>`;
 
   return {
     type: "doc",
@@ -30,6 +32,7 @@ export function buildImprovePromptDoc(input: ImprovePromptDocInput): TiptapDoc {
       {
         type: "paragraph",
         content: [
+          { type: "text", text: "Subtask to " },
           {
             type: "mention",
             attrs: {
@@ -39,7 +42,7 @@ export function buildImprovePromptDoc(input: ImprovePromptDocInput): TiptapDoc {
               metadata: { agentId: managerAgentId, title: managerName },
             },
           },
-          { type: "text", text: xmlPayload },
+          { type: "text", text: trailing },
         ],
       },
     ],
