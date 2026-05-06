@@ -220,6 +220,11 @@ export class SetupOrchestrator {
       if (cloneTaskId) this.deps.phaseManager?.done(cloneTaskId);
     } else if (cloneUrl) {
       this.chunk(`[orchestrator] repo already cloned, resuming\r\n`);
+    } else {
+      const branch = config.git?.repository?.branch ?? "none";
+      console.log(
+        `[daemon] no-repo sandbox (branch=${branch}), skipping clone`,
+      );
     }
 
     // Identity has to run after clone so `git config` has a repo to write

@@ -341,6 +341,12 @@ function hydrate(): void {
 
 hydrate();
 
+if (!store.read()) {
+  console.log(
+    `[daemon] boot_id=${process.env.DAEMON_BOOT_ID} ready, unclaimed — waiting for workload config`,
+  );
+}
+
 Bun.serve<WsProxyData, never>({
   port: bootConfig.proxyPort,
   hostname: "0.0.0.0",
