@@ -4,8 +4,7 @@ import type { TenantConfig } from "./types";
 
 const DECOCMS_SUBDIR = ".decocms";
 const DAEMON_JSON = "daemon.json";
-
-export const CONFIG_FILENAME = join(DECOCMS_SUBDIR, DAEMON_JSON);
+const CONFIG_FILENAME = join(DECOCMS_SUBDIR, DAEMON_JSON);
 
 function configPath(repoDir: string): string {
   return join(repoDir, CONFIG_FILENAME);
