@@ -347,6 +347,8 @@ if (!store.read()) {
   );
 }
 
+let firstWorkLogged = false;
+
 Bun.serve<WsProxyData, never>({
   port: bootConfig.proxyPort,
   hostname: "0.0.0.0",
@@ -357,6 +359,18 @@ Bun.serve<WsProxyData, never>({
 
     if (p !== "/health" && p !== "/_decopilot_vm/idle") {
       bumpActivity();
+      if (!firstWorkLogged) {
+        firstWorkLogged = true;
+        console.log(
+          `[daemon] boot_id=${process.env.DAEMON_BOOT_ID} first request: 
+          METHOD=${req.method} 
+          HEADERS=${JSON.stringify(Object.fromEntries(req.headers.entries()))}
+          BODY=${await req.text()}
+          QUERY=${url.search}
+          URL=${req.url}
+          PATH=${p}`,
+        );
+      }
     }
 
     if (
