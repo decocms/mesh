@@ -358,4 +358,150 @@ describe("org-scoped API coexistence", () => {
       fetchSpy.mockRestore();
     }
   });
+
+  it("auth-server metadata advertises org-scoped OAuth endpoint URLs", async () => {
+    // Regression for the popup-not-opening bug: the AS metadata route lives at
+    // the legacy global path (kept stable for SDK cache + Better Auth catch-all
+    // reasons), but the OAuth endpoint URLs *inside* must point at the
+    // canonical `/api/:org/oauth-proxy/...` mount. Otherwise DCR
+    // (POST /register) lands on the legacy mount, where `ctx.organization`
+    // falls back to the session's `activeOrganizationId` and silently 404s
+    // multi-org users whose active session org doesn't match the connection's.
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((async (
+      input: string | URL | Request,
+    ) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+      if (url.includes("oauth-protected-resource")) {
+        return new Response(
+          JSON.stringify({
+            resource: "https://example.test",
+            authorization_servers: ["https://example.test"],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("oauth-authorization-server")) {
+        return new Response(
+          JSON.stringify({
+            issuer: "https://example.test",
+            authorization_endpoint: "https://example.test/authorize",
+            token_endpoint: "https://example.test/token",
+            registration_endpoint: "https://example.test/register",
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response("not found", { status: 404 });
+    }) as typeof fetch);
+
+    try {
+      const res = await app.fetch(
+        new Request(
+          "http://mesh.localhost/.well-known/oauth-authorization-server/oauth-proxy/conn_1",
+        ),
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        authorization_endpoint: string;
+        token_endpoint: string;
+        registration_endpoint: string;
+      };
+      expect(body.authorization_endpoint).toBe(
+        "http://mesh.localhost/api/org_1/oauth-proxy/conn_1/authorize",
+      );
+      expect(body.token_endpoint).toBe(
+        "http://mesh.localhost/api/org_1/oauth-proxy/conn_1/token",
+      );
+      expect(body.registration_endpoint).toBe(
+        "http://mesh.localhost/api/org_1/oauth-proxy/conn_1/register",
+      );
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("DCR survives a multi-org user whose session active org differs from the path", async () => {
+    // The popup-not-opening bug surfaced because DCR (the SDK's
+    // POST /register call right before opening the authorize popup) hit the
+    // legacy `/oauth-proxy/:connectionId/*` mount and 404'd against the
+    // session's `activeOrganizationId`. With the AS metadata now pointing at
+    // `/api/:org/oauth-proxy/...`, `resolveOrgFromPath` resolves the org from
+    // the URL and verifies membership instead — independent of session state.
+
+    // Seed user_1 into a second org and switch the active session there. The
+    // path under test still names org_1 (where conn_1 lives).
+    await sql`
+      INSERT INTO "member" (id, "userId", "organizationId", role, "createdAt")
+      VALUES ('mem_1_456', 'user_1', 'org_456', 'member', ${new Date().toISOString()})
+      ON CONFLICT (id) DO NOTHING
+    `.execute(database.db);
+    mockApiKey("user_1", "org_456", "org_456");
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+      const method = (init?.method ?? "GET").toUpperCase();
+      // Origin's AS metadata exposes a registration endpoint.
+      if (url.includes("oauth-authorization-server")) {
+        return new Response(
+          JSON.stringify({
+            issuer: "https://example.test",
+            authorization_endpoint: "https://example.test/authorize",
+            token_endpoint: "https://example.test/token",
+            registration_endpoint: "https://example.test/register",
+          }),
+          { status: 200 },
+        );
+      }
+      // Origin accepts our DCR proxy.
+      if (url.endsWith("/register") && method === "POST") {
+        return new Response(
+          JSON.stringify({ client_id: "client_xyz", client_secret: "secret" }),
+          { status: 201, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("not found", { status: 404 });
+    }) as typeof fetch);
+
+    try {
+      const res = await app.fetch(
+        new Request(
+          "http://mesh.localhost/api/org_1/oauth-proxy/conn_1/register",
+          {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer test-key",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              client_name: "test",
+              redirect_uris: ["http://mesh.localhost/oauth/callback"],
+            }),
+          },
+        ),
+      );
+
+      // Pre-fix: 404 ("Connection not found") because the legacy mount's
+      // cross-org check fired against the session's active org (org_456) and
+      // mismatched conn_1's owning org (org_1).
+      expect(res.status).not.toBe(404);
+      expect(res.status).toBeGreaterThanOrEqual(200);
+      expect(res.status).toBeLessThan(400);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
 });

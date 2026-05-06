@@ -441,13 +441,16 @@ export const protectedResourceMetadataHandler = async (c: {
 
   const prefix = buildPathPrefix(orgSlug);
   const proxyResourceUrl = `${requestUrl.origin}${prefix}/mcp/${connectionId}`;
-  // Auth-server URL stays on the legacy `/oauth-proxy/:connectionId` path
-  // regardless of the resource path family. The well-known auth-server
-  // metadata route (`createWellKnownAuthServerRoutes`) only exists at the
-  // legacy URL, and third-party OAuth providers may have it registered as a
-  // redirect_uri base — moving it to `/api/:org/...` would land the SDK on
-  // Better Auth's catch-all metadata handler (which returns Better Auth's
-  // own MCP gateway endpoints) and break DCR with `invalid_client`.
+  // Auth-server URL (the value advertised in `authorization_servers`) stays on
+  // the legacy `/oauth-proxy/:connectionId` path regardless of the resource
+  // path family. The well-known auth-server metadata route
+  // (`createWellKnownAuthServerRoutes`) only exists at the legacy URL, and
+  // moving it to `/api/:org/...` would land the SDK on Better Auth's catch-all
+  // metadata handler (which returns Better Auth's own MCP gateway endpoints)
+  // and break DCR with `invalid_client`. The OAuth endpoint URLs *inside*
+  // that metadata document (authorize/token/register) are emitted under the
+  // org-scoped mount by `authServerMetadataHandler` so they benefit from
+  // `resolveOrgFromPath` membership enforcement.
   const proxyAuthServer = `${requestUrl.origin}/oauth-proxy/${connectionId}`;
 
   try {
@@ -699,10 +702,30 @@ const authServerMetadataHandler = async (c: {
   const connectionId = c.req.param("connectionId");
   const ctx = await ensureContext(c);
 
+  // Fetch the connection (unscoped — connection IDs are globally unique) so we
+  // can derive both the origin auth server and the owning org slug for
+  // org-scoped endpoint URLs.
+  const connection = await ctx.storage.connections.findById(connectionId);
+  if (!connection?.connection_url) {
+    return c.json({ error: "Connection not found or no auth server" }, 404);
+  }
+
   const originAuthServer = await getOriginAuthServer(connectionId, ctx);
   if (!originAuthServer) {
     return c.json({ error: "Connection not found or no auth server" }, 404);
   }
+
+  // Look up the connection's owning org slug. The endpoints inside this
+  // metadata document route through the canonical `/api/:org/oauth-proxy/...`
+  // mount — `resolveOrgFromPath` runs there and enforces cross-org access via
+  // membership. The legacy `/oauth-proxy/:connectionId/*` mount can't tell the
+  // path-resolved org apart from the session's `activeOrganizationId` and
+  // silently 404s multi-org users on DCR (`POST /register`).
+  const org = await ctx.db
+    .selectFrom("organization")
+    .select("slug")
+    .where("id", "=", connection.organization_id)
+    .executeTakeFirst();
 
   try {
     // Fetch auth server metadata, trying all well-known URL formats
@@ -719,14 +742,18 @@ const authServerMetadataHandler = async (c: {
     // Parse and rewrite URLs to point to our proxy
     const data = (await response.json()) as Record<string, unknown>;
     const requestUrl = fixProtocol(new URL(c.req.url));
-    // Auth-server metadata stays at the legacy global path
-    // (`/.well-known/oauth-authorization-server/oauth-proxy/:connectionId`).
-    // Third-party OAuth providers may have these URLs registered as
-    // redirect_uri bases — we keep them stable. The rewritten endpoint URLs
-    // therefore continue to point at the legacy `/oauth-proxy/:connectionId`
-    // path. (Both the legacy `/oauth-proxy/...` and the new
-    // `/api/:org/oauth-proxy/...` mounts share the same handler in app.ts.)
-    const proxyBase = `${requestUrl.origin}/oauth-proxy/${connectionId}`;
+    // The AS metadata route itself stays at the legacy global path
+    // (`/.well-known/oauth-authorization-server/oauth-proxy/:connectionId`)
+    // because the SDK derives it from the `authorization_servers` value in the
+    // protected-resource metadata, which we keep legacy for cache stability
+    // and to avoid landing on Better Auth's catch-all metadata handler.
+    // The endpoint URLs *inside* this metadata, however, move to the canonical
+    // org-scoped mount so DCR/token/authorize benefit from `resolveOrgFromPath`
+    // membership enforcement. Connections without a resolvable org slug
+    // (orphaned data) fall back to the legacy proxy path.
+    const proxyBase = org?.slug
+      ? `${requestUrl.origin}/api/${org.slug}/oauth-proxy/${connectionId}`
+      : `${requestUrl.origin}/oauth-proxy/${connectionId}`;
 
     // Rewrite OAuth endpoint URLs to go through our proxy
     const rewrittenData = {
