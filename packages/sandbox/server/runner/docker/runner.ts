@@ -27,6 +27,7 @@ import { ensureSandboxImage } from "../../image-build";
 import {
   Inflight,
   applyPreviewPattern,
+  buildConfigPayload,
   computeHandle,
   hashSandboxId,
   withSandboxLock,
@@ -43,7 +44,6 @@ import type {
   Workload,
 } from "../types";
 import type { ClaimPhase } from "../lifecycle-types";
-import type { PackageManagerConfig, TenantConfig } from "../../../daemon/types";
 
 const RUNNER_KIND = "docker" as const;
 const LABEL_ROOT = "studio-sandbox";
@@ -681,68 +681,4 @@ export class DockerSandboxRunner implements SandboxRunner {
     if (tail) parts.push(`logs:\n${tail}`);
     return parts.length ? ` (${parts.join(" ")})` : "";
   }
-}
-
-/** Fallback for when callers don't provide `repo.displayName`. */
-function deriveRepoLabel(cloneUrl: string): string {
-  try {
-    const u = new URL(cloneUrl);
-    const trimmed = u.pathname.replace(/^\/+/, "").replace(/\.git$/, "");
-    return trimmed || u.hostname;
-  } catch {
-    return cloneUrl;
-  }
-}
-
-/**
- * Mirrors the host runner's `buildConfigPayload`: collapses caller intent
- * into the daemon's TenantConfig shape. Intent defaults to "running" when
- * a packageManager is provided so the dev server auto-starts after the
- * orchestrator's clone+install completes.
- */
-function buildConfigPayload(args: {
-  runtime: "node" | "bun" | "deno";
-  packageManager: PackageManagerConfig | null;
-  desiredPort?: number;
-  repo: NonNullable<EnsureOptions["repo"]> | null;
-}): Partial<TenantConfig> | null {
-  const repo = args.repo;
-  const git = repo
-    ? {
-        repository: {
-          cloneUrl: repo.cloneUrl,
-          repoName: repo.displayName ?? deriveRepoLabel(repo.cloneUrl),
-          ...(repo.branch ? { branch: repo.branch } : {}),
-        },
-        identity: {
-          userName: repo.userName,
-          userEmail: repo.userEmail,
-        },
-      }
-    : undefined;
-
-  const packageManager = args.packageManager
-    ? {
-        name: args.packageManager.name,
-        ...(args.packageManager.path ? { path: args.packageManager.path } : {}),
-      }
-    : undefined;
-
-  const application = packageManager
-    ? {
-        packageManager,
-        runtime: args.runtime,
-        intent: "running" as const,
-        ...(args.desiredPort !== undefined
-          ? { desiredPort: args.desiredPort }
-          : {}),
-        proxy: {},
-      }
-    : undefined;
-
-  if (!git && !application) return null;
-  return {
-    ...(git ? { git } : {}),
-    ...(application ? { application } : {}),
-  };
 }

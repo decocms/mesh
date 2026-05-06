@@ -17,7 +17,12 @@ import { VmBun } from "@freestyle-sh/with-bun";
 import { VmDeno } from "@freestyle-sh/with-deno";
 import { VmNodeJs } from "@freestyle-sh/with-nodejs";
 import { freestyle, VmSpec } from "freestyle-sandboxes";
-import { computeHandle, Inflight, withSandboxLock } from "../shared";
+import {
+  computeHandle,
+  deriveRepoLabel,
+  Inflight,
+  withSandboxLock,
+} from "../shared";
 import type { RunnerStateStore, RunnerStateStoreOps } from "../state-store";
 import {
   sandboxIdKey,
@@ -688,16 +693,6 @@ function workloadEquals(a: Workload | null, b: Workload | null): boolean {
     a.packageManager === b.packageManager &&
     a.devPort === b.devPort
   );
-}
-
-function deriveRepoLabel(cloneUrl: string): string {
-  try {
-    const u = new URL(cloneUrl);
-    const trimmed = u.pathname.replace(/^\/+/, "").replace(/\.git$/, "");
-    return trimmed || u.hostname;
-  } catch {
-    return cloneUrl;
-  }
 }
 
 /** Mirrors the decode path in the daemon's `parseJsonBody`. */

@@ -25,7 +25,11 @@ import {
   daemonBash,
 } from "../../daemon-client";
 import type { ConfigResponse, DaemonHealth } from "../../daemon-client";
-import { applyPreviewPattern, computeHandle } from "../shared";
+import {
+  applyPreviewPattern,
+  buildConfigPayload,
+  computeHandle,
+} from "../shared";
 import type { RunnerStateStore } from "../state-store";
 import type {
   EnsureOptions,
@@ -37,7 +41,7 @@ import type {
   SandboxRunner,
 } from "../types";
 import type { ClaimPhase } from "../lifecycle-types";
-import type { PackageManagerConfig, TenantConfig } from "../../../daemon/types";
+import type { TenantConfig } from "../../../daemon/types";
 
 const RUNNER_KIND = "host" as const;
 const READY_TIMEOUT_MS = 30_000;
@@ -186,7 +190,7 @@ export class HostSandboxRunner implements SandboxRunner {
           }
         : null,
       repo: opts.repo ?? null,
-      devPort: opts.workload?.devPort ?? devPort,
+      desiredPort: opts.workload?.devPort ?? devPort,
     });
 
     const proc = await this.spawnFn({ workdir, env, daemonPort });
@@ -492,64 +496,6 @@ function buildDaemonEnv(args: {
     SANDBOX_INGRESS_PORT: String(args.ingressPort),
     ...(args.extraEnv ?? {}),
   };
-}
-
-function buildConfigPayload(args: {
-  runtime: "node" | "bun" | "deno";
-  packageManager: PackageManagerConfig | null;
-  devPort?: number;
-  repo: NonNullable<EnsureOptions["repo"]> | null;
-}): Partial<TenantConfig> | null {
-  const repo = args.repo;
-  const git = repo
-    ? {
-        repository: {
-          cloneUrl: repo.cloneUrl,
-          repoName: repo.displayName ?? deriveRepoLabel(repo.cloneUrl),
-          ...(repo.branch ? { branch: repo.branch } : {}),
-        },
-        identity: {
-          userName: repo.userName,
-          userEmail: repo.userEmail,
-        },
-      }
-    : undefined;
-
-  const packageManager = args.packageManager
-    ? {
-        name: args.packageManager.name,
-        ...(args.packageManager.path ? { path: args.packageManager.path } : {}),
-      }
-    : undefined;
-
-  // Intent defaults to "running" when a packageManager is provided —
-  // matches the previous host runner's auto-start behavior so the dev
-  // server fires up after install completes.
-  const application = packageManager
-    ? {
-        packageManager,
-        runtime: args.runtime,
-        intent: "running" as const,
-        ...(args.devPort !== undefined ? { desiredPort: args.devPort } : {}),
-        proxy: {},
-      }
-    : undefined;
-
-  if (!git && !application) return null;
-  return {
-    ...(git ? { git } : {}),
-    ...(application ? { application } : {}),
-  };
-}
-
-function deriveRepoLabel(cloneUrl: string): string {
-  try {
-    const u = new URL(cloneUrl);
-    const trimmed = u.pathname.replace(/^\/+/, "").replace(/\.git$/, "");
-    return trimmed || u.hostname;
-  } catch {
-    return cloneUrl;
-  }
 }
 
 // ---- Daemon executable resolution ------------------------------------------
