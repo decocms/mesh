@@ -7,13 +7,12 @@ import {
 } from "@decocms/bindings";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport as HttpServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import {
-  ListToolsRequestSchema,
-  type CallToolResult,
-  type GetPromptResult,
-  type Implementation,
-  type ListToolsResult,
-  type ToolAnnotations,
+import type {
+  CallToolResult,
+  GetPromptResult,
+  Implementation,
+  ListToolsResult,
+  ToolAnnotations,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { ZodSchema, ZodTypeAny } from "zod";
@@ -1096,6 +1095,10 @@ export const createMCPServer = <
     // `Protocol.connect`), so each request still spins up a fresh Server +
     // Transport — but the listTools render is by far the dominant cost for
     // large tool surfaces, and it's pure of request-scoped state.
+    // Hardcoded per MCP spec — Zod 4 stores literal values at `_zod.def.value`,
+    // not `.value`, so introspecting `ListToolsRequestSchema.shape.method` is
+    // brittle across zod versions. The string is the protocol method name.
+    const TOOLS_LIST_METHOD = "tools/list";
     const innerHandlers = (
       server.server as unknown as {
         _requestHandlers: Map<
@@ -1104,22 +1107,17 @@ export const createMCPServer = <
         >;
       }
     )._requestHandlers;
-    const sdkListToolsHandler = innerHandlers.get(
-      ListToolsRequestSchema.shape.method.value,
-    );
+    const sdkListToolsHandler = innerHandlers.get(TOOLS_LIST_METHOD);
     if (sdkListToolsHandler) {
-      innerHandlers.set(
-        ListToolsRequestSchema.shape.method.value,
-        async (req, extra) => {
-          if (!cachedListToolsResult) {
-            cachedListToolsResult = (await sdkListToolsHandler(
-              req,
-              extra,
-            )) as ListToolsResult;
-          }
-          return cachedListToolsResult;
-        },
-      );
+      innerHandlers.set(TOOLS_LIST_METHOD, async (req, extra) => {
+        if (!cachedListToolsResult) {
+          cachedListToolsResult = (await sdkListToolsHandler(
+            req,
+            extra,
+          )) as ListToolsResult;
+        }
+        return cachedListToolsResult;
+      });
     }
 
     return { server, ...registrations };
