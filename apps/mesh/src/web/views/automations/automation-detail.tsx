@@ -41,8 +41,9 @@ import {
   XClose,
   Zap,
 } from "@untitledui/icons";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
+import { useDebouncedAutosave } from "@/web/hooks/use-debounced-autosave.ts";
 import { toast } from "sonner";
 import type { Metadata } from "@/web/components/chat/types.ts";
 import {
@@ -314,7 +315,6 @@ export function SettingsTab({
   const [cronInput, setCronInput] = useState("");
   const [showEventForm, setShowEventForm] = useState(false);
   const editorInitializedRef = useRef(false);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tiptapDirtyRef = useRef(false);
   // The save runs from a debounced setTimeout. Reading state through a closure
   // there would give us the value from the render that scheduled the timer,
@@ -405,12 +405,23 @@ export function SettingsTab({
     editSessionSaveCountRef.current = 0;
   };
 
+  // Track which form fields have been edited since the last successful save.
+  // We don't read formState.dirtyFields because RHF's lazy proxy subscriptions
+  // make it easy to silently miss fields that aren't read during render — that
+  // is exactly how the title autosave regressed.
+  const formDirtyFieldsRef = useRef<Set<keyof SettingsFormData>>(new Set());
+
+  const markFormDirty = (field: keyof SettingsFormData) => {
+    formDirtyFieldsRef.current.add(field);
+  };
+
   const saveForm = async (): Promise<boolean> => {
-    const hasDirtyFields = Object.keys(form.formState.dirtyFields).length > 0;
+    const dirtyFormKeys = Array.from(formDirtyFieldsRef.current);
+    const hasDirtyFields = dirtyFormKeys.length > 0;
     if (!hasDirtyFields && !tiptapDirtyRef.current) return true;
-    const dirtyFormKeys = Object.keys(form.formState.dirtyFields);
     const tiptapWasDirty = tiptapDirtyRef.current;
     tiptapDirtyRef.current = false;
+    formDirtyFieldsRef.current = new Set();
 
     const values = form.getValues();
     const tiptapDocAtSave = tiptapDocRef.current;
@@ -450,48 +461,27 @@ export function SettingsTab({
         EDIT_SESSION_QUIET_MS,
       );
 
-      // keepDirtyValues: any field the user kept editing during the in-flight
-      // mutation stays at its current value AND keeps its dirty flag, so the
-      // queued debouncedSave actually persists those edits on its next fire.
-      // Without this, reset would clear dirty state and the next saveForm
-      // would early-return on hasDirtyFields=false, stranding the keystrokes
-      // in the UI but never sending them to the server.
-      form.reset(
-        {
-          ...values,
-          credential_id: coercedCredentialId,
-          model_id: coercedModelId,
-        },
-        { keepDirtyValues: true },
-      );
+      if (coercedCredentialId !== values.credential_id) {
+        form.setValue("credential_id", coercedCredentialId);
+      }
+      if (coercedModelId !== values.model_id) {
+        form.setValue("model_id", coercedModelId);
+      }
       return true;
     } catch {
       tiptapDirtyRef.current = true;
+      for (const key of dirtyFormKeys) formDirtyFieldsRef.current.add(key);
       return false;
     }
   };
 
-  // Always-fresh ref to saveForm so debounced timers and the form-watch
-  // subscription (which is registered once) call the latest closure that reads
-  // current state, not whichever closure happened to be in scope at scheduling
-  // time.
-  const saveFormRef = useRef(saveForm);
-  saveFormRef.current = saveForm;
+  const { schedule: scheduleSave, flush: flushAndSave } = useDebouncedAutosave({
+    save: saveForm,
+  });
 
-  const debouncedSave = () => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      saveTimerRef.current = null;
-      saveFormRef.current();
-    }, 1000);
-  };
-
-  const flushAndSave = async () => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
-    return saveFormRef.current();
+  const debouncedSave = (field?: keyof SettingsFormData) => {
+    if (field) markFormDirty(field);
+    scheduleSave();
   };
 
   const setTiptapDoc = (doc: Metadata["tiptapDoc"]) => {
@@ -502,29 +492,8 @@ export function SettingsTab({
       return;
     }
     tiptapDirtyRef.current = true;
-    debouncedSave();
+    scheduleSave();
   };
-
-  const watchSubscribedRef = useRef(false);
-  if (!watchSubscribedRef.current) {
-    watchSubscribedRef.current = true;
-    form.watch(() => {
-      debouncedSave();
-    });
-  }
-
-  // Flush any pending save on unmount so navigating away within the 1s
-  // debounce window doesn't drop the last edit.
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    return () => {
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
-        saveFormRef.current();
-      }
-    };
-  }, []);
 
   const handleRunClick = async () => {
     track("automation_test_clicked", {
@@ -568,11 +537,21 @@ export function SettingsTab({
         {/* Header: Name + Status + Creator */}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between gap-4">
-            <Input
-              {...form.register("name")}
-              placeholder="Automation name"
-              className="border border-transparent shadow-none px-0 text-lg font-medium h-auto focus-visible:ring-0 focus-visible:border-border bg-transparent flex-1"
-              style={{ boxShadow: "none" }}
+            <Controller
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <Input
+                  {...field}
+                  onChange={(e) => {
+                    field.onChange(e);
+                    debouncedSave("name");
+                  }}
+                  placeholder="Automation name"
+                  className="border border-transparent shadow-none px-0 text-lg font-medium h-auto focus-visible:ring-0 focus-visible:border-border bg-transparent flex-1"
+                  style={{ boxShadow: "none" }}
+                />
+              )}
             />
             {onDelete && (
               <Button
@@ -594,6 +573,7 @@ export function SettingsTab({
                   checked={field.value}
                   onCheckedChange={(checked) => {
                     field.onChange(checked);
+                    markFormDirty("active");
                     setTimeout(() => flushAndSave(), 0);
                   }}
                   className="cursor-pointer"
@@ -786,16 +766,16 @@ export function SettingsTab({
                   isLoading={isModelsLoading}
                   credentialId={watchConnectionId || null}
                   onCredentialChange={(id) => {
-                    form.setValue("credential_id", id ?? "", {
-                      shouldDirty: true,
-                    });
-                    form.setValue("model_id", "", { shouldDirty: true });
+                    form.setValue("credential_id", id ?? "");
+                    form.setValue("model_id", "");
+                    markFormDirty("credential_id");
+                    markFormDirty("model_id");
+                    scheduleSave();
                   }}
-                  onModelChange={(model) =>
-                    form.setValue("model_id", model.modelId, {
-                      shouldDirty: true,
-                    })
-                  }
+                  onModelChange={(model) => {
+                    form.setValue("model_id", model.modelId);
+                    debouncedSave("model_id");
+                  }}
                   placeholder="Model"
                 />
                 <Tooltip>

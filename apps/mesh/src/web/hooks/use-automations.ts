@@ -254,11 +254,11 @@ export function useAutomationActions() {
     },
     onSuccess: () => {
       invalidateAll();
+      toast.success("Automation created successfully");
     },
-    onError: (error) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to create automation",
-      );
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to create automation: ${message}`);
     },
   });
 
@@ -275,11 +275,11 @@ export function useAutomationActions() {
       if (typeof variables.id === "string") {
         invalidateOne(variables.id);
       }
+      toast.success("Automation updated successfully");
     },
-    onError: (error) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to update automation",
-      );
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to update automation: ${message}`);
     },
   });
 
@@ -294,11 +294,11 @@ export function useAutomationActions() {
     onSuccess: (_data, id) => {
       queryClient.removeQueries({ queryKey: KEYS.automation(org.id, id) });
       invalidateAll();
+      toast.success("Automation deleted successfully");
     },
-    onError: (error) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to delete automation",
-      );
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to delete automation: ${message}`);
     },
   });
 

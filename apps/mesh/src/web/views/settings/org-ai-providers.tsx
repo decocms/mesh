@@ -1,6 +1,7 @@
 import { Suspense, useState, useEffect } from "react";
 import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
+import { useDebouncedAutosave } from "@/web/hooks/use-debounced-autosave.ts";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -1459,27 +1460,26 @@ function SimpleModeSection() {
     isSuccess,
   } = useUpdateSimpleMode();
 
-  // Autosave: watch form state; 250ms after the last dirty change, persist.
-  // The debounce coalesces multi-field writes from handleToggle and Effect 2
-  // into a single mutation. The save callback is inlined so the effect's
-  // deps only reference library-stable values (updateSimpleMode/form) and
-  // query-stable ones (simpleMode).
-  const watched = form.watch();
   const isDirty = form.formState.isDirty;
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — autosave subscribes to derived form state over time
-  useEffect(() => {
-    if (!isDirty) return;
-    const id = setTimeout(() => {
-      updateSimpleMode(watched, {
-        onSuccess: () => form.reset(watched, { keepValues: true }),
+
+  // Autosave: 250ms after the last dirty change, persist. The debounce
+  // coalesces multi-field writes from handleToggle and Effect 2 into a single
+  // mutation. Callers `schedule()` from each field handler (Controllers and
+  // handleToggle) so we don't depend on a render-time form.watch subscription.
+  const { schedule: scheduleAutosave } = useDebouncedAutosave({
+    delayMs: 250,
+    save: async () => {
+      if (!form.formState.isDirty) return;
+      const values = form.getValues();
+      updateSimpleMode(values, {
+        onSuccess: () => form.reset(values, { keepValues: true }),
         onError: (err) => {
           form.reset(simpleMode);
           toast.error(`Failed to save: ${err.message}`);
         },
       });
-    }, 250);
-    return () => clearTimeout(id);
-  }, [watched, isDirty, updateSimpleMode, form, simpleMode]);
+    },
+  });
 
   // Lazily load models for the first 3 keys so we can pre-fill defaults.
   // Hooks can't run in loops; capping at 3 is sufficient for defaults —
@@ -1516,6 +1516,7 @@ function SimpleModeSection() {
     } else {
       form.setValue("enabled", enabled, { shouldDirty: true });
     }
+    scheduleAutosave();
   };
 
   // Effect 1: Clear form when all providers are removed.
@@ -1628,7 +1629,10 @@ function SimpleModeSection() {
                       <SimpleModeModelRow
                         slot={field.value}
                         defaultKeyId={allKeys[0]?.id ?? null}
-                        onSlotChange={(slot) => field.onChange(slot)}
+                        onSlotChange={(slot) => {
+                          field.onChange(slot);
+                          scheduleAutosave();
+                        }}
                       />
                     }
                   />
@@ -1647,7 +1651,10 @@ function SimpleModeSection() {
                       slot={field.value}
                       defaultKeyId={allKeys[0]?.id ?? null}
                       filterModels={filterImageModels}
-                      onSlotChange={(slot) => field.onChange(slot)}
+                      onSlotChange={(slot) => {
+                        field.onChange(slot);
+                        scheduleAutosave();
+                      }}
                     />
                   }
                 />
@@ -1664,7 +1671,10 @@ function SimpleModeSection() {
                       slot={field.value}
                       defaultKeyId={allKeys[0]?.id ?? null}
                       filterModels={filterWebResearchModels}
-                      onSlotChange={(slot) => field.onChange(slot)}
+                      onSlotChange={(slot) => {
+                        field.onChange(slot);
+                        scheduleAutosave();
+                      }}
                     />
                   }
                 />

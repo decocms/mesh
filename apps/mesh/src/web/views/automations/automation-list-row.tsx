@@ -78,10 +78,10 @@ export function AutomationListRow({
           }
         />
 
-        {showAgent && agent && (
+        {showAgent && (
           <AgentAvatar
-            icon={agent.icon ?? null}
-            name={agent.title}
+            icon={agent?.icon ?? null}
+            name={agent?.title ?? automation.name}
             size="xs"
             className="shrink-0"
           />
