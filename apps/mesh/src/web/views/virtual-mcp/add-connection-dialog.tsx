@@ -969,7 +969,9 @@ export function AddConnectionDialog({
               toast.error(
                 `Authentication failed: ${error ?? "no token received"}`,
               );
-              await connectionActions.delete.mutateAsync(id);
+              trackAttach(id, null, "custom");
+              onAdd(id);
+              onOpenChange(false);
               return;
             }
             track("connection_oauth_succeeded", {
