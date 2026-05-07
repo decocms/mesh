@@ -685,4 +685,72 @@ describe("org-scoped API coexistence", () => {
       fetchSpy.mockRestore();
     }
   });
+
+  it("DCR with non-JSON content type passes through byte-for-byte", async () => {
+    // RFC 7591 mandates JSON, but a misbehaving client could POST /register
+    // with a different content type. The metadata-injection branch is gated on
+    // `application/json` so non-JSON bodies hit the raw-body passthrough and
+    // reach origin unchanged (no UTF-8 decode/re-encode, no Content-Type
+    // override).
+    const captured: { body: string | null; contentType: string | null } = {
+      body: null,
+      contentType: null,
+    };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (url.includes("oauth-authorization-server")) {
+        return new Response(
+          JSON.stringify({
+            issuer: "https://example.test",
+            authorization_endpoint: "https://example.test/authorize",
+            token_endpoint: "https://example.test/token",
+            registration_endpoint: "https://example.test/register",
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/register") && method === "POST") {
+        captured.body =
+          typeof init?.body === "string"
+            ? init.body
+            : await new Response(init?.body).text();
+        const headers = new Headers(init?.headers as HeadersInit | undefined);
+        captured.contentType = headers.get("Content-Type");
+        return new Response("ok", { status: 200 });
+      }
+      return new Response("not found", { status: 404 });
+    }) as typeof fetch);
+
+    try {
+      const rawBody = "client_name=test&redirect_uris=http://x";
+      const res = await app.fetch(
+        new Request(
+          "http://mesh.localhost/api/org_1/oauth-proxy/conn_1/register",
+          {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer test-key",
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: rawBody,
+          },
+        ),
+      );
+
+      expect(res.status).toBe(200);
+      expect(captured.body).toBe(rawBody);
+      expect(captured.contentType).toBe("application/x-www-form-urlencoded");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
 });

@@ -420,12 +420,18 @@ const oauthProxyHandler: MiddlewareHandler<Env> = async (c) => {
         params.append(key, value.toString());
       }
       requestBody = params.toString();
-    } else if (endpoint === "register") {
+    } else if (
+      endpoint === "register" &&
+      contentType?.includes("application/json")
+    ) {
       // Inject the connection's owning org into the DCR `metadata` field so the
       // downstream MCP App can scope the registered OAuth client to a tenant
       // without depending on user session state. RFC 7591 §2 reserves
       // `metadata` for arbitrary client metadata extensions; downstream servers
       // that don't recognize the field MUST ignore it.
+      // Gated on JSON content type so non-JSON DCR bodies (spec-violating but
+      // possible) get byte-perfect passthrough via the raw-body branch below
+      // instead of a lossy UTF-8 decode/re-encode round trip.
       const org = await ctx.db
         .selectFrom("organization")
         .select(["id", "slug", "name"])
