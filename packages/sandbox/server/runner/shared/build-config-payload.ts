@@ -2,14 +2,14 @@ import type { PackageManagerConfig, TenantConfig } from "../../../daemon/types";
 import type { EnsureOptions } from "../types";
 
 /**
- * Collapses caller intent into the daemon's TenantConfig shape. Intent
- * defaults to "running" when a packageManager is provided so the dev
- * server auto-starts after the orchestrator's clone+install completes.
+ * Collapses caller intent into the daemon's TenantConfig shape. The daemon
+ * auto-starts the dev server whenever a runnable script is present, so no
+ * "intent" flag is needed on the wire.
  */
 export function buildConfigPayload(args: {
   runtime: "node" | "bun" | "deno";
   packageManager: PackageManagerConfig | null;
-  desiredPort?: number;
+  port?: number;
   repo: NonNullable<EnsureOptions["repo"]> | null;
 }): Partial<TenantConfig> | null {
   const repo = args.repo;
@@ -38,11 +38,7 @@ export function buildConfigPayload(args: {
     ? {
         packageManager,
         runtime: args.runtime,
-        intent: "running" as const,
-        ...(args.desiredPort !== undefined
-          ? { desiredPort: args.desiredPort }
-          : {}),
-        proxy: {},
+        ...(args.port !== undefined ? { port: args.port } : {}),
       }
     : undefined;
 

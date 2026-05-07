@@ -106,26 +106,10 @@ function validateApplication(
       };
     }
   }
-  if (
-    app.intent !== undefined &&
-    app.intent !== "running" &&
-    app.intent !== "paused"
-  ) {
-    return { kind: "invalid", reason: `intent invalid: ${app.intent}` };
-  }
-  if (app.desiredPort !== undefined && !isValidPort(app.desiredPort)) {
+  if (app.port !== undefined && !isValidPort(app.port)) {
     return {
       kind: "invalid",
-      reason: `desiredPort invalid: ${app.desiredPort}`,
-    };
-  }
-  if (
-    app.proxy?.targetPort !== undefined &&
-    !isValidPort(app.proxy.targetPort)
-  ) {
-    return {
-      kind: "invalid",
-      reason: `proxy.targetPort invalid: ${app.proxy.targetPort}`,
+      reason: `port invalid: ${app.port}`,
     };
   }
   return { kind: "ok" };

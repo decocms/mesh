@@ -1,164 +1,197 @@
 import { describe, expect, test } from "bun:test";
-import type { ProbeResult } from "./probe";
-import { selectActive } from "./probe";
+import { cadence, reduce, type ProbeState } from "./probe";
+import { PROBE_FAST_MS, PROBE_SLOW_MS } from "./constants";
 
-const r = (overrides: Partial<ProbeResult>): ProbeResult => ({
-  port: 3000,
-  responded: false,
-  ready: false,
+const initial: ProbeState = {
+  status: "booting",
+  port: null,
   htmlSupport: false,
-  score: 0,
-  ...overrides,
+};
+
+describe("reduce", () => {
+  describe("port-change", () => {
+    test("null → 3000 transitions to booting with new port", () => {
+      const r = reduce(initial, { kind: "port-change", port: 3000 });
+      expect(r.next).toEqual({
+        status: "booting",
+        port: 3000,
+        htmlSupport: false,
+      });
+      expect(r.log).toBeUndefined();
+    });
+
+    test("same port is a no-op", () => {
+      const state: ProbeState = {
+        status: "online",
+        port: 3000,
+        htmlSupport: true,
+      };
+      const r = reduce(state, { kind: "port-change", port: 3000 });
+      expect(r.next).toEqual(state);
+    });
+
+    test("3000 → 5173 from online resets to booting and clears htmlSupport", () => {
+      const state: ProbeState = {
+        status: "online",
+        port: 3000,
+        htmlSupport: true,
+      };
+      const r = reduce(state, { kind: "port-change", port: 5173 });
+      expect(r.next).toEqual({
+        status: "booting",
+        port: 5173,
+        htmlSupport: false,
+      });
+    });
+
+    test("number → null transitions to booting", () => {
+      const state: ProbeState = {
+        status: "offline",
+        port: 3000,
+        htmlSupport: false,
+      };
+      const r = reduce(state, { kind: "port-change", port: null });
+      expect(r.next).toEqual({
+        status: "booting",
+        port: null,
+        htmlSupport: false,
+      });
+    });
+  });
+
+  describe("head-response", () => {
+    test("booting → online with log on first response", () => {
+      const state: ProbeState = {
+        status: "booting",
+        port: 3000,
+        htmlSupport: false,
+      };
+      const r = reduce(state, {
+        kind: "head-response",
+        status: 200,
+        isHtml: true,
+      });
+      expect(r.next).toEqual({
+        status: "online",
+        port: 3000,
+        htmlSupport: true,
+      });
+      expect(r.log).toContain("port 3000");
+      expect(r.log).toContain("status 200");
+    });
+
+    test("booting → online treats 404 as up (no special-casing)", () => {
+      const state: ProbeState = {
+        status: "booting",
+        port: 3000,
+        htmlSupport: false,
+      };
+      const r = reduce(state, {
+        kind: "head-response",
+        status: 404,
+        isHtml: false,
+      });
+      expect(r.next.status).toBe("online");
+      expect(r.next.htmlSupport).toBe(false);
+    });
+
+    test("online → online: no log, htmlSupport updates", () => {
+      const state: ProbeState = {
+        status: "online",
+        port: 3000,
+        htmlSupport: true,
+      };
+      const r = reduce(state, {
+        kind: "head-response",
+        status: 200,
+        isHtml: false,
+      });
+      expect(r.next).toEqual({
+        status: "online",
+        port: 3000,
+        htmlSupport: false,
+      });
+      expect(r.log).toBeUndefined();
+    });
+
+    test("offline → online: emits recovery log, htmlSupport refreshes", () => {
+      const state: ProbeState = {
+        status: "offline",
+        port: 3000,
+        htmlSupport: true,
+      };
+      const r = reduce(state, {
+        kind: "head-response",
+        status: 200,
+        isHtml: true,
+      });
+      expect(r.next).toEqual({
+        status: "online",
+        port: 3000,
+        htmlSupport: true,
+      });
+      expect(r.log).toContain("back online");
+      expect(r.log).toContain("port 3000");
+      expect(r.log).toContain("status 200");
+    });
+  });
+
+  describe("head-failure", () => {
+    test("online → offline with log", () => {
+      const state: ProbeState = {
+        status: "online",
+        port: 3000,
+        htmlSupport: true,
+      };
+      const r = reduce(state, { kind: "head-failure" });
+      expect(r.next).toEqual({
+        status: "offline",
+        port: 3000,
+        htmlSupport: true, // sticky on offline
+      });
+      expect(r.log).toContain("port 3000");
+    });
+
+    test("booting → booting: no change, no log", () => {
+      const state: ProbeState = {
+        status: "booting",
+        port: 3000,
+        htmlSupport: false,
+      };
+      const r = reduce(state, { kind: "head-failure" });
+      expect(r.next).toEqual(state);
+      expect(r.log).toBeUndefined();
+    });
+
+    test("offline → offline: no change, no log", () => {
+      const state: ProbeState = {
+        status: "offline",
+        port: 3000,
+        htmlSupport: true,
+      };
+      const r = reduce(state, { kind: "head-failure" });
+      expect(r.next).toEqual(state);
+      expect(r.log).toBeUndefined();
+    });
+  });
 });
 
-describe("selectActive", () => {
-  test("pinned port responded with 404 → responded=true, ready=false, htmlSupport=false, picks pin", () => {
-    const result = selectActive(
-      [
-        r({
-          port: 5173,
-          responded: true,
-          ready: false,
-          htmlSupport: false,
-          score: 10,
-        }),
-      ],
-      5173,
+describe("cadence", () => {
+  test("booting → fast", () => {
+    expect(cadence({ status: "booting", port: 3000, htmlSupport: false })).toBe(
+      PROBE_FAST_MS,
     );
-    expect(result).toEqual({
-      port: 5173,
-      ready: false,
-      responded: true,
-      htmlSupport: false,
-    });
   });
 
-  test("pinned port responded with 200 HTML → all three true, picks pin", () => {
-    const result = selectActive(
-      [
-        r({
-          port: 5173,
-          responded: true,
-          ready: true,
-          htmlSupport: true,
-          score: 100,
-        }),
-      ],
-      5173,
+  test("online → slow", () => {
+    expect(cadence({ status: "online", port: 3000, htmlSupport: true })).toBe(
+      PROBE_SLOW_MS,
     );
-    expect(result).toEqual({
-      port: 5173,
-      ready: true,
-      responded: true,
-      htmlSupport: true,
-    });
   });
 
-  test("pinned port did not respond, descendant served HTML → falls back to descendant", () => {
-    const result = selectActive(
-      [
-        r({
-          port: 5173,
-          responded: false,
-          ready: false,
-          htmlSupport: false,
-          score: 0,
-        }),
-        r({
-          port: 3001,
-          responded: true,
-          ready: true,
-          htmlSupport: true,
-          score: 100,
-        }),
-      ],
-      5173,
+  test("offline → fast", () => {
+    expect(cadence({ status: "offline", port: 3000, htmlSupport: true })).toBe(
+      PROBE_FAST_MS,
     );
-    expect(result).toEqual({
-      port: 3001,
-      ready: true,
-      responded: true,
-      htmlSupport: true,
-    });
-  });
-
-  test("pinned port responded with 404, descendant served HTML → sticks with pin (existing behavior)", () => {
-    const result = selectActive(
-      [
-        r({
-          port: 5173,
-          responded: true,
-          ready: false,
-          htmlSupport: false,
-          score: 10,
-        }),
-        r({
-          port: 3001,
-          responded: true,
-          ready: true,
-          htmlSupport: true,
-          score: 100,
-        }),
-      ],
-      5173,
-    );
-    expect(result).toEqual({
-      port: 5173,
-      ready: false,
-      responded: true,
-      htmlSupport: false,
-    });
-  });
-
-  test("no pin, single port responded with 404 → responded=true, ready=false", () => {
-    const result = selectActive(
-      [
-        r({
-          port: 3000,
-          responded: true,
-          ready: false,
-          htmlSupport: false,
-          score: 10,
-        }),
-      ],
-      null,
-    );
-    expect(result).toEqual({
-      port: 3000,
-      ready: false,
-      responded: true,
-      htmlSupport: false,
-    });
-  });
-
-  test("no pin, no probed ports → all null/false", () => {
-    const result = selectActive([], null);
-    expect(result).toEqual({
-      port: null,
-      ready: false,
-      responded: false,
-      htmlSupport: false,
-    });
-  });
-
-  test("no pin, port did not respond → ready=false, responded=false", () => {
-    const result = selectActive(
-      [
-        r({
-          port: 3000,
-          responded: false,
-          ready: false,
-          htmlSupport: false,
-          score: 0,
-        }),
-      ],
-      null,
-    );
-    expect(result).toEqual({
-      port: 3000,
-      ready: false,
-      responded: false,
-      htmlSupport: false,
-    });
   });
 });

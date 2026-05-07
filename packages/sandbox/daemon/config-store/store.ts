@@ -1,6 +1,3 @@
-import { existsSync } from "node:fs";
-import { join } from "node:path";
-import { writeConfig } from "../persistence";
 import type { EnrichedTenantConfig, TenantConfig } from "../types";
 import { validateTenantConfig } from "../validate";
 import { classify } from "./classify";
@@ -8,36 +5,34 @@ import { enrich } from "./derive";
 import { deepMerge } from "./merge";
 import { REJECTION_REASONS, type ApplyEvent, type ApplyResult } from "./types";
 
-export interface TenantConfigStoreDeps {
-  /** Repo directory. Config is written to <storageDir>/.decocms/daemon.json. */
-  storageDir: string;
-}
+type Compute = (current: TenantConfig | null) => Partial<TenantConfig> | null;
 
 interface QueueEntry {
-  patch: Partial<TenantConfig>;
+  patch?: Partial<TenantConfig>;
+  compute?: Compute;
+  /** When true, skip subscriber notification (e.g. orchestrator-internal fills). */
+  silent?: boolean;
   resolve: (r: ApplyResult) => void;
 }
 
 /**
- * Single-writer store for tenant config.
+ * Single-writer, in-memory store for tenant config.
  *
- * - In-memory state is the source of truth for *reads*.
- * - Disk (`.decocms/daemon.json`) is the durable source of truth — every successful
- *   write fsyncs the merged result before mutating memory.
- * - All mutations go through `apply()`. An internal FIFO worker drains
- *   pending applies one at a time, so two concurrent PUT /config requests
- *   compose deterministically (last write wins on the same field).
+ * - All mutations go through `apply()` / `applyInternal()`. An internal FIFO
+ *   worker drains pending applies one at a time, so two concurrent PUT
+ *   /config requests compose deterministically (last write wins on the same
+ *   field).
  * - `subscribe()` listeners run synchronously inside the worker after each
  *   applied change. Subscribers must return immediately — slow handlers
  *   stall the queue.
+ * - Nothing is persisted: `.decocms/daemon.json` is read-only at boot and
+ *   any further state lives only in memory until the next daemon restart.
  */
 export class TenantConfigStore {
   private current: EnrichedTenantConfig | null = null;
   private readonly subscribers = new Set<(e: ApplyEvent) => void>();
   private readonly queue: QueueEntry[] = [];
   private draining = false;
-
-  constructor(private readonly deps: TenantConfigStoreDeps) {}
 
   read(): EnrichedTenantConfig | null {
     return this.current;
@@ -46,7 +41,8 @@ export class TenantConfigStore {
   /**
    * Bootstrap the in-memory state from a value already on disk (or seeded
    * from env). Does NOT classify, persist, or notify subscribers — purely
-   * loads memory. Used once during daemon boot.
+   * loads memory. Used once during daemon boot, before the HTTP server
+   * accepts requests, so it can safely skip the apply queue.
    */
   hydrate(config: TenantConfig): void {
     this.current = enrich(config);
@@ -54,8 +50,7 @@ export class TenantConfigStore {
 
   /**
    * Drop in-memory state. Used on orchestrator failure to reset to
-   * "awaiting fresh bootstrap." Does NOT delete .decocms/daemon.json — caller is
-   * responsible for that if needed.
+   * "awaiting fresh bootstrap."
    */
   clear(): void {
     this.current = null;
@@ -64,6 +59,26 @@ export class TenantConfigStore {
   apply(patch: Partial<TenantConfig>): Promise<ApplyResult> {
     return new Promise((resolve) => {
       this.queue.push({ patch, resolve });
+      void this.drain();
+    });
+  }
+
+  /**
+   * Apply a patch computed from the post-queue state without notifying
+   * subscribers. The orchestrator uses this during bootstrap to fill missing
+   * fields (lockfile-detected pm/runtime, disk fallback) without re-emitting
+   * pm-change/runtime-change — it already runs install+start in the same
+   * pass, so a fresh transition would re-trigger them.
+   *
+   * `compute` runs inside the queue worker, AFTER any earlier queued applies
+   * have settled. This eliminates the race where reading state out-of-band
+   * and then writing it back would clobber a concurrent PUT.
+   *
+   * Return `null` from `compute` to skip the apply (no-op).
+   */
+  applyInternal(compute: Compute): Promise<ApplyResult> {
+    return new Promise((resolve) => {
+      this.queue.push({ compute, silent: true, resolve });
       void this.drain();
     });
   }
@@ -83,7 +98,7 @@ export class TenantConfigStore {
         const entry = this.queue.shift();
         if (!entry) break;
         try {
-          entry.resolve(await this.runOne(entry.patch));
+          entry.resolve(await this.runOne(entry));
         } catch {
           entry.resolve({
             kind: "rejected",
@@ -96,8 +111,17 @@ export class TenantConfigStore {
     }
   }
 
-  private async runOne(patch: Partial<TenantConfig>): Promise<ApplyResult> {
+  private async runOne(entry: QueueEntry): Promise<ApplyResult> {
     const before = this.current ? plainConfig(this.current) : null;
+    const patch = entry.compute ? entry.compute(before) : entry.patch;
+    if (!patch) {
+      return {
+        kind: "applied",
+        before,
+        after: before ?? {},
+        transition: { kind: "no-op" },
+      };
+    }
     const merged = deepMerge(before, patch);
 
     const validation = validateTenantConfig(merged);
@@ -123,25 +147,16 @@ export class TenantConfigStore {
       };
     }
 
-    if (existsSync(join(this.deps.storageDir, ".git"))) {
-      try {
-        writeConfig(merged, this.deps.storageDir);
-      } catch {
-        return {
-          kind: "rejected",
-          reason: REJECTION_REASONS.PERSISTENCE_FAILED,
-        };
-      }
-    }
-
     this.current = enrich(merged);
 
-    const event: ApplyEvent = { before, after: merged, transition };
-    for (const sub of this.subscribers) {
-      try {
-        sub(event);
-      } catch {
-        /* one bad subscriber does not stall the queue */
+    if (!entry.silent) {
+      const event: ApplyEvent = { before, after: merged, transition };
+      for (const sub of this.subscribers) {
+        try {
+          sub(event);
+        } catch {
+          /* one bad subscriber does not stall the queue */
+        }
       }
     }
 

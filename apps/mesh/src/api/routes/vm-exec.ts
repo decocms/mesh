@@ -20,8 +20,6 @@ import {
 } from "../../core/mesh-context";
 import type { Env } from "../hono-env";
 
-const app = new Hono<Env>();
-
 async function proxy(c: Context<Env>, daemonPath: string) {
   const ctx = c.var.meshContext;
   try {
@@ -81,16 +79,20 @@ async function proxy(c: Context<Env>, daemonPath: string) {
   });
 }
 
-app.post("/exec/:script", (c) => {
-  const script = c.req.param("script");
-  if (!script) return c.json({ error: "missing script name" }, 400);
-  return proxy(c, `/_decopilot_vm/exec/${encodeURIComponent(script)}`);
-});
+export const createVmExecRoutes = () => {
+  const app = new Hono<Env>();
 
-app.post("/kill/:script", (c) => {
-  const script = c.req.param("script");
-  if (!script) return c.json({ error: "missing script name" }, 400);
-  return proxy(c, `/_decopilot_vm/exec/${encodeURIComponent(script)}/kill`);
-});
+  app.post("/exec/:script", (c) => {
+    const script = c.req.param("script");
+    if (!script) return c.json({ error: "missing script name" }, 400);
+    return proxy(c, `/_decopilot_vm/exec/${encodeURIComponent(script)}`);
+  });
 
-export const vmExecRoutes = app;
+  app.post("/kill/:script", (c) => {
+    const script = c.req.param("script");
+    if (!script) return c.json({ error: "missing script name" }, 400);
+    return proxy(c, `/_decopilot_vm/exec/${encodeURIComponent(script)}/kill`);
+  });
+
+  return app;
+};

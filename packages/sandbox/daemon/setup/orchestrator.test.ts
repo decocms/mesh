@@ -40,10 +40,24 @@ describe("SetupOrchestrator branch-status integration", () => {
             git: {
               repository: { cloneUrl: "https://invalid.example.invalid/x.git" },
             },
-            application: { intent: "paused" },
+            application: {},
+          }),
+          hydrate: () => {},
+          applyInternal: async () => ({
+            kind: "applied",
+            before: null,
+            after: {},
+            transition: { kind: "no-op" },
           }),
         } as never,
-        appService: { stop: async () => {}, snapshot: () => ({}) } as never,
+        taskManager: {
+          spawn: async () => ({ id: "t1" }),
+          killByLogName: () => 0,
+          waitForLogNamesIdle: async () => {},
+          onTaskExit: () => () => {},
+        } as never,
+        setIntent: () => {},
+        getIntent: () => ({ state: "running" as const }),
         broadcaster,
         installState: { isInstalledFor: () => false } as never,
         logsDir: dir,
@@ -51,7 +65,7 @@ describe("SetupOrchestrator branch-status integration", () => {
       });
 
       orchestrator.handle({
-        kind: "first-bootstrap",
+        kind: "bootstrap",
         config: {} as never,
       });
 
@@ -91,10 +105,24 @@ describe("SetupOrchestrator branch-status integration", () => {
         store: {
           read: () => ({
             git: { repository: { cloneUrl: "" } },
-            application: { intent: "paused" },
+            application: {},
+          }),
+          hydrate: () => {},
+          applyInternal: async () => ({
+            kind: "applied",
+            before: null,
+            after: {},
+            transition: { kind: "no-op" },
           }),
         } as never,
-        appService: { stop: async () => {}, snapshot: () => ({}) } as never,
+        taskManager: {
+          spawn: async () => ({ id: "t1" }),
+          killByLogName: () => 0,
+          waitForLogNamesIdle: async () => {},
+          onTaskExit: () => () => {},
+        } as never,
+        setIntent: () => {},
+        getIntent: () => ({ state: "running" as const }),
         broadcaster,
         installState: { isInstalledFor: () => false } as never,
         logsDir: dir,
@@ -123,6 +151,163 @@ describe("SetupOrchestrator branch-status integration", () => {
           (c.arg as { kind: string })?.kind === "checkout-failed",
       );
       expect(failed).toBeTruthy();
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("SetupOrchestrator intent transitions", () => {
+  it("flips intent to paused when a starter task exits non-zero non-intentionally", () => {
+    const { dir, cleanup } = tempRoot();
+    try {
+      let exitHandler: ((s: unknown) => void) | null = null;
+      const intentCalls: Array<{ state: string; reason?: string }> = [];
+      const broadcaster = new Broadcaster(1024);
+      const { monitor } = makeMonitorSpy();
+
+      new SetupOrchestrator({
+        bootConfig: { appRoot: dir, repoDir: join(dir, "repo") },
+        store: {
+          read: () => null,
+          hydrate: () => {},
+          applyInternal: async () => ({
+            kind: "applied",
+            before: null,
+            after: {},
+            transition: { kind: "no-op" },
+          }),
+        } as never,
+        taskManager: {
+          spawn: async () => ({ id: "t1" }),
+          killByLogName: () => 0,
+          waitForLogNamesIdle: async () => {},
+          onTaskExit: (h: (s: unknown) => void) => {
+            exitHandler = h;
+            return () => {};
+          },
+        } as never,
+        setIntent: (i) => intentCalls.push(i),
+        getIntent: () => ({ state: "running" as const }),
+        broadcaster,
+        installState: { isInstalledFor: () => false } as never,
+        logsDir: dir,
+        branchStatus: monitor,
+      });
+
+      expect(exitHandler).not.toBeNull();
+      exitHandler!({
+        id: "t1",
+        logName: "dev",
+        exitCode: 1,
+        intentional: false,
+        status: "failed",
+      });
+      expect(intentCalls).toHaveLength(1);
+      expect(intentCalls[0]).toEqual({
+        state: "paused",
+        reason: "dev script exited with code 1",
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("does NOT flip intent on intentional kill", () => {
+    const { dir, cleanup } = tempRoot();
+    try {
+      let exitHandler: ((s: unknown) => void) | null = null;
+      const intentCalls: Array<{ state: string }> = [];
+      const broadcaster = new Broadcaster(1024);
+      const { monitor } = makeMonitorSpy();
+
+      new SetupOrchestrator({
+        bootConfig: { appRoot: dir, repoDir: join(dir, "repo") },
+        store: {
+          read: () => null,
+          hydrate: () => {},
+          applyInternal: async () => ({
+            kind: "applied",
+            before: null,
+            after: {},
+            transition: { kind: "no-op" },
+          }),
+        } as never,
+        taskManager: {
+          spawn: async () => ({ id: "t1" }),
+          killByLogName: () => 0,
+          waitForLogNamesIdle: async () => {},
+          onTaskExit: (h: (s: unknown) => void) => {
+            exitHandler = h;
+            return () => {};
+          },
+        } as never,
+        setIntent: (i) => intentCalls.push(i),
+        getIntent: () => ({ state: "running" as const }),
+        broadcaster,
+        installState: { isInstalledFor: () => false } as never,
+        logsDir: dir,
+        branchStatus: monitor,
+      });
+
+      exitHandler!({
+        id: "t1",
+        logName: "dev",
+        exitCode: 137,
+        intentional: true,
+        status: "killed",
+      });
+      expect(intentCalls).toHaveLength(0);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("does NOT flip intent for non-starter tasks", () => {
+    const { dir, cleanup } = tempRoot();
+    try {
+      let exitHandler: ((s: unknown) => void) | null = null;
+      const intentCalls: Array<{ state: string }> = [];
+      const broadcaster = new Broadcaster(1024);
+      const { monitor } = makeMonitorSpy();
+
+      new SetupOrchestrator({
+        bootConfig: { appRoot: dir, repoDir: join(dir, "repo") },
+        store: {
+          read: () => null,
+          hydrate: () => {},
+          applyInternal: async () => ({
+            kind: "applied",
+            before: null,
+            after: {},
+            transition: { kind: "no-op" },
+          }),
+        } as never,
+        taskManager: {
+          spawn: async () => ({ id: "t1" }),
+          killByLogName: () => 0,
+          waitForLogNamesIdle: async () => {},
+          onTaskExit: (h: (s: unknown) => void) => {
+            exitHandler = h;
+            return () => {};
+          },
+        } as never,
+        setIntent: (i) => intentCalls.push(i),
+        getIntent: () => ({ state: "running" as const }),
+        broadcaster,
+        installState: { isInstalledFor: () => false } as never,
+        logsDir: dir,
+        branchStatus: monitor,
+      });
+
+      exitHandler!({
+        id: "t2",
+        logName: "format",
+        exitCode: 1,
+        intentional: false,
+        status: "failed",
+      });
+      expect(intentCalls).toHaveLength(0);
     } finally {
       cleanup();
     }

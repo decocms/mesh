@@ -5,8 +5,6 @@ import { classify } from "./classify";
 const baseApp: NonNullable<TenantConfig["application"]> = {
   packageManager: { name: "npm" },
   runtime: "node",
-  intent: "paused",
-  proxy: {},
 };
 
 describe("classify", () => {
@@ -14,16 +12,16 @@ describe("classify", () => {
     expect(classify(null, {}).kind).toBe("no-op");
   });
 
-  it("null → meaningful (cloneUrl) = first-bootstrap", () => {
+  it("null → meaningful (cloneUrl) = bootstrap", () => {
     const after: TenantConfig = {
       git: { repository: { cloneUrl: "https://x.git" } },
     };
-    expect(classify(null, after).kind).toBe("first-bootstrap");
+    expect(classify(null, after).kind).toBe("bootstrap");
   });
 
-  it("null → meaningful (application only) = first-bootstrap", () => {
+  it("null → meaningful (application only) = bootstrap", () => {
     const after: TenantConfig = { application: baseApp };
-    expect(classify(null, after).kind).toBe("first-bootstrap");
+    expect(classify(null, after).kind).toBe("bootstrap");
   });
 
   it("cloneUrl mismatch (different repo) = identity-conflict", () => {
@@ -100,38 +98,14 @@ describe("classify", () => {
     expect(classify(before, after).kind).toBe("pm-change");
   });
 
-  it("intent change = intent-change", () => {
+  it("port change = port-change", () => {
     const before: TenantConfig = {
-      application: { ...baseApp, intent: "paused" },
+      application: { ...baseApp, port: 3000 },
     };
     const after: TenantConfig = {
-      application: { ...baseApp, intent: "running" },
+      application: { ...baseApp, port: 5173 },
     };
-    const t = classify(before, after);
-    expect(t.kind).toBe("intent-change");
-    if (t.kind === "intent-change") {
-      expect(t.to).toBe("running");
-    }
-  });
-
-  it("desired port change = desired-port-change", () => {
-    const before: TenantConfig = {
-      application: { ...baseApp, desiredPort: 3000 },
-    };
-    const after: TenantConfig = {
-      application: { ...baseApp, desiredPort: 5173 },
-    };
-    expect(classify(before, after).kind).toBe("desired-port-change");
-  });
-
-  it("proxy targetPort change without anything else = proxy-retarget", () => {
-    const before: TenantConfig = {
-      application: { ...baseApp, proxy: {} },
-    };
-    const after: TenantConfig = {
-      application: { ...baseApp, proxy: { targetPort: 5173 } },
-    };
-    expect(classify(before, after).kind).toBe("proxy-retarget");
+    expect(classify(before, after).kind).toBe("port-change");
   });
 
   it("identical configs = no-op", () => {

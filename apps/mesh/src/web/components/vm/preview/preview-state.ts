@@ -1,23 +1,23 @@
 /**
- * Pure preview-state decision: maps the ~10 conditional inputs from
- * preview.tsx into a discriminated state union. Extracted so it can be
- * unit-tested without DOM/auth/SSE scaffolding.
+ * Pure preview-state decision: maps inputs from preview.tsx into a
+ * discriminated state union. Extracted so it can be unit-tested without
+ * DOM/auth/SSE scaffolding.
  *
  * Priority order (highest first):
  *   error → suspended → booting → no-html → iframe → idle
  *
- * `bootEverReady` is the latch that keeps the iframe (or no-html) state
- * mounted across transient probe-down events (e.g. brief network hiccup
- * after the server has already proved it's up). Once the active port has
- * responded at least once, we trust the last-known `htmlSupport` rather
- * than dropping back into "booting" on every probe miss.
+ * `status === "online" || "offline"` is the "ever-responded" latch:
+ * once the daemon has seen the upstream answer, the iframe stays mounted
+ * across transient drops (htmlSupport is sticky on offline at the source).
  */
 
+import type { UpstreamStatus } from "../upstream-status";
+export type { UpstreamStatus };
 export type ClaimPhaseLike = { kind: string };
 
 export interface PreviewStateInput {
   previewUrl: string | null;
-  responded: boolean;
+  status: UpstreamStatus;
   htmlSupport: boolean;
   suspended: boolean;
   appPaused: boolean;
@@ -25,7 +25,6 @@ export interface PreviewStateInput {
   lastStartError: string | null;
   claimPhase: ClaimPhaseLike | null;
   notFound: boolean;
-  bootEverReady: boolean;
 }
 
 export type PreviewState =
@@ -46,11 +45,9 @@ export function computePreviewState(input: PreviewStateInput): PreviewState {
   if (input.notFound) {
     return { kind: "booting" };
   }
-  // VM_START in flight before previewUrl populates → boot overlay.
   if (!input.previewUrl && input.vmStartPending) {
     return { kind: "booting" };
   }
-  // Pre-daemon lifecycle (capacity wait, image pull, etc.) without previewUrl yet.
   if (
     !input.previewUrl &&
     input.claimPhase &&
@@ -62,8 +59,7 @@ export function computePreviewState(input: PreviewStateInput): PreviewState {
     return { kind: "idle" };
   }
   // previewUrl set: decide between iframe / no-html / booting.
-  // Latch on `bootEverReady`: once port has responded, trust last-known htmlSupport.
-  if (input.responded || input.bootEverReady) {
+  if (input.status === "online" || input.status === "offline") {
     if (input.htmlSupport) {
       return { kind: "iframe", previewUrl: input.previewUrl };
     }

@@ -9,9 +9,9 @@ export const MAX_SSE_CLIENTS = 10;
 export const REPLAY_BYTES = 256 * 1024;
 export const DECO_UID = 1000;
 export const DECO_GID = 1000;
-export const FAST_PROBE_MS = 3000;
-export const SLOW_PROBE_MS = 30000;
-export const FAST_PROBE_LIMIT = 20;
+export const PROBE_FAST_MS = 1000;
+export const PROBE_SLOW_MS = 30_000;
+export const PROBE_HEAD_TIMEOUT_MS = 5_000;
 
 /**
  * Synthetic branches are sandbox isolation keys, not real git refs.
@@ -68,7 +68,7 @@ export const PACKAGE_MANAGER_DAEMON_CONFIG: Record<
 export const WELL_KNOWN_STARTERS = ["dev", "start"] as const;
 
 export function buildDevEnv(
-  config: { application?: { desiredPort?: number } },
+  config: { application?: { port?: number } },
   overrides?: Record<string, string>,
 ): Record<string, string> {
   const env: Record<string, string> = {
@@ -76,9 +76,8 @@ export function buildDevEnv(
     HOSTNAME: "0.0.0.0",
     ...(overrides ?? {}),
   };
-  const desired = config.application?.desiredPort;
-  if (desired !== undefined && env.PORT === undefined)
-    env.PORT = String(desired);
+  const port = config.application?.port;
+  if (port !== undefined && env.PORT === undefined) env.PORT = String(port);
   return env;
 }
 
@@ -88,8 +87,9 @@ export function pmRunCommand(
   runPrefix: string,
   script: string,
 ): { cmd: string; label: string } {
+  const cmd = `${runtimePrefix}cd ${cwd} && ${runPrefix} ${script}`;
   return {
-    cmd: `${runtimePrefix}cd ${cwd} && ${runPrefix} ${script}`,
-    label: `$ ${runPrefix} ${script}`,
+    cmd,
+    label: `$ ${cmd}`,
   };
 }

@@ -48,6 +48,15 @@ export interface TaskSummary {
   finishedAt: number | null;
   timedOut: boolean;
   truncated: boolean;
+  /**
+   * Mirrors `spec.logName`. Surfaced in summaries so the SSE active-tasks
+   * payload can identify a task by its script name (e.g. "format") without
+   * the consumer having to regex the command string.
+   */
+  logName?: string;
+  /** True when the kill that terminated this task was flagged intentional
+   *  (orchestrator-driven stop, replace-by-logName, or user Stop). */
+  intentional?: boolean;
 }
 
 export interface TaskResult {
@@ -81,6 +90,11 @@ interface TaskInternal {
   resolveFinished: (r: TaskResult) => void;
   kill: (signal?: NodeJS.Signals) => void;
   timer: ReturnType<typeof setTimeout> | null;
+  /** Set when a kill was flagged intentional. Surfaced on TaskSummary
+   *  so subscribers can distinguish stop from crash. */
+  intentional: boolean;
+  /** Guard flag to ensure onTaskExit handlers fire exactly once. */
+  exitFired: boolean;
 }
 
 export interface TaskManagerDeps {
@@ -92,6 +106,16 @@ export interface TaskManagerDeps {
   onChange?: () => void;
   /** When provided, each task is registered as a named phase on spawn/finalize. */
   phaseManager?: PhaseManager;
+  /**
+   * When provided, tasks with a `logName` mirror their stdout/stderr onto the
+   * global SSE log stream under that name. The env-tab terminal is keyed on
+   * `logName`, so without this the terminal stays empty (only the per-task
+   * subscribers and the on-disk tee see the chunks). The header line
+   * (`$ <label>`) is also broadcast on spawn.
+   */
+  broadcaster?: {
+    broadcastChunk: (source: string, data: string) => void;
+  };
 }
 
 /**
@@ -108,6 +132,7 @@ export class TaskManager {
   private readonly reaper: ReturnType<typeof setInterval>;
   private readonly ttlMs: number;
   private idCounter = 0;
+  private readonly exitHandlers = new Set<(s: TaskSummary) => void>();
 
   constructor(private readonly deps: TaskManagerDeps) {
     this.ttlMs = deps.ttlMs ?? DEFAULT_TTL_MS;
@@ -122,7 +147,25 @@ export class TaskManager {
     this.reaper.unref?.();
   }
 
-  spawn(spec: TaskSpec): TaskSummary {
+  async spawn(
+    spec: TaskSpec & { replaceByLogName?: boolean },
+  ): Promise<TaskSummary> {
+    if (spec.replaceByLogName && spec.logName) {
+      // Kill any running task with the same logName, await exit, then proceed.
+      // Mirrors the old ApplicationService.start() "replace if alive" semantic
+      // but inside a single owner — no leaked PTYs, no orphaned log routing.
+      const waiters: Array<Promise<unknown>> = [];
+      for (const t of this.tasks.values()) {
+        if (t.status !== "running" || t.spec.logName !== spec.logName) continue;
+        t.intentional = true;
+        t.kill("SIGTERM");
+        setTimeout(() => {
+          if (t.status === "running") t.kill("SIGKILL");
+        }, 3000);
+        waiters.push(t.finishedPromise);
+      }
+      if (waiters.length > 0) await Promise.all(waiters);
+    }
     const id = `${TASK_FILE_PREFIX}${++this.idCounter}`;
     const task = this.create(id, spec);
     this.tasks.set(id, task);
@@ -161,6 +204,36 @@ export class TaskManager {
     return () => t.subscribers.delete(fn);
   }
 
+  /** Subscribe to per-task exit events. Handler receives the final
+   *  summary (status, exitCode, intentional, logName). Returns an
+   *  unsubscribe function. */
+  onTaskExit(handler: (s: TaskSummary) => void): () => void {
+    this.exitHandlers.add(handler);
+    return () => this.exitHandlers.delete(handler);
+  }
+
+  /** Resolves once no running task carries any of the given logNames.
+   *  Used by the orchestrator to await dev/start shutdown before
+   *  branch/install transitions. */
+  async waitForLogNamesIdle(logNames: ReadonlyArray<string>): Promise<void> {
+    const matching = (): TaskInternal[] => {
+      const out: TaskInternal[] = [];
+      for (const t of this.tasks.values()) {
+        if (
+          t.status === "running" &&
+          t.spec.logName &&
+          logNames.includes(t.spec.logName)
+        ) {
+          out.push(t);
+        }
+      }
+      return out;
+    };
+    const initial = matching();
+    if (initial.length === 0) return;
+    await Promise.all(initial.map((t) => t.finishedPromise));
+  }
+
   list(filter?: { status?: ReadonlyArray<TaskStatus> }): TaskSummary[] {
     const out: TaskSummary[] = [];
     for (const t of this.tasks.values()) {
@@ -183,10 +256,15 @@ export class TaskManager {
     return true;
   }
 
-  killByLogName(logName: string, signal: NodeJS.Signals = "SIGTERM"): number {
+  killByLogName(
+    logName: string,
+    opts?: { intentional?: boolean; signal?: NodeJS.Signals },
+  ): number {
+    const signal = opts?.signal ?? "SIGTERM";
     let count = 0;
     for (const t of this.tasks.values()) {
       if (t.status !== "running" || t.spec.logName !== logName) continue;
+      if (opts?.intentional) t.intentional = true;
       t.kill(signal);
       setTimeout(() => {
         if (t.status === "running") t.kill("SIGKILL");
@@ -266,7 +344,11 @@ export class TaskManager {
       ? appLogPath(this.deps.logsDir, spec.logName)
       : join(this.deps.logsDir, id);
     const tee = new LogTee(logPath, LOG_MAX_BYTES);
-    tee.writeHeader(spec.label ?? `$ ${spec.command}`);
+    const headerLine = spec.label ?? `$ ${spec.command}`;
+    tee.writeHeader(headerLine);
+    if (spec.logName) {
+      this.deps.broadcaster?.broadcastChunk(spec.logName, `${headerLine}\r\n`);
+    }
     const subscribers = new Set<(c: OutputChunk) => void>();
 
     let resolveFinished!: (r: TaskResult) => void;
@@ -295,6 +377,8 @@ export class TaskManager {
       resolveFinished,
       kill: () => undefined,
       timer: null,
+      intentional: false,
+      exitFired: false,
     };
 
     if (spec.mode === "pty") {
@@ -448,6 +532,18 @@ export class TaskManager {
       status,
       timedOut: result.timedOut,
     });
+    // Fire onTaskExit handlers exactly once, with the guard flag.
+    if (!task.exitFired) {
+      task.exitFired = true;
+      const summary = summarize(task);
+      for (const h of this.exitHandlers) {
+        try {
+          h(summary);
+        } catch {
+          /* handlers must not crash the task lifecycle */
+        }
+      }
+    }
     this.deps.onChange?.();
   }
 
@@ -458,6 +554,9 @@ export class TaskManager {
       } catch {
         /* one bad subscriber doesn't stop the rest */
       }
+    }
+    if (task.spec.logName) {
+      this.deps.broadcaster?.broadcastChunk(task.spec.logName, chunk.data);
     }
   }
 }
@@ -472,5 +571,7 @@ function summarize(t: TaskInternal): TaskSummary {
     finishedAt: t.finishedAt,
     timedOut: t.timedOut,
     truncated: t.tee.isTruncated(),
+    logName: t.spec.logName,
+    intentional: t.intentional,
   };
 }

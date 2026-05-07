@@ -7,9 +7,8 @@ import type { Transition } from "./types";
  * uses that to reject the apply before persisting anything.
  *
  * Precedence (highest first):
- *   identity-conflict > first-bootstrap > branch-change >
- *   runtime-change > pm-change > intent-change >
- *   desired-port-change > proxy-retarget > no-op
+ *   identity-conflict > bootstrap > branch-change >
+ *   runtime-change > pm-change > port-change > no-op
  */
 export function classify(
   before: TenantConfig | null,
@@ -30,13 +29,13 @@ export function classify(
     return { kind: "identity-conflict", field: "cloneUrl" };
   }
 
-  // 2. First-bootstrap: no prior config, but new one carries enough to
-  //    drive setup (cloneUrl OR application). Pure null → null is no-op.
+  // 2. Bootstrap: no prior config, but new one carries enough to drive setup
+  //    (cloneUrl OR application). Pure null → null is no-op.
   const isMeaningful =
     after.git?.repository?.cloneUrl !== undefined ||
     after.application !== undefined;
   if (before === null && isMeaningful) {
-    return { kind: "first-bootstrap", config: after };
+    return { kind: "bootstrap", config: after };
   }
   if (before === null) {
     return { kind: "no-op" };
@@ -66,29 +65,15 @@ export function classify(
     return { kind: "pm-change", from: beforePm, to: afterPm };
   }
 
-  // 6. Intent change (running ↔ paused).
-  const beforeIntent = before.application?.intent;
-  const afterIntent = after.application?.intent;
-  if (afterIntent !== undefined && beforeIntent !== afterIntent) {
-    return { kind: "intent-change", from: beforeIntent, to: afterIntent };
-  }
-
-  // 7. Desired PORT change.
-  const beforeDesired = before.application?.desiredPort;
-  const afterDesired = after.application?.desiredPort;
-  if (beforeDesired !== afterDesired) {
+  // 6. PORT change.
+  const beforePort = before.application?.port;
+  const afterPort = after.application?.port;
+  if (beforePort !== afterPort) {
     return {
-      kind: "desired-port-change",
-      from: beforeDesired,
-      to: afterDesired,
+      kind: "port-change",
+      from: beforePort,
+      to: afterPort,
     };
-  }
-
-  // 8. Proxy target change (probe writeback or tenant override).
-  const beforeProxy = before.application?.proxy?.targetPort;
-  const afterProxy = after.application?.proxy?.targetPort;
-  if (afterProxy !== undefined && beforeProxy !== afterProxy) {
-    return { kind: "proxy-retarget", port: afterProxy };
   }
 
   return { kind: "no-op" };

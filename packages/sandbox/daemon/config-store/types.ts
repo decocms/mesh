@@ -1,17 +1,11 @@
-import type {
-  ApplicationIntent,
-  PackageManagerConfig,
-  RuntimeName,
-  TenantConfig,
-} from "../types";
+import type { PackageManagerConfig, RuntimeName, TenantConfig } from "../types";
 
 /**
  * The single highest-impact transition produced by classifying (before, after).
  * Reducer recipes live in setup/orchestrator.ts.
  */
 export type Transition =
-  | { kind: "first-bootstrap"; config: TenantConfig }
-  | { kind: "resume"; config: TenantConfig }
+  | { kind: "bootstrap"; config: TenantConfig }
   | { kind: "branch-change"; from: string | undefined; to: string }
   | {
       kind: "pm-change";
@@ -20,16 +14,10 @@ export type Transition =
     }
   | { kind: "runtime-change"; from: RuntimeName | undefined; to: RuntimeName }
   | {
-      kind: "desired-port-change";
+      kind: "port-change";
       from: number | undefined;
       to: number | undefined;
     }
-  | {
-      kind: "intent-change";
-      from: ApplicationIntent | undefined;
-      to: ApplicationIntent;
-    }
-  | { kind: "proxy-retarget"; port: number }
   | { kind: "identity-conflict"; field: "cloneUrl" }
   | { kind: "no-op" };
 
@@ -42,7 +30,6 @@ export interface ApplyEvent {
 export const REJECTION_REASONS = {
   INVALID: "invalid",
   IMMUTABLE: "immutable",
-  PERSISTENCE_FAILED: "persistence failed",
   APPLY_FAILED: "apply failed",
 } as const;
 

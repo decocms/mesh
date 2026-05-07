@@ -4,7 +4,7 @@ import type { PreviewStateInput } from "./preview-state";
 
 const base: PreviewStateInput = {
   previewUrl: "http://localhost:5173",
-  responded: false,
+  status: "booting",
   htmlSupport: false,
   suspended: false,
   appPaused: false,
@@ -12,7 +12,6 @@ const base: PreviewStateInput = {
   lastStartError: null,
   claimPhase: null,
   notFound: false,
-  bootEverReady: false,
 };
 
 describe("computePreviewState", () => {
@@ -21,7 +20,7 @@ describe("computePreviewState", () => {
       computePreviewState({
         ...base,
         lastStartError: "boom",
-        responded: true,
+        status: "online",
         htmlSupport: true,
       }),
     ).toEqual({ kind: "error", error: "boom" });
@@ -32,7 +31,7 @@ describe("computePreviewState", () => {
       computePreviewState({
         ...base,
         suspended: true,
-        responded: true,
+        status: "online",
         htmlSupport: true,
       }),
     ).toEqual({ kind: "suspended" });
@@ -43,19 +42,16 @@ describe("computePreviewState", () => {
       computePreviewState({
         ...base,
         appPaused: true,
-        responded: true,
+        status: "online",
         htmlSupport: true,
       }),
     ).toEqual({ kind: "suspended" });
   });
 
   test("notFound triggers booting overlay", () => {
-    expect(
-      computePreviewState({
-        ...base,
-        notFound: true,
-      }),
-    ).toEqual({ kind: "booting" });
+    expect(computePreviewState({ ...base, notFound: true })).toEqual({
+      kind: "booting",
+    });
   });
 
   test("vmStartPending without previewUrl → booting", () => {
@@ -68,64 +64,40 @@ describe("computePreviewState", () => {
     ).toEqual({ kind: "booting" });
   });
 
-  test("previewUrl set, responded but not html → no-html empty state", () => {
+  test("previewUrl set, online but not html → no-html empty state", () => {
     expect(
-      computePreviewState({
-        ...base,
-        responded: true,
-        htmlSupport: false,
-      }),
+      computePreviewState({ ...base, status: "online", htmlSupport: false }),
     ).toEqual({ kind: "no-html", previewUrl: "http://localhost:5173" });
   });
 
-  test("previewUrl set, responded and html → iframe", () => {
+  test("previewUrl set, online and html → iframe", () => {
     expect(
-      computePreviewState({
-        ...base,
-        responded: true,
-        htmlSupport: true,
-      }),
+      computePreviewState({ ...base, status: "online", htmlSupport: true }),
     ).toEqual({ kind: "iframe", previewUrl: "http://localhost:5173" });
   });
 
-  test("previewUrl set, never responded yet → booting", () => {
-    expect(
-      computePreviewState({
-        ...base,
-        responded: false,
-      }),
-    ).toEqual({ kind: "booting" });
+  test("previewUrl set, still booting → booting overlay", () => {
+    expect(computePreviewState({ ...base, status: "booting" })).toEqual({
+      kind: "booting",
+    });
   });
 
-  test("bootEverReady persists iframe across transient probe-down (htmlSupport snapshot=true)", () => {
+  test("offline persists iframe across transient drops (htmlSupport sticky)", () => {
     expect(
-      computePreviewState({
-        ...base,
-        responded: false,
-        htmlSupport: true,
-        bootEverReady: true,
-      }),
+      computePreviewState({ ...base, status: "offline", htmlSupport: true }),
     ).toEqual({ kind: "iframe", previewUrl: "http://localhost:5173" });
   });
 
-  test("bootEverReady persists no-html across transient probe-down (htmlSupport snapshot=false)", () => {
+  test("offline persists no-html across transient drops", () => {
     expect(
-      computePreviewState({
-        ...base,
-        responded: false,
-        htmlSupport: false,
-        bootEverReady: true,
-      }),
+      computePreviewState({ ...base, status: "offline", htmlSupport: false }),
     ).toEqual({ kind: "no-html", previewUrl: "http://localhost:5173" });
   });
 
   test("no previewUrl, no startError, no pending, no lifecycle → idle", () => {
-    expect(
-      computePreviewState({
-        ...base,
-        previewUrl: null,
-      }),
-    ).toEqual({ kind: "idle" });
+    expect(computePreviewState({ ...base, previewUrl: null })).toEqual({
+      kind: "idle",
+    });
   });
 
   test("lifecycleActive with no previewUrl → booting", () => {

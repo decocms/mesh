@@ -38,24 +38,13 @@ import type {
 
 export type { ClaimFailureReason, ClaimPhase };
 
-export interface VmStatus {
-  /** Active port answered with 2xx-3xx — content is expected to render. */
-  ready: boolean;
-  /** Active port answered any HTTP status — port is up. Use to dismiss boot overlays. */
-  responded: boolean;
-  htmlSupport: boolean;
-  /** Currently active dev port (pinned `devPort` if responding, otherwise highest-scored discovered). */
-  port: number | null;
-}
+import type { UpstreamStatus } from "../upstream-status";
+export type { UpstreamStatus };
 
-/** Mirrors the daemon's AppStateSnapshot — kept inline to avoid pulling daemon types into the web bundle. */
-export interface AppStatus {
-  status: "idle" | "installing" | "starting" | "up" | "failed";
-  pid?: number;
-  failureReason?: string;
-  startedAt?: number;
-  installedAt?: number;
-  lastExitCode: number | null;
+export interface VmStatus {
+  status: UpstreamStatus;
+  port: number | null;
+  htmlSupport: boolean;
 }
 
 export interface BranchStatusReady {
@@ -96,8 +85,8 @@ export interface VmEventsValue {
   notFound: boolean;
   scripts: string[];
   activeProcesses: string[];
-  /** Latest dev-script lifecycle from ApplicationService. Null until first emit. */
-  appStatus: AppStatus | null;
+  intent: { state: "running" | "paused"; reason?: string };
+  installing: boolean;
   branchStatus: BranchStatus | null;
   getBuffer: (source: string) => string;
   hasData: (source: string) => boolean;
@@ -108,12 +97,13 @@ export interface VmEventsValue {
 
 const DEFAULT_VALUE: VmEventsValue = {
   phase: null,
-  status: { ready: false, responded: false, htmlSupport: false, port: null },
+  status: { status: "booting", port: null, htmlSupport: false },
   suspended: false,
   notFound: false,
   scripts: [],
   activeProcesses: [],
-  appStatus: null,
+  intent: { state: "running" },
+  installing: false,
   branchStatus: null,
   getBuffer: () => "",
   hasData: () => false,
@@ -155,7 +145,8 @@ const DAEMON_EVENT_TYPES = [
   "scripts",
   "processes",
   "tasks",
-  "app-status",
+  "intent",
+  "phases",
   "reload",
   "branch-status",
 ] as const;
@@ -172,16 +163,19 @@ export function VmEventsProvider({
   const { org } = useProjectContext();
   const [phase, setPhase] = useState<ClaimPhase | null>(null);
   const [status, setStatus] = useState<VmStatus>({
-    ready: false,
-    responded: false,
-    htmlSupport: false,
+    status: "booting",
     port: null,
+    htmlSupport: false,
   });
   const [suspended, setSuspended] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [scripts, setScripts] = useState<string[]>([]);
   const [activeProcesses, setActiveProcesses] = useState<string[]>([]);
-  const [appStatus, setAppStatus] = useState<AppStatus | null>(null);
+  const [intent, setIntent] = useState<{
+    state: "running" | "paused";
+    reason?: string;
+  }>({ state: "running" });
+  const [installing, setInstalling] = useState(false);
   const [branchStatus, setBranchStatus] = useState<BranchStatus | null>(null);
   // Bumped on log chunks so getBuffer/hasData consumers re-render; buffer
   // mutation alone doesn't.
@@ -205,18 +199,14 @@ export function VmEventsProvider({
   useEffect(() => {
     // Reset on key change so stale data doesn't linger across branches.
     setPhase(null);
-    setStatus({
-      ready: false,
-      responded: false,
-      htmlSupport: false,
-      port: null,
-    });
+    setStatus({ status: "booting", port: null, htmlSupport: false });
     prevPortRef.current = null;
     setSuspended(false);
     setNotFound(false);
     setScripts([]);
     setActiveProcesses([]);
-    setAppStatus(null);
+    setIntent({ state: "running" });
+    setInstalling(false);
     setBranchStatus(null);
     buffers.current.clear();
 
@@ -272,27 +262,21 @@ export function VmEventsProvider({
       // The sandbox is gone (idle-evicted, VM_DELETE'd, or its pod terminated
       // and mesh has stopped finding the handle). Everything we've cached is
       // about to be stale, so reset:
-      //   - phase: residual `ready` would otherwise keep `lifecycleActive`
+      //   - phase: residual state would otherwise keep `lifecycleActive`
       //     stuck on "Almost ready" in the booting overlay even though
       //     nothing is starting.
       //   - status / scripts / processes / branchStatus / log buffers: these
-      //     describe a sandbox that no longer exists. preview.tsx's
-      //     `bootTrackedRef` keys on previewUrl, so flipping `status.ready`
-      //     to false ensures the next provisioned sandbox is treated as a
-      //     fresh boot rather than instantly-ready.
+      //     describe a sandbox that no longer exists. Resetting to "booting"
+      //     ensures the next provisioned sandbox goes through the boot flow.
       // `notFound = true` then drives preview.tsx's self-heal flow when a
       // vmEntry exists; the empty "Start Server" state when it doesn't.
       setNotFound(true);
       setPhase(null);
-      setStatus({
-        ready: false,
-        responded: false,
-        htmlSupport: false,
-        port: null,
-      });
+      setStatus({ status: "booting", port: null, htmlSupport: false });
       setScripts([]);
       setActiveProcesses([]);
-      setAppStatus(null);
+      setIntent({ state: "running" });
+      setInstalling(false);
       setBranchStatus(null);
       buffers.current.clear();
     };
@@ -315,14 +299,17 @@ export function VmEventsProvider({
           }
           setLogTick((t) => t + 1);
         } else if (e.type === "status") {
+          const s = data.status;
           const newPort = typeof data.port === "number" ? data.port : null;
           const prevPort = prevPortRef.current;
           prevPortRef.current = newPort;
           setStatus({
-            ready: Boolean(data.ready),
-            responded: Boolean(data.responded),
-            htmlSupport: Boolean(data.htmlSupport),
+            status:
+              s === "online" || s === "offline" || s === "booting"
+                ? s
+                : "booting",
             port: newPort,
+            htmlSupport: Boolean(data.htmlSupport),
           });
           // Proxy retargeted to a different active port — the iframe is stuck on
           // whatever page it last loaded. Force-reload so it picks up the new backend.
@@ -340,29 +327,36 @@ export function VmEventsProvider({
         } else if (e.type === "processes") {
           setActiveProcesses(data.active ?? []);
         } else if (e.type === "tasks") {
-          // Daemon's task-manager surface; map to the legacy
-          // activeProcesses array of names so the UI's "Stop Process"
-          // button continues to render against running script tabs.
+          // Daemon's task-manager surface; map to the activeProcesses array
+          // of script names so the UI's Run/Restart button can render
+          // against running script tabs. Match on `logName` — set by
+          // /exec/<name> via the spec — instead of regex-parsing `command`,
+          // which breaks for any task with trailing args (e.g. `bun run
+          // format -- --fix`).
           const active = Array.isArray(data.active)
-            ? (data.active as Array<{ kind?: string; command?: string }>)
-                .filter(
-                  (j) => j?.kind === "exec" && typeof j.command === "string",
-                )
-                // Best-effort: extract trailing word as script name (e.g.
-                // "$ npm run dev" → "dev").
-                .map((j) => {
-                  const m = /\s(\S+)$/.exec(j.command ?? "");
-                  return m?.[1] ?? "";
-                })
+            ? (data.active as Array<{ logName?: string }>)
+                .map((j) => j?.logName ?? "")
                 .filter(Boolean)
             : [];
           setActiveProcesses(active);
-        } else if (e.type === "app-status") {
-          const { type: _type, ...rest } = data as { type?: string } & Record<
-            string,
-            unknown
-          >;
-          setAppStatus(rest as unknown as AppStatus);
+        } else if (e.type === "intent") {
+          const next = data as {
+            state?: "running" | "paused";
+            reason?: string;
+          };
+          if (next.state === "running" || next.state === "paused") {
+            setIntent({ state: next.state, reason: next.reason });
+          }
+        } else if (e.type === "phases") {
+          const phases =
+            (
+              data as {
+                phases?: Array<{ name: string; status: string }>;
+              }
+            ).phases ?? [];
+          setInstalling(
+            phases.some((p) => p.name === "install" && p.status === "running"),
+          );
         } else if (e.type === "reload") {
           for (const fn of reloadHandlers.current) {
             try {
@@ -484,7 +478,8 @@ export function VmEventsProvider({
     notFound,
     scripts,
     activeProcesses,
-    appStatus,
+    intent,
+    installing,
     branchStatus,
     getBuffer: (source: string) => buffers.current.get(source)?.get() ?? "",
     hasData: (source: string) =>

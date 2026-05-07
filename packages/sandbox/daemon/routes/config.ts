@@ -1,4 +1,3 @@
-import type { AppStateSnapshot } from "../app/application-service";
 import type { TenantConfigStore } from "../config-store";
 import type { ApplyResult } from "../config-store/types";
 import type { Phase } from "../process/phase-manager";
@@ -6,7 +5,6 @@ import type { TenantConfig } from "../types";
 import { jsonResponse, parseBase64JsonBody } from "./body-parser";
 
 export interface DaemonState {
-  app: AppStateSnapshot;
   orchestrator: { running: boolean; pending: number };
   ready: boolean;
 }
@@ -27,7 +25,7 @@ export interface ConfigDeps {
    * that wired a setter accept rotation requests.
    */
   setDaemonToken?: (next: string) => void;
-  /** Live app process + orchestrator + probe state for enriched GET response. */
+  /** Live orchestrator + probe state for enriched GET response. */
   getState?: () => DaemonState;
   /** Recent setup phases for LLM context. */
   getTasks?: () => Phase[];
@@ -57,7 +55,6 @@ export function makeConfigReadHandler(deps: ConfigDeps) {
     return jsonResponse({
       bootId: deps.daemonBootId,
       config: tenant ? stripDerived(tenant) : null,
-      app: state?.app,
       orchestrator: state?.orchestrator,
       ready: state?.ready ?? false,
       tasks: deps.getTasks?.(),

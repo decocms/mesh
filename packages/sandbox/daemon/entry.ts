@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, unlinkSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { ApplicationService } from "./app/application-service";
 import { bumpActivity, markClaimed } from "./activity";
 import { requireToken } from "./auth";
 import { TenantConfigStore } from "./config-store";
@@ -10,12 +9,7 @@ import { Broadcaster } from "./events/broadcast";
 import { BranchStatusMonitor } from "./git/branch-status";
 import { gitSync } from "./git/git-sync";
 import { InstallState } from "./install/install-state";
-import {
-  CONFIG_FILENAME,
-  CONFIG_TMP_FILENAME,
-  readConfig,
-} from "./persistence";
-import { discoverDescendantListeningPorts } from "./process/port-discovery";
+import { readConfig } from "./persistence";
 import { TaskManager } from "./process/task-manager";
 import { PhaseManager } from "./process/phase-manager";
 import { startUpstreamProbe } from "./probe";
@@ -50,7 +44,6 @@ import {
 import { makeScriptsHandler } from "./routes/scripts";
 import { discoverScripts } from "./process/script-discovery";
 import { SetupOrchestrator } from "./setup/orchestrator";
-import { isResume } from "./setup/resume";
 import type { Config, TenantConfig } from "./types";
 import { makeWsUpgrader, type WsProxyData } from "./ws-proxy";
 
@@ -79,13 +72,21 @@ const bootConfig = {
 // Ensure repoDir exists so bash commands with the default cwd don't fail with
 // ENOENT when no repo has been cloned yet (tool-only sandboxes, no-repo agents).
 mkdirSync(bootConfig.repoDir, { recursive: true });
-// Workspace layout: <appRoot>/repo/.decocms/daemon.json (tenant config, git-tracked),
-// <appRoot>/repo (cloned source), <appRoot>/tmp/{app,taskN} (log tees).
-// Everything inside appRoot is reachable by fs/bash routes (clamped to appRoot).
+// Workspace layout: <appRoot>/repo (cloned source), <appRoot>/tmp/{app,taskN}
+// (log tees). Everything inside appRoot is reachable by fs/bash routes
+// (clamped to appRoot).
 const TMP_DIR = join(APP_ROOT, "tmp");
 
 const broadcaster = new Broadcaster(REPLAY_BYTES);
-const store = new TenantConfigStore({ storageDir: bootConfig.repoDir });
+
+type Intent = { state: "running" | "paused"; reason?: string };
+let currentIntent: Intent = { state: "running" };
+function setIntent(next: Intent) {
+  currentIntent = next;
+  broadcaster.broadcastEvent("intent", { type: "intent", ...next });
+}
+
+const store = new TenantConfigStore();
 const installState = new InstallState();
 const phaseManager = new PhaseManager({
   onChange: (phases) =>
@@ -94,6 +95,7 @@ const phaseManager = new PhaseManager({
 const taskManager = new TaskManager({
   logsDir: TMP_DIR,
   phaseManager,
+  broadcaster,
   onChange: () => {
     broadcaster.broadcastEvent("tasks", {
       type: "tasks",
@@ -105,23 +107,8 @@ const taskManager = new TaskManager({
 function getActiveTasks() {
   return taskManager
     .list({ status: ["running"] })
-    .map((t) => ({ id: t.id, command: t.command }));
+    .map((t) => ({ id: t.id, command: t.command, logName: t.logName }));
 }
-const appService = new ApplicationService({
-  broadcaster,
-  logsDir: TMP_DIR,
-  onFailure: (reason, exitCode) => {
-    // Sticky failure — flip intent to paused so we don't auto-retry.
-    void store.apply({
-      application: { intent: "paused" },
-    } as Partial<TenantConfig>);
-    broadcaster.broadcastChunk(
-      "daemon",
-      `\r\n[daemon] dev script failed (exit ${exitCode}): ${reason}; intent → paused\r\n`,
-    );
-  },
-});
-
 const branchStatus = new BranchStatusMonitor(
   {
     appRoot: bootConfig.appRoot,
@@ -137,7 +124,9 @@ const branchStatus = new BranchStatusMonitor(
 const orchestrator = new SetupOrchestrator({
   bootConfig: { appRoot: bootConfig.appRoot, repoDir: bootConfig.repoDir },
   store,
-  appService,
+  taskManager,
+  setIntent,
+  getIntent: () => currentIntent,
   broadcaster,
   installState,
   logsDir: TMP_DIR,
@@ -155,72 +144,19 @@ broadcaster.broadcastEvent = (event: string, data: unknown) => {
   origEvent(event, data);
 };
 
-// Debounced git sync: 2 s after the last config change, commit + push
-// daemon.json to the current branch. Best-effort — never throws.
-let _syncTimer: ReturnType<typeof setTimeout> | null = null;
-function scheduleSyncCommit(): void {
-  if (_syncTimer) clearTimeout(_syncTimer);
-  _syncTimer = setTimeout(() => {
-    _syncTimer = null;
-    try {
-      gitSync(["-c", "safe.directory=*", "add", CONFIG_FILENAME], {
-        cwd: bootConfig.repoDir,
-      });
-      gitSync(
-        [
-          "-c",
-          "safe.directory=*",
-          "commit",
-          "--allow-empty",
-          "-m",
-          "[daemon] sync config",
-        ],
-        { cwd: bootConfig.repoDir },
-      );
-      gitSync(["-c", "safe.directory=*", "push"], { cwd: bootConfig.repoDir });
-    } catch {
-      /* git may not be ready yet (pre-clone) — ignore */
-    }
-  }, 2000);
-}
-
 store.subscribe((event) => {
   orchestrator.handle(event.transition);
-  if (event.transition.kind !== "no-op") {
-    scheduleSyncCommit();
-  }
 });
-
-const excludeFromDiscovery = new Set<number>([bootConfig.proxyPort]);
-const getDiscoveredPorts = () => {
-  const pids: number[] = [];
-  const appPid = appService.pid();
-  if (appPid !== undefined) pids.push(appPid);
-  if (pids.length === 0) return [];
-  return discoverDescendantListeningPorts({
-    rootPids: pids,
-    excludePorts: excludeFromDiscovery,
-  });
-};
 
 const lastStatus = startUpstreamProbe({
-  upstreamHost: "localhost",
-  getDiscoveredPorts,
-  getPinnedPort: () => store.read()?.application?.proxy?.targetPort ?? null,
-  getCommandName: (pid) => {
-    if (pid === appService.pid()) return "dev";
-    return null;
-  },
-  onLog: (msg) => broadcaster.broadcastChunk("setup", msg),
+  getPort: () => store.read()?.application?.port ?? null,
   onChange: (s) => {
     broadcaster.broadcastEvent("status", { type: "status", ...s });
-    if (s.ready && s.port !== null) {
-      appService.markUp();
-    }
   },
+  onLog: (msg) => broadcaster.broadcastChunk("setup", msg),
 });
 
-const getDevPort = (): number | null => lastStatus.port;
+const getDevPort = (): number | null => store.read()?.application?.port ?? null;
 const { appRoot, repoDir } = bootConfig;
 const fsDeps = { appRoot, repoDir };
 const readH = makeReadHandler(fsDeps);
@@ -239,7 +175,6 @@ const execH = makeExecHandler({
   repoDir,
   store,
   taskManager,
-  broadcaster,
 });
 
 const tasksListH = makeTasksListHandler({ taskManager });
@@ -260,8 +195,7 @@ const scriptsHandler = makeScriptsHandler(() => {
 
 const healthH = makeHealthHandler({
   config: { daemonBootId: process.env.DAEMON_BOOT_ID ?? "" },
-  getReady: () => lastStatus.ready,
-  getApp: () => appService.snapshot(),
+  getReady: () => lastStatus.status === "online",
   getOrchestrator: () => ({
     running: orchestrator.isRunning(),
     pending: orchestrator.pendingCount(),
@@ -274,7 +208,7 @@ const eventsH = makeEventsHandler({
   getLastStatus: () => lastStatus,
   getDiscoveredScripts: () => discoveredScripts,
   getActiveTasks,
-  getAppStatus: () => appService.snapshot(),
+  getIntent: () => currentIntent,
   getLastBranchStatus: () => branchStatus.getLast(),
 });
 
@@ -286,12 +220,11 @@ const configReadH = makeConfigReadHandler({
   daemonBootId: process.env.DAEMON_BOOT_ID ?? "",
   store,
   getState: () => ({
-    app: appService.snapshot(),
     orchestrator: {
       running: orchestrator.isRunning(),
       pending: orchestrator.pendingCount(),
     },
-    ready: lastStatus.ready,
+    ready: lastStatus.status === "online",
   }),
   getTasks: () => phaseManager.recent(20),
 });
@@ -311,32 +244,11 @@ const configUpdateH = makeConfigUpdateHandler({
 });
 
 function hydrate(): void {
-  let envTenant: TenantConfig | null = null;
-
   const diskOutcome = readConfig(bootConfig.repoDir);
-  let initial: TenantConfig | null = null;
-  if (diskOutcome.kind === "valid") {
-    initial = diskOutcome.config;
-  } else if (envTenant) {
-    initial = envTenant;
-  }
-
-  if (!initial) return;
-
+  if (diskOutcome.kind !== "valid") return;
+  const initial: TenantConfig = diskOutcome.config;
   store.hydrate(initial);
-  // Decide whether this is a fresh first-bootstrap or a resume of an
-  // existing clone+install.
-  const transitionKind: "resume" | "first-bootstrap" = isResume(
-    bootConfig.repoDir,
-  )
-    ? "resume"
-    : "first-bootstrap";
-  orchestrator.handle({ kind: transitionKind, config: initial });
-
-  // Persist disk if we hydrated from env so subsequent reads come from disk.
-  if (diskOutcome.kind !== "valid") {
-    void store.apply(initial);
-  }
+  orchestrator.handle({ kind: "bootstrap", config: initial });
 }
 
 hydrate();
@@ -440,7 +352,7 @@ Bun.serve<WsProxyData, never>({
         } catch {
           return jsonResponse({ error: "invalid script name" }, 400);
         }
-        const killed = taskManager.killByLogName(name);
+        const killed = taskManager.killByLogName(name, { intentional: true });
         return jsonResponse({ killed });
       }
       if (p.startsWith("/_decopilot_vm/exec/")) return execH(req);
@@ -471,11 +383,8 @@ Bun.serve<WsProxyData, never>({
   },
 });
 
-// Stale tmp file housekeeping: persistence.readConfig handles this on the
-// read path; on a clean shutdown there's nothing to do here.
 process.on("SIGTERM", () => {
   taskManager.shutdown();
-  appService.shutdown();
   branchStatus.stop();
   const branch = store.read()?.git?.repository?.branch;
   if (branch) {
@@ -493,14 +402,6 @@ process.on("SIGTERM", () => {
     } catch {
       // best-effort
     }
-  }
-  try {
-    if (existsSync(join(bootConfig.repoDir, CONFIG_FILENAME))) {
-      // Leave .decocms/daemon.json in place — git-tracked persistent record.
-    }
-    unlinkSync(join(bootConfig.repoDir, CONFIG_TMP_FILENAME));
-  } catch {
-    /* ignore */
   }
   process.exit(0);
 });

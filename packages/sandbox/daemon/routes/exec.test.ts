@@ -17,7 +17,6 @@ function req(name: string, body?: object): Request {
 
 describe("exec handler", () => {
   let appRoot: string;
-  let configDir: string;
   let logsDir: string;
   let taskManager: TaskManager;
   let store: TenantConfigStore;
@@ -25,21 +24,19 @@ describe("exec handler", () => {
 
   beforeEach(() => {
     appRoot = mkdtempSync(join(tmpdir(), "exec-root-"));
-    configDir = mkdtempSync(join(tmpdir(), "exec-cfg-"));
     logsDir = mkdtempSync(join(tmpdir(), "exec-logs-"));
     taskManager = new TaskManager({
       logsDir,
       ttlMs: 60_000,
       reapIntervalMs: 60_000,
     });
-    store = new TenantConfigStore({ storageDir: configDir });
+    store = new TenantConfigStore();
     broadcaster = new Broadcaster(64 * 1024);
   });
 
   afterEach(() => {
     taskManager.shutdown();
     rmSync(appRoot, { recursive: true, force: true });
-    rmSync(configDir, { recursive: true, force: true });
     rmSync(logsDir, { recursive: true, force: true });
   });
 
@@ -63,8 +60,6 @@ describe("exec handler", () => {
       application: {
         packageManager: { name: "npm" },
         runtime: "node",
-        intent: "paused",
-        proxy: {},
       },
     });
     const h = makeExecHandler({
@@ -86,8 +81,6 @@ describe("exec handler", () => {
       application: {
         packageManager: { name: "npm" },
         runtime: "node",
-        intent: "paused",
-        proxy: {},
       },
     });
     const h = makeExecHandler({

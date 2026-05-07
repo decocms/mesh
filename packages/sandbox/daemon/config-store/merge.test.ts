@@ -8,8 +8,6 @@ describe("deepMerge", () => {
       application: {
         packageManager: { name: "npm" },
         runtime: "node",
-        intent: "paused",
-        proxy: {},
       },
     };
     const merged = deepMerge(null, patch);
@@ -22,16 +20,12 @@ describe("deepMerge", () => {
       application: {
         packageManager: { name: "npm" },
         runtime: "node",
-        intent: "paused",
-        proxy: {},
       },
     };
     const patch: Partial<TenantConfig> = {
       application: {
         packageManager: { name: "pnpm" },
         runtime: "node",
-        intent: "paused",
-        proxy: {},
       },
     };
     const merged = deepMerge(current, patch);
@@ -39,50 +33,22 @@ describe("deepMerge", () => {
     expect(merged.application?.packageManager?.name).toBe("pnpm");
   });
 
-  it("deep-merges nested objects (proxy.targetPort)", () => {
-    const current: TenantConfig = {
-      application: {
-        packageManager: { name: "npm" },
-        runtime: "node",
-        intent: "paused",
-        proxy: {},
-      },
-    };
-    const patch: Partial<TenantConfig> = {
-      application: {
-        packageManager: { name: "npm" },
-        runtime: "node",
-        intent: "paused",
-        proxy: { targetPort: 5173 },
-      },
-    };
-    const merged = deepMerge(current, patch);
-    expect(merged.application?.proxy?.targetPort).toBe(5173);
-  });
-
   it("absent fields don't overwrite existing ones", () => {
     const current: TenantConfig = {
       application: {
         packageManager: { name: "npm" },
         runtime: "node",
-        intent: "running",
-        desiredPort: 3000,
-        proxy: { targetPort: 4000 },
+        port: 3000,
       },
     };
     const patch: Partial<TenantConfig> = {
       application: {
         packageManager: { name: "pnpm" },
         runtime: "node",
-        intent: "running",
-        proxy: {},
       },
     };
     const merged = deepMerge(current, patch);
-    // Outer fields stay as original
-    expect(merged.application?.desiredPort).toBe(3000);
-    expect(merged.application?.proxy?.targetPort).toBe(4000);
-    // Patch wins on what it does specify
+    expect(merged.application?.port).toBe(3000);
     expect(merged.application?.packageManager?.name).toBe("pnpm");
   });
 });
