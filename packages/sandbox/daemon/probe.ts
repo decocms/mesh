@@ -54,6 +54,12 @@ export function reduce(state: ProbeState, event: ProbeEvent): ReduceResult {
           log: `[probe] server responded on port ${state.port} (status ${event.status})`,
         };
       }
+      if (state.status === "offline") {
+        return {
+          next,
+          log: `[probe] server back online on port ${state.port} (status ${event.status})`,
+        };
+      }
       return { next };
     }
     case "head-failure": {
@@ -137,7 +143,7 @@ export function startUpstreamProbe(deps: ProbeDeps): ProbeState {
 
     const portAtStart = state.port;
     inFlight = true;
-    let result: HeadResult | null;
+    let result: HeadResult | null = null;
     try {
       result = await head(
         `http://localhost:${portAtStart}/`,

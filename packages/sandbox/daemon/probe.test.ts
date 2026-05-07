@@ -114,7 +114,7 @@ describe("reduce", () => {
       expect(r.log).toBeUndefined();
     });
 
-    test("offline → online: no log, htmlSupport refreshes", () => {
+    test("offline → online: emits recovery log, htmlSupport refreshes", () => {
       const state: ProbeState = {
         status: "offline",
         port: 3000,
@@ -130,7 +130,9 @@ describe("reduce", () => {
         port: 3000,
         htmlSupport: true,
       });
-      expect(r.log).toBeUndefined();
+      expect(r.log).toContain("back online");
+      expect(r.log).toContain("port 3000");
+      expect(r.log).toContain("status 200");
     });
   });
 

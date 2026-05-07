@@ -13,7 +13,7 @@ describe("makeSseStream", () => {
     getDiscoveredScripts: () => null,
     getActiveTasks: () => [],
     getAppStatus: () => ({}),
-    getLastBranchStatus: () => null,
+    getLastBranchStatus: () => ({ kind: "initializing" as const }),
     maxClients: 10,
   });
 
