@@ -16,7 +16,6 @@ export interface SseHandshakeDeps {
     command: string;
     logName?: string;
   }>;
-  getAppStatus: () => unknown;
   getIntent: () => { state: "running" | "paused"; reason?: string };
   getLastBranchStatus: () => BranchStatus;
   maxClients: number;
@@ -66,16 +65,6 @@ export function makeSseStream(
           JSON.stringify({
             type: "tasks",
             active: deps.getActiveTasks(),
-          }),
-        ),
-      );
-
-      c.enqueue(
-        sseFormat(
-          "app-status",
-          JSON.stringify({
-            type: "app-status",
-            ...(deps.getAppStatus() as object),
           }),
         ),
       );

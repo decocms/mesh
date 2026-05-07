@@ -12,7 +12,6 @@ describe("makeSseStream", () => {
     }),
     getDiscoveredScripts: () => null,
     getActiveTasks: () => [],
-    getAppStatus: () => ({}),
     getIntent: () => ({ state: "running" as const }),
     getLastBranchStatus: () => ({ kind: "initializing" as const }),
     maxClients: 10,

@@ -222,7 +222,6 @@ const eventsH = makeEventsHandler({
   getLastStatus: () => lastStatus,
   getDiscoveredScripts: () => discoveredScripts,
   getActiveTasks,
-  getAppStatus: () => appService.snapshot(),
   getIntent: () => currentIntent,
   getLastBranchStatus: () => branchStatus.getLast(),
 });

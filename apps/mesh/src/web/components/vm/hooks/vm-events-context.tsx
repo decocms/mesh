@@ -47,16 +47,6 @@ export interface VmStatus {
   htmlSupport: boolean;
 }
 
-/** Mirrors the daemon's AppStateSnapshot — kept inline to avoid pulling daemon types into the web bundle. */
-export interface AppStatus {
-  status: "idle" | "installing" | "starting" | "up" | "failed";
-  pid?: number;
-  failureReason?: string;
-  startedAt?: number;
-  installedAt?: number;
-  lastExitCode: number | null;
-}
-
 export interface BranchStatusReady {
   kind: "ready";
   branch: string;
@@ -95,8 +85,6 @@ export interface VmEventsValue {
   notFound: boolean;
   scripts: string[];
   activeProcesses: string[];
-  /** Latest dev-script lifecycle from ApplicationService. Null until first emit. */
-  appStatus: AppStatus | null;
   intent: { state: "running" | "paused"; reason?: string };
   installing: boolean;
   branchStatus: BranchStatus | null;
@@ -114,7 +102,6 @@ const DEFAULT_VALUE: VmEventsValue = {
   notFound: false,
   scripts: [],
   activeProcesses: [],
-  appStatus: null,
   intent: { state: "running" },
   installing: false,
   branchStatus: null,
@@ -158,7 +145,6 @@ const DAEMON_EVENT_TYPES = [
   "scripts",
   "processes",
   "tasks",
-  "app-status",
   "intent",
   "phases",
   "reload",
@@ -185,7 +171,6 @@ export function VmEventsProvider({
   const [notFound, setNotFound] = useState(false);
   const [scripts, setScripts] = useState<string[]>([]);
   const [activeProcesses, setActiveProcesses] = useState<string[]>([]);
-  const [appStatus, setAppStatus] = useState<AppStatus | null>(null);
   const [intent, setIntent] = useState<{
     state: "running" | "paused";
     reason?: string;
@@ -220,7 +205,6 @@ export function VmEventsProvider({
     setNotFound(false);
     setScripts([]);
     setActiveProcesses([]);
-    setAppStatus(null);
     setIntent({ state: "running" });
     setInstalling(false);
     setBranchStatus(null);
@@ -291,7 +275,6 @@ export function VmEventsProvider({
       setStatus({ status: "booting", port: null, htmlSupport: false });
       setScripts([]);
       setActiveProcesses([]);
-      setAppStatus(null);
       setIntent({ state: "running" });
       setInstalling(false);
       setBranchStatus(null);
@@ -356,12 +339,6 @@ export function VmEventsProvider({
                 .filter(Boolean)
             : [];
           setActiveProcesses(active);
-        } else if (e.type === "app-status") {
-          const { type: _type, ...rest } = data as { type?: string } & Record<
-            string,
-            unknown
-          >;
-          setAppStatus(rest as unknown as AppStatus);
         } else if (e.type === "intent") {
           const next = data as {
             state?: "running" | "paused";
@@ -501,7 +478,6 @@ export function VmEventsProvider({
     notFound,
     scripts,
     activeProcesses,
-    appStatus,
     intent,
     installing,
     branchStatus,
