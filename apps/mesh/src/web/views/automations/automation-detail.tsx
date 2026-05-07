@@ -9,6 +9,11 @@ import {
   type AiProviderModel,
 } from "@/web/hooks/collections/use-ai-providers.ts";
 import { ModelSelector } from "@/web/components/chat/select-model.tsx";
+import {
+  SimpleModeTierDropdown,
+  type SimpleModeTier,
+} from "@/web/components/chat/simple-mode-tier-dropdown.tsx";
+import { useSimpleMode } from "@/web/hooks/use-organization-settings";
 import { User } from "@/web/components/user/user.tsx";
 import {
   useAutomation,
@@ -307,9 +312,11 @@ export function SettingsTab({
   const { createTaskWithMessage } = useChatTask();
   const {
     setModel,
+    setSimpleModeTier,
     credentialId: chatCredentialId,
     selectedModel: chatModel,
   } = useChatPrefs();
+  const simpleMode = useSimpleMode();
   const { setChatOpen } = usePanelActions();
   const { sendMessage } = useChatBridge();
   const ensureStudioPack = useEnsureStudioPack();
@@ -390,6 +397,23 @@ export function SettingsTab({
   );
   const selectedModel: AiProviderModel | null =
     models.find((m) => m.modelId === watchModelId) ?? null;
+
+  const activeSimpleModeTier: SimpleModeTier =
+    (["fast", "smart", "thinking"] as const).find(
+      (t) =>
+        simpleMode.chat[t]?.modelId === watchModelId &&
+        simpleMode.chat[t]?.keyId === watchConnectionId,
+    ) ?? "smart";
+
+  const handleSimpleModeTierSelect = (tier: SimpleModeTier) => {
+    const slot = simpleMode.chat[tier];
+    if (!slot) return;
+    form.setValue("credential_id", slot.keyId);
+    form.setValue("model_id", slot.modelId);
+    markFormDirty("credential_id");
+    markFormDirty("model_id");
+    scheduleSave();
+  };
 
   // Session-based tracking for automation_updated. Auto-saves persist every
   // ~1s but we only emit one PostHog event per edit-session (aggregated
@@ -525,10 +549,13 @@ export function SettingsTab({
       return;
     }
 
-    if (selectedModel && watchConnectionId) {
+    if (simpleMode.enabled) {
+      setSimpleModeTier(activeSimpleModeTier);
+    } else if (selectedModel && watchConnectionId) {
       setModel({ ...selectedModel, keyId: watchConnectionId });
     }
 
+    setChatOpen(true);
     setPreferences({ ...preferences, toolApprovalLevel: "auto" });
 
     const parts = derivePartsFromTiptapDoc(tiptapDoc);
@@ -777,23 +804,30 @@ export function SettingsTab({
               />
 
               <div className="flex items-center justify-end gap-1.5 p-2.5">
-                <ModelSelector
-                  model={selectedModel}
-                  isLoading={isModelsLoading}
-                  credentialId={watchConnectionId || null}
-                  onCredentialChange={(id) => {
-                    form.setValue("credential_id", id ?? "");
-                    form.setValue("model_id", "");
-                    markFormDirty("credential_id");
-                    markFormDirty("model_id");
-                    scheduleSave();
-                  }}
-                  onModelChange={(model) => {
-                    form.setValue("model_id", model.modelId);
-                    debouncedSave("model_id");
-                  }}
-                  placeholder="Model"
-                />
+                {simpleMode.enabled ? (
+                  <SimpleModeTierDropdown
+                    tier={activeSimpleModeTier}
+                    onSelect={handleSimpleModeTierSelect}
+                  />
+                ) : (
+                  <ModelSelector
+                    model={selectedModel}
+                    isLoading={isModelsLoading}
+                    credentialId={watchConnectionId || null}
+                    onCredentialChange={(id) => {
+                      form.setValue("credential_id", id ?? "");
+                      form.setValue("model_id", "");
+                      markFormDirty("credential_id");
+                      markFormDirty("model_id");
+                      scheduleSave();
+                    }}
+                    onModelChange={(model) => {
+                      form.setValue("model_id", model.modelId);
+                      debouncedSave("model_id");
+                    }}
+                    placeholder="Model"
+                  />
+                )}
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button

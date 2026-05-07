@@ -1790,11 +1790,13 @@ function OrgAiProvidersContent() {
 
   return (
     <>
+      {allKeys.length > 0 && (
+        <Suspense fallback={<Skeleton className="h-16 w-full" />}>
+          <SimpleModeSection />
+        </Suspense>
+      )}
       <DecoCreditsHero />
       <ProviderCardGrid hideProviderId={hasDecoKey ? "deco" : undefined} />
-      <Suspense fallback={<Skeleton className="h-16 w-full" />}>
-        <SimpleModeSection />
-      </Suspense>
     </>
   );
 }

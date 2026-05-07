@@ -211,11 +211,19 @@ export function useAutomation(id: string) {
 // Helpers
 // ============================================================================
 
-export function buildDefaultAutomationInput(virtualMcpId: string) {
+export function buildDefaultAutomationInput(
+  virtualMcpId: string,
+  modelDefaults?: { credentialId: string; modelId: string } | null,
+) {
   return {
     name: "New Automation",
     messages: [],
-    models: { credentialId: "", thinking: { id: "" } },
+    models: modelDefaults
+      ? {
+          credentialId: modelDefaults.credentialId,
+          thinking: { id: modelDefaults.modelId },
+        }
+      : { credentialId: "", thinking: { id: "" } },
     temperature: 0.5,
     active: true,
     virtual_mcp_id: virtualMcpId,
