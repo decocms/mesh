@@ -91,7 +91,7 @@ export const createVmExecRoutes = () => {
   app.post("/kill/:script", (c) => {
     const script = c.req.param("script");
     if (!script) return c.json({ error: "missing script name" }, 400);
-    return proxy(c, `/_decopilot_vm/kill/${encodeURIComponent(script)}`);
+    return proxy(c, `/_decopilot_vm/exec/${encodeURIComponent(script)}/kill`);
   });
 
   return app;
