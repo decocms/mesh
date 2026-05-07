@@ -113,6 +113,18 @@ export function PreviewContent() {
   // "ever-responded" latch — offline means we saw a response and lost it,
   // and htmlSupport is sticky on offline at the source.
 
+  // Latch the boot-overlay timer's `since` to the first time previewUrl
+  // appeared, keyed on previewUrl so a new VM resets it. Rendering inline
+  // with a `Date.now()` fallback would reset the elapsed reading on every
+  // render whenever vmEntry.createdAt is missing.
+  const bootSinceRef = useRef<{ url: string; at: number }>({ url: "", at: 0 });
+  if (previewUrl && bootSinceRef.current.url !== previewUrl) {
+    bootSinceRef.current = {
+      url: previewUrl,
+      at: vmEntry?.createdAt ?? Date.now(),
+    };
+  }
+
   // Cover the gap between VM_START being submitted and vmMap populating a
   // previewUrl; otherwise the empty "No server running" state flashes while
   // the mutation is in flight. Capture the timestamp once per pending window
@@ -435,9 +447,7 @@ export function PreviewContent() {
           <div className="absolute inset-0 z-30 flex items-center justify-center bg-background">
             <VmBootingState
               since={
-                previewUrl
-                  ? (vmEntry?.createdAt ?? Date.now())
-                  : startingSinceRef.current
+                previewUrl ? bootSinceRef.current.at : startingSinceRef.current
               }
               hasSetupData={vmEvents.hasData("setup")}
               scripts={vmEvents.scripts}
