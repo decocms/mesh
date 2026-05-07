@@ -8,6 +8,7 @@ import {
   PROBE_HEAD_TIMEOUT_MS,
   PROBE_SLOW_MS,
 } from "./constants";
+import { fetchLoopback } from "./upstream-fetch";
 
 export type UpstreamStatus = "booting" | "online" | "offline";
 
@@ -82,11 +83,11 @@ interface HeadResult {
 }
 
 async function head(
-  url: string,
+  port: number,
   timeoutMs: number,
 ): Promise<HeadResult | null> {
   try {
-    const res = await fetch(url, {
+    const res = await fetchLoopback(port, "/", {
       method: "HEAD",
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -145,10 +146,7 @@ export function startUpstreamProbe(deps: ProbeDeps): ProbeState {
     inFlight = true;
     let result: HeadResult | null = null;
     try {
-      result = await head(
-        `http://localhost:${portAtStart}/`,
-        PROBE_HEAD_TIMEOUT_MS,
-      );
+      result = await head(portAtStart, PROBE_HEAD_TIMEOUT_MS);
     } finally {
       inFlight = false;
     }

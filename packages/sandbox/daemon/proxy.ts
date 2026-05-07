@@ -1,5 +1,6 @@
 import { BOOTSTRAP_SCRIPT } from "./constants";
 import type { Broadcaster } from "./events/broadcast";
+import { fetchLoopback } from "./upstream-fetch";
 
 export interface ProxyDeps {
   broadcaster: Broadcaster;
@@ -28,7 +29,6 @@ export function makeProxyHandler({ broadcaster, getDevPort }: ProxyDeps) {
       });
     }
     log("proxy", req.method, url.pathname);
-    const target = `http://localhost:${port}${url.pathname}${url.search}`;
     const outHeaders = new Headers(req.headers);
     outHeaders.delete("accept-encoding");
     outHeaders.delete("host");
@@ -47,7 +47,11 @@ export function makeProxyHandler({ broadcaster, getDevPort }: ProxyDeps) {
       if (req.method !== "GET" && req.method !== "HEAD") {
         init.body = await req.arrayBuffer();
       }
-      upstream = await fetch(target, init);
+      upstream = await fetchLoopback(
+        port,
+        `${url.pathname}${url.search}`,
+        init,
+      );
     } catch (e) {
       const msg = (e as Error).message ?? String(e);
       log("proxy error", req.method, url.pathname, msg);
