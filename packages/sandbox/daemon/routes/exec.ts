@@ -99,7 +99,7 @@ export function makeExecHandler(deps: ExecDeps) {
       name,
     );
 
-    const task = deps.taskManager.spawn({
+    const task = await deps.taskManager.spawn({
       command: cmd,
       cwd,
       env,

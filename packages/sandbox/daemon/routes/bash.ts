@@ -45,7 +45,7 @@ export function makeBashHandler(deps: BashDeps) {
     const timeout = clampTimeout(body.timeout, mode);
     const env = body.env ? { ...(deps.env ?? {}), ...body.env } : deps.env;
 
-    const task = deps.taskManager.spawn({
+    const task = await deps.taskManager.spawn({
       command: body.command,
       cwd: body.cwd ?? deps.repoDir,
       env,

@@ -12,7 +12,7 @@ function makeManager() {
 describe("TaskManager intentional flag", () => {
   it("surfaces intentional=true on summary after killByLogName({intentional:true})", async () => {
     const tm = makeManager();
-    const t = tm.spawn({
+    const t = await tm.spawn({
       command: "sleep 30",
       cwd: "/tmp",
       mode: "pipe",
@@ -28,7 +28,7 @@ describe("TaskManager intentional flag", () => {
 
   it("surfaces intentional=false (or undefined) for default kills", async () => {
     const tm = makeManager();
-    const t = tm.spawn({
+    const t = await tm.spawn({
       command: "sleep 30",
       cwd: "/tmp",
       mode: "pipe",
@@ -39,5 +39,53 @@ describe("TaskManager intentional flag", () => {
     await finished;
     const summary = tm.get(t.id)!;
     expect(summary.intentional).toBeFalsy();
+  });
+});
+
+describe("TaskManager replaceByLogName", () => {
+  it("kills the running task with the same logName, awaits exit, then spawns", async () => {
+    const tm = makeManager();
+    const first = await tm.spawn({
+      command: "sleep 30",
+      cwd: "/tmp",
+      mode: "pipe",
+      logName: "dev",
+    });
+    const firstFinished = tm.finished(first.id)!;
+
+    const second = await tm.spawn({
+      command: "sleep 30",
+      cwd: "/tmp",
+      mode: "pipe",
+      logName: "dev",
+      replaceByLogName: true,
+    });
+
+    // First task must be exited (killed) by the time the new spawn returns.
+    const firstResult = await firstFinished;
+    expect(["killed", "exited", "failed"]).toContain(firstResult.status);
+    expect(tm.get(first.id)?.intentional).toBe(true);
+
+    // Second task is fresh and running.
+    expect(second.id).not.toBe(first.id);
+    expect(tm.get(second.id)?.status).toBe("running");
+
+    // Cleanup.
+    tm.killByLogName("dev");
+    await tm.finished(second.id);
+  });
+
+  it("just spawns when no task with that logName is running", async () => {
+    const tm = makeManager();
+    const t = await tm.spawn({
+      command: "sleep 30",
+      cwd: "/tmp",
+      mode: "pipe",
+      logName: "dev",
+      replaceByLogName: true,
+    });
+    expect(tm.get(t.id)?.status).toBe("running");
+    tm.killByLogName("dev");
+    await tm.finished(t.id);
   });
 });

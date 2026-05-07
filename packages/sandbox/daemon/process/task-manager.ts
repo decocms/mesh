@@ -134,7 +134,25 @@ export class TaskManager {
     this.reaper.unref?.();
   }
 
-  spawn(spec: TaskSpec): TaskSummary {
+  async spawn(
+    spec: TaskSpec & { replaceByLogName?: boolean },
+  ): Promise<TaskSummary> {
+    if (spec.replaceByLogName && spec.logName) {
+      // Kill any running task with the same logName, await exit, then proceed.
+      // Mirrors the old ApplicationService.start() "replace if alive" semantic
+      // but inside a single owner — no leaked PTYs, no orphaned log routing.
+      const waiters: Array<Promise<unknown>> = [];
+      for (const t of this.tasks.values()) {
+        if (t.status !== "running" || t.spec.logName !== spec.logName) continue;
+        t.intentional = true;
+        t.kill("SIGTERM");
+        setTimeout(() => {
+          if (t.status === "running") t.kill("SIGKILL");
+        }, 3000);
+        waiters.push(t.finishedPromise);
+      }
+      if (waiters.length > 0) await Promise.all(waiters);
+    }
     const id = `${TASK_FILE_PREFIX}${++this.idCounter}`;
     const task = this.create(id, spec);
     this.tasks.set(id, task);
