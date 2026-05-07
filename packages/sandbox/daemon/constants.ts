@@ -87,8 +87,9 @@ export function pmRunCommand(
   runPrefix: string,
   script: string,
 ): { cmd: string; label: string } {
+  const cmd = `${runtimePrefix}cd ${cwd} && ${runPrefix} ${script}`;
   return {
-    cmd: `${runtimePrefix}cd ${cwd} && ${runPrefix} ${script}`,
-    label: `$ ${runPrefix} ${script}`,
+    cmd,
+    label: `$ ${cmd}`,
   };
 }

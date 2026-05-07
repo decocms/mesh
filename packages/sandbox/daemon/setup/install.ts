@@ -37,6 +37,6 @@ export function spawnInstall(deps: InstallDeps): Promise<number> | null {
   const corepack =
     "export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 && (corepack enable 2>/dev/null || true) && ";
   const cmd = `${config.runtimePathPrefix}cd ${installRoot} && ${corepack}${pmConfig.install}`;
-  deps.onChunk("setup", `\r\n$ ${pmConfig.install}\r\n`);
+  deps.onChunk("setup", `\r\n$ ${cmd}\r\n`);
   return spawnSetupStep(cmd, deps.onChunk, deps.dropPrivileges);
 }
