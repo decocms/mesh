@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { readConfig } from "../persistence";
 import type { ApplicationService } from "../app/application-service";
 import type { TenantConfigStore } from "../config-store";
+import type { TaskManager } from "../process/task-manager";
 import type { Transition } from "../config-store/types";
 import {
   PACKAGE_MANAGER_DAEMON_CONFIG,
@@ -32,7 +33,10 @@ const INSTALL_LOG_MAX_BYTES = 10 * 1024 * 1024;
 export interface SetupOrchestratorDeps {
   bootConfig: { appRoot: string; repoDir: string };
   store: TenantConfigStore;
-  appService: ApplicationService;
+  appService: ApplicationService; // KEEP for now — Task 12 removes
+  taskManager: TaskManager;
+  setIntent: (next: { state: "running" | "paused"; reason?: string }) => void;
+  getIntent: () => { state: "running" | "paused"; reason?: string };
   broadcaster: Broadcaster;
   installState: InstallState;
   /** Workspace tmp dir; install tee lives at `<logsDir>/app/install`. */
@@ -54,7 +58,23 @@ export class SetupOrchestrator {
   private running = false;
   private currentBranchHead: string | undefined;
 
-  constructor(private readonly deps: SetupOrchestratorDeps) {}
+  constructor(private readonly deps: SetupOrchestratorDeps) {
+    this.deps.taskManager.onTaskExit((summary) => {
+      if (!summary.logName) return;
+      if (
+        !WELL_KNOWN_STARTERS.includes(
+          summary.logName as (typeof WELL_KNOWN_STARTERS)[number],
+        )
+      )
+        return;
+      if (summary.intentional) return;
+      if (summary.exitCode === 0 || summary.exitCode === null) return;
+      this.deps.setIntent({
+        state: "paused",
+        reason: `dev script exited with code ${summary.exitCode}`,
+      });
+    });
+  }
 
   /** Fire-and-forget enqueue. */
   handle(transition: Transition): void {
