@@ -418,7 +418,6 @@ export class SetupOrchestrator {
     if (!config.application?.packageManager?.name) return false;
     const installTaskId = this.deps.phaseManager?.begin("install");
     this.chunk(`[orchestrator] installing dependencies\r\n`);
-    this.deps.appService.setStatus("installing");
     const installLogPath = appLogPath(this.deps.logsDir, "install");
     try {
       unlinkSync(installLogPath);
@@ -446,7 +445,6 @@ export class SetupOrchestrator {
     installTee.close();
     if (code !== 0) {
       this.chunk(`\r\n[orchestrator] install failed (exit ${code})\r\n`);
-      this.deps.appService.setStatus("failed", `install exit ${code}`);
       this.deps.installState.mark(
         InstallStateClass.fingerprint(config, this.currentBranchHead),
         false,
@@ -498,8 +496,6 @@ export class SetupOrchestrator {
       InstallStateClass.fingerprint(config, this.currentBranchHead),
       true,
     );
-    this.deps.appService.markInstalled();
-    this.deps.appService.setStatus("idle");
     this.broadcastDiscoveredScripts(config);
   }
 

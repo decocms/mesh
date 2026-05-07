@@ -164,7 +164,6 @@ const lastStatus = startUpstreamProbe({
   getPort: () => store.read()?.application?.port ?? null,
   onChange: (s) => {
     broadcaster.broadcastEvent("status", { type: "status", ...s });
-    if (s.status === "online" && s.port !== null) appService.markUp();
   },
   onLog: (msg) => broadcaster.broadcastChunk("setup", msg),
 });
@@ -369,16 +368,7 @@ Bun.serve<WsProxyData, never>({
         } catch {
           return jsonResponse({ error: "invalid script name" }, 400);
         }
-        let killed = taskManager.killByLogName(name);
-        // The dev/start script is owned by appService — its PTY is spawned
-        // outside TaskManager, so killByLogName can't see it. Route the kill
-        // to appService.stop() so the env-tab Stop button actually halts the
-        // running starter (status transitions cleanly to "idle" via
-        // intentionalStop, broadcast on the SSE stream).
-        if (appService.runningSource() === name) {
-          void appService.stop();
-          killed += 1;
-        }
+        const killed = taskManager.killByLogName(name, { intentional: true });
         return jsonResponse({ killed });
       }
       if (p.startsWith("/_decopilot_vm/exec/")) return execH(req);
