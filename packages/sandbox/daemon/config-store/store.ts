@@ -5,17 +5,23 @@ import { enrich } from "./derive";
 import { deepMerge } from "./merge";
 import { REJECTION_REASONS, type ApplyEvent, type ApplyResult } from "./types";
 
+type Compute = (current: TenantConfig | null) => Partial<TenantConfig> | null;
+
 interface QueueEntry {
-  patch: Partial<TenantConfig>;
+  patch?: Partial<TenantConfig>;
+  compute?: Compute;
+  /** When true, skip subscriber notification (e.g. orchestrator-internal fills). */
+  silent?: boolean;
   resolve: (r: ApplyResult) => void;
 }
 
 /**
  * Single-writer, in-memory store for tenant config.
  *
- * - All mutations go through `apply()`. An internal FIFO worker drains
- *   pending applies one at a time, so two concurrent PUT /config requests
- *   compose deterministically (last write wins on the same field).
+ * - All mutations go through `apply()` / `applyInternal()`. An internal FIFO
+ *   worker drains pending applies one at a time, so two concurrent PUT
+ *   /config requests compose deterministically (last write wins on the same
+ *   field).
  * - `subscribe()` listeners run synchronously inside the worker after each
  *   applied change. Subscribers must return immediately — slow handlers
  *   stall the queue.
@@ -35,7 +41,8 @@ export class TenantConfigStore {
   /**
    * Bootstrap the in-memory state from a value already on disk (or seeded
    * from env). Does NOT classify, persist, or notify subscribers — purely
-   * loads memory. Used once during daemon boot.
+   * loads memory. Used once during daemon boot, before the HTTP server
+   * accepts requests, so it can safely skip the apply queue.
    */
   hydrate(config: TenantConfig): void {
     this.current = enrich(config);
@@ -56,6 +63,26 @@ export class TenantConfigStore {
     });
   }
 
+  /**
+   * Apply a patch computed from the post-queue state without notifying
+   * subscribers. The orchestrator uses this during bootstrap to fill missing
+   * fields (lockfile-detected pm/runtime, disk fallback) without re-emitting
+   * pm-change/runtime-change — it already runs install+start in the same
+   * pass, so a fresh transition would re-trigger them.
+   *
+   * `compute` runs inside the queue worker, AFTER any earlier queued applies
+   * have settled. This eliminates the race where reading state out-of-band
+   * and then writing it back would clobber a concurrent PUT.
+   *
+   * Return `null` from `compute` to skip the apply (no-op).
+   */
+  applyInternal(compute: Compute): Promise<ApplyResult> {
+    return new Promise((resolve) => {
+      this.queue.push({ compute, silent: true, resolve });
+      void this.drain();
+    });
+  }
+
   subscribe(fn: (e: ApplyEvent) => void): () => void {
     this.subscribers.add(fn);
     return () => {
@@ -71,7 +98,7 @@ export class TenantConfigStore {
         const entry = this.queue.shift();
         if (!entry) break;
         try {
-          entry.resolve(await this.runOne(entry.patch));
+          entry.resolve(await this.runOne(entry));
         } catch {
           entry.resolve({
             kind: "rejected",
@@ -84,8 +111,17 @@ export class TenantConfigStore {
     }
   }
 
-  private async runOne(patch: Partial<TenantConfig>): Promise<ApplyResult> {
+  private async runOne(entry: QueueEntry): Promise<ApplyResult> {
     const before = this.current ? plainConfig(this.current) : null;
+    const patch = entry.compute ? entry.compute(before) : entry.patch;
+    if (!patch) {
+      return {
+        kind: "applied",
+        before,
+        after: before ?? {},
+        transition: { kind: "no-op" },
+      };
+    }
     const merged = deepMerge(before, patch);
 
     const validation = validateTenantConfig(merged);
@@ -113,12 +149,14 @@ export class TenantConfigStore {
 
     this.current = enrich(merged);
 
-    const event: ApplyEvent = { before, after: merged, transition };
-    for (const sub of this.subscribers) {
-      try {
-        sub(event);
-      } catch {
-        /* one bad subscriber does not stall the queue */
+    if (!entry.silent) {
+      const event: ApplyEvent = { before, after: merged, transition };
+      for (const sub of this.subscribers) {
+        try {
+          sub(event);
+        } catch {
+          /* one bad subscriber does not stall the queue */
+        }
       }
     }
 

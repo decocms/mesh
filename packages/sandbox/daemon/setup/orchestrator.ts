@@ -20,7 +20,7 @@ import { LogTee } from "../process/log-tee";
 import { appLogPath, hasGitRepo, resolvePmRoot } from "../paths";
 import { discoverScripts } from "../process/script-discovery";
 import type { PhaseManager } from "../process/phase-manager";
-import type { Config, TenantConfig } from "../types";
+import type { Application, Config } from "../types";
 import { autodetectApplication } from "./autodetect";
 import { spawnClone } from "./clone";
 import { configureGitIdentity } from "./identity";
@@ -217,7 +217,7 @@ export class SetupOrchestrator {
     // into — earlier order tripped posix_spawn ENOENT (it reads cwd before
     // exec, and repoDir doesn't exist until clone returns).
     await this.gitSetup(initial);
-    this.fillApplicationDefaults(initial.repoDir);
+    await this.fillApplicationDefaults(initial.repoDir);
     this.deps.branchStatus.markReady();
 
     const config = this.currentConfig();
@@ -235,34 +235,43 @@ export class SetupOrchestrator {
   }
 
   /**
-   * Fill missing application fields (packageManager, runtime, port)
-   * from `.decocms/daemon.json` then from lockfile autodetect. Mesh-supplied
-   * config always wins; this only patches gaps. Bypasses `store.apply` so we
-   * don't emit a redundant pm-change transition during bootstrap.
+   * Fill missing application fields (packageManager, runtime, port) from
+   * `.decocms/daemon.json` then from lockfile autodetect. Mesh-supplied
+   * config always wins; this only patches gaps.
+   *
+   * Goes through `store.applyInternal` (not `apply`) so a fresh
+   * pm-change/runtime-change isn't emitted — this runs inside bootstrap,
+   * which already handles install+start. The `compute` callback executes
+   * inside the store's serial queue, so a concurrent PUT can't race the
+   * read-then-write.
    */
-  private fillApplicationDefaults(repoDir: string): void {
-    const before = this.deps.store.read();
-    if (!before) return;
-
+  private async fillApplicationDefaults(repoDir: string): Promise<void> {
     const outcome = readConfig(repoDir);
     const diskApp =
       outcome.kind === "valid" ? outcome.config.application : undefined;
 
-    const detected = autodetectApplication(repoDir, {
-      ...diskApp,
-      ...before.application,
-    });
-
-    const merged: TenantConfig = {
-      git: before.git,
-      application: {
+    await this.deps.store.applyInternal((current) => {
+      const cur: Application = current?.application ?? {};
+      // What the config "should" look like: cur > diskApp > autodetect.
+      const target: Application = {
+        ...autodetectApplication(repoDir, { ...diskApp, ...cur }),
         ...diskApp,
-        ...detected,
-        ...before.application,
-      },
-    };
-
-    this.deps.store.hydrate(merged);
+        ...cur,
+      };
+      // Patch only the fields cur is missing — never overwrite caller values.
+      const patch: { -readonly [K in keyof Application]?: Application[K] } = {};
+      if (!cur.packageManager?.name && target.packageManager) {
+        patch.packageManager = target.packageManager;
+      }
+      if (!cur.runtime && target.runtime) {
+        patch.runtime = target.runtime;
+      }
+      if (cur.port === undefined && target.port !== undefined) {
+        patch.port = target.port;
+      }
+      if (Object.keys(patch).length === 0) return null;
+      return { application: patch };
+    });
   }
 
   private async branchChange(to: string): Promise<void> {
