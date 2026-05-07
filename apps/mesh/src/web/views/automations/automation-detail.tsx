@@ -555,6 +555,7 @@ export function SettingsTab({
       setModel({ ...selectedModel, keyId: watchConnectionId });
     }
 
+    setChatOpen(true);
     setPreferences({ ...preferences, toolApprovalLevel: "auto" });
 
     const parts = derivePartsFromTiptapDoc(tiptapDoc);
