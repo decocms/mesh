@@ -195,6 +195,7 @@ export function ImportFromDecoDialog({
                     id: connId,
                     toolName: "file_explorer",
                   },
+                  chatDefaultOpen: true,
                 },
               },
             },
