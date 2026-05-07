@@ -204,6 +204,7 @@ export function VmEventsProvider({
     // Reset on key change so stale data doesn't linger across branches.
     setPhase(null);
     setStatus({ status: "booting", port: null, htmlSupport: false });
+    prevPortRef.current = null;
     setSuspended(false);
     setNotFound(false);
     setScripts([]);
@@ -301,12 +302,15 @@ export function VmEventsProvider({
           setLogTick((t) => t + 1);
         } else if (e.type === "status") {
           const s = data.status;
+          const newPort = typeof data.port === "number" ? data.port : null;
+          const prevPort = prevPortRef.current;
+          prevPortRef.current = newPort;
           setStatus({
             status:
               s === "online" || s === "offline" || s === "booting"
                 ? s
                 : "booting",
-            port: typeof data.port === "number" ? data.port : null,
+            port: newPort,
             htmlSupport: Boolean(data.htmlSupport),
           });
           // Proxy retargeted to a different active port — the iframe is stuck on
