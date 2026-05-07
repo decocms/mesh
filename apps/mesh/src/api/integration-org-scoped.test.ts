@@ -533,4 +533,88 @@ describe("org-scoped API coexistence", () => {
 
     expect(res.status).toBe(404);
   });
+
+  it("DCR injects the connection's owning org into the registration metadata", async () => {
+    // The downstream MCP App needs to know which studio org an OAuth client
+    // belongs to *at registration time* — there is no per-user "active org"
+    // concept on the server, and querying it back from a bearer token has no
+    // standard. The proxy threads `connection.organization_id` (plus slug/name
+    // for human-readable references) into the RFC 7591 `metadata` field, which
+    // downstream servers can read off the persisted oauthApplication row on
+    // every subsequent request.
+    let capturedBody: string | null = null;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (url.includes("oauth-authorization-server")) {
+        return new Response(
+          JSON.stringify({
+            issuer: "https://example.test",
+            authorization_endpoint: "https://example.test/authorize",
+            token_endpoint: "https://example.test/token",
+            registration_endpoint: "https://example.test/register",
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/register") && method === "POST") {
+        capturedBody =
+          typeof init?.body === "string"
+            ? init.body
+            : await new Response(init?.body).text();
+        return new Response(
+          JSON.stringify({ client_id: "client_xyz", client_secret: "secret" }),
+          { status: 201, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("not found", { status: 404 });
+    }) as typeof fetch);
+
+    try {
+      const res = await app.fetch(
+        new Request(
+          "http://mesh.localhost/api/org_1/oauth-proxy/conn_1/register",
+          {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer test-key",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              client_name: "test",
+              redirect_uris: ["http://mesh.localhost/oauth/callback"],
+              metadata: { existing_key: "preserved" },
+            }),
+          },
+        ),
+      );
+
+      expect(res.status).toBeGreaterThanOrEqual(200);
+      expect(res.status).toBeLessThan(400);
+      expect(capturedBody).not.toBeNull();
+      const forwarded = JSON.parse(capturedBody!);
+      // Original fields untouched.
+      expect(forwarded.client_name).toBe("test");
+      expect(forwarded.redirect_uris).toEqual([
+        "http://mesh.localhost/oauth/callback",
+      ]);
+      // Org metadata injected; pre-existing metadata keys preserved.
+      expect(forwarded.metadata).toEqual({
+        existing_key: "preserved",
+        organization_id: "org_1",
+        organization_slug: "org_1",
+        organization_name: "org_1",
+      });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
 });

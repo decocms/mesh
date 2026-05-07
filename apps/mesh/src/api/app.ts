@@ -420,6 +420,40 @@ const oauthProxyHandler: MiddlewareHandler<Env> = async (c) => {
         params.append(key, value.toString());
       }
       requestBody = params.toString();
+    } else if (endpoint === "register") {
+      // Inject the connection's owning org into the DCR `metadata` field so the
+      // downstream MCP App can scope the registered OAuth client to a tenant
+      // without depending on user session state. RFC 7591 §2 reserves
+      // `metadata` for arbitrary client metadata extensions; downstream servers
+      // that don't recognize the field MUST ignore it.
+      const org = await ctx.db
+        .selectFrom("organization")
+        .select(["id", "slug", "name"])
+        .where("id", "=", connection.organization_id)
+        .executeTakeFirst();
+      const rawText = await c.req.text();
+      let parsed: Record<string, unknown> = {};
+      try {
+        parsed = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        // Body isn't JSON — pass through unchanged so origin returns its own
+        // 400, rather than us masking the client error.
+        requestBody = rawText;
+      }
+      if (requestBody === undefined) {
+        const existingMetadata =
+          parsed.metadata && typeof parsed.metadata === "object"
+            ? (parsed.metadata as Record<string, unknown>)
+            : {};
+        parsed.metadata = {
+          ...existingMetadata,
+          organization_id: connection.organization_id,
+          ...(org?.slug ? { organization_slug: org.slug } : {}),
+          ...(org?.name ? { organization_name: org.name } : {}),
+        };
+        requestBody = JSON.stringify(parsed);
+        headers["Content-Type"] = "application/json";
+      }
     } else {
       // For other content types, pass through as-is
       requestBody = c.req.raw.body ?? undefined;
