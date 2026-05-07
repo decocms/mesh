@@ -165,7 +165,7 @@ const getDiscoveredPorts = () => {
 const lastStatus = startUpstreamProbe({
   upstreamHost: "localhost",
   getDiscoveredPorts,
-  getPinnedPort: () => store.read()?.application?.proxy?.targetPort ?? null,
+  getPinnedPort: () => null,
   getCommandName: (pid) => {
     if (pid === appService.pid()) return "dev";
     return null;

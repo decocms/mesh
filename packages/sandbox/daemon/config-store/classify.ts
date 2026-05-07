@@ -8,8 +8,7 @@ import type { Transition } from "./types";
  *
  * Precedence (highest first):
  *   identity-conflict > bootstrap > branch-change >
- *   runtime-change > pm-change > port-change >
- *   proxy-retarget > no-op
+ *   runtime-change > pm-change > port-change > no-op
  */
 export function classify(
   before: TenantConfig | null,
@@ -75,13 +74,6 @@ export function classify(
       from: beforePort,
       to: afterPort,
     };
-  }
-
-  // 7. Proxy target change (probe writeback or tenant override).
-  const beforeProxy = before.application?.proxy?.targetPort;
-  const afterProxy = after.application?.proxy?.targetPort;
-  if (afterProxy !== undefined && beforeProxy !== afterProxy) {
-    return { kind: "proxy-retarget", port: afterProxy };
   }
 
   return { kind: "no-op" };

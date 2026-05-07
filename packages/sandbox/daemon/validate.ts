@@ -112,15 +112,6 @@ function validateApplication(
       reason: `port invalid: ${app.port}`,
     };
   }
-  if (
-    app.proxy?.targetPort !== undefined &&
-    !isValidPort(app.proxy.targetPort)
-  ) {
-    return {
-      kind: "invalid",
-      reason: `proxy.targetPort invalid: ${app.proxy.targetPort}`,
-    };
-  }
   return { kind: "ok" };
 }
 

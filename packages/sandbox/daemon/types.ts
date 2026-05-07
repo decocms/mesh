@@ -43,23 +43,11 @@ export interface PackageManagerConfig {
   readonly path?: string;
 }
 
-/**
- * What the proxy currently forwards to. Last-writer-wins between tenant
- * (explicit override via PUT /config) and the daemon's port probe. The
- * probe always reasserts to the current dev process's bound port, so a
- * tenant override is sticky only until the next dev (re)start observes a
- * different port.
- */
-export interface ProxyConfig {
-  readonly targetPort?: number;
-}
-
 export interface Application {
   readonly packageManager?: PackageManagerConfig;
   readonly runtime?: RuntimeName;
   /** Port the dev script binds to (set as PORT env). Mesh always supplies this. */
   readonly port?: number;
-  readonly proxy?: ProxyConfig;
 }
 
 /**

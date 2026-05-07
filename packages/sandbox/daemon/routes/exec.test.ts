@@ -60,7 +60,6 @@ describe("exec handler", () => {
       application: {
         packageManager: { name: "npm" },
         runtime: "node",
-        proxy: {},
       },
     });
     const h = makeExecHandler({
@@ -82,7 +81,6 @@ describe("exec handler", () => {
       application: {
         packageManager: { name: "npm" },
         runtime: "node",
-        proxy: {},
       },
     });
     const h = makeExecHandler({

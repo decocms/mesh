@@ -22,7 +22,6 @@ const SEED: TenantConfig = {
     packageManager: { name: "npm" },
     runtime: "node",
     port: 3000,
-    proxy: {},
   },
 };
 

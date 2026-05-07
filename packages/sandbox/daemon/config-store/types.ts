@@ -18,7 +18,6 @@ export type Transition =
       from: number | undefined;
       to: number | undefined;
     }
-  | { kind: "proxy-retarget"; port: number }
   | { kind: "identity-conflict"; field: "cloneUrl" }
   | { kind: "no-op" };
 

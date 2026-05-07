@@ -5,7 +5,6 @@ import { classify } from "./classify";
 const baseApp: NonNullable<TenantConfig["application"]> = {
   packageManager: { name: "npm" },
   runtime: "node",
-  proxy: {},
 };
 
 describe("classify", () => {
@@ -107,16 +106,6 @@ describe("classify", () => {
       application: { ...baseApp, port: 5173 },
     };
     expect(classify(before, after).kind).toBe("port-change");
-  });
-
-  it("proxy targetPort change without anything else = proxy-retarget", () => {
-    const before: TenantConfig = {
-      application: { ...baseApp, proxy: {} },
-    };
-    const after: TenantConfig = {
-      application: { ...baseApp, proxy: { targetPort: 5173 } },
-    };
-    expect(classify(before, after).kind).toBe("proxy-retarget");
   });
 
   it("identical configs = no-op", () => {

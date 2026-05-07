@@ -84,7 +84,6 @@ export class SetupOrchestrator {
       "pm-change",
       "runtime-change",
       "port-change",
-      "proxy-retarget",
     ]);
     if (collapsable.has(t.kind)) {
       const idx = this.queue.findIndex((q) => q.kind === t.kind);
@@ -141,8 +140,6 @@ export class SetupOrchestrator {
         return this.reinstallAndMaybeStart();
       case "port-change":
         return this.maybeRestartDev();
-      case "proxy-retarget":
-        return; // probe pin reads from store; nothing for the reducer to do
       case "no-op":
       case "identity-conflict":
         return;

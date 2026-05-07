@@ -51,8 +51,8 @@ const DEFAULT_LOG_MAX_BYTES = 10 * 1024 * 1024;
 /**
  * Singleton service that owns the dev process. Exactly one PTY at a time.
  * Drives the AppStatus state machine; the orchestrator transitions are
- * what call `start()` / `stop()`. The probe observes the PID and writes
- * proxy.targetPort back to the config store.
+ * what call `start()` / `stop()`. The probe observes the PID to determine
+ * readiness.
  */
 export class ApplicationService {
   private state: AppStateSnapshot = {
