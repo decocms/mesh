@@ -79,6 +79,14 @@ mkdirSync(bootConfig.repoDir, { recursive: true });
 const TMP_DIR = join(APP_ROOT, "tmp");
 
 const broadcaster = new Broadcaster(REPLAY_BYTES);
+
+type Intent = { state: "running" | "paused"; reason?: string };
+let currentIntent: Intent = { state: "running" };
+function setIntent(next: Intent) {
+  currentIntent = next;
+  broadcaster.broadcastEvent("intent", { type: "intent", ...next });
+}
+
 const store = new TenantConfigStore();
 const installState = new InstallState();
 const phaseManager = new PhaseManager({
@@ -213,6 +221,7 @@ const eventsH = makeEventsHandler({
   getDiscoveredScripts: () => discoveredScripts,
   getActiveTasks,
   getAppStatus: () => appService.snapshot(),
+  getIntent: () => currentIntent,
   getLastBranchStatus: () => branchStatus.getLast(),
 });
 
