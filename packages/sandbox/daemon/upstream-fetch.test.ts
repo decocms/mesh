@@ -71,4 +71,40 @@ describe("fetchLoopback", () => {
     const port = 49000 + Math.floor(Math.random() * 10000);
     await expect(fetchLoopback(port, "/")).rejects.toThrow();
   });
+
+  test("does not retry after a non-connection-refused failure", async () => {
+    // [::1] accepts the connection but aborts mid-request. Without the
+    // connection-refused gate, the catch would resend the body to 127.0.0.1
+    // — which here serves a DIFFERENT response, exposing the retry.
+    let v4Hits = 0;
+    const v6 = Bun.serve({
+      port: 0,
+      hostname: "::1",
+      fetch: async () => {
+        await new Promise((r) => setTimeout(r, 200));
+        return new Response("v6");
+      },
+    });
+    const v4 = Bun.serve({
+      port: v6.port,
+      hostname: "127.0.0.1",
+      fetch: () => {
+        v4Hits++;
+        return new Response("v4");
+      },
+    });
+    try {
+      const ctrl = new AbortController();
+      const promise = fetchLoopback(v6.port, "/", { signal: ctrl.signal });
+      // Give the request time to reach v6 before aborting, so the failure is
+      // mid-flight (AbortError) and not a pre-flight connection error.
+      await new Promise((r) => setTimeout(r, 30));
+      ctrl.abort();
+      await expect(promise).rejects.toThrow();
+      expect(v4Hits).toBe(0);
+    } finally {
+      v6.stop(true);
+      v4.stop(true);
+    }
+  });
 });
