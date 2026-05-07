@@ -825,8 +825,7 @@ export function AddConnectionDialog({
             error: error ?? "no_token",
           });
           toast.warning("Couldn't sign in to this connection", {
-            description:
-              "It was added to your agent, but its sign-in setup looks off. You can try authenticating again later from the connection's settings.",
+            description: `It was added to your agent, but its sign-in setup looks off. You can try authenticating again later from the connection's settings. (${error ?? "no token received"})`,
           });
           trackAttach(id, connectionData.app_name ?? null, "new");
           onAdd(id);
@@ -970,8 +969,7 @@ export function AddConnectionDialog({
                 error: error ?? "no_token",
               });
               toast.warning("Couldn't sign in to this connection", {
-                description:
-                  "It was added to your agent, but its sign-in setup looks off. You can try authenticating again later from the connection's settings.",
+                description: `It was added to your agent, but its sign-in setup looks off. You can try authenticating again later from the connection's settings. (${error ?? "no token received"})`,
               });
               trackAttach(id, null, "custom");
               onAdd(id);
