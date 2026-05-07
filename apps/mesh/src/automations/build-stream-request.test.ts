@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { Automation } from "@/storage/types";
-import { buildStreamRequest } from "./build-stream-request";
+import { buildStreamRequest, type TierOverride } from "./build-stream-request";
 
 function makeAutomation(overrides?: Partial<Automation>): Automation {
   return {
@@ -108,5 +108,57 @@ describe("buildStreamRequest", () => {
     const automation = makeAutomation({ virtual_mcp_id: "vir_xyz" });
     const result = buildStreamRequest(automation, null, "thrd_1");
     expect(result.agent).toEqual({ id: "vir_xyz" });
+  });
+
+  describe("tier override", () => {
+    const override: TierOverride = {
+      credentialId: "cred_live",
+      thinking: {
+        id: "model_live",
+        title: "Live Model",
+        provider: "anthropic",
+        capabilities: { vision: true, file: true },
+        limits: { contextWindow: 200_000, maxOutputTokens: 4096 },
+      },
+    };
+
+    it("replaces credential and the entire thinking field", () => {
+      const automation = makeAutomation({
+        models: JSON.stringify({
+          credentialId: "cred_stale",
+          thinking: {
+            id: "model_stale",
+            title: "Stale",
+            capabilities: { vision: false, file: false },
+            limits: { contextWindow: 8000, maxOutputTokens: 1024 },
+          },
+          tier: "smart",
+        }),
+      });
+      const result = buildStreamRequest(automation, null, "thrd_1", override);
+      expect(result.models.credentialId).toBe("cred_live");
+      expect(result.models.thinking).toEqual(override.thinking);
+    });
+
+    it("falls back to snapshot when no override is supplied", () => {
+      const automation = makeAutomation({
+        models: JSON.stringify({
+          credentialId: "cred_snapshot",
+          thinking: { id: "model_snapshot" },
+          tier: "smart",
+        }),
+      });
+      const result = buildStreamRequest(automation, null, "thrd_1", null);
+      expect(result.models.credentialId).toBe("cred_snapshot");
+      expect((result.models.thinking as { id: string }).id).toBe(
+        "model_snapshot",
+      );
+    });
+
+    it("leaves snapshot intact when override is undefined", () => {
+      const automation = makeAutomation();
+      const result = buildStreamRequest(automation, null, "thrd_1");
+      expect(result.models.credentialId).toBe("cred_1");
+    });
   });
 });

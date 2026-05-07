@@ -1557,14 +1557,17 @@ function SimpleModeSection() {
 
   const isDirty = form.formState.isDirty;
 
-  // Autosave: 250ms after the last dirty change, persist. The debounce
-  // coalesces multi-field writes from handleToggle and Effect 2 into a single
-  // mutation. Callers `schedule()` from each field handler (Controllers and
-  // handleToggle) so we don't depend on a render-time form.watch subscription.
+  // Autosave: 250ms after the last `schedule()` call, persist. The debounce
+  // coalesces multi-field writes from handleToggle and Effect 2 into a
+  // single mutation. We can't gate on `formState.isDirty` here: handleToggle
+  // calls `form.reset(...)` to seed defaults (which rebases the dirty
+  // baseline) and the `values: simpleMode` prop resyncs the form on every
+  // cache update — both clear the flag before the timer fires, swallowing
+  // the save. Each `schedule()` call is the explicit save intent; nothing
+  // inside `save` re-schedules so there's no feedback loop.
   const { schedule: scheduleAutosave } = useDebouncedAutosave({
     delayMs: 250,
     save: async () => {
-      if (!form.formState.isDirty) return;
       const values = form.getValues();
       updateSimpleMode(values, {
         onSuccess: () => form.reset(values, { keepValues: true }),

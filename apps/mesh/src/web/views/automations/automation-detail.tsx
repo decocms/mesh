@@ -76,6 +76,10 @@ interface SettingsFormData {
   active: boolean;
   credential_id: string;
   model_id: string;
+  // Empty string when the automation isn't pinned to a Simple Mode tier.
+  // When set, the server resolves the model from the live tier slot at run
+  // time, so credential_id / model_id act as a display snapshot only.
+  tier: SimpleModeTier | "";
 }
 
 // ============================================================================
@@ -378,6 +382,7 @@ export function SettingsTab({
     automation.models?.credentialId || chatCredentialId || "";
   const defaultModelId =
     automation.models?.thinking?.id || chatModel?.modelId || "";
+  const defaultTier: SimpleModeTier | "" = automation.models?.tier ?? "";
 
   const form = useForm<SettingsFormData>({
     defaultValues: {
@@ -385,6 +390,7 @@ export function SettingsTab({
       active: automation.active,
       credential_id: defaultCredentialId,
       model_id: defaultModelId,
+      tier: defaultTier,
     },
   });
 
@@ -398,20 +404,31 @@ export function SettingsTab({
   const selectedModel: AiProviderModel | null =
     models.find((m) => m.modelId === watchModelId) ?? null;
 
+  const watchTier = form.watch("tier");
+  // The slot the saved credential/model actually correspond to, if any.
+  // Used both for the dropdown label and to decide whether saving is safe
+  // to auto-pin a legacy automation — we only persist `tier` when we know
+  // with certainty which slot the existing model matches.
+  const slotMatchedTier = (["fast", "smart", "thinking"] as const).find(
+    (t) =>
+      simpleMode.chat[t]?.modelId === watchModelId &&
+      simpleMode.chat[t]?.keyId === watchConnectionId,
+  );
+  // Persisted tier (from automation.models.tier) wins so the dropdown stays
+  // truthful even when slots are reconfigured server-side. Falls back to
+  // slot-match, then to "smart" as a final default for the dropdown label.
   const activeSimpleModeTier: SimpleModeTier =
-    (["fast", "smart", "thinking"] as const).find(
-      (t) =>
-        simpleMode.chat[t]?.modelId === watchModelId &&
-        simpleMode.chat[t]?.keyId === watchConnectionId,
-    ) ?? "smart";
+    watchTier || slotMatchedTier || "smart";
 
   const handleSimpleModeTierSelect = (tier: SimpleModeTier) => {
     const slot = simpleMode.chat[tier];
     if (!slot) return;
     form.setValue("credential_id", slot.keyId);
     form.setValue("model_id", slot.modelId);
+    form.setValue("tier", tier);
     markFormDirty("credential_id");
     markFormDirty("model_id");
+    markFormDirty("tier");
     scheduleSave();
   };
 
@@ -471,6 +488,16 @@ export function SettingsTab({
       const coercedModelId =
         values.credential_id && values.model_id ? values.model_id : "";
 
+      // Persist `tier` only when we have a confident signal: an explicit
+      // form value (set via the tier dropdown) or a saved model that
+      // actually matches a configured slot. Legacy automations whose model
+      // doesn't match any slot are NOT silently re-pinned to the default
+      // tier on incidental edits — that would change which model the run
+      // path uses with no UI signal.
+      const tierToPersist: SimpleModeTier | undefined = simpleMode.enabled
+        ? values.tier || slotMatchedTier
+        : values.tier || undefined;
+
       const updatePayload = {
         id: automationId,
         name: values.name,
@@ -480,6 +507,7 @@ export function SettingsTab({
           thinking: {
             id: coercedModelId,
           },
+          ...(tierToPersist ? { tier: tierToPersist } : {}),
         },
         messages: tiptapDocToMessages(tiptapDocAtSave),
         temperature: 0,
@@ -817,12 +845,16 @@ export function SettingsTab({
                     onCredentialChange={(id) => {
                       form.setValue("credential_id", id ?? "");
                       form.setValue("model_id", "");
+                      form.setValue("tier", "");
                       markFormDirty("credential_id");
                       markFormDirty("model_id");
+                      markFormDirty("tier");
                       scheduleSave();
                     }}
                     onModelChange={(model) => {
                       form.setValue("model_id", model.modelId);
+                      form.setValue("tier", "");
+                      markFormDirty("tier");
                       debouncedSave("model_id");
                     }}
                     placeholder="Model"

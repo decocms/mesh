@@ -142,6 +142,7 @@ export interface AutomationDetail {
   models: {
     credentialId: string;
     thinking: { id: string; [key: string]: unknown };
+    tier?: "fast" | "smart" | "thinking";
     [key: string]: unknown;
   };
   temperature: number;

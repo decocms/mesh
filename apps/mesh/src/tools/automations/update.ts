@@ -72,6 +72,11 @@ export const AUTOMATION_UPDATE = defineTool({
         }),
         coding: z.object({ id: z.string() }).optional(),
         fast: z.object({ id: z.string() }).optional(),
+        // Simple Mode tier intent. When set and Simple Mode is active for
+        // the org, the run path resolves the model from the live tier slot.
+        // credentialId / thinking.id are the fallback used when Simple Mode
+        // is off or the slot is unset.
+        tier: z.enum(["fast", "smart", "thinking"]).optional(),
       })
       .loose()
       .optional(),

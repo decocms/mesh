@@ -59,7 +59,10 @@ function makeTriggerWithAutomation(
 function makeMeshContext(): MeshContext {
   return {
     organization: { id: ORG_ID, slug: "test", name: "Test" },
-    storage: { threads: {} },
+    storage: {
+      threads: {},
+      organizationSettings: { get: mock(() => Promise.resolve(null)) },
+    },
   } as unknown as MeshContext;
 }
 

@@ -61,7 +61,10 @@ function makeStorage(
 function makeMeshContext(orgId: string): MeshContext {
   return {
     organization: { id: orgId, slug: "test", name: "Test Org" },
-    storage: { threads: { _orgId: orgId } },
+    storage: {
+      threads: { _orgId: orgId },
+      organizationSettings: { get: mock(() => Promise.resolve(null)) },
+    },
   } as unknown as MeshContext;
 }
 
