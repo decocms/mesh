@@ -18,7 +18,7 @@ import { createThreadOutputsRoutes } from "./thread-outputs";
 import { createTriggerCallbackRoutes } from "./trigger-callback";
 import { createVirtualMcpRoutes } from "./virtual-mcp";
 import { createVmEventsRoutes } from "./vm-events";
-import { vmExecRoutes } from "./vm-exec";
+import { createVmExecRoutes } from "./vm-exec";
 
 interface OrgScopedDeps {
   kvStorage: KVStorage;
@@ -64,7 +64,7 @@ export const createOrgScopedApi = (deps: OrgScopedDeps) => {
   app.route("/", createThreadOutputsRoutes()); // /api/:org/threads/:threadId/outputs
   app.route("/", createKVRoutes({ kvStorage: deps.kvStorage }));
   app.route("/vm-events", createVmEventsRoutes()); // /api/:org/vm-events
-  app.route("/vm-exec", vmExecRoutes); // /api/:org/vm-exec
+  app.route("/vm-exec", createVmExecRoutes()); // /api/:org/vm-exec/{exec,kill}/:script
   app.route("/deco-sites", createDecoSitesOrgRoutes()); // /api/:org/deco-sites
   app.route("/sso", createSsoRoutes()); // /api/:org/sso/* (renamed from /api/org-sso)
   app.route(
