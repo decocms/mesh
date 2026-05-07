@@ -68,7 +68,7 @@ export const PACKAGE_MANAGER_DAEMON_CONFIG: Record<
 export const WELL_KNOWN_STARTERS = ["dev", "start"] as const;
 
 export function buildDevEnv(
-  config: { application?: { desiredPort?: number } },
+  config: { application?: { port?: number } },
   overrides?: Record<string, string>,
 ): Record<string, string> {
   const env: Record<string, string> = {
@@ -76,9 +76,8 @@ export function buildDevEnv(
     HOSTNAME: "0.0.0.0",
     ...(overrides ?? {}),
   };
-  const desired = config.application?.desiredPort;
-  if (desired !== undefined && env.PORT === undefined)
-    env.PORT = String(desired);
+  const port = config.application?.port;
+  if (port !== undefined && env.PORT === undefined) env.PORT = String(port);
   return env;
 }
 

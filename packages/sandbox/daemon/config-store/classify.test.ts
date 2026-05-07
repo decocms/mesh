@@ -99,14 +99,14 @@ describe("classify", () => {
     expect(classify(before, after).kind).toBe("pm-change");
   });
 
-  it("desired port change = desired-port-change", () => {
+  it("port change = port-change", () => {
     const before: TenantConfig = {
-      application: { ...baseApp, desiredPort: 3000 },
+      application: { ...baseApp, port: 3000 },
     };
     const after: TenantConfig = {
-      application: { ...baseApp, desiredPort: 5173 },
+      application: { ...baseApp, port: 5173 },
     };
-    expect(classify(before, after).kind).toBe("desired-port-change");
+    expect(classify(before, after).kind).toBe("port-change");
   });
 
   it("proxy targetPort change without anything else = proxy-retarget", () => {

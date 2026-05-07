@@ -14,7 +14,7 @@ export type Transition =
     }
   | { kind: "runtime-change"; from: RuntimeName | undefined; to: RuntimeName }
   | {
-      kind: "desired-port-change";
+      kind: "port-change";
       from: number | undefined;
       to: number | undefined;
     }

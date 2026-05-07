@@ -548,7 +548,7 @@ describe("DockerSandboxRunner.ensure() — config bootstrap contract", () => {
     expect(body.git?.identity?.userEmail).toBe("octo@example.com");
     expect(body.application?.runtime).toBe("bun");
     expect(body.application?.packageManager?.name).toBe("bun");
-    expect(body.application?.desiredPort).toBe(3000);
+    expect(body.application?.port).toBe(3000);
     expect(body.application?.intent).toBeUndefined();
   });
 

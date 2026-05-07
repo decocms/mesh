@@ -66,7 +66,7 @@ describe("deepMerge", () => {
         packageManager: { name: "npm" },
         runtime: "node",
 
-        desiredPort: 3000,
+        port: 3000,
         proxy: { targetPort: 4000 },
       },
     };
@@ -80,7 +80,7 @@ describe("deepMerge", () => {
     };
     const merged = deepMerge(current, patch);
     // Outer fields stay as original
-    expect(merged.application?.desiredPort).toBe(3000);
+    expect(merged.application?.port).toBe(3000);
     expect(merged.application?.proxy?.targetPort).toBe(4000);
     // Patch wins on what it does specify
     expect(merged.application?.packageManager?.name).toBe("pnpm");

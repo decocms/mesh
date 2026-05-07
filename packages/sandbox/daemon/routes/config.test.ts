@@ -21,7 +21,7 @@ const SEED: TenantConfig = {
   application: {
     packageManager: { name: "npm" },
     runtime: "node",
-    desiredPort: 3000,
+    port: 3000,
     proxy: {},
   },
 };
@@ -56,15 +56,13 @@ describe("makeConfigUpdateHandler", () => {
     expect(body.transition).toBe("branch-change");
   });
 
-  it("PUT desiredPort emits desired-port-change", async () => {
+  it("PUT port emits port-change", async () => {
     await store.apply(SEED);
     const h = handler();
-    const res = await h(
-      buildReq("PUT", { application: { desiredPort: 5173 } }),
-    );
+    const res = await h(buildReq("PUT", { application: { port: 5173 } }));
     expect(res.status).toBe(200);
     const body = (await res.json()) as { transition: string };
-    expect(body.transition).toBe("desired-port-change");
+    expect(body.transition).toBe("port-change");
   });
 
   it("rejects mismatched cloneUrl with 409", async () => {
@@ -90,18 +88,16 @@ describe("makeConfigUpdateHandler", () => {
         git: {
           repository: { cloneUrl: "https://example.com/repo.git" },
         },
-        application: { desiredPort: 4000 },
+        application: { port: 4000 },
       }),
     );
     expect(res.status).toBe(200);
   });
 
-  it("invalid desiredPort returns 400", async () => {
+  it("invalid port returns 400", async () => {
     await store.apply(SEED);
     const h = handler();
-    const res = await h(
-      buildReq("PUT", { application: { desiredPort: 70000 } }),
-    );
+    const res = await h(buildReq("PUT", { application: { port: 70000 } }));
     expect(res.status).toBe(400);
   });
 

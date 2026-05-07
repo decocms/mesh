@@ -8,7 +8,7 @@ import type { Transition } from "./types";
  *
  * Precedence (highest first):
  *   identity-conflict > bootstrap > branch-change >
- *   runtime-change > pm-change > desired-port-change >
+ *   runtime-change > pm-change > port-change >
  *   proxy-retarget > no-op
  */
 export function classify(
@@ -66,14 +66,14 @@ export function classify(
     return { kind: "pm-change", from: beforePm, to: afterPm };
   }
 
-  // 6. Desired PORT change.
-  const beforeDesired = before.application?.desiredPort;
-  const afterDesired = after.application?.desiredPort;
-  if (beforeDesired !== afterDesired) {
+  // 6. PORT change.
+  const beforePort = before.application?.port;
+  const afterPort = after.application?.port;
+  if (beforePort !== afterPort) {
     return {
-      kind: "desired-port-change",
-      from: beforeDesired,
-      to: afterDesired,
+      kind: "port-change",
+      from: beforePort,
+      to: afterPort,
     };
   }
 

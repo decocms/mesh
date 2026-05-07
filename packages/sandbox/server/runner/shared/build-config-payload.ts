@@ -9,7 +9,7 @@ import type { EnsureOptions } from "../types";
 export function buildConfigPayload(args: {
   runtime: "node" | "bun" | "deno";
   packageManager: PackageManagerConfig | null;
-  desiredPort?: number;
+  port?: number;
   repo: NonNullable<EnsureOptions["repo"]> | null;
 }): Partial<TenantConfig> | null {
   const repo = args.repo;
@@ -38,9 +38,7 @@ export function buildConfigPayload(args: {
     ? {
         packageManager,
         runtime: args.runtime,
-        ...(args.desiredPort !== undefined
-          ? { desiredPort: args.desiredPort }
-          : {}),
+        ...(args.port !== undefined ? { port: args.port } : {}),
       }
     : undefined;
 

@@ -1087,7 +1087,7 @@ export class AgentSandboxRunner implements SandboxRunner {
           }
         : null,
       repo: opts.repo ?? null,
-      desiredPort: opts.workload?.devPort ?? DEFAULT_DEV_PORT,
+      port: opts.workload?.devPort ?? DEFAULT_DEV_PORT,
     });
     // Warm-pool path: pod boots with the SandboxTemplate's sentinel token;
     // mesh authenticates the first /config call with the sentinel and

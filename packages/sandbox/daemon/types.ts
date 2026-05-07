@@ -57,8 +57,8 @@ export interface ProxyConfig {
 export interface Application {
   readonly packageManager?: PackageManagerConfig;
   readonly runtime?: RuntimeName;
-  /** PORT env hint for the dev script. Daemon picks a default if unset. */
-  readonly desiredPort?: number;
+  /** Port the dev script binds to (set as PORT env). Mesh always supplies this. */
+  readonly port?: number;
   readonly proxy?: ProxyConfig;
 }
 

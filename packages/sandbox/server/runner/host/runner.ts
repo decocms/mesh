@@ -190,7 +190,7 @@ export class HostSandboxRunner implements SandboxRunner {
           }
         : null,
       repo: opts.repo ?? null,
-      desiredPort: opts.workload?.devPort ?? devPort,
+      port: opts.workload?.devPort ?? devPort,
     });
 
     const proc = await this.spawnFn({ workdir, env, daemonPort });

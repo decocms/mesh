@@ -106,10 +106,10 @@ function validateApplication(
       };
     }
   }
-  if (app.desiredPort !== undefined && !isValidPort(app.desiredPort)) {
+  if (app.port !== undefined && !isValidPort(app.port)) {
     return {
       kind: "invalid",
-      reason: `desiredPort invalid: ${app.desiredPort}`,
+      reason: `port invalid: ${app.port}`,
     };
   }
   if (

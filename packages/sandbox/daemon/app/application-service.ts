@@ -70,7 +70,7 @@ export class ApplicationService {
   // Set by stop()/killImmediate() so onExit can distinguish an intentional
   // teardown (no onFailure callback, status → idle) from a real crash
   // (status → failed, owner flips intent to paused). Without this every
-  // orchestrator-driven stop (branch/pm/runtime/desiredPort change) was
+  // orchestrator-driven stop (branch/pm/runtime/port change) was
   // misread as a failure and paused the tenant.
   private intentionalStop = false;
 
@@ -153,7 +153,7 @@ export class ApplicationService {
       this.child = null;
 
       // SIGTERM/SIGKILL we initiated → not a failure. The orchestrator
-      // calls stop() before pm/branch/desiredPort transitions; flagging
+      // calls stop() before pm/branch/port transitions; flagging
       // those exits as failures previously triggered onFailure → intent
       // paused, which made every restart silently no-op.
       const intentional = this.intentionalStop;

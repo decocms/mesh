@@ -83,7 +83,7 @@ export class SetupOrchestrator {
       "branch-change",
       "pm-change",
       "runtime-change",
-      "desired-port-change",
+      "port-change",
       "proxy-retarget",
     ]);
     if (collapsable.has(t.kind)) {
@@ -139,7 +139,7 @@ export class SetupOrchestrator {
       case "pm-change":
       case "runtime-change":
         return this.reinstallAndMaybeStart();
-      case "desired-port-change":
+      case "port-change":
         return this.maybeRestartDev();
       case "proxy-retarget":
         return; // probe pin reads from store; nothing for the reducer to do
@@ -238,7 +238,7 @@ export class SetupOrchestrator {
   }
 
   /**
-   * Fill missing application fields (packageManager, runtime, desiredPort)
+   * Fill missing application fields (packageManager, runtime, port)
    * from `.decocms/daemon.json` then from lockfile autodetect. Mesh-supplied
    * config always wins; this only patches gaps. Bypasses `store.apply` so we
    * don't emit a redundant pm-change transition during bootstrap.
@@ -301,7 +301,7 @@ export class SetupOrchestrator {
   /**
    * Start the dev script iff the install fingerprint matches and we have a
    * discovered starter script. No retry on failure — the dev process must be
-   * (re)launched by a config change (pm, runtime, branch, or desiredPort).
+   * (re)launched by a config change (pm, runtime, branch, or port).
    */
   private async startIfReady(): Promise<void> {
     const config = this.currentConfig();

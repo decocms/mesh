@@ -327,7 +327,7 @@ export class DockerSandboxRunner implements SandboxRunner {
           }
         : null,
       repo: opts.repo ?? null,
-      desiredPort: devContainerPort,
+      port: devContainerPort,
     });
 
     // Shared singleton; awaits any background build kicked off by the CLI.
