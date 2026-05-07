@@ -4,28 +4,51 @@
  * Converts a stored Automation row into a StreamCoreInput suitable
  * for passing to streamCore(). JSON columns are parsed back into objects.
  *
- * When the persisted models payload carries a Simple Mode `tier`, the
- * stored credential/model are treated as a stale snapshot and the live
- * tier slot from the org's `simple_mode` config wins. This keeps dormant
- * automations in sync with the org's current Simple Mode tiers without
- * requiring a UI visit to reconcile.
+ * When the persisted models payload carries a Simple Mode `tier`, callers
+ * resolve the live slot via `resolveTierOverride()` and pass the resulting
+ * `tierOverride` here. The override fully replaces both `credentialId` and
+ * `thinking` — partial patching would leave stale capabilities / limits /
+ * provider / title from the snapshot, which downstream code (model-compat,
+ * stream-core max-tokens cap, telemetry) consumes.
  */
 
 import type { StreamCoreInput } from "@/api/routes/decopilot/stream-core";
-import type { Automation, SimpleModeConfig } from "@/storage/types";
+import type { Automation } from "@/storage/types";
+
+type ThinkingShape = {
+  id: string;
+  title?: string;
+  provider?: string | null;
+  capabilities?: {
+    vision?: boolean;
+    text?: boolean;
+    reasoning?: boolean;
+    file?: boolean;
+  };
+  limits?: {
+    contextWindow?: number;
+    maxOutputTokens?: number;
+  };
+  [key: string]: unknown;
+};
 
 type AutomationModels = {
   credentialId: string;
-  thinking: { id: string; [key: string]: unknown };
+  thinking: ThinkingShape;
   tier?: "fast" | "smart" | "thinking";
   [key: string]: unknown;
+};
+
+export type TierOverride = {
+  credentialId: string;
+  thinking: ThinkingShape;
 };
 
 export function buildStreamRequest(
   automation: Automation,
   triggerId: string | null,
   taskId: string,
-  simpleMode?: SimpleModeConfig | null,
+  tierOverride?: TierOverride | null,
 ): StreamCoreInput {
   const rawMessages = JSON.parse(automation.messages);
   // Generate fresh ids for each run so concurrent automation runs don't
@@ -38,14 +61,11 @@ export function buildStreamRequest(
   }));
 
   const models = JSON.parse(automation.models) as AutomationModels;
-  const tier = models.tier;
-  const slot =
-    tier && simpleMode?.enabled ? (simpleMode.chat?.[tier] ?? null) : null;
-  const resolvedModels: AutomationModels = slot
+  const resolvedModels: AutomationModels = tierOverride
     ? {
         ...models,
-        credentialId: slot.keyId,
-        thinking: { ...models.thinking, id: slot.modelId },
+        credentialId: tierOverride.credentialId,
+        thinking: tierOverride.thinking,
       }
     : models;
 

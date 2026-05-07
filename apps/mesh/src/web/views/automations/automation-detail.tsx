@@ -405,18 +405,20 @@ export function SettingsTab({
     models.find((m) => m.modelId === watchModelId) ?? null;
 
   const watchTier = form.watch("tier");
+  // The slot the saved credential/model actually correspond to, if any.
+  // Used both for the dropdown label and to decide whether saving is safe
+  // to auto-pin a legacy automation — we only persist `tier` when we know
+  // with certainty which slot the existing model matches.
+  const slotMatchedTier = (["fast", "smart", "thinking"] as const).find(
+    (t) =>
+      simpleMode.chat[t]?.modelId === watchModelId &&
+      simpleMode.chat[t]?.keyId === watchConnectionId,
+  );
   // Persisted tier (from automation.models.tier) wins so the dropdown stays
   // truthful even when slots are reconfigured server-side. Falls back to
-  // slot-match for legacy automations saved before tier was tracked, then
-  // to "smart" as a final default.
+  // slot-match, then to "smart" as a final default for the dropdown label.
   const activeSimpleModeTier: SimpleModeTier =
-    watchTier ||
-    (["fast", "smart", "thinking"] as const).find(
-      (t) =>
-        simpleMode.chat[t]?.modelId === watchModelId &&
-        simpleMode.chat[t]?.keyId === watchConnectionId,
-    ) ||
-    "smart";
+    watchTier || slotMatchedTier || "smart";
 
   const handleSimpleModeTierSelect = (tier: SimpleModeTier) => {
     const slot = simpleMode.chat[tier];
@@ -486,11 +488,14 @@ export function SettingsTab({
       const coercedModelId =
         values.credential_id && values.model_id ? values.model_id : "";
 
-      // When Simple Mode is on, always persist a tier so the run path
-      // resolves the live slot — even for legacy automations whose form
-      // hasn't explicitly written one yet.
+      // Persist `tier` only when we have a confident signal: an explicit
+      // form value (set via the tier dropdown) or a saved model that
+      // actually matches a configured slot. Legacy automations whose model
+      // doesn't match any slot are NOT silently re-pinned to the default
+      // tier on incidental edits — that would change which model the run
+      // path uses with no UI signal.
       const tierToPersist: SimpleModeTier | undefined = simpleMode.enabled
-        ? values.tier || activeSimpleModeTier
+        ? values.tier || slotMatchedTier
         : values.tier || undefined;
 
       const updatePayload = {
