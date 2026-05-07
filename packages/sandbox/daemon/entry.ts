@@ -362,7 +362,7 @@ Bun.serve<WsProxyData, never>({
       if (!firstWorkLogged) {
         firstWorkLogged = true;
         console.log(
-          `[daemon] boot_id=${process.env.DAEMON_BOOT_ID} first request: METHOD=${req.method} PATH=${p} QUERY=${url.search} HEADERS=${JSON.stringify(Object.fromEntries(req.headers.entries()))}`,
+          `[daemon] boot_id=${process.env.DAEMON_BOOT_ID} first request: METHOD=${req.method} PATH=${p}`,
         );
       }
     }
