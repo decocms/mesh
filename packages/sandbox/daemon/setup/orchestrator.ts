@@ -295,7 +295,7 @@ export class SetupOrchestrator {
   }
 
   private async branchChange(to: string): Promise<void> {
-    await this.deps.appService.stop();
+    await this.stopDevTask();
     this.chunk(`[orchestrator] checking out branch: ${to}\r\n`);
     this.deps.branchStatus.setPhase({ kind: "checking-out", to });
     try {
@@ -313,15 +313,21 @@ export class SetupOrchestrator {
   }
 
   private async reinstallAndMaybeStart(): Promise<void> {
-    await this.deps.appService.stop();
+    await this.stopDevTask();
     const ok = await this.runInstall();
     if (ok) await this.startIfReady();
   }
 
   private async maybeRestartDev(): Promise<void> {
-    if (!this.deps.appService.isAlive()) return;
-    await this.deps.appService.stop();
+    await this.stopDevTask();
     await this.startIfReady();
+  }
+
+  private async stopDevTask(): Promise<void> {
+    for (const starter of WELL_KNOWN_STARTERS) {
+      this.deps.taskManager.killByLogName(starter, { intentional: true });
+    }
+    await this.deps.taskManager.waitForLogNamesIdle(WELL_KNOWN_STARTERS);
   }
 
   /**
@@ -332,6 +338,12 @@ export class SetupOrchestrator {
   private async startIfReady(): Promise<void> {
     const config = this.currentConfig();
     if (!config) return;
+    if (this.deps.getIntent().state === "paused") {
+      this.chunk(
+        "\r\n[orchestrator] skipping start: intent=paused (resume to retry)\r\n",
+      );
+      return;
+    }
     if (
       !this.deps.installState.isInstalledFor(config, this.currentBranchHead)
     ) {
@@ -345,12 +357,14 @@ export class SetupOrchestrator {
       this.chunk(this.diagnoseNoStartCommand(config));
       return;
     }
-    this.deps.appService.start({
+    await this.deps.taskManager.spawn({
       command: command.cmd,
       cwd: command.cwd,
       env: buildDevEnv(config),
       label: command.label,
-      source: command.source,
+      mode: "pty",
+      logName: command.source,
+      replaceByLogName: true,
     });
   }
 
