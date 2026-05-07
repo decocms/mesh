@@ -6,10 +6,9 @@ describe("makeSseStream", () => {
   const mkDeps = (b: Broadcaster) => ({
     broadcaster: b,
     getLastStatus: () => ({
-      ready: false,
-      responded: false,
-      htmlSupport: false,
+      status: "booting" as const,
       port: null,
+      htmlSupport: false,
     }),
     getDiscoveredScripts: () => null,
     getActiveTasks: () => [],

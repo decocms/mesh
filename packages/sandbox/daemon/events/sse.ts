@@ -1,3 +1,4 @@
+import type { UpstreamStatus } from "../probe";
 import type { BranchStatus } from "../types";
 import type { Broadcaster } from "./broadcast";
 import { sseFormat } from "./sse-format";
@@ -5,10 +6,9 @@ import { sseFormat } from "./sse-format";
 export interface SseHandshakeDeps {
   broadcaster: Broadcaster;
   getLastStatus: () => {
-    ready: boolean;
-    responded: boolean;
-    htmlSupport: boolean;
+    status: UpstreamStatus;
     port: number | null;
+    htmlSupport: boolean;
   };
   getDiscoveredScripts: () => string[] | null;
   getActiveTasks: () => Array<{ id: string; command: string }>;

@@ -11,7 +11,6 @@ import { BranchStatusMonitor } from "./git/branch-status";
 import { gitSync } from "./git/git-sync";
 import { InstallState } from "./install/install-state";
 import { readConfig } from "./persistence";
-import { discoverDescendantListeningPorts } from "./process/port-discovery";
 import { TaskManager } from "./process/task-manager";
 import { PhaseManager } from "./process/phase-manager";
 import { startUpstreamProbe } from "./probe";
@@ -150,36 +149,16 @@ store.subscribe((event) => {
   orchestrator.handle(event.transition);
 });
 
-const excludeFromDiscovery = new Set<number>([bootConfig.proxyPort]);
-const getDiscoveredPorts = () => {
-  const pids: number[] = [];
-  const appPid = appService.pid();
-  if (appPid !== undefined) pids.push(appPid);
-  if (pids.length === 0) return [];
-  return discoverDescendantListeningPorts({
-    rootPids: pids,
-    excludePorts: excludeFromDiscovery,
-  });
-};
-
 const lastStatus = startUpstreamProbe({
-  upstreamHost: "localhost",
-  getDiscoveredPorts,
-  getPinnedPort: () => null,
-  getCommandName: (pid) => {
-    if (pid === appService.pid()) return "dev";
-    return null;
-  },
-  onLog: (msg) => broadcaster.broadcastChunk("setup", msg),
+  getPort: () => store.read()?.application?.port ?? null,
   onChange: (s) => {
     broadcaster.broadcastEvent("status", { type: "status", ...s });
-    if (s.ready && s.port !== null) {
-      appService.markUp();
-    }
+    if (s.status === "online" && s.port !== null) appService.markUp();
   },
+  onLog: (msg) => broadcaster.broadcastChunk("setup", msg),
 });
 
-const getDevPort = (): number | null => lastStatus.port;
+const getDevPort = (): number | null => store.read()?.application?.port ?? null;
 const { appRoot, repoDir } = bootConfig;
 const fsDeps = { appRoot, repoDir };
 const readH = makeReadHandler(fsDeps);
@@ -219,7 +198,7 @@ const scriptsHandler = makeScriptsHandler(() => {
 
 const healthH = makeHealthHandler({
   config: { daemonBootId: process.env.DAEMON_BOOT_ID ?? "" },
-  getReady: () => lastStatus.ready,
+  getReady: () => lastStatus.status === "online",
   getApp: () => appService.snapshot(),
   getOrchestrator: () => ({
     running: orchestrator.isRunning(),
@@ -250,7 +229,7 @@ const configReadH = makeConfigReadHandler({
       running: orchestrator.isRunning(),
       pending: orchestrator.pendingCount(),
     },
-    ready: lastStatus.ready,
+    ready: lastStatus.status === "online",
   }),
   getTasks: () => phaseManager.recent(20),
 });

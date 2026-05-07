@@ -9,9 +9,9 @@ export const MAX_SSE_CLIENTS = 10;
 export const REPLAY_BYTES = 256 * 1024;
 export const DECO_UID = 1000;
 export const DECO_GID = 1000;
-export const FAST_PROBE_MS = 3000;
-export const SLOW_PROBE_MS = 30000;
-export const FAST_PROBE_LIMIT = 20;
+export const PROBE_FAST_MS = 1000;
+export const PROBE_SLOW_MS = 30_000;
+export const PROBE_HEAD_TIMEOUT_MS = 5_000;
 
 /**
  * Synthetic branches are sandbox isolation keys, not real git refs.
