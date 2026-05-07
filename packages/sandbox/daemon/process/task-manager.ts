@@ -54,6 +54,9 @@ export interface TaskSummary {
    * the consumer having to regex the command string.
    */
   logName?: string;
+  /** True when the kill that terminated this task was flagged intentional
+   *  (orchestrator-driven stop, replace-by-logName, or user Stop). */
+  intentional?: boolean;
 }
 
 export interface TaskResult {
@@ -87,6 +90,9 @@ interface TaskInternal {
   resolveFinished: (r: TaskResult) => void;
   kill: (signal?: NodeJS.Signals) => void;
   timer: ReturnType<typeof setTimeout> | null;
+  /** Set when a kill was flagged intentional. Surfaced on TaskSummary
+   *  so subscribers can distinguish stop from crash. */
+  intentional: boolean;
 }
 
 export interface TaskManagerDeps {
@@ -189,10 +195,15 @@ export class TaskManager {
     return true;
   }
 
-  killByLogName(logName: string, signal: NodeJS.Signals = "SIGTERM"): number {
+  killByLogName(
+    logName: string,
+    opts?: { intentional?: boolean; signal?: NodeJS.Signals },
+  ): number {
+    const signal = opts?.signal ?? "SIGTERM";
     let count = 0;
     for (const t of this.tasks.values()) {
       if (t.status !== "running" || t.spec.logName !== logName) continue;
+      if (opts?.intentional) t.intentional = true;
       t.kill(signal);
       setTimeout(() => {
         if (t.status === "running") t.kill("SIGKILL");
@@ -301,6 +312,7 @@ export class TaskManager {
       resolveFinished,
       kill: () => undefined,
       timer: null,
+      intentional: false,
     };
 
     if (spec.mode === "pty") {
@@ -479,5 +491,6 @@ function summarize(t: TaskInternal): TaskSummary {
     timedOut: t.timedOut,
     truncated: t.tee.isTruncated(),
     logName: t.spec.logName,
+    intentional: t.intentional,
   };
 }
