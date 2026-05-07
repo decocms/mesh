@@ -11,7 +11,11 @@ export interface SseHandshakeDeps {
     htmlSupport: boolean;
   };
   getDiscoveredScripts: () => string[] | null;
-  getActiveTasks: () => Array<{ id: string; command: string }>;
+  getActiveTasks: () => Array<{
+    id: string;
+    command: string;
+    logName?: string;
+  }>;
   getAppStatus: () => unknown;
   getLastBranchStatus: () => BranchStatus;
   maxClients: number;

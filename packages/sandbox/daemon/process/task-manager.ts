@@ -48,6 +48,12 @@ export interface TaskSummary {
   finishedAt: number | null;
   timedOut: boolean;
   truncated: boolean;
+  /**
+   * Mirrors `spec.logName`. Surfaced in summaries so the SSE active-tasks
+   * payload can identify a task by its script name (e.g. "format") without
+   * the consumer having to regex the command string.
+   */
+  logName?: string;
 }
 
 export interface TaskResult {
@@ -472,5 +478,6 @@ function summarize(t: TaskInternal): TaskSummary {
     finishedAt: t.finishedAt,
     timedOut: t.timedOut,
     truncated: t.tee.isTruncated(),
+    logName: t.spec.logName,
   };
 }

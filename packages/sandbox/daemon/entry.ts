@@ -99,7 +99,7 @@ const taskManager = new TaskManager({
 function getActiveTasks() {
   return taskManager
     .list({ status: ["running"] })
-    .map((t) => ({ id: t.id, command: t.command }));
+    .map((t) => ({ id: t.id, command: t.command, logName: t.logName }));
 }
 const appService = new ApplicationService({
   broadcaster,
@@ -357,7 +357,16 @@ Bun.serve<WsProxyData, never>({
         } catch {
           return jsonResponse({ error: "invalid script name" }, 400);
         }
-        const killed = taskManager.killByLogName(name);
+        let killed = taskManager.killByLogName(name);
+        // The dev/start script is owned by appService — its PTY is spawned
+        // outside TaskManager, so killByLogName can't see it. Route the kill
+        // to appService.stop() so the env-tab Stop button actually halts the
+        // running starter (status transitions cleanly to "idle" via
+        // intentionalStop, broadcast on the SSE stream).
+        if (appService.runningSource() === name) {
+          void appService.stop();
+          killed += 1;
+        }
         return jsonResponse({ killed });
       }
       if (p.startsWith("/_decopilot_vm/exec/")) return execH(req);

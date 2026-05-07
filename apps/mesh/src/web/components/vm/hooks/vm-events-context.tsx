@@ -329,20 +329,15 @@ export function VmEventsProvider({
         } else if (e.type === "processes") {
           setActiveProcesses(data.active ?? []);
         } else if (e.type === "tasks") {
-          // Daemon's task-manager surface; map to the legacy
-          // activeProcesses array of names so the UI's "Stop Process"
-          // button continues to render against running script tabs.
+          // Daemon's task-manager surface; map to the activeProcesses array
+          // of script names so the UI's Run/Restart button can render
+          // against running script tabs. Match on `logName` — set by
+          // /exec/<name> via the spec — instead of regex-parsing `command`,
+          // which breaks for any task with trailing args (e.g. `bun run
+          // format -- --fix`).
           const active = Array.isArray(data.active)
-            ? (data.active as Array<{ kind?: string; command?: string }>)
-                .filter(
-                  (j) => j?.kind === "exec" && typeof j.command === "string",
-                )
-                // Best-effort: extract trailing word as script name (e.g.
-                // "$ npm run dev" → "dev").
-                .map((j) => {
-                  const m = /\s(\S+)$/.exec(j.command ?? "");
-                  return m?.[1] ?? "";
-                })
+            ? (data.active as Array<{ logName?: string }>)
+                .map((j) => j?.logName ?? "")
                 .filter(Boolean)
             : [];
           setActiveProcesses(active);

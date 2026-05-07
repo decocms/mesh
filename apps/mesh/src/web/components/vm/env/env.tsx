@@ -116,9 +116,12 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   const [statusLabel, setStatusLabel] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [execInFlight, setExecInFlight] = useState(false);
-  const [killedProcesses, setKilledProcesses] = useState<Set<string>>(
-    new Set(),
-  );
+  // Tracks scripts whose kill request is in flight or whose underlying
+  // running-state hasn't yet caught up with the kill — drives the
+  // transient "Stopping…" affordance on the run/restart button. Cleared
+  // either by the sync prune below (state confirms not-running) or by
+  // handleKill itself on request error (revert to "Restart").
+  const [killingScripts, setKillingScripts] = useState<Set<string>>(new Set());
   const startingRef = useRef(false);
   const startedAtRef = useRef<number>(Date.now());
 
@@ -193,6 +196,27 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
     }
   }, [derivedStatus, override]);
 
+  // Prune `killingScripts` entries once SSE confirms the process stopped:
+  // for starters that means appStatus left up/starting; for other scripts
+  // it means activeProcesses no longer includes the name. Render-time
+  // setState is fine here — React bails out when the next set is equal.
+  if (killingScripts.size > 0) {
+    let changed = false;
+    const next = new Set(killingScripts);
+    for (const name of killingScripts) {
+      const isStarter = WELL_KNOWN_STARTERS.includes(name);
+      const stillRunning = isStarter
+        ? vmEvents.appStatus?.status === "up" ||
+          vmEvents.appStatus?.status === "starting"
+        : vmEvents.activeProcesses.includes(name);
+      if (!stillRunning) {
+        next.delete(name);
+        changed = true;
+      }
+    }
+    if (changed) setKillingScripts(next);
+  }
+
   // Self-heal stale vmMap entries: SSE probe flips notFound on 404, VM_START
   // writes a fresh entry. Dedup by dead vmId to avoid looping on repeat 404s.
   // Routed through useVmStart so MCP protocol errors surface (see call-vm-tool).
@@ -255,19 +279,19 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
         { method: "POST" },
       );
       if (!res.ok) throw new Error(`Exec failed: ${res.statusText}`);
-      setKilledProcesses((prev) => {
-        const next = new Set(prev);
-        next.delete(scriptName);
-        return next;
-      });
     } finally {
       setExecInFlight(false);
     }
   };
 
   const handleKill = async (scriptName: string) => {
-    if (execInFlight || !vmData || !virtualMcpId || !currentBranch) return;
-    setExecInFlight(true);
+    if (!vmData || !virtualMcpId || !currentBranch) return;
+    if (killingScripts.has(scriptName)) return;
+    setKillingScripts((prev) => {
+      const next = new Set(prev);
+      next.add(scriptName);
+      return next;
+    });
     try {
       const qs = new URLSearchParams({
         virtualMcpId,
@@ -278,9 +302,15 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
         { method: "POST" },
       );
       if (!res.ok) throw new Error(`Kill failed: ${res.statusText}`);
-      setKilledProcesses((prev) => new Set(prev).add(scriptName));
-    } finally {
-      setExecInFlight(false);
+      // Leave the entry in `killingScripts`; the render-time prune below
+      // clears it once SSE confirms the process is no longer running.
+    } catch {
+      setKillingScripts((prev) => {
+        const next = new Set(prev);
+        next.delete(scriptName);
+        return next;
+      });
+      toast.error(`Failed to stop ${scriptName}`);
     }
   };
 
@@ -614,38 +644,48 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
                   vmEvents.appStatus?.status === "starting";
                 const isRunning = isStarter
                   ? appActive
-                  : vmEvents.activeProcesses.includes(activeTab) &&
-                    !killedProcesses.has(activeTab);
+                  : vmEvents.activeProcesses.includes(activeTab);
+                const isKilling = killingScripts.has(activeTab);
+                // Hide the dropdown chevron during the Stopping… window so a
+                // second Stop click can't double-fire while the first is in
+                // flight; the prune effect removes it once SSE confirms idle.
+                const showRunningAffordance = isRunning && !isKilling;
+                const busy = execInFlight || isKilling;
                 const onRun = () => handleExec(activeTab);
                 const onStop = () => handleKill(activeTab);
+                const label = execInFlight
+                  ? "Running..."
+                  : isKilling
+                    ? "Stopping..."
+                    : isRunning
+                      ? "Restart"
+                      : "Run";
                 return (
                   <div className="flex items-center">
                     <button
                       type="button"
-                      disabled={execInFlight}
+                      disabled={busy}
                       onClick={onRun}
                       className={cn(
                         "flex items-center gap-1 border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50",
-                        isRunning ? "rounded-l-md border-r-0" : "rounded-md",
+                        showRunningAffordance
+                          ? "rounded-l-md border-r-0"
+                          : "rounded-md",
                       )}
                     >
-                      {execInFlight ? (
+                      {busy ? (
                         <Loading01 size={12} className="animate-spin" />
                       ) : (
                         <Play size={12} />
                       )}
-                      {execInFlight
-                        ? "Running..."
-                        : isRunning
-                          ? "Restart"
-                          : "Run"}
+                      {label}
                     </button>
-                    {isRunning && (
+                    {showRunningAffordance && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <button
                             type="button"
-                            disabled={execInFlight}
+                            disabled={busy}
                             className="flex items-center self-stretch rounded-r-md border border-border px-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
                           >
                             <ChevronDown size={12} />

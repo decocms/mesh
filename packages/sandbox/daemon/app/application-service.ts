@@ -66,6 +66,11 @@ export class ApplicationService {
 
   private child: PtyHandle | null = null;
   private currentTee: LogTee | null = null;
+  // Track the script source of the running child so callers can route a
+  // by-name kill request (e.g. /exec/dev/kill from the env-tab button) to
+  // appService.stop() — the dev PTY isn't owned by TaskManager, so
+  // killByLogName can't find it.
+  private currentSourceValue: string | null = null;
   private stopResolvers: Array<() => void> = [];
   // Set by stop()/killImmediate() so onExit can distinguish an intentional
   // teardown (no onFailure callback, status → idle) from a real crash
@@ -82,6 +87,11 @@ export class ApplicationService {
 
   pid(): number | undefined {
     return this.state.pid;
+  }
+
+  /** Source of the currently running spec, or null when no child is alive. */
+  runningSource(): string | null {
+    return this.child ? this.currentSourceValue : null;
   }
 
   /** Mark that an install has completed; UI cares about this for "ready" gating. */
@@ -123,6 +133,7 @@ export class ApplicationService {
       ...(this.deps.dropPrivileges ? { uid: DECO_UID, gid: DECO_GID } : {}),
     });
     this.child = child;
+    this.currentSourceValue = spec.source;
 
     this.state = {
       ...this.state,
@@ -151,6 +162,7 @@ export class ApplicationService {
         return;
       }
       this.child = null;
+      this.currentSourceValue = null;
 
       // SIGTERM/SIGKILL we initiated → not a failure. The orchestrator
       // calls stop() before pm/branch/port transitions; flagging
