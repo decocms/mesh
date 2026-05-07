@@ -102,12 +102,10 @@ export function PreviewContent() {
   const hasHtmlPreview = vmEvents.status.htmlSupport;
   const suspended = vmEvents.suspended;
 
-  // Install ran, dev script is intentionally stopped (idle) — treat as paused,
+  // Install ran, dev script is intentionally stopped (paused) — treat as paused,
   // not booting. Otherwise on remount the booting overlay falsely flashes
   // "Installing packages…" even though the server isn't starting.
-  const appPaused =
-    vmEvents.appStatus?.status === "idle" &&
-    vmEvents.appStatus?.installedAt != null;
+  const appPaused = vmEvents.intent.state === "paused";
 
   // The daemon's status enum (booting/online/offline) is itself the
   // "ever-responded" latch — offline means we saw a response and lost it,

@@ -197,18 +197,13 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
   }, [derivedStatus, override]);
 
   // Prune `killingScripts` entries once SSE confirms the process stopped:
-  // for starters that means appStatus left up/starting; for other scripts
-  // it means activeProcesses no longer includes the name. Render-time
-  // setState is fine here — React bails out when the next set is equal.
+  // checks activeProcesses uniformly across all script types.
+  // Render-time setState is fine here — React bails out when the next set is equal.
   if (killingScripts.size > 0) {
     let changed = false;
     const next = new Set(killingScripts);
     for (const name of killingScripts) {
-      const isStarter = WELL_KNOWN_STARTERS.includes(name);
-      const stillRunning = isStarter
-        ? vmEvents.appStatus?.status === "up" ||
-          vmEvents.appStatus?.status === "starting"
-        : vmEvents.activeProcesses.includes(name);
+      const stillRunning = vmEvents.activeProcesses.includes(name);
       if (!stillRunning) {
         next.delete(name);
         changed = true;
@@ -638,13 +633,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
               activeTab !== "daemon" &&
               openScriptTabs.includes(activeTab) &&
               (() => {
-                const isStarter = WELL_KNOWN_STARTERS.includes(activeTab);
-                const appActive =
-                  vmEvents.appStatus?.status === "up" ||
-                  vmEvents.appStatus?.status === "starting";
-                const isRunning = isStarter
-                  ? appActive
-                  : vmEvents.activeProcesses.includes(activeTab);
+                const isRunning = vmEvents.activeProcesses.includes(activeTab);
                 const isKilling = killingScripts.has(activeTab);
                 // Hide the dropdown chevron during the Stopping… window so a
                 // second Stop click can't double-fire while the first is in
@@ -694,7 +683,7 @@ export function EnvContent({ daemonOpen = false }: { daemonOpen?: boolean }) {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={onStop}>
                             <StopCircle size={12} />
-                            {isStarter ? "Stop" : "Stop Process"}
+                            Stop
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
