@@ -50,7 +50,6 @@ describe("SetupOrchestrator branch-status integration", () => {
             transition: { kind: "no-op" },
           }),
         } as never,
-        appService: { stop: async () => {}, snapshot: () => ({}) } as never,
         taskManager: {
           spawn: async () => ({ id: "t1" }),
           killByLogName: () => 0,
@@ -116,7 +115,6 @@ describe("SetupOrchestrator branch-status integration", () => {
             transition: { kind: "no-op" },
           }),
         } as never,
-        appService: { stop: async () => {}, snapshot: () => ({}) } as never,
         taskManager: {
           spawn: async () => ({ id: "t1" }),
           killByLogName: () => 0,
@@ -180,7 +178,6 @@ describe("SetupOrchestrator intent transitions", () => {
             transition: { kind: "no-op" },
           }),
         } as never,
-        appService: { stop: async () => {}, snapshot: () => ({}) } as never,
         taskManager: {
           spawn: async () => ({ id: "t1" }),
           killByLogName: () => 0,
@@ -236,7 +233,6 @@ describe("SetupOrchestrator intent transitions", () => {
             transition: { kind: "no-op" },
           }),
         } as never,
-        appService: { stop: async () => {}, snapshot: () => ({}) } as never,
         taskManager: {
           spawn: async () => ({ id: "t1" }),
           killByLogName: () => 0,
@@ -287,7 +283,6 @@ describe("SetupOrchestrator intent transitions", () => {
             transition: { kind: "no-op" },
           }),
         } as never,
-        appService: { stop: async () => {}, snapshot: () => ({}) } as never,
         taskManager: {
           spawn: async () => ({ id: "t1" }),
           killByLogName: () => 0,

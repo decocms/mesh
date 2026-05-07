@@ -1,7 +1,6 @@
 import { existsSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { readConfig } from "../persistence";
-import type { ApplicationService } from "../app/application-service";
 import type { TenantConfigStore } from "../config-store";
 import type { TaskManager } from "../process/task-manager";
 import type { Transition } from "../config-store/types";
@@ -33,7 +32,6 @@ const INSTALL_LOG_MAX_BYTES = 10 * 1024 * 1024;
 export interface SetupOrchestratorDeps {
   bootConfig: { appRoot: string; repoDir: string };
   store: TenantConfigStore;
-  appService: ApplicationService; // KEEP for now — Task 12 removes
   taskManager: TaskManager;
   setIntent: (next: { state: "running" | "paused"; reason?: string }) => void;
   getIntent: () => { state: "running" | "paused"; reason?: string };

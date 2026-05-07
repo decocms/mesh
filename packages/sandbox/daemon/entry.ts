@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { ApplicationService } from "./app/application-service";
 import { bumpActivity, markClaimed } from "./activity";
 import { requireToken } from "./auth";
 import { TenantConfigStore } from "./config-store";
@@ -109,17 +108,6 @@ function getActiveTasks() {
     .list({ status: ["running"] })
     .map((t) => ({ id: t.id, command: t.command, logName: t.logName }));
 }
-const appService = new ApplicationService({
-  broadcaster,
-  logsDir: TMP_DIR,
-  onFailure: (reason, exitCode) => {
-    broadcaster.broadcastChunk(
-      "daemon",
-      `\r\n[daemon] dev script failed (exit ${exitCode}): ${reason}\r\n`,
-    );
-  },
-});
-
 const branchStatus = new BranchStatusMonitor(
   {
     appRoot: bootConfig.appRoot,
@@ -135,7 +123,6 @@ const branchStatus = new BranchStatusMonitor(
 const orchestrator = new SetupOrchestrator({
   bootConfig: { appRoot: bootConfig.appRoot, repoDir: bootConfig.repoDir },
   store,
-  appService,
   taskManager,
   setIntent,
   getIntent: () => currentIntent,
@@ -209,7 +196,6 @@ const scriptsHandler = makeScriptsHandler(() => {
 const healthH = makeHealthHandler({
   config: { daemonBootId: process.env.DAEMON_BOOT_ID ?? "" },
   getReady: () => lastStatus.status === "online",
-  getApp: () => appService.snapshot(),
   getOrchestrator: () => ({
     running: orchestrator.isRunning(),
     pending: orchestrator.pendingCount(),
@@ -234,7 +220,6 @@ const configReadH = makeConfigReadHandler({
   daemonBootId: process.env.DAEMON_BOOT_ID ?? "",
   store,
   getState: () => ({
-    app: appService.snapshot(),
     orchestrator: {
       running: orchestrator.isRunning(),
       pending: orchestrator.pendingCount(),
@@ -400,7 +385,6 @@ Bun.serve<WsProxyData, never>({
 
 process.on("SIGTERM", () => {
   taskManager.shutdown();
-  appService.shutdown();
   branchStatus.stop();
   const branch = store.read()?.git?.repository?.branch;
   if (branch) {
