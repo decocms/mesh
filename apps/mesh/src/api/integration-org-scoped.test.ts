@@ -533,4 +533,226 @@ describe("org-scoped API coexistence", () => {
 
     expect(res.status).toBe(404);
   });
+
+  it("DCR injects the connection's owning org into the registration metadata", async () => {
+    // The downstream MCP App needs to know which studio org an OAuth client
+    // belongs to *at registration time* — there is no per-user "active org"
+    // concept on the server, and querying it back from a bearer token has no
+    // standard. The proxy threads `connection.organization_id` (plus slug/name
+    // for human-readable references) into the RFC 7591 `metadata` field, which
+    // downstream servers can read off the persisted oauthApplication row on
+    // every subsequent request.
+    let capturedBody: string | null = null;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (url.includes("oauth-authorization-server")) {
+        return new Response(
+          JSON.stringify({
+            issuer: "https://example.test",
+            authorization_endpoint: "https://example.test/authorize",
+            token_endpoint: "https://example.test/token",
+            registration_endpoint: "https://example.test/register",
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/register") && method === "POST") {
+        capturedBody =
+          typeof init?.body === "string"
+            ? init.body
+            : await new Response(init?.body).text();
+        return new Response(
+          JSON.stringify({ client_id: "client_xyz", client_secret: "secret" }),
+          { status: 201, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("not found", { status: 404 });
+    }) as typeof fetch);
+
+    try {
+      const res = await app.fetch(
+        new Request(
+          "http://mesh.localhost/api/org_1/oauth-proxy/conn_1/register",
+          {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer test-key",
+              // Mixed-case media type — case-insensitive per RFC 7231 §3.1.1.1.
+              // Locks in that the injection branch normalizes before matching.
+              "Content-Type": "Application/JSON",
+            },
+            body: JSON.stringify({
+              client_name: "test",
+              redirect_uris: ["http://mesh.localhost/oauth/callback"],
+              metadata: { existing_key: "preserved" },
+            }),
+          },
+        ),
+      );
+
+      expect(res.status).toBeGreaterThanOrEqual(200);
+      expect(res.status).toBeLessThan(400);
+      expect(capturedBody).not.toBeNull();
+      const forwarded = JSON.parse(capturedBody!);
+      // Original fields untouched.
+      expect(forwarded.client_name).toBe("test");
+      expect(forwarded.redirect_uris).toEqual([
+        "http://mesh.localhost/oauth/callback",
+      ]);
+      // Org metadata injected; pre-existing metadata keys preserved.
+      expect(forwarded.metadata).toEqual({
+        existing_key: "preserved",
+        organization_id: "org_1",
+        organization_slug: "org_1",
+        organization_name: "org_1",
+      });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("DCR passes through non-object JSON bodies unchanged", async () => {
+    // null/array/primitive bodies are non-spec for DCR (RFC 7591 requires a
+    // JSON object). The proxy must not try to attach `metadata` to them —
+    // null/primitive would throw on property assignment, and arrays would
+    // silently lose the property at JSON.stringify time. We forward unchanged
+    // and let origin return its own 4xx.
+    const captured: string[] = [];
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (url.includes("oauth-authorization-server")) {
+        return new Response(
+          JSON.stringify({
+            issuer: "https://example.test",
+            authorization_endpoint: "https://example.test/authorize",
+            token_endpoint: "https://example.test/token",
+            registration_endpoint: "https://example.test/register",
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/register") && method === "POST") {
+        const body =
+          typeof init?.body === "string"
+            ? init.body
+            : await new Response(init?.body).text();
+        captured.push(body);
+        return new Response(
+          JSON.stringify({ error: "invalid_client_metadata" }),
+          { status: 400, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("not found", { status: 404 });
+    }) as typeof fetch);
+
+    try {
+      for (const body of ["null", "[1,2,3]", "42"]) {
+        const res = await app.fetch(
+          new Request(
+            "http://mesh.localhost/api/org_1/oauth-proxy/conn_1/register",
+            {
+              method: "POST",
+              headers: {
+                Authorization: "Bearer test-key",
+                "Content-Type": "application/json",
+              },
+              body,
+            },
+          ),
+        );
+        // Proxy didn't crash (would have been a 500); origin's 400 is what
+        // surfaces to the client.
+        expect(res.status).toBe(400);
+      }
+      expect(captured).toEqual(["null", "[1,2,3]", "42"]);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("DCR with non-JSON content type passes through byte-for-byte", async () => {
+    // RFC 7591 mandates JSON, but a misbehaving client could POST /register
+    // with a different content type. The metadata-injection branch is gated on
+    // `application/json` so non-JSON bodies hit the raw-body passthrough and
+    // reach origin unchanged (no UTF-8 decode/re-encode, no Content-Type
+    // override).
+    const captured: { body: string | null; contentType: string | null } = {
+      body: null,
+      contentType: null,
+    };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (url.includes("oauth-authorization-server")) {
+        return new Response(
+          JSON.stringify({
+            issuer: "https://example.test",
+            authorization_endpoint: "https://example.test/authorize",
+            token_endpoint: "https://example.test/token",
+            registration_endpoint: "https://example.test/register",
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/register") && method === "POST") {
+        captured.body =
+          typeof init?.body === "string"
+            ? init.body
+            : await new Response(init?.body).text();
+        const headers = new Headers(init?.headers as HeadersInit | undefined);
+        captured.contentType = headers.get("Content-Type");
+        return new Response("ok", { status: 200 });
+      }
+      return new Response("not found", { status: 404 });
+    }) as typeof fetch);
+
+    try {
+      const rawBody = "client_name=test&redirect_uris=http://x";
+      const res = await app.fetch(
+        new Request(
+          "http://mesh.localhost/api/org_1/oauth-proxy/conn_1/register",
+          {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer test-key",
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: rawBody,
+          },
+        ),
+      );
+
+      expect(res.status).toBe(200);
+      expect(captured.body).toBe(rawBody);
+      expect(captured.contentType).toBe("application/x-www-form-urlencoded");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
 });

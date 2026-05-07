@@ -420,6 +420,60 @@ const oauthProxyHandler: MiddlewareHandler<Env> = async (c) => {
         params.append(key, value.toString());
       }
       requestBody = params.toString();
+    } else if (
+      endpoint === "register" &&
+      // Media types are case-insensitive (RFC 7231 §3.1.1.1) — normalize so
+      // `Application/JSON` etc. don't bypass the injection.
+      contentType
+        ?.toLowerCase()
+        .includes("application/json")
+    ) {
+      // Inject the connection's owning org into the DCR `metadata` field so the
+      // downstream MCP App can scope the registered OAuth client to a tenant
+      // without depending on user session state. RFC 7591 §2 reserves
+      // `metadata` for arbitrary client metadata extensions; downstream servers
+      // that don't recognize the field MUST ignore it.
+      // Gated on JSON content type so non-JSON DCR bodies (spec-violating but
+      // possible) get byte-perfect passthrough via the raw-body branch below
+      // instead of a lossy UTF-8 decode/re-encode round trip.
+      const org = await ctx.db
+        .selectFrom("organization")
+        .select(["id", "slug", "name"])
+        .where("id", "=", connection.organization_id)
+        .executeTakeFirst();
+      const rawText = await c.req.text();
+      let parsed: unknown = {};
+      try {
+        parsed = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        // Body isn't JSON — pass through unchanged so origin returns its own
+        // 400, rather than us masking the client error.
+        requestBody = rawText;
+      }
+      // Only mutate plain objects. Arrays, null, and primitives are non-spec
+      // for DCR and would either throw on property assignment (null/primitive)
+      // or be silently dropped by `JSON.stringify` (array). Pass them through
+      // and let origin return the appropriate 4xx.
+      const isPlainObject =
+        typeof parsed === "object" && parsed !== null && !Array.isArray(parsed);
+      if (requestBody === undefined && !isPlainObject) {
+        requestBody = rawText;
+      }
+      if (requestBody === undefined) {
+        const obj = parsed as Record<string, unknown>;
+        const existingMetadata =
+          obj.metadata && typeof obj.metadata === "object"
+            ? (obj.metadata as Record<string, unknown>)
+            : {};
+        obj.metadata = {
+          ...existingMetadata,
+          organization_id: connection.organization_id,
+          ...(org?.slug ? { organization_slug: org.slug } : {}),
+          ...(org?.name ? { organization_name: org.name } : {}),
+        };
+        requestBody = JSON.stringify(obj);
+        headers["Content-Type"] = "application/json";
+      }
     } else {
       // For other content types, pass through as-is
       requestBody = c.req.raw.body ?? undefined;
