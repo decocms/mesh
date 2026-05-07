@@ -11,7 +11,8 @@
  * across transient drops (htmlSupport is sticky on offline at the source).
  */
 
-export type UpstreamStatus = "booting" | "online" | "offline";
+import type { UpstreamStatus } from "../upstream-status";
+export type { UpstreamStatus };
 export type ClaimPhaseLike = { kind: string };
 
 export interface PreviewStateInput {

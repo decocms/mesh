@@ -38,7 +38,8 @@ import type {
 
 export type { ClaimFailureReason, ClaimPhase };
 
-export type UpstreamStatus = "booting" | "online" | "offline";
+import type { UpstreamStatus } from "../upstream-status";
+export type { UpstreamStatus };
 
 export interface VmStatus {
   status: UpstreamStatus;
