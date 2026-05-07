@@ -9,7 +9,7 @@ import { Atom01, Lightning01, Stars01 } from "@untitledui/icons";
 
 export type SimpleModeTier = "fast" | "smart" | "thinking";
 
-export const SIMPLE_MODE_TIER_OPTIONS = [
+const SIMPLE_MODE_TIER_OPTIONS = [
   {
     value: "fast" as const,
     label: "Fast",
