@@ -89,3 +89,49 @@ describe("TaskManager replaceByLogName", () => {
     await tm.finished(t.id);
   });
 });
+
+describe("TaskManager onTaskExit", () => {
+  it("fires for every task exit with logName, exitCode, and intentional", async () => {
+    const tm = makeManager();
+    const events: Array<{
+      id: string;
+      logName?: string;
+      exitCode: number | null;
+      intentional?: boolean;
+    }> = [];
+    tm.onTaskExit((s) => {
+      events.push({
+        id: s.id,
+        logName: s.logName,
+        exitCode: s.exitCode,
+        intentional: s.intentional,
+      });
+    });
+    const t = await tm.spawn({
+      command: "sleep 30",
+      cwd: "/tmp",
+      mode: "pipe",
+      logName: "dev",
+    });
+    const finished = tm.finished(t.id)!;
+    tm.killByLogName("dev", { intentional: true });
+    await finished;
+    expect(events).toHaveLength(1);
+    expect(events[0].logName).toBe("dev");
+    expect(events[0].intentional).toBe(true);
+  });
+
+  it("returns an unsubscribe function", async () => {
+    const tm = makeManager();
+    let count = 0;
+    const unsub = tm.onTaskExit(() => count++);
+    unsub();
+    const t = await tm.spawn({
+      command: "true",
+      cwd: "/tmp",
+      mode: "pipe",
+    });
+    await tm.finished(t.id);
+    expect(count).toBe(0);
+  });
+});

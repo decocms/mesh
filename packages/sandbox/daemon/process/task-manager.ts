@@ -93,6 +93,8 @@ interface TaskInternal {
   /** Set when a kill was flagged intentional. Surfaced on TaskSummary
    *  so subscribers can distinguish stop from crash. */
   intentional: boolean;
+  /** Guard flag to ensure onTaskExit handlers fire exactly once. */
+  exitFired: boolean;
 }
 
 export interface TaskManagerDeps {
@@ -120,6 +122,7 @@ export class TaskManager {
   private readonly reaper: ReturnType<typeof setInterval>;
   private readonly ttlMs: number;
   private idCounter = 0;
+  private readonly exitHandlers = new Set<(s: TaskSummary) => void>();
 
   constructor(private readonly deps: TaskManagerDeps) {
     this.ttlMs = deps.ttlMs ?? DEFAULT_TTL_MS;
@@ -189,6 +192,14 @@ export class TaskManager {
     if (!t) return null;
     t.subscribers.add(fn);
     return () => t.subscribers.delete(fn);
+  }
+
+  /** Subscribe to per-task exit events. Handler receives the final
+   *  summary (status, exitCode, intentional, logName). Returns an
+   *  unsubscribe function. */
+  onTaskExit(handler: (s: TaskSummary) => void): () => void {
+    this.exitHandlers.add(handler);
+    return () => this.exitHandlers.delete(handler);
   }
 
   list(filter?: { status?: ReadonlyArray<TaskStatus> }): TaskSummary[] {
@@ -331,6 +342,7 @@ export class TaskManager {
       kill: () => undefined,
       timer: null,
       intentional: false,
+      exitFired: false,
     };
 
     if (spec.mode === "pty") {
@@ -484,6 +496,18 @@ export class TaskManager {
       status,
       timedOut: result.timedOut,
     });
+    // Fire onTaskExit handlers exactly once, with the guard flag.
+    if (!task.exitFired) {
+      task.exitFired = true;
+      const summary = summarize(task);
+      for (const h of this.exitHandlers) {
+        try {
+          h(summary);
+        } catch {
+          /* handlers must not crash the task lifecycle */
+        }
+      }
+    }
     this.deps.onChange?.();
   }
 
