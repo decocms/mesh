@@ -115,9 +115,16 @@ jobs:
           bun test $files 2>&1 | tee /tmp/test-output.txt
           exit_code=${PIPESTATUS[0]}
           set -e
+          # Detect failures via per-test markers AND the summary line. The
+          # SIGILL crash can happen before bun prints its "N fail" summary,
+          # so relying on the summary alone hides real failures.
+          if grep -qE '^\(fail\)|[1-9][0-9]* fail' /tmp/test-output.txt; then
+            echo "❌ Test failures detected in output"
+            exit 1
+          fi
           if [ $exit_code -eq 0 ]; then
             exit 0
-          elif [ $exit_code -eq 132 ] && ! grep -q '[1-9][0-9]* fail' /tmp/test-output.txt; then
+          elif [ $exit_code -eq 132 ]; then
             echo "⚠️  Bun exited with SIGILL (known WASM cleanup bug) but all tests passed"
             exit 0
           else
