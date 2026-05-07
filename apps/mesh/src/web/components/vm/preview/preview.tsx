@@ -104,43 +104,14 @@ export function PreviewContent() {
 
   // Install ran, dev script is intentionally stopped (idle) — treat as paused,
   // not booting. Otherwise on remount the booting overlay falsely flashes
-  // "Installing packages…" because probe.ready=false and scripts.length>0.
+  // "Installing packages…" even though the server isn't starting.
   const appPaused =
     vmEvents.appStatus?.status === "idle" &&
     vmEvents.appStatus?.installedAt != null;
 
-  // Gate iframe on upstream readiness to avoid the daemon's "Server is
-  // starting..." placeholder; keep mounted once ever-ready so HMR hiccups
-  // don't re-show the boot screen. `at` uses server-stamped
-  // vmEntry.createdAt so the timer survives remounts.
-  // Latch on `responded` (any HTTP response), not `ready` (2xx-3xx).
-  // A server that returns 404 on `/` is up — we shouldn't get stuck on the
-  // booting overlay just because it doesn't serve HTML at `/`. Once latched,
-  // computePreviewState honors `bootEverReady` so brief probe-down hiccups
-  // don't drop the iframe back into the boot overlay.
-  const bootTrackedRef = useRef<{
-    url: string;
-    at: number;
-    everReady: boolean;
-  }>({
-    url: "",
-    at: 0,
-    everReady: false,
-  });
-  if (previewUrl && bootTrackedRef.current.url !== previewUrl) {
-    bootTrackedRef.current = {
-      url: previewUrl,
-      at: vmEntry?.createdAt ?? Date.now(),
-      everReady: false,
-    };
-  }
-  if (
-    previewUrl &&
-    vmEvents.status.responded &&
-    !bootTrackedRef.current.everReady
-  ) {
-    bootTrackedRef.current.everReady = true;
-  }
+  // The daemon's status enum (booting/online/offline) is itself the
+  // "ever-responded" latch — offline means we saw a response and lost it,
+  // and htmlSupport is sticky on offline at the source.
 
   // Cover the gap between VM_START being submitted and vmMap populating a
   // previewUrl; otherwise the empty "No server running" state flashes while
@@ -177,7 +148,7 @@ export function PreviewContent() {
 
   const previewState = computePreviewState({
     previewUrl,
-    responded: vmEvents.status.responded,
+    status: vmEvents.status.status,
     htmlSupport: vmEvents.status.htmlSupport,
     suspended,
     appPaused,
@@ -185,7 +156,6 @@ export function PreviewContent() {
     lastStartError,
     claimPhase,
     notFound: vmEvents.notFound,
-    bootEverReady: bootTrackedRef.current.everReady,
   });
 
   // ref-latest pattern: effects below depend only on upstream signals, not
@@ -466,7 +436,7 @@ export function PreviewContent() {
             <VmBootingState
               since={
                 previewUrl
-                  ? bootTrackedRef.current.at
+                  ? (vmEntry?.createdAt ?? Date.now())
                   : startingSinceRef.current
               }
               hasSetupData={vmEvents.hasData("setup")}
