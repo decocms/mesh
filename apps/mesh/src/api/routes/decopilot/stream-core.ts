@@ -745,6 +745,12 @@ async function streamCoreInner(
         let lastProviderMetadata: Record<string, unknown> | undefined;
         let codingAgentSessionId: string | undefined;
         let codingAgentProvider: string | undefined;
+        let stepAccumulatedUsage = {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+        };
+        let stepAccumulatedCost = 0;
         llmCallStartTime = Date.now();
 
         // Build language model based on provider type
@@ -1017,7 +1023,7 @@ async function streamCoreInner(
               llmSpan.setStatus({ code: SpanStatusCode.OK });
               llmSpan.end();
 
-              if (registrySignal.aborted) return;
+              // Always record usage even on abort — tokens were already consumed.
               const durationMs = Date.now() - (llmCallStartTime ?? Date.now());
               llmCallLogged = true;
               recordLlmCallMetrics({
@@ -1065,6 +1071,8 @@ async function streamCoreInner(
                 requestId: ctx.metadata.requestId,
                 userAgent: ctx.metadata.userAgent ?? null,
               });
+
+              if (registrySignal.aborted) return;
             },
             onError: async (error) => {
               const err =
@@ -1115,6 +1123,76 @@ async function streamCoreInner(
                 });
               }
               throw error;
+            },
+            onAbort: async ({ steps }) => {
+              if (!steps.length || llmCallLogged) return;
+              llmCallLogged = true;
+              const durationMs = Date.now() - (llmCallStartTime ?? Date.now());
+              const abortTotalUsage = steps.reduce(
+                (acc, s) => ({
+                  inputTokens: acc.inputTokens + (s.usage.inputTokens ?? 0),
+                  outputTokens: acc.outputTokens + (s.usage.outputTokens ?? 0),
+                  totalTokens: acc.totalTokens + (s.usage.totalTokens ?? 0),
+                }),
+                { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+              );
+              const lastStepUsage = steps[steps.length - 1]!.usage;
+              recordLlmCallMetrics({
+                ctx,
+                organizationId: input.organizationId,
+                modelId: input.models.thinking.id,
+                durationMs,
+                isError: false,
+                inputTokens: abortTotalUsage.inputTokens,
+                outputTokens: abortTotalUsage.outputTokens,
+              });
+              monitorLlmCall({
+                ctx,
+                organizationId: input.organizationId,
+                agentId: input.agent.id,
+                modelId: input.models.thinking.id,
+                modelTitle:
+                  input.models.thinking.title ?? input.models.thinking.id,
+                credentialId: input.models.credentialId,
+                taskId: mem.thread.id,
+                durationMs,
+                isError: false,
+                finishReason: "abort",
+                usage: {
+                  inputTokens: lastStepUsage.inputTokens ?? 0,
+                  outputTokens: lastStepUsage.outputTokens ?? 0,
+                  totalTokens: lastStepUsage.totalTokens ?? 0,
+                },
+                totalUsage: abortTotalUsage,
+                request: undefined,
+                response: undefined,
+                userId: input.userId,
+                requestId: ctx.metadata.requestId,
+                userAgent: ctx.metadata.userAgent ?? null,
+              });
+
+              // Re-push accumulated usage to the client. On abort the SDK
+              // resets message.metadata to its pre-stream state, so we
+              // explicitly write it here before the stream closes.
+              if (abortTotalUsage.totalTokens > 0) {
+                writer.write({
+                  type: "message-metadata",
+                  messageMetadata: {
+                    usage: {
+                      inputTokens: abortTotalUsage.inputTokens,
+                      outputTokens: abortTotalUsage.outputTokens,
+                      totalTokens: abortTotalUsage.totalTokens,
+                      ...(stepAccumulatedCost > 0 && {
+                        providerMetadata: {
+                          openrouter: {
+                            usage: { cost: stepAccumulatedCost },
+                          },
+                        },
+                      }),
+                    },
+                  },
+                });
+              }
             },
           });
         } catch (err) {
@@ -1186,7 +1264,39 @@ async function streamCoreInner(
                 ).threadId;
                 codingAgentProvider = "codex";
               }
-              return;
+              stepAccumulatedUsage = {
+                inputTokens:
+                  stepAccumulatedUsage.inputTokens +
+                  (part.usage?.inputTokens ?? 0),
+                outputTokens:
+                  stepAccumulatedUsage.outputTokens +
+                  (part.usage?.outputTokens ?? 0),
+                totalTokens:
+                  stepAccumulatedUsage.totalTokens +
+                  (part.usage?.totalTokens ?? 0),
+              };
+              const stepCost = (
+                part.providerMetadata?.openrouter as
+                  | { usage?: { cost?: number } }
+                  | undefined
+              )?.usage?.cost;
+              if (stepCost != null) {
+                stepAccumulatedCost += stepCost;
+              }
+              return {
+                usage: {
+                  inputTokens: stepAccumulatedUsage.inputTokens,
+                  outputTokens: stepAccumulatedUsage.outputTokens,
+                  totalTokens: stepAccumulatedUsage.totalTokens,
+                  ...(stepAccumulatedCost > 0 && {
+                    providerMetadata: {
+                      openrouter: {
+                        usage: { cost: stepAccumulatedCost },
+                      },
+                    },
+                  }),
+                },
+              };
             }
 
             if (part.type === "finish") {
@@ -1196,22 +1306,56 @@ async function streamCoreInner(
                 lastProviderMetadata ??
                 (part as { providerMetadata?: Record<string, unknown> })
                   .providerMetadata;
-              const usage = totalUsage
+              // Merge accumulated per-step cost into the final provider metadata.
+              // Per-step cost is tracked in stepAccumulatedCost from finish-step events.
+              const finalProviderMeta =
+                stepAccumulatedCost > 0 && providerMeta
+                  ? {
+                      ...providerMeta,
+                      openrouter: {
+                        ...((providerMeta.openrouter as Record<
+                          string,
+                          unknown
+                        >) ?? {}),
+                        usage: {
+                          ...(((
+                            providerMeta.openrouter as Record<string, unknown>
+                          )?.usage as Record<string, unknown>) ?? {}),
+                          cost: stepAccumulatedCost,
+                        },
+                      },
+                    }
+                  : providerMeta;
+              // On abort the SDK emits finish with totalUsage = 0.
+              // Fall back to stepAccumulatedUsage so we don't overwrite the
+              // per-step metadata that was already sent to the client.
+              const effectiveUsage =
+                totalUsage &&
+                ((totalUsage.inputTokens ?? 0) > 0 ||
+                  (totalUsage.outputTokens ?? 0) > 0)
+                  ? totalUsage
+                  : stepAccumulatedUsage.totalTokens > 0
+                    ? stepAccumulatedUsage
+                    : totalUsage;
+              const usage = effectiveUsage
                 ? {
-                    inputTokens: totalUsage.inputTokens ?? 0,
-                    outputTokens: totalUsage.outputTokens ?? 0,
-                    reasoningTokens: totalUsage.reasoningTokens ?? undefined,
-                    totalTokens: totalUsage.totalTokens ?? 0,
+                    inputTokens: effectiveUsage.inputTokens ?? 0,
+                    outputTokens: effectiveUsage.outputTokens ?? 0,
+                    reasoningTokens:
+                      (totalUsage as { reasoningTokens?: number } | null)
+                        ?.reasoningTokens ?? undefined,
+                    totalTokens: effectiveUsage.totalTokens ?? 0,
                     providerMetadata: sanitizeProviderMetadata(
-                      provider && providerMeta
+                      provider && finalProviderMeta
                         ? {
-                            ...providerMeta,
+                            ...finalProviderMeta,
                             [provider]: {
-                              ...((providerMeta[provider] as object) ?? {}),
+                              ...((finalProviderMeta[provider] as object) ??
+                                {}),
                               reasoning_details: undefined,
                             },
                           }
-                        : providerMeta,
+                        : finalProviderMeta,
                     ),
                   }
                 : undefined;
