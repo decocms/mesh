@@ -422,7 +422,11 @@ const oauthProxyHandler: MiddlewareHandler<Env> = async (c) => {
       requestBody = params.toString();
     } else if (
       endpoint === "register" &&
-      contentType?.includes("application/json")
+      // Media types are case-insensitive (RFC 7231 §3.1.1.1) — normalize so
+      // `Application/JSON` etc. don't bypass the injection.
+      contentType
+        ?.toLowerCase()
+        .includes("application/json")
     ) {
       // Inject the connection's owning org into the DCR `metadata` field so the
       // downstream MCP App can scope the registered OAuth client to a tenant

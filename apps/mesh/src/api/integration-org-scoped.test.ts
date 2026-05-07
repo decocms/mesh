@@ -586,7 +586,9 @@ describe("org-scoped API coexistence", () => {
             method: "POST",
             headers: {
               Authorization: "Bearer test-key",
-              "Content-Type": "application/json",
+              // Mixed-case media type — case-insensitive per RFC 7231 §3.1.1.1.
+              // Locks in that the injection branch normalizes before matching.
+              "Content-Type": "Application/JSON",
             },
             body: JSON.stringify({
               client_name: "test",
