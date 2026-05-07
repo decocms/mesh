@@ -36,13 +36,26 @@ export function makeProxyHandler({ broadcaster, getDevPort }: ProxyDeps) {
     outHeaders.delete("content-length");
     outHeaders.delete("authorization");
 
+    // 60s timeout guards the *headers* phase — a hung dev server shouldn't
+    // pin a request slot forever. Once headers arrive we cancel the timer:
+    // SSE / NDJSON / long-poll bodies must be allowed to stream indefinitely.
+    // Client-disconnect aborts upstream too, so we don't leak a fetch when
+    // the browser navigates away mid-stream.
+    const upstreamAbort = new AbortController();
+    const headersTimeout = setTimeout(
+      () => upstreamAbort.abort(new Error("upstream headers timeout")),
+      60000,
+    );
+    const onClientAbort = () => upstreamAbort.abort();
+    req.signal.addEventListener("abort", onClientAbort, { once: true });
+
     let upstream: Response;
     try {
       const init: RequestInit = {
         method: req.method,
         headers: outHeaders,
         redirect: "manual",
-        signal: AbortSignal.timeout(60000),
+        signal: upstreamAbort.signal,
       };
       if (req.method !== "GET" && req.method !== "HEAD") {
         init.body = await req.arrayBuffer();
@@ -52,7 +65,10 @@ export function makeProxyHandler({ broadcaster, getDevPort }: ProxyDeps) {
         `${url.pathname}${url.search}`,
         init,
       );
+      clearTimeout(headersTimeout);
     } catch (e) {
+      clearTimeout(headersTimeout);
+      req.signal.removeEventListener("abort", onClientAbort);
       const msg = (e as Error).message ?? String(e);
       log("proxy error", req.method, url.pathname, msg);
       const connErr =
@@ -87,6 +103,7 @@ export function makeProxyHandler({ broadcaster, getDevPort }: ProxyDeps) {
     const respHeaders = new Headers(upstream.headers);
     respHeaders.delete("x-frame-options");
     respHeaders.delete("content-security-policy");
+    respHeaders.delete("content-security-policy-report-only");
     respHeaders.delete("content-encoding");
 
     const ct = (upstream.headers.get("content-type") ?? "").toLowerCase();
