@@ -135,3 +135,37 @@ describe("TaskManager onTaskExit", () => {
     expect(count).toBe(0);
   });
 });
+
+describe("TaskManager waitForLogNamesIdle", () => {
+  it("resolves once no task with any of the given logNames is running", async () => {
+    const tm = makeManager();
+    await tm.spawn({
+      command: "sleep 30",
+      cwd: "/tmp",
+      mode: "pipe",
+      logName: "dev",
+    });
+    await tm.spawn({
+      command: "sleep 30",
+      cwd: "/tmp",
+      mode: "pipe",
+      logName: "start",
+    });
+
+    const idle = tm.waitForLogNamesIdle(["dev", "start"]);
+    tm.killByLogName("dev");
+    tm.killByLogName("start");
+    await idle;
+
+    const running = tm.list({ status: ["running"] });
+    expect(
+      running.filter((t) => ["dev", "start"].includes(t.logName ?? "")),
+    ).toHaveLength(0);
+  });
+
+  it("resolves immediately when no matching task is running", async () => {
+    const tm = makeManager();
+    await tm.waitForLogNamesIdle(["dev", "start"]);
+    expect(true).toBe(true);
+  });
+});

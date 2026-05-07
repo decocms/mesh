@@ -202,6 +202,28 @@ export class TaskManager {
     return () => this.exitHandlers.delete(handler);
   }
 
+  /** Resolves once no running task carries any of the given logNames.
+   *  Used by the orchestrator to await dev/start shutdown before
+   *  branch/install transitions. */
+  async waitForLogNamesIdle(logNames: ReadonlyArray<string>): Promise<void> {
+    const matching = (): TaskInternal[] => {
+      const out: TaskInternal[] = [];
+      for (const t of this.tasks.values()) {
+        if (
+          t.status === "running" &&
+          t.spec.logName &&
+          logNames.includes(t.spec.logName)
+        ) {
+          out.push(t);
+        }
+      }
+      return out;
+    };
+    const initial = matching();
+    if (initial.length === 0) return;
+    await Promise.all(initial.map((t) => t.finishedPromise));
+  }
+
   list(filter?: { status?: ReadonlyArray<TaskStatus> }): TaskSummary[] {
     const out: TaskSummary[] = [];
     for (const t of this.tasks.values()) {
