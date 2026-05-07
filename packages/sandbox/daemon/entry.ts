@@ -95,6 +95,7 @@ const phaseManager = new PhaseManager({
 const taskManager = new TaskManager({
   logsDir: TMP_DIR,
   phaseManager,
+  broadcaster,
   onChange: () => {
     broadcaster.broadcastEvent("tasks", {
       type: "tasks",
@@ -174,7 +175,6 @@ const execH = makeExecHandler({
   repoDir,
   store,
   taskManager,
-  broadcaster,
 });
 
 const tasksListH = makeTasksListHandler({ taskManager });

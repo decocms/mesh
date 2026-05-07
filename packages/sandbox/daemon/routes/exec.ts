@@ -4,7 +4,6 @@ import {
   buildDevEnv,
   pmRunCommand,
 } from "../constants";
-import type { Broadcaster } from "../events/broadcast";
 import type { TaskManager } from "../process/task-manager";
 import { discoverScripts } from "../process/script-discovery";
 import { jsonResponse, parseBase64JsonBody } from "./body-parser";
@@ -17,13 +16,6 @@ export interface ExecDeps {
   repoDir: string;
   store: TenantConfigStore;
   taskManager: TaskManager;
-  /**
-   * Bridges per-task pty output onto the global SSE log stream so the UI's
-   * script-tab terminal renders /exec output. Without this, /exec tasks are
-   * only observable via /tasks/:id/stream — which the env tab doesn't
-   * subscribe to — so the tab stays blank.
-   */
-  broadcaster: Broadcaster;
 }
 
 interface ExecBody {
@@ -108,17 +100,10 @@ export function makeExecHandler(deps: ExecDeps) {
       label,
       // Named tee: <logsDir>/app/<scriptName> stays stable across runs
       // so the LLM can `cat tmp/app/build` etc. without chasing task IDs.
+      // TaskManager mirrors chunks onto the global SSE log stream under
+      // this name so the env-tab terminal renders the output.
       logName: name,
     });
-
-    // Mirror task output onto the global SSE log stream under the script
-    // name so the env-tab terminal (keyed on `name`) renders it. Header
-    // line first, then forward stdout/stderr chunks until the task ends.
-    deps.broadcaster.broadcastChunk(name, `${label}\r\n`);
-    const unsubscribe = deps.taskManager.subscribe(task.id, (chunk) => {
-      deps.broadcaster.broadcastChunk(name, chunk.data);
-    });
-    void deps.taskManager.finished(task.id)?.then(() => unsubscribe?.());
 
     if (mode === "background") {
       return jsonResponse({ taskId: task.id, status: task.status });

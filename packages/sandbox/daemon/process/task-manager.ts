@@ -106,6 +106,16 @@ export interface TaskManagerDeps {
   onChange?: () => void;
   /** When provided, each task is registered as a named phase on spawn/finalize. */
   phaseManager?: PhaseManager;
+  /**
+   * When provided, tasks with a `logName` mirror their stdout/stderr onto the
+   * global SSE log stream under that name. The env-tab terminal is keyed on
+   * `logName`, so without this the terminal stays empty (only the per-task
+   * subscribers and the on-disk tee see the chunks). The header line
+   * (`$ <label>`) is also broadcast on spawn.
+   */
+  broadcaster?: {
+    broadcastChunk: (source: string, data: string) => void;
+  };
 }
 
 /**
@@ -334,7 +344,11 @@ export class TaskManager {
       ? appLogPath(this.deps.logsDir, spec.logName)
       : join(this.deps.logsDir, id);
     const tee = new LogTee(logPath, LOG_MAX_BYTES);
-    tee.writeHeader(spec.label ?? `$ ${spec.command}`);
+    const headerLine = spec.label ?? `$ ${spec.command}`;
+    tee.writeHeader(headerLine);
+    if (spec.logName) {
+      this.deps.broadcaster?.broadcastChunk(spec.logName, `${headerLine}\r\n`);
+    }
     const subscribers = new Set<(c: OutputChunk) => void>();
 
     let resolveFinished!: (r: TaskResult) => void;
@@ -540,6 +554,9 @@ export class TaskManager {
       } catch {
         /* one bad subscriber doesn't stop the rest */
       }
+    }
+    if (task.spec.logName) {
+      this.deps.broadcaster?.broadcastChunk(task.spec.logName, chunk.data);
     }
   }
 }
