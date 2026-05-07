@@ -824,7 +824,10 @@ export function AddConnectionDialog({
             flow: "connect_new",
             error: error ?? "no_token",
           });
-          toast.error(`Authentication failed: ${error ?? "no token received"}`);
+          toast.warning("Couldn't sign in to this connection", {
+            description:
+              "It was added to your agent, but its sign-in setup looks off. You can try authenticating again later from the connection's settings.",
+          });
           trackAttach(id, connectionData.app_name ?? null, "new");
           onAdd(id);
           return;
@@ -966,9 +969,10 @@ export function AddConnectionDialog({
                 flow: "custom_create",
                 error: error ?? "no_token",
               });
-              toast.error(
-                `Authentication failed: ${error ?? "no token received"}`,
-              );
+              toast.warning("Couldn't sign in to this connection", {
+                description:
+                  "It was added to your agent, but its sign-in setup looks off. You can try authenticating again later from the connection's settings.",
+              });
               trackAttach(id, null, "custom");
               onAdd(id);
               onOpenChange(false);
