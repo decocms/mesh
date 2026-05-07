@@ -97,6 +97,8 @@ export interface VmEventsValue {
   activeProcesses: string[];
   /** Latest dev-script lifecycle from ApplicationService. Null until first emit. */
   appStatus: AppStatus | null;
+  intent: { state: "running" | "paused"; reason?: string };
+  installing: boolean;
   branchStatus: BranchStatus | null;
   getBuffer: (source: string) => string;
   hasData: (source: string) => boolean;
@@ -113,6 +115,8 @@ const DEFAULT_VALUE: VmEventsValue = {
   scripts: [],
   activeProcesses: [],
   appStatus: null,
+  intent: { state: "running" },
+  installing: false,
   branchStatus: null,
   getBuffer: () => "",
   hasData: () => false,
@@ -155,6 +159,8 @@ const DAEMON_EVENT_TYPES = [
   "processes",
   "tasks",
   "app-status",
+  "intent",
+  "phases",
   "reload",
   "branch-status",
 ] as const;
@@ -180,6 +186,11 @@ export function VmEventsProvider({
   const [scripts, setScripts] = useState<string[]>([]);
   const [activeProcesses, setActiveProcesses] = useState<string[]>([]);
   const [appStatus, setAppStatus] = useState<AppStatus | null>(null);
+  const [intent, setIntent] = useState<{
+    state: "running" | "paused";
+    reason?: string;
+  }>({ state: "running" });
+  const [installing, setInstalling] = useState(false);
   const [branchStatus, setBranchStatus] = useState<BranchStatus | null>(null);
   // Bumped on log chunks so getBuffer/hasData consumers re-render; buffer
   // mutation alone doesn't.
@@ -210,6 +221,8 @@ export function VmEventsProvider({
     setScripts([]);
     setActiveProcesses([]);
     setAppStatus(null);
+    setIntent({ state: "running" });
+    setInstalling(false);
     setBranchStatus(null);
     buffers.current.clear();
 
@@ -279,6 +292,8 @@ export function VmEventsProvider({
       setScripts([]);
       setActiveProcesses([]);
       setAppStatus(null);
+      setIntent({ state: "running" });
+      setInstalling(false);
       setBranchStatus(null);
       buffers.current.clear();
     };
@@ -347,6 +362,24 @@ export function VmEventsProvider({
             unknown
           >;
           setAppStatus(rest as unknown as AppStatus);
+        } else if (e.type === "intent") {
+          const next = data as {
+            state?: "running" | "paused";
+            reason?: string;
+          };
+          if (next.state === "running" || next.state === "paused") {
+            setIntent({ state: next.state, reason: next.reason });
+          }
+        } else if (e.type === "phases") {
+          const phases =
+            (
+              data as {
+                phases?: Array<{ name: string; status: string }>;
+              }
+            ).phases ?? [];
+          setInstalling(
+            phases.some((p) => p.name === "install" && p.status === "running"),
+          );
         } else if (e.type === "reload") {
           for (const fn of reloadHandlers.current) {
             try {
@@ -469,6 +502,8 @@ export function VmEventsProvider({
     scripts,
     activeProcesses,
     appStatus,
+    intent,
+    installing,
     branchStatus,
     getBuffer: (source: string) => buffers.current.get(source)?.get() ?? "",
     hasData: (source: string) =>
