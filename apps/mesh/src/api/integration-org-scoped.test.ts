@@ -617,4 +617,72 @@ describe("org-scoped API coexistence", () => {
       fetchSpy.mockRestore();
     }
   });
+
+  it("DCR passes through non-object JSON bodies unchanged", async () => {
+    // null/array/primitive bodies are non-spec for DCR (RFC 7591 requires a
+    // JSON object). The proxy must not try to attach `metadata` to them —
+    // null/primitive would throw on property assignment, and arrays would
+    // silently lose the property at JSON.stringify time. We forward unchanged
+    // and let origin return its own 4xx.
+    const captured: string[] = [];
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (url.includes("oauth-authorization-server")) {
+        return new Response(
+          JSON.stringify({
+            issuer: "https://example.test",
+            authorization_endpoint: "https://example.test/authorize",
+            token_endpoint: "https://example.test/token",
+            registration_endpoint: "https://example.test/register",
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/register") && method === "POST") {
+        const body =
+          typeof init?.body === "string"
+            ? init.body
+            : await new Response(init?.body).text();
+        captured.push(body);
+        return new Response(
+          JSON.stringify({ error: "invalid_client_metadata" }),
+          { status: 400, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("not found", { status: 404 });
+    }) as typeof fetch);
+
+    try {
+      for (const body of ["null", "[1,2,3]", "42"]) {
+        const res = await app.fetch(
+          new Request(
+            "http://mesh.localhost/api/org_1/oauth-proxy/conn_1/register",
+            {
+              method: "POST",
+              headers: {
+                Authorization: "Bearer test-key",
+                "Content-Type": "application/json",
+              },
+              body,
+            },
+          ),
+        );
+        // Proxy didn't crash (would have been a 500); origin's 400 is what
+        // surfaces to the client.
+        expect(res.status).toBe(400);
+      }
+      expect(captured).toEqual(["null", "[1,2,3]", "42"]);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
 });

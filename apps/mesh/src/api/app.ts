@@ -432,7 +432,7 @@ const oauthProxyHandler: MiddlewareHandler<Env> = async (c) => {
         .where("id", "=", connection.organization_id)
         .executeTakeFirst();
       const rawText = await c.req.text();
-      let parsed: Record<string, unknown> = {};
+      let parsed: unknown = {};
       try {
         parsed = rawText ? JSON.parse(rawText) : {};
       } catch {
@@ -440,18 +440,28 @@ const oauthProxyHandler: MiddlewareHandler<Env> = async (c) => {
         // 400, rather than us masking the client error.
         requestBody = rawText;
       }
+      // Only mutate plain objects. Arrays, null, and primitives are non-spec
+      // for DCR and would either throw on property assignment (null/primitive)
+      // or be silently dropped by `JSON.stringify` (array). Pass them through
+      // and let origin return the appropriate 4xx.
+      const isPlainObject =
+        typeof parsed === "object" && parsed !== null && !Array.isArray(parsed);
+      if (requestBody === undefined && !isPlainObject) {
+        requestBody = rawText;
+      }
       if (requestBody === undefined) {
+        const obj = parsed as Record<string, unknown>;
         const existingMetadata =
-          parsed.metadata && typeof parsed.metadata === "object"
-            ? (parsed.metadata as Record<string, unknown>)
+          obj.metadata && typeof obj.metadata === "object"
+            ? (obj.metadata as Record<string, unknown>)
             : {};
-        parsed.metadata = {
+        obj.metadata = {
           ...existingMetadata,
           organization_id: connection.organization_id,
           ...(org?.slug ? { organization_slug: org.slug } : {}),
           ...(org?.name ? { organization_name: org.name } : {}),
         };
-        requestBody = JSON.stringify(parsed);
+        requestBody = JSON.stringify(obj);
         headers["Content-Type"] = "application/json";
       }
     } else {
