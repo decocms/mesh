@@ -72,6 +72,10 @@ export const AUTOMATION_UPDATE = defineTool({
         }),
         coding: z.object({ id: z.string() }).optional(),
         fast: z.object({ id: z.string() }).optional(),
+        // Simple Mode tier intent. When set, the run path resolves the
+        // current tier slot from org settings and ignores credentialId /
+        // thinking.id (which are kept as a snapshot for display only).
+        tier: z.enum(["fast", "smart", "thinking"]).optional(),
       })
       .loose()
       .optional(),

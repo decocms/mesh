@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { Automation } from "@/storage/types";
+import type { Automation, SimpleModeConfig } from "@/storage/types";
 import { buildStreamRequest } from "./build-stream-request";
 
 function makeAutomation(overrides?: Partial<Automation>): Automation {
@@ -108,5 +108,73 @@ describe("buildStreamRequest", () => {
     const automation = makeAutomation({ virtual_mcp_id: "vir_xyz" });
     const result = buildStreamRequest(automation, null, "thrd_1");
     expect(result.agent).toEqual({ id: "vir_xyz" });
+  });
+
+  describe("simple-mode tier resolution", () => {
+    const simpleMode = (
+      enabled: boolean,
+      slot: { keyId: string; modelId: string; title?: string } | null,
+    ): SimpleModeConfig => ({
+      enabled,
+      chat: { fast: null, smart: slot, thinking: null },
+      image: null,
+      webResearch: null,
+    });
+
+    it("overrides credential and model from the live tier slot", () => {
+      const automation = makeAutomation({
+        models: JSON.stringify({
+          credentialId: "cred_stale",
+          thinking: { id: "model_stale", title: "Stale" },
+          tier: "smart",
+        }),
+      });
+      const cfg = simpleMode(true, {
+        keyId: "cred_live",
+        modelId: "model_live",
+      });
+      const result = buildStreamRequest(automation, null, "thrd_1", cfg);
+      expect(result.models.credentialId).toBe("cred_live");
+      expect((result.models.thinking as { id: string }).id).toBe("model_live");
+    });
+
+    it("ignores tier when simple mode is disabled", () => {
+      const automation = makeAutomation({
+        models: JSON.stringify({
+          credentialId: "cred_snapshot",
+          thinking: { id: "model_snapshot" },
+          tier: "smart",
+        }),
+      });
+      const cfg = simpleMode(false, {
+        keyId: "cred_live",
+        modelId: "model_live",
+      });
+      const result = buildStreamRequest(automation, null, "thrd_1", cfg);
+      expect(result.models.credentialId).toBe("cred_snapshot");
+    });
+
+    it("falls back to snapshot when tier slot is unset", () => {
+      const automation = makeAutomation({
+        models: JSON.stringify({
+          credentialId: "cred_snapshot",
+          thinking: { id: "model_snapshot" },
+          tier: "smart",
+        }),
+      });
+      const cfg = simpleMode(true, null);
+      const result = buildStreamRequest(automation, null, "thrd_1", cfg);
+      expect(result.models.credentialId).toBe("cred_snapshot");
+    });
+
+    it("does nothing when models has no tier (legacy automation)", () => {
+      const automation = makeAutomation();
+      const cfg = simpleMode(true, {
+        keyId: "cred_live",
+        modelId: "model_live",
+      });
+      const result = buildStreamRequest(automation, null, "thrd_1", cfg);
+      expect(result.models.credentialId).toBe("cred_1");
+    });
   });
 });

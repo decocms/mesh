@@ -122,7 +122,17 @@ export async function fireAutomation(opts: {
 
     let runError: string | undefined;
     try {
-      const request = buildStreamRequest(automation, triggerId, taskId);
+      // Fetch org Simple Mode config so tier-based automations resolve
+      // their model from the live tier slot at run time.
+      const settings = await ctx.storage.organizationSettings.get(
+        automation.organization_id,
+      );
+      const request = buildStreamRequest(
+        automation,
+        triggerId,
+        taskId,
+        settings?.simple_mode ?? null,
+      );
       if (contextMessages) {
         request.messages = [
           ...request.messages,
